@@ -6,38 +6,9 @@ import (
 	"github.com/jesperkha/koi/koi/token"
 )
 
-func assertEq(t *testing.T, s *Scanner, token token.Token) {
-	tok := s.Scan()
-
-	if tok.Pos.Col != token.Pos.Col {
-		t.Errorf("expected Col=%d, got %d", token.Pos.Col, tok.Pos.Col)
-	}
-	if tok.Lexeme != token.Lexeme {
-		t.Errorf("expected Lexeme=%s, got %s", token.Lexeme, tok.Lexeme)
-	}
-	if tok.Invalid != token.Invalid {
-		t.Errorf("expected Invalid=%v, got %v", token.Invalid, tok.Invalid)
-	}
-	if tok.Length != token.Length {
-		t.Errorf("expected Length=%v, got %v", token.Length, tok.Length)
-	}
-}
-
-func tok(lexeme string, col int, row int, invalid bool) token.Token {
-	return token.Token{
-		Lexeme: lexeme,
-		Pos: token.Pos{
-			Row: row,
-			Col: col,
-		},
-		Length:  len(lexeme),
-		Invalid: invalid,
-	}
-}
-
 func TestScannerIter(t *testing.T) {
 	src := []byte("hello world")
-	s := New(token.File{}, src)
+	s := New(&token.File{}, src)
 
 	for i, ch := range src {
 		if s.eof() {
@@ -59,10 +30,52 @@ func TestScannerIter(t *testing.T) {
 			t.Errorf("expected peek=%c, got %c", peek, s.peek())
 		}
 
-		s.consume()
+		s.next()
 	}
 
 	if !s.eof() {
 		t.Error("expected eof")
 	}
+}
+
+func assertEq(t *testing.T, s *Scanner, token token.Token) {
+	tok := s.Scan()
+
+	if tok.Pos.Col != token.Pos.Col {
+		t.Errorf("expected Col=%d, got %d", token.Pos.Col, tok.Pos.Col)
+	}
+	if tok.Lexeme != token.Lexeme {
+		t.Errorf("expected Lexeme=%s, got %s", token.Lexeme, tok.Lexeme)
+	}
+	if tok.Invalid != token.Invalid {
+		t.Errorf("expected Invalid=%v, got %v", token.Invalid, tok.Invalid)
+	}
+	if tok.Length != token.Length {
+		t.Errorf("expected Length=%v, got %v", token.Length, tok.Length)
+	}
+	if tok.Type != token.Type {
+		t.Errorf("expected Type=%d, got %d", token.Type, tok.Type)
+	}
+}
+
+func tok(typ token.TokenType, lexeme string, col int, row int, invalid bool) token.Token {
+	return token.Token{
+		Lexeme: lexeme,
+		Type:   typ,
+		Pos: token.Pos{
+			Row: row,
+			Col: col,
+		},
+		Length:  len(lexeme),
+		Invalid: invalid,
+	}
+}
+
+func TestScannerIdent(t *testing.T) {
+	src := []byte("hello there john")
+	s := New(&token.File{}, src)
+
+	assertEq(t, s, tok(token.IDENT, "hello", 0, 0, false))
+	assertEq(t, s, tok(token.IDENT, "there", 6, 0, false))
+	assertEq(t, s, tok(token.IDENT, "john", 12, 0, false))
 }
