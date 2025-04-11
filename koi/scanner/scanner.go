@@ -16,8 +16,8 @@ type Scanner struct {
 func New(file token.File, text []byte) *Scanner {
 	return &Scanner{
 		file:      file,
-		numErrors: 0,
 		text:      text,
+		numErrors: 0,
 		line:      0,
 		offset:    0,
 		ch:        0,

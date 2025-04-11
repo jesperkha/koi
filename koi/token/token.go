@@ -1,5 +1,7 @@
 package token
 
+import "fmt"
+
 type Token struct {
 	Type    TokenType
 	Pos     Pos    // Position of first character in token
@@ -8,6 +10,10 @@ type Token struct {
 	Length  int    // The character length of the token
 	Invalid bool   // True if the token is an illegal token or malformed
 	Eof     bool   // If the token is EOF
+}
+
+func (t Token) String() string {
+	return fmt.Sprintf("{%d '%s' c:%d r:%d}", t.Type, t.Lexeme, t.Pos.Col, t.Pos.Row)
 }
 
 type Pos struct {
