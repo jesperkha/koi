@@ -1,8 +1,9 @@
 package token
 
 type Token struct {
+	Type    TokenType
 	Pos     Pos    // Position of first character in token
-	EndPos  Pos    // Position of last character in token
+	EndPos  Pos    // Position of character immediately after token
 	Lexeme  string // The token as a string literal
 	Length  int    // The character length of the token
 	Invalid bool   // True if the token is an illegal token or malformed
@@ -10,9 +11,10 @@ type Token struct {
 }
 
 type Pos struct {
-	Col  int   // Column in file
-	Row  int   // Row in file, same as line number -1
-	File *File // File this position refers to
+	Col    int   // Column in file
+	Row    int   // Row in file, same as line number -1
+	Offset int   // Byte offset in file
+	File   *File // File this position refers to
 }
 
 type File struct {

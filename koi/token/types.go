@@ -1,0 +1,29 @@
+package token
+
+type TokenType int
+
+const (
+	ILLEGAL TokenType = iota
+
+	STRING
+	INTEGER
+	FLOAT
+	IDENT
+
+	FALSE
+	TRUE
+	RETURN
+	FUNC
+	IF
+	ELSE
+	FOR
+	IMPORT
+	PACKAGE
+	NIL
+
+	INT_TYPE
+	UINT_TYPE
+	FLOAT_TYPE
+	STRING_TYPE
+	BYTE_TYPE
+)

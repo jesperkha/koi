@@ -1,13 +1,12 @@
-package scanner_test
+package scanner
 
 import (
 	"testing"
 
-	"github.com/jesperkha/koi/koi/scanner"
 	"github.com/jesperkha/koi/koi/token"
 )
 
-func assertEq(t *testing.T, s *scanner.Scanner, token token.Token) {
+func assertEq(t *testing.T, s *Scanner, token token.Token) {
 	tok := s.Scan()
 
 	if tok.Pos.Col != token.Pos.Col {
@@ -36,9 +35,34 @@ func tok(lexeme string, col int, row int, invalid bool) token.Token {
 	}
 }
 
-func TestScanner(t *testing.T) {
-	src := []byte("")
-	s := scanner.New(nil, src)
+func TestScannerIter(t *testing.T) {
+	src := []byte("hello world")
+	s := New(token.File{}, src)
 
-	assertEq(t, s, tok("", 0, 0, false))
+	for i, ch := range src {
+		if s.eof() {
+			t.Error("unexpected eof")
+		}
+
+		if ch != s.cur() {
+			t.Errorf("expected cur=%c, got %c", ch, s.cur())
+		}
+
+		var peek byte
+		if i+1 < len(src) {
+			peek = src[i+1]
+		} else {
+			peek = 0
+		}
+
+		if peek != s.peek() {
+			t.Errorf("expected peek=%c, got %c", peek, s.peek())
+		}
+
+		s.consume()
+	}
+
+	if !s.eof() {
+		t.Error("expected eof")
+	}
 }
