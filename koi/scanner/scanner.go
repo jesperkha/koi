@@ -1,19 +1,16 @@
 package scanner
 
 import (
-	"strings"
-
 	"github.com/jesperkha/koi/koi/token"
 )
 
 type Scanner struct {
-	file      *token.File
-	numErrors int
-	src       []byte // Source text to scan
-	row       int    // Current line
-	col       int    // Current column, resets for each newline
-	pos       int    // Pointer to currently scanned character
-	base      int    // Pointer to first character of currently scanned token
+	file *token.File
+	src  []byte // Source text to scan
+	row  int    // Current line
+	col  int    // Current column, resets for each newline
+	pos  int    // Pointer to currently scanned character
+	base int    // Pointer to first character of currently scanned token
 }
 
 // New makes a new Scanner object for the given file. The text is the raw text
@@ -93,14 +90,6 @@ func (s *Scanner) tokenEndPos() token.Pos {
 	}
 }
 
-func isAlpha(c byte) bool {
-	return strings.Contains("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_", string(c))
-}
-
-func isWhitespace(c byte) bool {
-	return strings.Contains("\n\t\r ", string(c))
-}
-
 func (s *Scanner) scanWhitespace() token.Token {
 	for !s.eof() && isWhitespace(s.cur()) {
 		s.next()
@@ -112,7 +101,7 @@ func (s *Scanner) scanWhitespace() token.Token {
 
 func (s *Scanner) scanIdentifier() token.Token {
 	if !isAlpha(s.cur()) {
-		return s.scanIllegal()
+		return s.scanNumber()
 	}
 
 	for !s.eof() && isAlpha(s.cur()) {
@@ -123,6 +112,43 @@ func (s *Scanner) scanIdentifier() token.Token {
 		Type:   token.IDENT,
 		Lexeme: s.interval(),
 	}
+}
+
+func (s *Scanner) scanNumber() token.Token {
+	if !isNum(s.cur()) {
+		return s.scanString()
+	}
+
+	dots := 0
+	typ := token.INTEGER
+
+	for !s.eof() {
+		if s.cur() == '.' {
+			dots++
+			typ = token.FLOAT
+		} else if !isNum(s.cur()) {
+			break
+		}
+
+		s.next()
+	}
+
+	if dots > 1 {
+		return s.scanIllegal()
+	}
+
+	return token.Token{
+		Type:   typ,
+		Lexeme: s.interval(),
+	}
+}
+
+func (s *Scanner) scanString() token.Token {
+	return s.scanSymbol()
+}
+
+func (s *Scanner) scanSymbol() token.Token {
+	return s.scanIllegal()
 }
 
 func (s *Scanner) scanIllegal() token.Token {

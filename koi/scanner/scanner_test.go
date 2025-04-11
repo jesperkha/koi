@@ -72,10 +72,18 @@ func tok(typ token.TokenType, lexeme string, col int, row int, invalid bool) tok
 }
 
 func TestScannerIdent(t *testing.T) {
-	src := []byte("hello there john")
+	src := []byte("hello foo_bar john")
 	s := New(&token.File{}, src)
 
 	assertEq(t, s, tok(token.IDENT, "hello", 0, 0, false))
-	assertEq(t, s, tok(token.IDENT, "there", 6, 0, false))
-	assertEq(t, s, tok(token.IDENT, "john", 12, 0, false))
+	assertEq(t, s, tok(token.IDENT, "foo_bar", 6, 0, false))
+	assertEq(t, s, tok(token.IDENT, "john", 14, 0, false))
+}
+
+func TestScannerNumber(t *testing.T) {
+	src := []byte("123 1.23")
+	s := New(&token.File{}, src)
+
+	assertEq(t, s, tok(token.INTEGER, "123", 0, 0, false))
+	assertEq(t, s, tok(token.FLOAT, "1.23", 4, 0, false))
 }
