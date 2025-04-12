@@ -93,3 +93,16 @@ func TestScannerNumber(t *testing.T) {
 	assertEq(t, s, tok(token.FLOAT, "1.1.2", 0, 0, true))
 	assertEq(t, s, tok(token.FLOAT, "123..4", 6, 0, true))
 }
+
+func TestScannerString(t *testing.T) {
+	src := []byte("\"hello\" \"there\"")
+	s := New(&token.File{}, src)
+
+	assertEq(t, s, tok(token.STRING, "\"hello\"", 0, 0, false))
+	assertEq(t, s, tok(token.STRING, "\"there\"", 8, 0, false))
+
+	src = []byte("\"no end quote")
+	s = New(&token.File{}, src)
+
+	assertEq(t, s, tok(token.STRING, "\"no end quote", 0, 0, true))
+}

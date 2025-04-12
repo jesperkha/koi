@@ -144,7 +144,32 @@ func (s *Scanner) scanNumber() token.Token {
 }
 
 func (s *Scanner) scanString() token.Token {
-	return s.scanSymbol()
+	if s.cur() != '"' {
+		return s.scanSymbol()
+	}
+
+	s.next()        // Consume start quote
+	closed := false // True if found end quote on current line
+
+	for !s.eof() {
+		if s.cur() == '"' {
+			s.next() // Consume end quote
+			closed = true
+			break
+		}
+
+		if s.cur() == '\n' {
+			break
+		}
+
+		s.next()
+	}
+
+	return token.Token{
+		Type:    token.STRING,
+		Lexeme:  s.interval(),
+		Invalid: !closed,
+	}
 }
 
 func (s *Scanner) scanSymbol() token.Token {
