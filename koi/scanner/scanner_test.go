@@ -80,6 +80,16 @@ func TestScannerIdent(t *testing.T) {
 	assertEq(t, s, tok(token.IDENT, "john", 14, 0, false))
 }
 
+func TestScannerKeyword(t *testing.T) {
+	src := []byte("none nil preturn elsee")
+	s := New(&token.File{}, src)
+
+	assertEq(t, s, tok(token.IDENT, "none", 0, 0, false))
+	assertEq(t, s, tok(token.NIL, "nil", 5, 0, false))
+	assertEq(t, s, tok(token.IDENT, "preturn", 9, 0, false))
+	assertEq(t, s, tok(token.IDENT, "elsee", 17, 0, false))
+}
+
 func TestScannerNumber(t *testing.T) {
 	src := []byte("123 1.23")
 	s := New(&token.File{}, src)

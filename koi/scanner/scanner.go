@@ -111,9 +111,16 @@ func (s *Scanner) scanIdentifier() token.Token {
 		s.next()
 	}
 
+	str := s.interval()
+	typ := token.IDENT
+
+	if t, ok := token.KeywordMap[str]; ok {
+		typ = t
+	}
+
 	return token.Token{
-		Type:   token.IDENT,
-		Lexeme: s.interval(),
+		Type:   typ,
+		Lexeme: str,
 	}
 }
 

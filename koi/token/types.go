@@ -11,8 +11,8 @@ const (
 	FLOAT
 	IDENT
 
-	FALSE
 	TRUE
+	FALSE
 	RETURN
 	FUNC
 	IF
@@ -28,3 +28,16 @@ const (
 	STRING_TYPE
 	BYTE_TYPE
 )
+
+var KeywordMap = map[string]TokenType{
+	"true":    TRUE,
+	"false":   FALSE,
+	"return":  RETURN,
+	"func":    FUNC,
+	"if":      IF,
+	"else":    ELSE,
+	"for":     FOR,
+	"import":  IMPORT,
+	"package": PACKAGE,
+	"nil":     NIL,
+}
