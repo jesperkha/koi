@@ -114,7 +114,7 @@ func (s *Scanner) scanIdentifier() token.Token {
 	str := s.interval()
 	typ := token.IDENT
 
-	if t, ok := token.KeywordMap[str]; ok {
+	if t, ok := token.Keywords[str]; ok {
 		typ = t
 	}
 
@@ -180,10 +180,35 @@ func (s *Scanner) scanString() token.Token {
 }
 
 func (s *Scanner) scanSymbol() token.Token {
+	for sym, typ := range token.DoubleSymbols {
+		if s.cur() != sym[0] {
+			continue
+		}
+
+		if s.peek() == sym[1] {
+			s.next()
+			s.next()
+
+			return token.Token{
+				Type:   typ,
+				Lexeme: s.interval(),
+			}
+		}
+	}
+
+	if typ, ok := token.SingleSymbols[string(s.cur())]; ok {
+		s.next()
+		return token.Token{
+			Type:   typ,
+			Lexeme: s.interval(),
+		}
+	}
+
 	return s.scanIllegal()
 }
 
 func (s *Scanner) scanIllegal() token.Token {
+	s.next()
 	return token.Token{
 		Type:    token.ILLEGAL,
 		Invalid: true,

@@ -13,8 +13,9 @@ type Token struct {
 	// vice versa. Simply a shorthand for tok.Type == token.EOF.
 	Eof bool
 
-	// True if the token is an illegal token or malformed. This is different
-	// from TokenType.ILLEGAL which is for unknown symbols.
+	// True if the token is malformed. This is different from TokenType.ILLEGAL
+	// which is for unknown symbols. However, the Invalid field is always true
+	// if the type is ILLEGAL.
 	//
 	// Example: the literal 1.2.3 will have the FLOAT type, but be Invalid
 	// as it is malformed. This difference helps with error reporting.
