@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/jesperkha/koi/koi"
 	"github.com/jesperkha/koi/koi/token"
@@ -11,12 +12,13 @@ type Scanner struct {
 	handler *koi.ErrorHandler
 	file    *token.File
 
-	src      []byte // Source text to scan
-	row      int    // Current line
-	col      int    // Current column, resets for each newline
-	startCol int    // Column of first character in token
-	pos      int    // Pointer to currently scanned character
-	base     int    // Pointer to first character of currently scanned token
+	src       []byte // Source text to scan
+	row       int    // Current line
+	col       int    // Current column, resets for each newline
+	startCol  int    // Column of first character in token
+	pos       int    // Pointer to currently scanned character
+	base      int    // Pointer to first character of currently scanned token
+	lineBegin int    // First character on current line
 }
 
 // New makes a new Scanner object for the given file. The text is the raw text
@@ -49,7 +51,15 @@ func (s *Scanner) Scan() token.Token {
 }
 
 func (s *Scanner) err(f string, args ...any) {
-	s.handler.Add(fmt.Errorf(f, args...))
+	lineStr := s.src[s.lineBegin : findEndOfLine(s.src, s.lineBegin)+1]
+	length := s.col - s.startCol
+
+	err := ""
+	err += fmt.Sprintf("error: %s\n", fmt.Sprintf(f, args...))
+	err += fmt.Sprintf("%3d | %s\n", s.row+1, lineStr)
+	err += fmt.Sprintf("    | %s%s\n", strings.Repeat(" ", s.startCol), strings.Repeat("^", length))
+
+	s.handler.Add(fmt.Errorf("%s", err))
 }
 
 // peek next byte in input. Return 0 on EOF.
@@ -70,6 +80,7 @@ func (s *Scanner) next() {
 		s.row++
 		s.col = 0
 		s.startCol = 0
+		s.lineBegin = s.pos + 1
 	}
 
 	s.pos++
