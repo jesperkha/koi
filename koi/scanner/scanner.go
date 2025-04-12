@@ -1,11 +1,16 @@
 package scanner
 
 import (
+	"fmt"
+
+	"github.com/jesperkha/koi/koi"
 	"github.com/jesperkha/koi/koi/token"
 )
 
 type Scanner struct {
-	file     *token.File
+	handler *koi.ErrorHandler
+	file    *token.File
+
 	src      []byte // Source text to scan
 	row      int    // Current line
 	col      int    // Current column, resets for each newline
@@ -16,10 +21,11 @@ type Scanner struct {
 
 // New makes a new Scanner object for the given file. The text is the raw text
 // input to scan. Scanner only accepts ascii text.
-func New(file *token.File, text []byte) *Scanner {
+func New(file *token.File, text []byte, errHandler *koi.ErrorHandler) *Scanner {
 	return &Scanner{
-		file: file,
-		src:  text,
+		file:    file,
+		src:     text,
+		handler: errHandler,
 	}
 }
 
@@ -40,6 +46,10 @@ func (s *Scanner) Scan() token.Token {
 	s.base = s.pos
 	s.startCol = s.col
 	return tok
+}
+
+func (s *Scanner) err(f string, args ...any) {
+	s.handler.Add(fmt.Errorf(f, args...))
 }
 
 // peek next byte in input. Return 0 on EOF.
@@ -170,6 +180,10 @@ func (s *Scanner) scanNumber() token.Token {
 		s.next()
 	}
 
+	if dots > 1 {
+		s.err("number literal can have at most one decimal point")
+	}
+
 	return token.Token{
 		Type:    typ,
 		Lexeme:  s.interval(),
@@ -197,6 +211,10 @@ func (s *Scanner) scanString() token.Token {
 		}
 
 		s.next()
+	}
+
+	if !closed {
+		s.err("string literals must have a terminating quote on the same line")
 	}
 
 	return token.Token{
@@ -236,6 +254,8 @@ func (s *Scanner) scanSymbol() token.Token {
 
 func (s *Scanner) scanIllegal() token.Token {
 	s.next()
+	s.err("illegal token")
+
 	return token.Token{
 		Type:    token.ILLEGAL,
 		Invalid: true,
