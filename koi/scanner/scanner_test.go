@@ -205,6 +205,17 @@ func TestScannerOnlyWhitespace(t *testing.T) {
 	}
 }
 
+func TestScannerOnlyComment(t *testing.T) {
+	src := []byte("// one comment\n// two comments")
+	s := New(&token.File{}, src)
+
+	s.Scan()
+
+	if !s.eof() {
+		t.Error("expected eof for comment-only source")
+	}
+}
+
 func TestScannerPunctuation(t *testing.T) {
 	src := []byte(".,:;(){}[]")
 	s := New(&token.File{}, src)
@@ -219,4 +230,12 @@ func TestScannerPunctuation(t *testing.T) {
 	assertEq(t, s, tok(token.RBRACE, "}", 7, 0, false))
 	assertEq(t, s, tok(token.LBRACK, "[", 8, 0, false))
 	assertEq(t, s, tok(token.RBRACK, "]", 9, 0, false))
+}
+
+func TestScannerComment(t *testing.T) {
+	src := []byte("// this is a comment\n  // another one\nvar//foo\n123")
+	s := New(&token.File{}, src)
+
+	assertEq(t, s, tok(token.IDENT, "var", 0, 2, false))
+	assertEq(t, s, tok(token.INTEGER, "123", 0, 3, false))
 }

@@ -114,7 +114,19 @@ func (s *Scanner) scanWhitespace() token.Token {
 		}
 	}
 
-	return s.scanIdentifier()
+	return s.scanComment()
+}
+
+func (s *Scanner) scanComment() token.Token {
+	if s.cur() != '/' || s.peek() != '/' {
+		return s.scanIdentifier()
+	}
+
+	for !s.eof() && s.cur() != '\n' {
+		s.next()
+	}
+
+	return s.scanWhitespace()
 }
 
 func (s *Scanner) scanIdentifier() token.Token {
