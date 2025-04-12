@@ -5,12 +5,13 @@ import (
 )
 
 type Scanner struct {
-	file *token.File
-	src  []byte // Source text to scan
-	row  int    // Current line
-	col  int    // Current column, resets for each newline
-	pos  int    // Pointer to currently scanned character
-	base int    // Pointer to first character of currently scanned token
+	file     *token.File
+	src      []byte // Source text to scan
+	row      int    // Current line
+	col      int    // Current column, resets for each newline
+	startCol int    // Column of first character in token
+	pos      int    // Pointer to currently scanned character
+	base     int    // Pointer to first character of currently scanned token
 }
 
 // New makes a new Scanner object for the given file. The text is the raw text
@@ -37,6 +38,7 @@ func (s *Scanner) Scan() token.Token {
 	tok.EndPos = s.tokenEndPos()
 
 	s.base = s.pos
+	s.startCol = s.col
 	return tok
 }
 
@@ -49,13 +51,18 @@ func (s *Scanner) peek() byte {
 }
 
 func (s *Scanner) next() {
+	if s.eof() {
+		return
+	}
+
+	s.col++
 	if s.cur() == '\n' {
-		s.col = 0
 		s.row++
+		s.col = 0
+		s.startCol = 0
 	}
 
 	s.pos++
-	s.col++
 }
 
 func (s *Scanner) cur() byte {
@@ -76,7 +83,7 @@ func (s *Scanner) interval() string {
 // Get the current base position of the Scanner as a token position.
 func (s *Scanner) tokenPos() token.Pos {
 	return token.Pos{
-		Col:    s.base,
+		Col:    s.startCol,
 		Row:    s.row,
 		Offset: s.base,
 		File:   s.file,
@@ -86,7 +93,7 @@ func (s *Scanner) tokenPos() token.Pos {
 // Get the current position of the Scanner as a token position.
 func (s *Scanner) tokenEndPos() token.Pos {
 	return token.Pos{
-		Col:    s.pos,
+		Col:    s.col,
 		Row:    s.row,
 		Offset: s.pos,
 		File:   s.file,
@@ -97,6 +104,14 @@ func (s *Scanner) scanWhitespace() token.Token {
 	for !s.eof() && isWhitespace(s.cur()) {
 		s.next()
 		s.base = s.pos
+		s.startCol = s.col
+	}
+
+	if s.eof() {
+		return token.Token{
+			Type: token.EOF,
+			Eof:  true,
+		}
 	}
 
 	return s.scanIdentifier()

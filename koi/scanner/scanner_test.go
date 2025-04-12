@@ -135,3 +135,88 @@ func TestScannerSymbol(t *testing.T) {
 	assertEq(t, s, tok(token.ILLEGAL, "^", 1, 0, true))
 	assertEq(t, s, tok(token.ILLEGAL, "$", 2, 0, true))
 }
+
+func TestScannerWhitespace(t *testing.T) {
+	src := []byte("   \t\n  hello   \n\tworld  ")
+	s := New(&token.File{}, src)
+
+	assertEq(t, s, tok(token.IDENT, "hello", 2, 1, false))
+	assertEq(t, s, tok(token.IDENT, "world", 1, 2, false))
+}
+
+func TestScannerNewlines(t *testing.T) {
+	src := []byte("a\nb\n\nc")
+	s := New(&token.File{}, src)
+
+	assertEq(t, s, tok(token.IDENT, "a", 0, 0, false))
+	assertEq(t, s, tok(token.IDENT, "b", 0, 1, false))
+	assertEq(t, s, tok(token.IDENT, "c", 0, 3, false))
+}
+
+func TestScannerMixedTokens(t *testing.T) {
+	src := []byte("var x = 42 + 3.14;")
+	s := New(&token.File{}, src)
+
+	assertEq(t, s, tok(token.IDENT, "var", 0, 0, false))
+	assertEq(t, s, tok(token.IDENT, "x", 4, 0, false))
+	assertEq(t, s, tok(token.EQ, "=", 6, 0, false))
+	assertEq(t, s, tok(token.INTEGER, "42", 8, 0, false))
+	assertEq(t, s, tok(token.PLUS, "+", 11, 0, false))
+	assertEq(t, s, tok(token.FLOAT, "3.14", 13, 0, false))
+	assertEq(t, s, tok(token.SEMI, ";", 17, 0, false))
+}
+
+func TestScannerComplexSymbols(t *testing.T) {
+	src := []byte("<= >= && || != ==")
+	s := New(&token.File{}, src)
+
+	assertEq(t, s, tok(token.LESS_EQ, "<=", 0, 0, false))
+	assertEq(t, s, tok(token.GREATER_EQ, ">=", 3, 0, false))
+	assertEq(t, s, tok(token.AND_AND, "&&", 6, 0, false))
+	assertEq(t, s, tok(token.OR_OR, "||", 9, 0, false))
+	assertEq(t, s, tok(token.NOT_EQ, "!=", 12, 0, false))
+	assertEq(t, s, tok(token.EQ_EQ, "==", 15, 0, false))
+}
+
+func TestScannerInvalidNumber(t *testing.T) {
+	src := []byte("123..456")
+	s := New(&token.File{}, src)
+
+	assertEq(t, s, tok(token.FLOAT, "123..456", 0, 0, true))
+}
+
+func TestScannerEmptySource(t *testing.T) {
+	src := []byte("")
+	s := New(&token.File{}, src)
+
+	if !s.eof() {
+		t.Error("expected eof for empty source")
+	}
+}
+
+func TestScannerOnlyWhitespace(t *testing.T) {
+	src := []byte("  \t \n\t ")
+	s := New(&token.File{}, src)
+
+	s.Scan()
+
+	if !s.eof() {
+		t.Error("expected eof for whitespace-only source")
+	}
+}
+
+func TestScannerPunctuation(t *testing.T) {
+	src := []byte(".,:;(){}[]")
+	s := New(&token.File{}, src)
+
+	assertEq(t, s, tok(token.DOT, ".", 0, 0, false))
+	assertEq(t, s, tok(token.COMMA, ",", 1, 0, false))
+	assertEq(t, s, tok(token.COLON, ":", 2, 0, false))
+	assertEq(t, s, tok(token.SEMI, ";", 3, 0, false))
+	assertEq(t, s, tok(token.LPAREN, "(", 4, 0, false))
+	assertEq(t, s, tok(token.RPAREN, ")", 5, 0, false))
+	assertEq(t, s, tok(token.LBRACE, "{", 6, 0, false))
+	assertEq(t, s, tok(token.RBRACE, "}", 7, 0, false))
+	assertEq(t, s, tok(token.LBRACK, "[", 8, 0, false))
+	assertEq(t, s, tok(token.RBRACK, "]", 9, 0, false))
+}
