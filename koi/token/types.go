@@ -4,6 +4,7 @@ type TokenType int
 
 const (
 	ILLEGAL TokenType = iota
+	EOF
 
 	STRING
 	INTEGER

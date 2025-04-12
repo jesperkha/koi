@@ -86,4 +86,10 @@ func TestScannerNumber(t *testing.T) {
 
 	assertEq(t, s, tok(token.INTEGER, "123", 0, 0, false))
 	assertEq(t, s, tok(token.FLOAT, "1.23", 4, 0, false))
+
+	src = []byte("1.1.2 123..4")
+	s = New(&token.File{}, src)
+
+	assertEq(t, s, tok(token.FLOAT, "1.1.2", 0, 0, true))
+	assertEq(t, s, tok(token.FLOAT, "123..4", 6, 0, true))
 }

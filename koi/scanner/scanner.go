@@ -25,7 +25,10 @@ func New(file *token.File, text []byte) *Scanner {
 // Scan consumes the next token and returns it, advancing the Scanner.
 func (s *Scanner) Scan() token.Token {
 	if s.eof() {
-		return token.Token{Eof: true}
+		return token.Token{
+			Eof:  true,
+			Type: token.EOF,
+		}
 	}
 
 	tok := s.scanWhitespace()
@@ -133,13 +136,10 @@ func (s *Scanner) scanNumber() token.Token {
 		s.next()
 	}
 
-	if dots > 1 {
-		return s.scanIllegal()
-	}
-
 	return token.Token{
-		Type:   typ,
-		Lexeme: s.interval(),
+		Type:    typ,
+		Lexeme:  s.interval(),
+		Invalid: dots > 1,
 	}
 }
 

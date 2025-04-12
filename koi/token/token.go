@@ -3,13 +3,22 @@ package token
 import "fmt"
 
 type Token struct {
-	Type    TokenType
-	Pos     Pos    // Position of first character in token
-	EndPos  Pos    // Position of character immediately after token
-	Lexeme  string // The token as a string literal
-	Length  int    // The character length of the token
-	Invalid bool   // True if the token is an illegal token or malformed
-	Eof     bool   // If the token is EOF
+	Type   TokenType
+	Pos    Pos    // Position of first character in token
+	EndPos Pos    // Position of character immediately after token
+	Lexeme string // The token as a string literal
+	Length int    // The character length of the token
+
+	// If the token is EOF. Always true if the type is EOF and
+	// vice versa. Simply a shorthand for tok.Type == token.EOF.
+	Eof bool
+
+	// True if the token is an illegal token or malformed. This is different
+	// from TokenType.ILLEGAL which is for unknown symbols.
+	//
+	// Example: the literal 1.2.3 will have the FLOAT type, but be Invalid
+	// as it is malformed. This difference helps with error reporting.
+	Invalid bool
 }
 
 func (t Token) String() string {
