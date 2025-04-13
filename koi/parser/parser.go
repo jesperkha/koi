@@ -14,7 +14,16 @@ type Parser struct {
 	file   *token.File
 	toks   []token.Token
 	pos    int // Current token being looked at
-	base   int // Token at start of current statement
+
+	// Panic mode occurs when the parser encounters an unknown token sequence
+	// and needs to synchronize to a 'clean' state. When panic mode starts,
+	// the base position is set to the current position. When in panic mode
+	// all err() calls are ignored.
+	//
+	// Functions which parse statements should have a check at the top for
+	// panicMode, and return early with an invalid statement if set.
+	panicMode bool
+	base      int
 }
 
 func New(file *token.File, toks []token.Token) *Parser {
@@ -69,6 +78,28 @@ func (p *Parser) Error() error {
 	return p.errors.Error()
 }
 
+// Enter panic mode. Set base position. All errors are ignored until panic mode
+// is recovered with recover().
+func (p *Parser) panic() {
+	p.panicMode = true
+	p.base = p.pos
+}
+
+// Recover from panic mode. Sets pos to base and looks for next statement keyword.
+func (p *Parser) recover() {
+	p.panicMode = false
+	p.pos = p.base
+
+	for !p.eof() {
+		switch p.cur().Type {
+		case token.IF, token.FUNC, token.FOR, token.RETURN:
+			return
+		}
+
+		p.next()
+	}
+}
+
 func (p *Parser) cur() token.Token {
 	if p.eof() {
 		return token.Token{
@@ -93,6 +124,10 @@ func (p *Parser) eof() bool {
 	return p.pos >= len(p.toks)
 }
 
+func (p *Parser) eofOrPanic() bool {
+	return p.eof() || p.panicMode
+}
+
 // Peek next token. Returns EOF token if at end of token list.
 func (p *Parser) peek() token.Token {
 	if p.pos+1 >= len(p.toks) {
@@ -105,14 +140,6 @@ func (p *Parser) peek() token.Token {
 	return p.toks[p.pos+1]
 }
 
-// Conumes any tokens until it reaches one with the given type or eof. Used to
-// error recovery to reach a 'safe spot' to continue parsing.
-func (p *Parser) seek(t token.TokenType) {
-	for !p.eof() && !p.match(t) {
-		p.next()
-	}
-}
-
 // Same as next but also returns the token it consumed.
 func (p *Parser) consume() token.Token {
 	t := p.cur()
@@ -121,8 +148,13 @@ func (p *Parser) consume() token.Token {
 }
 
 func (p *Parser) err(f string, args ...any) {
+	if p.panicMode {
+		return
+	}
+
 	// TODO: pretty error messages
 	p.errors.Add(fmt.Errorf(f, args...))
+	p.panic()
 }
 
 func (p *Parser) expect(typ token.TokenType) token.Token {
@@ -136,8 +168,7 @@ func (p *Parser) expect(typ token.TokenType) token.Token {
 }
 
 func (p *Parser) parseFunc(public bool) *ast.Func {
-	// We know that the first token is FUNC
-	p.next()
+	p.next() // Func keyword which is guaranteed
 
 	name := p.expect(token.IDENT)
 	params := p.parseNamedTuple()
@@ -163,6 +194,10 @@ func (p *Parser) parseFunc(public bool) *ast.Func {
 }
 
 func (p *Parser) parseNamedTuple() *ast.NamedTuple {
+	if p.panicMode {
+		return nil
+	}
+
 	lparen := p.expect(token.LPAREN)
 
 	if p.match(token.RPAREN) {
@@ -176,7 +211,7 @@ func (p *Parser) parseNamedTuple() *ast.NamedTuple {
 
 	tuple := &ast.NamedTuple{}
 
-	for !p.eof() {
+	for !p.eofOrPanic() {
 		name := p.expect(token.IDENT)
 		typ := p.parseType()
 
@@ -192,16 +227,29 @@ func (p *Parser) parseNamedTuple() *ast.NamedTuple {
 		p.expect(token.COMMA)
 	}
 
+	p.next() // Right paren
 	return tuple
 }
 
 func (p *Parser) parseType() *ast.Type {
+	if p.panicMode {
+		return nil
+	}
+
+	if !p.match(token.IDENT) {
+		p.err("expected type")
+	}
+
 	return &ast.Type{
 		T: p.consume(),
 	}
 }
 
 func (p *Parser) parseBlock() *ast.Block {
+	if p.panicMode {
+		return nil
+	}
+
 	lbrace := p.expect(token.LBRACE)
 
 	if p.match(token.RBRACE) {
