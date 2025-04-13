@@ -24,12 +24,12 @@ type Scanner struct {
 	lineBegin int    // First character on current line
 }
 
-// New makes a new Scanner object for the given file. The text is the raw text
+// New makes a new Scanner object for the given file. The src is the raw text
 // input to scan. Scanner only accepts ascii text.
-func New(file *token.File, text []byte) *Scanner {
+func New(file *token.File, src []byte) *Scanner {
 	return &Scanner{
 		file:   file,
-		src:    text,
+		src:    src,
 		errors: util.ErrorList{},
 	}
 }
