@@ -4,6 +4,10 @@ import "github.com/jesperkha/koi/koi/token"
 
 type (
 	Ast struct {
+		// Declarations are the only top level statements in koi. They contain
+		// all other statements and expressions. Eg. a function has a block
+		// statement, which consists of multiple ifs and calls.
+		Nodes []Decl
 	}
 
 	Node interface {
@@ -11,25 +15,25 @@ type (
 		End() token.Pos // Position of last token in node segment
 	}
 
-	// An expression is any sequence of tokens that can be evaluated into a single value.
 	Expr interface {
 		Node
 	}
 
-	// A statement is any control flow, logical, or variable statement.
-	// Eg. if, else, return etc. Declarations are not considered statements
-	// for linting purposes.
 	Stmt interface {
 		Node
 	}
 
-	// A declaration is a top level function or type declaration (not variable).
+	// Declarations are not considered statements for linting purposes.
+	// Functions, structs, enums etc are all top level statements, and
+	// therefore declarations. This does not include variable declarations,
+	// but does include constant declarations.
 	Decl interface {
 		Node
 	}
+)
 
-	// Expression types
-
+// Expression types
+type (
 	// Invalid expression. Simply a range of tokens containing a syntax error.
 	BadExpr struct {
 		Expr
@@ -48,16 +52,18 @@ type (
 		T     token.Token
 		Value string // Copied from the tokens Lexeme value for ease of use
 	}
+)
 
-	// Statement types
-
+// Statement types
+type (
 	Return struct {
 		Stmt
 		E Expr
 	}
+)
 
-	// Declaration types
-
+// Declaration types
+type (
 	// Function declaration.
 	Func struct {
 		Decl
@@ -65,12 +71,13 @@ type (
 		Name   token.Token
 		Params NamedTuple
 	}
+)
 
-	// Other AST node types.
-	// These types are not strictly part of the language spec and are not valid
-	// expressions or statements by themselves, but serve as containers for
-	// common features in other nodes.
-
+// Other AST node types.
+// These types are not strictly part of the language spec and are not valid
+// expressions or statements by themselves, but serve as containers for
+// common features in other nodes.
+type (
 	// A primitive or compound type
 	Type struct {
 		// The primitive or user defined part of the type.
