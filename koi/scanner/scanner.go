@@ -50,6 +50,19 @@ func (s *Scanner) Scan() token.Token {
 	return tok
 }
 
+// ScanAll scans input source until everything is tokenized.
+func (s *Scanner) ScanAll() []token.Token {
+	toks := []token.Token{}
+	var t token.Token
+
+	for !t.Eof {
+		t = s.Scan()
+		toks = append(toks, t)
+	}
+
+	return toks
+}
+
 func (s *Scanner) err(f string, args ...any) {
 	lineStr := s.src[s.lineBegin : findEndOfLine(s.src, s.lineBegin)+1]
 	length := s.col - s.startCol
