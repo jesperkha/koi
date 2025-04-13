@@ -24,7 +24,7 @@ func TestNoInput(t *testing.T) {
 }
 
 func TestEmptyFunction(t *testing.T) {
-	p := parserFrom("pub func main() {}")
+	p := parserFrom("pub func foo() {}\nfunc bar(a int) {}\nfunc faz(name string, age int) {}")
 	p.Parse()
 
 	if p.Error() != nil {

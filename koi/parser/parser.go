@@ -105,6 +105,14 @@ func (p *Parser) peek() token.Token {
 	return p.toks[p.pos+1]
 }
 
+// Conumes any tokens until it reaches one with the given type or eof. Used to
+// error recovery to reach a 'safe spot' to continue parsing.
+func (p *Parser) seek(t token.TokenType) {
+	for !p.eof() && !p.match(t) {
+		p.next()
+	}
+}
+
 // Same as next but also returns the token it consumed.
 func (p *Parser) consume() token.Token {
 	t := p.cur()
@@ -166,13 +174,31 @@ func (p *Parser) parseNamedTuple() *ast.NamedTuple {
 		}
 	}
 
-	log.Fatal("parseNamedTuple not implemented for actual tuple values")
-	return nil
+	tuple := &ast.NamedTuple{}
+
+	for !p.eof() {
+		name := p.expect(token.IDENT)
+		typ := p.parseType()
+
+		tuple.Fields = append(tuple.Fields, &ast.Field{
+			Name: name,
+			Type: typ,
+		})
+
+		if p.match(token.RPAREN) {
+			break
+		}
+
+		p.expect(token.COMMA)
+	}
+
+	return tuple
 }
 
 func (p *Parser) parseType() *ast.Type {
-	log.Fatal("parseType not implemented")
-	return nil
+	return &ast.Type{
+		T: p.consume(),
+	}
 }
 
 func (p *Parser) parseBlock() *ast.Block {
