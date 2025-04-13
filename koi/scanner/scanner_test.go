@@ -6,7 +6,7 @@ import (
 	"github.com/jesperkha/koi/koi/token"
 )
 
-func TestScannerIter(t *testing.T) {
+func TestIter(t *testing.T) {
 	src := []byte("hello world")
 	s := New(&token.File{}, src)
 
@@ -93,7 +93,7 @@ func tok(typ token.TokenType, lexeme string, col int, row int, invalid bool) tok
 	}
 }
 
-func TestScannerIdent(t *testing.T) {
+func TestIdent(t *testing.T) {
 	src := []byte("hello foo_bar john123")
 	s := New(&token.File{}, src)
 
@@ -103,7 +103,7 @@ func TestScannerIdent(t *testing.T) {
 	assertEof(t, s)
 }
 
-func TestScannerKeyword(t *testing.T) {
+func TestKeyword(t *testing.T) {
 	src := []byte("none nil preturn elsee")
 	s := New(&token.File{}, src)
 
@@ -114,7 +114,7 @@ func TestScannerKeyword(t *testing.T) {
 	assertEof(t, s)
 }
 
-func TestScannerNumber(t *testing.T) {
+func TestNumber(t *testing.T) {
 	src := []byte("123 1.23")
 	s := New(&token.File{}, src)
 
@@ -130,7 +130,7 @@ func TestScannerNumber(t *testing.T) {
 	assertEof(t, s)
 }
 
-func TestScannerString(t *testing.T) {
+func TestString(t *testing.T) {
 	src := []byte("\"hello\" \"there\"")
 	s := New(&token.File{}, src)
 
@@ -145,7 +145,7 @@ func TestScannerString(t *testing.T) {
 	assertEof(t, s)
 }
 
-func TestScannerSymbol(t *testing.T) {
+func TestSymbol(t *testing.T) {
 	src := []byte("++= == /= !!=")
 	s := New(&token.File{}, src)
 
@@ -166,7 +166,7 @@ func TestScannerSymbol(t *testing.T) {
 	assertEof(t, s)
 }
 
-func TestScannerWhitespace(t *testing.T) {
+func TestWhitespace(t *testing.T) {
 	src := []byte("   \t\n  hello   \n\tworld  ")
 	s := New(&token.File{}, src)
 
@@ -176,7 +176,7 @@ func TestScannerWhitespace(t *testing.T) {
 	assertEof(t, s)
 }
 
-func TestScannerNewlines(t *testing.T) {
+func TestNewlines(t *testing.T) {
 	src := []byte("a\nb\n\nc")
 	s := New(&token.File{}, src)
 
@@ -186,7 +186,7 @@ func TestScannerNewlines(t *testing.T) {
 	assertEof(t, s)
 }
 
-func TestScannerMixedTokens(t *testing.T) {
+func TestMixedTokens(t *testing.T) {
 	src := []byte("var x = 42 + 3.14;")
 	s := New(&token.File{}, src)
 
@@ -200,7 +200,7 @@ func TestScannerMixedTokens(t *testing.T) {
 	assertEof(t, s)
 }
 
-func TestScannerComplexSymbols(t *testing.T) {
+func TestComplexSymbols(t *testing.T) {
 	src := []byte("<= >= && || != ==")
 	s := New(&token.File{}, src)
 
@@ -213,7 +213,7 @@ func TestScannerComplexSymbols(t *testing.T) {
 	assertEof(t, s)
 }
 
-func TestScannerInvalidNumber(t *testing.T) {
+func TestInvalidNumber(t *testing.T) {
 	src := []byte("123..456")
 	s := New(&token.File{}, src)
 
@@ -221,7 +221,7 @@ func TestScannerInvalidNumber(t *testing.T) {
 	assertEof(t, s)
 }
 
-func TestScannerEmptySource(t *testing.T) {
+func TestEmptySource(t *testing.T) {
 	src := []byte("")
 	s := New(&token.File{}, src)
 
@@ -230,7 +230,7 @@ func TestScannerEmptySource(t *testing.T) {
 	}
 }
 
-func TestScannerOnlyWhitespace(t *testing.T) {
+func TestOnlyWhitespace(t *testing.T) {
 	src := []byte("  \t \n\t ")
 	s := New(&token.File{}, src)
 
@@ -241,7 +241,7 @@ func TestScannerOnlyWhitespace(t *testing.T) {
 	}
 }
 
-func TestScannerOnlyComment(t *testing.T) {
+func TestOnlyComment(t *testing.T) {
 	src := []byte("// one comment\n// two comments")
 	s := New(&token.File{}, src)
 
@@ -252,7 +252,7 @@ func TestScannerOnlyComment(t *testing.T) {
 	}
 }
 
-func TestScannerPunctuation(t *testing.T) {
+func TestPunctuation(t *testing.T) {
 	src := []byte(".,:;(){}[]")
 	s := New(&token.File{}, src)
 
@@ -269,7 +269,7 @@ func TestScannerPunctuation(t *testing.T) {
 	assertEof(t, s)
 }
 
-func TestScannerComment(t *testing.T) {
+func TestComment(t *testing.T) {
 	src := []byte("// this is a comment\n  // another one\nvar//foo\n123")
 	s := New(&token.File{}, src)
 
