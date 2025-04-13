@@ -60,6 +60,14 @@ type (
 		Stmt
 		E Expr
 	}
+
+	Block struct {
+		Stmt
+		Empty  bool // If the Stmts list is empty
+		LBrace token.Token
+		Stmts  []Stmt
+		RBrace token.Token
+	}
 )
 
 // Declaration types
@@ -69,7 +77,9 @@ type (
 		Decl
 		Public bool
 		Name   token.Token
-		Params NamedTuple
+		Params *NamedTuple
+		Type   *Type
+		Block  *Block
 	}
 )
 
@@ -88,14 +98,15 @@ type (
 	// A field is a name-type combination. Eg. "foo int"
 	Field struct {
 		Name token.Token
-		Type Type
+		Type *Type
 	}
 
 	// A named tuple is a list of fields within parenthesis.
 	// Eg. "(name string, age int)"
 	NamedTuple struct {
+		Empty  bool // If the fields list is empty
 		LParen token.Token
-		Fields []Field
+		Fields []*Field
 		RParen token.Token
 	}
 )

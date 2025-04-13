@@ -1,5 +1,7 @@
 package token
 
+import "fmt"
+
 type TokenType int
 
 const (
@@ -21,6 +23,7 @@ const (
 	IMPORT
 	PACKAGE
 	NIL
+	PUB
 
 	PLUS
 	MINUS
@@ -54,15 +57,70 @@ const (
 	OR_OR
 	PERCENT
 	NOT
-
-	INT_TYPE
-	UINT_TYPE
-	FLOAT_TYPE
-	STRING_TYPE
-	BYTE_TYPE
 )
 
+var tokenStrings = [...]string{
+	ILLEGAL:    "illegal",
+	EOF:        "eof",
+	STRING:     "string",
+	INTEGER:    "int",
+	FLOAT:      "float",
+	IDENT:      "identifier",
+	TRUE:       "true",
+	FALSE:      "false",
+	RETURN:     "return",
+	FUNC:       "func",
+	IF:         "if",
+	ELSE:       "else",
+	FOR:        "for",
+	IMPORT:     "import",
+	PACKAGE:    "package",
+	NIL:        "nil",
+	PUB:        "pub",
+	PLUS:       "+",
+	MINUS:      "-",
+	STAR:       "*",
+	SLASH:      "/",
+	DOT:        ".",
+	COMMA:      ",",
+	SEMI:       ";",
+	COLON:      ":",
+	COLON_EQ:   ":=",
+	EQ:         "=",
+	EQ_EQ:      "==",
+	NOT_EQ:     "!=",
+	PLUS_EQ:    "+=",
+	MINUS_EQ:   "-=",
+	MULT_EQ:    "*=",
+	DIV_EQ:     "/=",
+	GREATER:    ">",
+	LESS:       "<",
+	GREATER_EQ: ">=",
+	LESS_EQ:    "<=",
+	LPAREN:     "(",
+	RPAREN:     ")",
+	LBRACE:     "{",
+	RBRACE:     "}",
+	LBRACK:     "[",
+	RBRACK:     "]",
+	AND:        "&",
+	AND_AND:    "&&",
+	OR:         "|",
+	OR_OR:      "||",
+	PERCENT:    "%",
+	NOT:        "!",
+}
+
+func String(t TokenType) string {
+	if int(t) >= len(tokenStrings) {
+		panic(fmt.Sprintf("token type with no string: %d", t))
+	}
+
+	return tokenStrings[t]
+}
+
 var Keywords = map[string]TokenType{
+	"pub":     PUB,
 	"true":    TRUE,
 	"false":   FALSE,
 	"return":  RETURN,

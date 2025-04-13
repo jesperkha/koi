@@ -22,3 +22,12 @@ func TestNoInput(t *testing.T) {
 		t.Errorf("expected no error for empty input, got %s", p.Error())
 	}
 }
+
+func TestEmptyFunction(t *testing.T) {
+	p := parserFrom("pub func main() {}")
+	p.Parse()
+
+	if p.Error() != nil {
+		t.Errorf("expected no error for empty function, got %s", p.Error())
+	}
+}
