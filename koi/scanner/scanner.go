@@ -4,13 +4,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jesperkha/koi/koi"
 	"github.com/jesperkha/koi/koi/token"
+	"github.com/jesperkha/koi/util"
 )
 
 type Scanner struct {
-	handler *koi.ErrorHandler
-	file    *token.File
+	// Number of syntax errors encountered and reported to handler.
+	NumErrors int
+
+	errors util.ErrorList
+	file   *token.File
 
 	src       []byte // Source text to scan
 	row       int    // Current line
@@ -23,11 +26,11 @@ type Scanner struct {
 
 // New makes a new Scanner object for the given file. The text is the raw text
 // input to scan. Scanner only accepts ascii text.
-func New(file *token.File, text []byte, errHandler *koi.ErrorHandler) *Scanner {
+func New(file *token.File, text []byte) *Scanner {
 	return &Scanner{
-		file:    file,
-		src:     text,
-		handler: errHandler,
+		file:   file,
+		src:    text,
+		errors: util.ErrorList{},
 	}
 }
 
@@ -63,6 +66,10 @@ func (s *Scanner) ScanAll() []token.Token {
 	return toks
 }
 
+func (s *Scanner) Error() error {
+	return s.errors.Error()
+}
+
 func (s *Scanner) err(f string, args ...any) {
 	lineStr := s.src[s.lineBegin : findEndOfLine(s.src, s.lineBegin)+1]
 	length := s.col - s.startCol
@@ -72,7 +79,8 @@ func (s *Scanner) err(f string, args ...any) {
 	err += fmt.Sprintf("%3d | %s\n", s.row+1, lineStr)
 	err += fmt.Sprintf("    | %s%s\n", strings.Repeat(" ", s.startCol), strings.Repeat("^", length))
 
-	s.handler.Add(fmt.Errorf("%s", err))
+	s.errors.Add(fmt.Errorf("%s", err))
+	s.NumErrors++
 }
 
 // peek next byte in input. Return 0 on EOF.

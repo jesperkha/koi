@@ -3,6 +3,9 @@ package ast
 import "github.com/jesperkha/koi/koi/token"
 
 type (
+	Ast struct {
+	}
+
 	Node interface {
 		Pos() token.Pos // Position of first token in node segment
 		End() token.Pos // Position of last token in node segment
