@@ -74,6 +74,12 @@ func assertEq(t *testing.T, s *Scanner, token token.Token) {
 	}
 }
 
+func assertEof(t *testing.T, s *Scanner) {
+	if !s.eof() {
+		t.Error("expected eof after test")
+	}
+}
+
 func tok(typ token.TokenType, lexeme string, col int, row int, invalid bool) token.Token {
 	return token.Token{
 		Lexeme: lexeme,
@@ -88,12 +94,13 @@ func tok(typ token.TokenType, lexeme string, col int, row int, invalid bool) tok
 }
 
 func TestScannerIdent(t *testing.T) {
-	src := []byte("hello foo_bar john")
+	src := []byte("hello foo_bar john123")
 	s := New(&token.File{}, src)
 
 	assertEq(t, s, tok(token.IDENT, "hello", 0, 0, false))
 	assertEq(t, s, tok(token.IDENT, "foo_bar", 6, 0, false))
-	assertEq(t, s, tok(token.IDENT, "john", 14, 0, false))
+	assertEq(t, s, tok(token.IDENT, "john123", 14, 0, false))
+	assertEof(t, s)
 }
 
 func TestScannerKeyword(t *testing.T) {
@@ -104,6 +111,7 @@ func TestScannerKeyword(t *testing.T) {
 	assertEq(t, s, tok(token.NIL, "nil", 5, 0, false))
 	assertEq(t, s, tok(token.IDENT, "preturn", 9, 0, false))
 	assertEq(t, s, tok(token.IDENT, "elsee", 17, 0, false))
+	assertEof(t, s)
 }
 
 func TestScannerNumber(t *testing.T) {
@@ -112,12 +120,14 @@ func TestScannerNumber(t *testing.T) {
 
 	assertEq(t, s, tok(token.INTEGER, "123", 0, 0, false))
 	assertEq(t, s, tok(token.FLOAT, "1.23", 4, 0, false))
+	assertEof(t, s)
 
 	src = []byte("1.1.2 123..4")
 	s = New(&token.File{}, src)
 
 	assertEq(t, s, tok(token.FLOAT, "1.1.2", 0, 0, true))
 	assertEq(t, s, tok(token.FLOAT, "123..4", 6, 0, true))
+	assertEof(t, s)
 }
 
 func TestScannerString(t *testing.T) {
@@ -126,11 +136,13 @@ func TestScannerString(t *testing.T) {
 
 	assertEq(t, s, tok(token.STRING, "\"hello\"", 0, 0, false))
 	assertEq(t, s, tok(token.STRING, "\"there\"", 8, 0, false))
+	assertEof(t, s)
 
 	src = []byte("\"no end quote")
 	s = New(&token.File{}, src)
 
 	assertEq(t, s, tok(token.STRING, "\"no end quote", 0, 0, true))
+	assertEof(t, s)
 }
 
 func TestScannerSymbol(t *testing.T) {
@@ -143,6 +155,7 @@ func TestScannerSymbol(t *testing.T) {
 	assertEq(t, s, tok(token.DIV_EQ, "/=", 7, 0, false))
 	assertEq(t, s, tok(token.NOT, "!", 10, 0, false))
 	assertEq(t, s, tok(token.NOT_EQ, "!=", 11, 0, false))
+	assertEof(t, s)
 
 	src = []byte("?^$")
 	s = New(&token.File{}, src)
@@ -150,6 +163,7 @@ func TestScannerSymbol(t *testing.T) {
 	assertEq(t, s, tok(token.ILLEGAL, "?", 0, 0, true))
 	assertEq(t, s, tok(token.ILLEGAL, "^", 1, 0, true))
 	assertEq(t, s, tok(token.ILLEGAL, "$", 2, 0, true))
+	assertEof(t, s)
 }
 
 func TestScannerWhitespace(t *testing.T) {
@@ -158,6 +172,8 @@ func TestScannerWhitespace(t *testing.T) {
 
 	assertEq(t, s, tok(token.IDENT, "hello", 2, 1, false))
 	assertEq(t, s, tok(token.IDENT, "world", 1, 2, false))
+	assertEq(t, s, tok(token.EOF, "", 8, 2, false))
+	assertEof(t, s)
 }
 
 func TestScannerNewlines(t *testing.T) {
@@ -167,6 +183,7 @@ func TestScannerNewlines(t *testing.T) {
 	assertEq(t, s, tok(token.IDENT, "a", 0, 0, false))
 	assertEq(t, s, tok(token.IDENT, "b", 0, 1, false))
 	assertEq(t, s, tok(token.IDENT, "c", 0, 3, false))
+	assertEof(t, s)
 }
 
 func TestScannerMixedTokens(t *testing.T) {
@@ -180,6 +197,7 @@ func TestScannerMixedTokens(t *testing.T) {
 	assertEq(t, s, tok(token.PLUS, "+", 11, 0, false))
 	assertEq(t, s, tok(token.FLOAT, "3.14", 13, 0, false))
 	assertEq(t, s, tok(token.SEMI, ";", 17, 0, false))
+	assertEof(t, s)
 }
 
 func TestScannerComplexSymbols(t *testing.T) {
@@ -192,6 +210,7 @@ func TestScannerComplexSymbols(t *testing.T) {
 	assertEq(t, s, tok(token.OR_OR, "||", 9, 0, false))
 	assertEq(t, s, tok(token.NOT_EQ, "!=", 12, 0, false))
 	assertEq(t, s, tok(token.EQ_EQ, "==", 15, 0, false))
+	assertEof(t, s)
 }
 
 func TestScannerInvalidNumber(t *testing.T) {
@@ -199,6 +218,7 @@ func TestScannerInvalidNumber(t *testing.T) {
 	s := New(&token.File{}, src)
 
 	assertEq(t, s, tok(token.FLOAT, "123..456", 0, 0, true))
+	assertEof(t, s)
 }
 
 func TestScannerEmptySource(t *testing.T) {
@@ -246,6 +266,7 @@ func TestScannerPunctuation(t *testing.T) {
 	assertEq(t, s, tok(token.RBRACE, "}", 7, 0, false))
 	assertEq(t, s, tok(token.LBRACK, "[", 8, 0, false))
 	assertEq(t, s, tok(token.RBRACK, "]", 9, 0, false))
+	assertEof(t, s)
 }
 
 func TestScannerComment(t *testing.T) {
@@ -254,4 +275,5 @@ func TestScannerComment(t *testing.T) {
 
 	assertEq(t, s, tok(token.IDENT, "var", 0, 2, false))
 	assertEq(t, s, tok(token.INTEGER, "123", 0, 3, false))
+	assertEof(t, s)
 }

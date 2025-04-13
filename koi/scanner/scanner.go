@@ -176,7 +176,7 @@ func (s *Scanner) scanIdentifier() token.Token {
 		return s.scanNumber()
 	}
 
-	for !s.eof() && isAlpha(s.cur()) {
+	for !s.eof() && (isAlpha(s.cur()) || isNum(s.cur())) {
 		s.next()
 	}
 
