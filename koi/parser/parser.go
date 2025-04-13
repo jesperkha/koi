@@ -80,6 +80,11 @@ func (p *Parser) cur() token.Token {
 	return p.toks[p.pos]
 }
 
+// Shorthand for p.cur().Type == token.X
+func (p *Parser) match(t token.TokenType) bool {
+	return p.cur().Type == t
+}
+
 func (p *Parser) next() {
 	p.pos++
 }
@@ -130,11 +135,11 @@ func (p *Parser) parseFunc(public bool) *ast.Func {
 	params := p.parseNamedTuple()
 	retType := &ast.Type{}
 
-	if p.cur().Type != token.LBRACE {
+	if !p.match(token.LBRACE) {
 		retType = p.parseType()
 	}
 
-	if p.cur().Type != token.LBRACE {
+	if !p.match(token.LBRACE) {
 		p.err("expected block after function declaration")
 	}
 
@@ -152,7 +157,7 @@ func (p *Parser) parseFunc(public bool) *ast.Func {
 func (p *Parser) parseNamedTuple() *ast.NamedTuple {
 	lparen := p.expect(token.LPAREN)
 
-	if p.cur().Type == token.RPAREN {
+	if p.match(token.RPAREN) {
 		rparen := p.consume()
 		return &ast.NamedTuple{
 			Empty:  true,
@@ -173,7 +178,7 @@ func (p *Parser) parseType() *ast.Type {
 func (p *Parser) parseBlock() *ast.Block {
 	lbrace := p.expect(token.LBRACE)
 
-	if p.cur().Type == token.RBRACE {
+	if p.match(token.RBRACE) {
 		rbrace := p.consume()
 		return &ast.Block{
 			Empty:  true,
