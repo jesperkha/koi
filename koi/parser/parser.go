@@ -64,7 +64,7 @@ loop:
 
 		default:
 			// Unrecoverable error
-			p.err("unknown top level statement, found '%s'", p.cur().Lexeme)
+			p.err("unknown top level statement")
 			break loop
 		}
 
@@ -168,14 +168,14 @@ func (p *Parser) err(f string, args ...any) {
 	p.panic()
 }
 
+// Expects current token to be typ. Only consumes it if correct, otherwise throws error.
 func (p *Parser) expect(typ token.TokenType) token.Token {
-	t := p.consume()
-
-	if t.Type != typ {
+	if !p.match(typ) {
 		p.err("expected %s", token.String(typ))
+		return p.cur()
 	}
 
-	return t
+	return p.consume()
 }
 
 func (p *Parser) parseFunc(public bool) *ast.Func {
