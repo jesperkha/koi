@@ -201,12 +201,10 @@ func (s *Scanner) scanNumber() token.Token {
 	}
 
 	dots := 0
-	typ := token.INTEGER
 
 	for !s.eof() {
 		if s.cur() == '.' {
 			dots++
-			typ = token.FLOAT
 		} else if !isNum(s.cur()) {
 			break
 		}
@@ -219,9 +217,10 @@ func (s *Scanner) scanNumber() token.Token {
 	}
 
 	return token.Token{
-		Type:    typ,
+		Type:    token.NUMBER,
 		Lexeme:  s.interval(),
 		Invalid: dots > 1,
+		Float:   dots > 0,
 	}
 }
 

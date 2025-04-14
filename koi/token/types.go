@@ -8,11 +8,12 @@ const (
 	ILLEGAL TokenType = iota
 	EOF
 
-	STRING
-	INTEGER
-	FLOAT
-	IDENT
+	// Generic types
+	STRING // String literal
+	NUMBER // Integer literal
+	IDENT  // Identifier
 
+	// Keywords
 	TRUE
 	FALSE
 	RETURN
@@ -25,46 +26,57 @@ const (
 	NIL
 	PUB
 
-	PLUS
-	MINUS
-	STAR
-	SLASH
-	DOT
-	COMMA
-	SEMI
-	COLON
-	COLON_EQ
-	EQ
-	EQ_EQ
-	NOT_EQ
-	PLUS_EQ
-	MINUS_EQ
-	MULT_EQ
-	DIV_EQ
-	GREATER
-	LESS
-	GREATER_EQ
-	LESS_EQ
-	LPAREN
-	RPAREN
-	LBRACE
-	RBRACE
-	LBRACK
-	RBRACK
-	AND
-	AND_AND
-	OR
-	OR_OR
-	PERCENT
-	NOT
+	// Math
+	PLUS    // +
+	MINUS   // -
+	STAR    // *
+	SLASH   // /
+	PERCENT // %
+
+	// Logic
+	EQ         // =
+	EQ_EQ      // ==
+	NOT_EQ     // !=
+	PLUS_EQ    // +=
+	MINUS_EQ   // -=
+	MULT_EQ    // *=
+	DIV_EQ     // /=
+	GREATER    // >
+	LESS       // <
+	GREATER_EQ // >=
+	LESS_EQ    // <=
+	LPAREN     // (
+	RPAREN     // )
+	LBRACE     // {
+	RBRACE     // }
+	LBRACK     // [
+	RBRACK     // ]
+	AND        // &
+	AND_AND    // &&
+	OR         // |
+	OR_OR      // ||
+	NOT        // !
+
+	// Other symbols
+	DOT      // .
+	COMMA    // ,
+	SEMI     // ;
+	COLON    // :
+	COLON_EQ // :=
+
+	// Types
+	INT_TYPE
+	FLOAT_TYPE
+	STRING_TYPE
+	BYTE_TYPE
+	VOID_TYPE
 )
 
 var tokenStrings = [...]string{
 	ILLEGAL:    "illegal",
 	EOF:        "eof",
 	STRING:     "string",
-	INTEGER:    "int",
-	FLOAT:      "float",
+	NUMBER:     "number",
 	IDENT:      "identifier",
 	TRUE:       "true",
 	FALSE:      "false",

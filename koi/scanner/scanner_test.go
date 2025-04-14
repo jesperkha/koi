@@ -119,15 +119,15 @@ func TestNumber(t *testing.T) {
 	src := []byte("123 1.23")
 	s := New(&token.File{}, src)
 
-	assertEq(t, s, tok(token.INTEGER, "123", 0, 0, false))
-	assertEq(t, s, tok(token.FLOAT, "1.23", 4, 0, false))
+	assertEq(t, s, tok(token.NUMBER, "123", 0, 0, false))
+	assertEq(t, s, tok(token.NUMBER, "1.23", 4, 0, false))
 	assertEof(t, s)
 
 	src = []byte("1.1.2 123..4")
 	s = New(&token.File{}, src)
 
-	assertEq(t, s, tok(token.FLOAT, "1.1.2", 0, 0, true))
-	assertEq(t, s, tok(token.FLOAT, "123..4", 6, 0, true))
+	assertEq(t, s, tok(token.NUMBER, "1.1.2", 0, 0, true))
+	assertEq(t, s, tok(token.NUMBER, "123..4", 6, 0, true))
 	assertEof(t, s)
 }
 
@@ -194,9 +194,9 @@ func TestMixedTokens(t *testing.T) {
 	assertEq(t, s, tok(token.IDENT, "var", 0, 0, false))
 	assertEq(t, s, tok(token.IDENT, "x", 4, 0, false))
 	assertEq(t, s, tok(token.EQ, "=", 6, 0, false))
-	assertEq(t, s, tok(token.INTEGER, "42", 8, 0, false))
+	assertEq(t, s, tok(token.NUMBER, "42", 8, 0, false))
 	assertEq(t, s, tok(token.PLUS, "+", 11, 0, false))
-	assertEq(t, s, tok(token.FLOAT, "3.14", 13, 0, false))
+	assertEq(t, s, tok(token.NUMBER, "3.14", 13, 0, false))
 	assertEq(t, s, tok(token.SEMI, ";", 17, 0, false))
 	assertEof(t, s)
 }
@@ -218,7 +218,7 @@ func TestInvalidNumber(t *testing.T) {
 	src := []byte("123..456")
 	s := New(&token.File{}, src)
 
-	assertEq(t, s, tok(token.FLOAT, "123..456", 0, 0, true))
+	assertEq(t, s, tok(token.NUMBER, "123..456", 0, 0, true))
 	assertEof(t, s)
 }
 
@@ -275,6 +275,6 @@ func TestComment(t *testing.T) {
 	s := New(&token.File{}, src)
 
 	assertEq(t, s, tok(token.IDENT, "var", 0, 2, false))
-	assertEq(t, s, tok(token.INTEGER, "123", 0, 3, false))
+	assertEq(t, s, tok(token.NUMBER, "123", 0, 3, false))
 	assertEof(t, s)
 }

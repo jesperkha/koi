@@ -8,6 +8,7 @@ type Token struct {
 	EndPos Pos    // Position of character immediately after token
 	Lexeme string // The token as a string literal
 	Length int    // The character length of the token
+	Float  bool   // If Type is NUMBER, this is true for floating point literals
 
 	// If the token is EOF. Always true if the type is EOF and
 	// vice versa. Simply a shorthand for tok.Type == token.EOF.
