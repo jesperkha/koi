@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"log"
+	"slices"
 	"strings"
 
 	"github.com/jesperkha/koi/koi/ast"
@@ -178,6 +179,17 @@ func (p *Parser) expect(typ token.TokenType) token.Token {
 	return p.consume()
 }
 
+// Same as expect, but takes multiple types to compare. Label is what to call
+// the expected tokens for errors.
+func (p *Parser) expectMany(label string, types ...token.TokenType) token.Token {
+	if !slices.Contains(types, p.cur().Type) {
+		p.err("expected %s", label)
+		return p.cur()
+	}
+
+	return p.consume()
+}
+
 func (p *Parser) parseFunc(public bool) *ast.Func {
 	p.next() // Func keyword which is guaranteed
 
@@ -244,12 +256,10 @@ func (p *Parser) parseType() *ast.Type {
 		return nil
 	}
 
-	if !p.match(token.IDENT) {
-		p.err("expected type")
-	}
+	t := p.expectMany("type", token.STRING_T, token.VOID, token.INT, token.FLOAT, token.BYTE)
 
 	return &ast.Type{
-		T: p.consume(),
+		T: t,
 	}
 }
 

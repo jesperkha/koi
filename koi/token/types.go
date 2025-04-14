@@ -65,11 +65,11 @@ const (
 	COLON_EQ // :=
 
 	// Types
-	INT_TYPE
-	FLOAT_TYPE
-	STRING_TYPE
-	BYTE_TYPE
-	VOID_TYPE
+	VOID
+	INT
+	FLOAT
+	STRING_T
+	BYTE
 )
 
 var tokenStrings = [...]string{
@@ -121,6 +121,11 @@ var tokenStrings = [...]string{
 	OR_OR:      "||",
 	PERCENT:    "%",
 	NOT:        "!",
+	VOID:       "void",
+	INT:        "int",
+	FLOAT:      "float",
+	STRING_T:   "string",
+	BYTE:       "byte",
 }
 
 func String(t TokenType) string {
@@ -143,6 +148,10 @@ var Keywords = map[string]TokenType{
 	"import":  IMPORT,
 	"package": PACKAGE,
 	"nil":     NIL,
+	"byte":    BYTE,
+	"void":    VOID,
+	"string":  STRING_T,
+	"int":     INT,
 }
 
 var SingleSymbols = map[string]TokenType{
