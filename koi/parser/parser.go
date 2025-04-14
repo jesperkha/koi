@@ -172,7 +172,7 @@ func (p *Parser) parseFunc(public bool) *ast.Func {
 
 	name := p.expect(token.IDENT)
 	params := p.parseNamedTuple()
-	retType := &ast.Type{}
+	var retType *ast.Type
 
 	if !p.match(token.LBRACE) {
 		retType = p.parseType()
