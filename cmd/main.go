@@ -8,10 +8,10 @@ import (
 )
 
 func main() {
-	a, err := koi.ParseFile("", "func main(a int, b float) string {} func foo() {}")
+	a, err := koi.ParseFile("main.koi", nil)
 	if err != nil {
 		fmt.Println(err)
+	} else {
+		ast.Print(a)
 	}
-
-	ast.Print(a)
 }

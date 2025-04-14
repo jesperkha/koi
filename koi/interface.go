@@ -25,7 +25,7 @@ func ParseFile(filename string, src any) (*ast.Ast, error) {
 		return nil, s.Error()
 	}
 
-	p := parser.New(file, toks)
+	p := parser.New(file, toks, srcBytes)
 	ast := p.Parse()
 
 	return ast, p.Error()

@@ -27,10 +27,11 @@ func (t Token) String() string {
 }
 
 type Pos struct {
-	Col    int   // Column in file
-	Row    int   // Row in file, same as line number -1
-	Offset int   // Byte offset in file
-	File   *File // File this position refers to
+	Col       int   // Column in file
+	Row       int   // Row in file, same as line number -1
+	Offset    int   // Byte offset in file
+	File      *File // File this position refers to
+	LineBegin int   // Offset of beginning of line token is on
 }
 
 type File struct {

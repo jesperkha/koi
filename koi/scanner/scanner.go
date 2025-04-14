@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/jesperkha/koi/koi/token"
-	"github.com/jesperkha/koi/util"
+	"github.com/jesperkha/koi/koi/util"
 )
 
 type Scanner struct {
@@ -71,7 +71,7 @@ func (s *Scanner) Error() error {
 }
 
 func (s *Scanner) err(f string, args ...any) {
-	lineStr := s.src[s.lineBegin : findEndOfLine(s.src, s.lineBegin)+1]
+	lineStr := s.src[s.lineBegin : util.FindEndOfLine(s.src, s.lineBegin)+1]
 	length := s.col - s.startCol
 
 	err := ""
@@ -125,20 +125,22 @@ func (s *Scanner) interval() string {
 // Get the current base position of the Scanner as a token position.
 func (s *Scanner) tokenPos() token.Pos {
 	return token.Pos{
-		Col:    s.startCol,
-		Row:    s.row,
-		Offset: s.base,
-		File:   s.file,
+		Col:       s.startCol,
+		Row:       s.row,
+		Offset:    s.base,
+		File:      s.file,
+		LineBegin: s.lineBegin,
 	}
 }
 
 // Get the current position of the Scanner as a token position.
 func (s *Scanner) tokenEndPos() token.Pos {
 	return token.Pos{
-		Col:    s.col,
-		Row:    s.row,
-		Offset: s.pos,
-		File:   s.file,
+		Col:       s.col,
+		Row:       s.row,
+		Offset:    s.pos,
+		File:      s.file,
+		LineBegin: s.lineBegin,
 	}
 }
 

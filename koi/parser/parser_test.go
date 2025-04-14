@@ -11,7 +11,7 @@ func parserFrom(src string) *Parser {
 	file := &token.File{}
 	s := scanner.New(file, []byte(src))
 	toks := s.ScanAll()
-	return New(&token.File{}, toks)
+	return New(&token.File{}, toks, []byte(src))
 }
 
 func TestNoInput(t *testing.T) {
@@ -24,7 +24,7 @@ func TestNoInput(t *testing.T) {
 }
 
 func TestEmptyFunction(t *testing.T) {
-	p := parserFrom("pub func foo() {}\nfunc bar(a int) {}\nfunc faz(name string, age int) {}")
+	p := parserFrom("pub func foo() void {}\nfunc bar(a int) void {}\nfunc faz(name string, age int) void {}")
 	p.Parse()
 
 	if p.Error() != nil {

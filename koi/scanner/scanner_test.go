@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/jesperkha/koi/koi/token"
+	"github.com/jesperkha/koi/koi/util"
 )
 
 func TestIter(t *testing.T) {
@@ -48,7 +49,7 @@ func TestFindEndOfLine(t *testing.T) {
 	}
 
 	for k, v := range cases {
-		if n := findEndOfLine(src, k); n != v {
+		if n := util.FindEndOfLine(src, k); n != v {
 			t.Errorf("expected end=%d, got %d, for offset=%d", v, n, k)
 		}
 	}

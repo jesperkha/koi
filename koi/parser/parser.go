@@ -3,16 +3,18 @@ package parser
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/jesperkha/koi/koi/ast"
 	"github.com/jesperkha/koi/koi/token"
-	"github.com/jesperkha/koi/util"
+	"github.com/jesperkha/koi/koi/util"
 )
 
 type Parser struct {
 	errors util.ErrorList
 	file   *token.File
 	toks   []token.Token
+	src    []byte
 	pos    int // Current token being looked at
 
 	// Panic mode occurs when the parser encounters an unknown token sequence
@@ -26,10 +28,11 @@ type Parser struct {
 	base      int
 }
 
-func New(file *token.File, toks []token.Token) *Parser {
+func New(file *token.File, toks []token.Token, src []byte) *Parser {
 	return &Parser{
 		toks:   toks,
 		file:   file,
+		src:    src,
 		errors: util.ErrorList{},
 	}
 }
@@ -152,8 +155,16 @@ func (p *Parser) err(f string, args ...any) {
 		return
 	}
 
-	// TODO: pretty error messages
-	p.errors.Add(fmt.Errorf(f, args...))
+	t := p.cur()
+	lineStr := p.src[t.Pos.LineBegin : util.FindEndOfLine(p.src, t.Pos.LineBegin)+1]
+	length := len(t.Lexeme)
+
+	err := ""
+	err += fmt.Sprintf("error: %s\n", fmt.Sprintf(f, args...))
+	err += fmt.Sprintf("%3d | %s\n", t.Pos.Row+1, lineStr)
+	err += fmt.Sprintf("    | %s%s\n", strings.Repeat(" ", t.Pos.Col), strings.Repeat("^", length))
+
+	p.errors.Add(fmt.Errorf("%s", err))
 	p.panic()
 }
 
@@ -172,23 +183,20 @@ func (p *Parser) parseFunc(public bool) *ast.Func {
 
 	name := p.expect(token.IDENT)
 	params := p.parseNamedTuple()
-	var retType *ast.Type
 
-	if !p.match(token.LBRACE) {
-		retType = p.parseType()
+	if p.match(token.LBRACE) {
+		p.err("expected return type")
 	}
 
-	if !p.match(token.LBRACE) {
-		p.err("expected block after function declaration")
-	}
-
+	// TODO: parse typeTuple when multi-return is added
+	typ := p.parseType()
 	block := p.parseBlock()
 
 	return &ast.Func{
 		Public: public,
 		Name:   name,
 		Params: params,
-		Type:   retType,
+		Type:   typ,
 		Block:  block,
 	}
 }
