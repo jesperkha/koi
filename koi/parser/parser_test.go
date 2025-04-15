@@ -40,7 +40,7 @@ func assert(t *testing.T, expr bool, msg string) {
 
 func TestLiteral(t *testing.T) {
 	p := parserFrom("123 1.23 true false nil \"hello\"")
-	for i := 0; i < 6; i++ {
+	for range 6 {
 		assert(t, p.parseLiteral() != nil, "expected not nil")
 	}
 }
