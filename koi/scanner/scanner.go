@@ -70,6 +70,18 @@ func (s *Scanner) Error() error {
 	return s.errors.Error()
 }
 
+func isAlpha(c byte) bool {
+	return strings.Contains("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_", string(c))
+}
+
+func isNum(c byte) bool {
+	return strings.Contains("0123456789", string(c))
+}
+
+func isWhitespace(c byte) bool {
+	return strings.Contains("\n\t\r ", string(c))
+}
+
 func (s *Scanner) err(f string, args ...any) {
 	lineStr := s.src[s.lineBegin : util.FindEndOfLine(s.src, s.lineBegin)+1]
 	length := s.col - s.startCol
