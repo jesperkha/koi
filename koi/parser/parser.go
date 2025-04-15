@@ -11,6 +11,8 @@ import (
 )
 
 type Parser struct {
+	NumErrors int
+
 	errors util.ErrorList
 	file   *token.File
 	toks   []token.Token
@@ -119,6 +121,10 @@ func (p *Parser) match(t token.TokenType) bool {
 	return p.cur().Type == t
 }
 
+func (p *Parser) matchMany(types ...token.TokenType) bool {
+	return slices.Contains(types, p.cur().Type)
+}
+
 func (p *Parser) next() {
 	p.pos++
 }
@@ -175,6 +181,7 @@ func (p *Parser) errFromTo(from token.Token, to token.Token, format string, args
 
 	p.errors.Add(fmt.Errorf("%s", err))
 	p.panic()
+	p.NumErrors++
 }
 
 func (p *Parser) err(format string, args ...any) {
@@ -194,7 +201,7 @@ func (p *Parser) expect(typ token.TokenType) token.Token {
 // Same as expect, but takes multiple types to compare. Label is what to call
 // the expected tokens for errors.
 func (p *Parser) expectMany(label string, types ...token.TokenType) token.Token {
-	if !slices.Contains(types, p.cur().Type) {
+	if !p.matchMany(types...) {
 		p.err("expected %s", label)
 		return p.cur()
 	}
@@ -343,17 +350,18 @@ func (p *Parser) parseBlock() *ast.Block {
 }
 
 func (p *Parser) parseExpr() ast.Expr {
-	switch p.cur().Type {
-	case token.NUMBER, token.STRING, token.TRUE, token.FALSE, token.NIL:
-		t := p.consume()
-		return &ast.Literal{
-			T:     t,
-			Value: t.Lexeme,
-		}
+	return p.parseLiteral()
+}
 
-	default:
-		p.err("expected expression")
+func (p *Parser) parseLiteral() *ast.Literal {
+	if !p.matchMany(token.NUMBER, token.STRING, token.TRUE, token.FALSE, token.NIL) {
+		p.err("invalid literal expression")
+		return nil
 	}
 
-	return nil
+	t := p.consume()
+	return &ast.Literal{
+		T:     t,
+		Value: t.Lexeme,
+	}
 }

@@ -31,3 +31,16 @@ func TestEmptyFunction(t *testing.T) {
 		t.Errorf("expected no error for empty function, got %s", p.Error())
 	}
 }
+
+func assert(t *testing.T, expr bool, msg string) {
+	if !expr {
+		t.Errorf("assert failed: %s", msg)
+	}
+}
+
+func TestLiteral(t *testing.T) {
+	p := parserFrom("123 1.23 true false nil \"hello\"")
+	for i := 0; i < 6; i++ {
+		assert(t, p.parseLiteral() != nil, "expected not nil")
+	}
+}
