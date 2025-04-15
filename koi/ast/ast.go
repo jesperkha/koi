@@ -40,6 +40,11 @@ type (
 		From, To token.Token
 	}
 
+	// Empty expression
+	NoExpr struct {
+		Expr
+	}
+
 	// Single token identifier literal.
 	Ident struct {
 		Expr
@@ -58,7 +63,8 @@ type (
 type (
 	Return struct {
 		Stmt
-		E Expr
+		Ret token.Token
+		E   Expr
 	}
 
 	Block struct {

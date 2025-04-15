@@ -2,7 +2,6 @@ package parser
 
 import (
 	"fmt"
-	"log"
 	"slices"
 	"strings"
 
@@ -144,6 +143,16 @@ func (p *Parser) peek() token.Token {
 	return p.toks[p.pos+1]
 }
 
+func (p *Parser) prev() token.Token {
+	if p.pos == 0 {
+		return token.Token{
+			Type: token.EOF,
+			Eof:  true,
+		}
+	}
+	return p.toks[p.pos-1]
+}
+
 // Same as next but also returns the token it consumed.
 func (p *Parser) consume() token.Token {
 	t := p.cur()
@@ -151,22 +160,25 @@ func (p *Parser) consume() token.Token {
 	return t
 }
 
-func (p *Parser) err(f string, args ...any) {
+func (p *Parser) errFromTo(from token.Token, to token.Token, format string, args ...any) {
 	if p.panicMode {
 		return
 	}
 
-	t := p.cur()
-	lineStr := p.src[t.Pos.LineBegin : util.FindEndOfLine(p.src, t.Pos.LineBegin)+1]
-	length := len(t.Lexeme)
+	lineStr := p.src[from.Pos.LineBegin : util.FindEndOfLine(p.src, from.Pos.LineBegin)+1]
+	length := to.EndPos.Col - from.Pos.Col
 
 	err := ""
-	err += fmt.Sprintf("error: %s\n", fmt.Sprintf(f, args...))
-	err += fmt.Sprintf("%3d | %s\n", t.Pos.Row+1, lineStr)
-	err += fmt.Sprintf("    | %s%s\n", strings.Repeat(" ", t.Pos.Col), strings.Repeat("^", length))
+	err += fmt.Sprintf("error: %s\n", fmt.Sprintf(format, args...))
+	err += fmt.Sprintf("%3d | %s\n", from.Pos.Row+1, lineStr)
+	err += fmt.Sprintf("    | %s%s\n", strings.Repeat(" ", from.Pos.Col), strings.Repeat("^", length))
 
 	p.errors.Add(fmt.Errorf("%s", err))
 	p.panic()
+}
+
+func (p *Parser) err(format string, args ...any) {
+	p.errFromTo(p.cur(), p.cur(), format, args...)
 }
 
 // Expects current token to be typ. Only consumes it if correct, otherwise throws error.
@@ -263,13 +275,50 @@ func (p *Parser) parseType() *ast.Type {
 	}
 }
 
+func (p *Parser) parseStmt() ast.Stmt {
+	if p.panicMode {
+		return nil
+	}
+
+	switch p.cur().Type {
+	case token.RETURN:
+		return p.parseReturn()
+	case token.LBRACE:
+		return p.parseBlock()
+
+	default:
+		p.err("invalid statement")
+	}
+
+	return nil
+}
+
+func (p *Parser) parseReturn() *ast.Return {
+	ret := p.consume() // Return keyword is guaranteed
+
+	if p.match(token.SEMI) {
+		p.next()
+		return &ast.Return{
+			Ret: ret,
+			E:   &ast.NoExpr{},
+		}
+	}
+
+	expr := p.parseExpr()
+	p.expect(token.SEMI)
+
+	return &ast.Return{
+		E:   expr,
+		Ret: ret,
+	}
+}
+
 func (p *Parser) parseBlock() *ast.Block {
 	if p.panicMode {
 		return nil
 	}
 
 	lbrace := p.expect(token.LBRACE)
-
 	if p.match(token.RBRACE) {
 		rbrace := p.consume()
 		return &ast.Block{
@@ -279,6 +328,32 @@ func (p *Parser) parseBlock() *ast.Block {
 		}
 	}
 
-	log.Fatal("parseBlock with actual statements not implemented")
+	stmts := []ast.Stmt{}
+	for !p.eofOrPanic() && !p.match(token.RBRACE) {
+		s := p.parseStmt()
+		stmts = append(stmts, s)
+	}
+
+	rbrace := p.expect(token.RBRACE)
+	return &ast.Block{
+		LBrace: lbrace,
+		Stmts:  stmts,
+		RBrace: rbrace,
+	}
+}
+
+func (p *Parser) parseExpr() ast.Expr {
+	switch p.cur().Type {
+	case token.NUMBER, token.STRING, token.TRUE, token.FALSE, token.NIL:
+		t := p.consume()
+		return &ast.Literal{
+			T:     t,
+			Value: t.Lexeme,
+		}
+
+	default:
+		p.err("expected expression")
+	}
+
 	return nil
 }
