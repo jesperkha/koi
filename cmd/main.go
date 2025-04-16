@@ -14,5 +14,4 @@ func main() {
 	} else {
 		ast.Print(a)
 	}
-
 }

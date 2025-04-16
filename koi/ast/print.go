@@ -69,13 +69,13 @@ func (a *AstBuilder) printNamedTuple(node *NamedTuple) {
 	a.write(")")
 }
 
-func (a *AstBuilder) printType(node *Type) {
+func (a *AstBuilder) printType(node Type) {
 	if node == nil {
 		a.write("<no-type>")
 		return
 	}
 
-	a.write(node.T.Lexeme)
+	a.write(node.String())
 }
 
 func (a *AstBuilder) printStmt(node Stmt) {

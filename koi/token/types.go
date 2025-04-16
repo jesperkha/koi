@@ -151,6 +151,7 @@ var Keywords = map[string]TokenType{
 	"package": PACKAGE,
 	"nil":     NIL,
 	"byte":    BYTE,
+	"float":   FLOAT,
 	"void":    VOID,
 	"string":  STRING_T,
 	"int":     INT,

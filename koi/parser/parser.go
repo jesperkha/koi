@@ -274,16 +274,44 @@ func (p *Parser) parseNamedTuple() *ast.NamedTuple {
 	return tuple
 }
 
-func (p *Parser) parseType() *ast.Type {
+func (p *Parser) parseType() ast.Type {
 	if p.panicMode {
 		return nil
 	}
 
-	t := p.expectMany("type", token.STRING_T, token.VOID, token.INT, token.FLOAT, token.BYTE)
+	start := p.cur() // For error tracking
 
-	return &ast.Type{
-		T: t,
+	if p.match(token.NEWLINE) {
+		p.err("expected type")
+		return nil
 	}
+
+	// Primitive type with only identifier.
+	if p.matchMany(token.STRING_T, token.VOID, token.INT, token.FLOAT, token.BYTE) {
+		return &ast.PrimitiveType{
+			T: p.consume(),
+		}
+	}
+
+	// Array type.
+	if p.match(token.LBRACK) {
+		lbrack := p.consume()
+		if !p.match(token.RBRACK) {
+			p.err("expected ] to complete array type")
+			return nil
+		}
+
+		p.next() // ]
+		typ := p.parseType()
+
+		return &ast.ArrayType{
+			LBrack: lbrack.Pos,
+			Type:   typ,
+		}
+	}
+
+	p.errFromTo(start, p.cur(), "invalid type")
+	return nil
 }
 
 func (p *Parser) parseStmt() ast.Stmt {

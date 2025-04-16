@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/jesperkha/koi/koi/scanner"
@@ -42,5 +43,28 @@ func TestLiteral(t *testing.T) {
 	p := parserFrom("123 1.23 true false nil \"hello\"")
 	for range 6 {
 		assert(t, p.parseLiteral() != nil, "expected not nil")
+	}
+}
+
+func TestPrimitiveTypes(t *testing.T) {
+	src := "int float []int [][]string"
+	p := parserFrom(src)
+	expect := strings.SplitSeq(src, " ")
+
+	for s := range expect {
+		got := p.parseType()
+
+		if p.NumErrors != 0 {
+			t.Errorf("expected no error, got %s", p.errors.Error())
+			t.FailNow()
+		}
+
+		if got == nil {
+			t.Errorf("expected %s, got <nil>", s)
+		}
+
+		if got.String() != s {
+			t.Errorf("expected %s, got %s", s, got.String())
+		}
 	}
 }

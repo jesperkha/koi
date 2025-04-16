@@ -79,7 +79,7 @@ type (
 		Public bool
 		Name   token.Token
 		Params *NamedTuple
-		Type   *Type
+		Type   Type
 		Block  *Block
 	}
 )
@@ -89,17 +89,10 @@ type (
 // expressions or statements by themselves, but serve as containers for
 // common features in other nodes.
 type (
-	// A primitive or compound type
-	Type struct {
-		// The primitive or user defined part of the type.
-		// Eg. []string -> string, []Person -> Person, int -> int
-		T token.Token
-	}
-
 	// A field is a name-type combination. Eg. "foo int"
 	Field struct {
 		Name token.Token
-		Type *Type
+		Type Type
 	}
 
 	// A named tuple is a list of fields within parenthesis.
