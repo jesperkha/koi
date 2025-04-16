@@ -307,16 +307,16 @@ func (p *Parser) parseStmt() ast.Stmt {
 func (p *Parser) parseReturn() *ast.Return {
 	ret := p.consume() // Return keyword is guaranteed
 
-	if p.match(token.SEMI) {
+	if p.match(token.NEWLINE) {
 		p.next()
 		return &ast.Return{
 			Ret: ret,
-			E:   &ast.NoExpr{},
+			E:   nil,
 		}
 	}
 
 	expr := p.parseExpr()
-	p.expect(token.SEMI)
+	p.expect(token.NEWLINE)
 
 	return &ast.Return{
 		E:   expr,
@@ -330,17 +330,14 @@ func (p *Parser) parseBlock() *ast.Block {
 	}
 
 	lbrace := p.expect(token.LBRACE)
-	if p.match(token.RBRACE) {
-		rbrace := p.consume()
-		return &ast.Block{
-			Empty:  true,
-			LBrace: lbrace,
-			RBrace: rbrace,
-		}
-	}
-
 	stmts := []ast.Stmt{}
+
 	for !p.eofOrPanic() && !p.match(token.RBRACE) {
+		if p.match(token.NEWLINE) {
+			p.next()
+			continue
+		}
+
 		s := p.parseStmt()
 		stmts = append(stmts, s)
 	}
@@ -350,11 +347,18 @@ func (p *Parser) parseBlock() *ast.Block {
 		LBrace: lbrace,
 		Stmts:  stmts,
 		RBrace: rbrace,
+		Empty:  len(stmts) == 0,
 	}
 }
 
 func (p *Parser) parseExpr() ast.Expr {
-	return p.parseLiteral()
+	switch p.cur().Type {
+	case token.NEWLINE:
+		return nil
+
+	default:
+		return p.parseLiteral()
+	}
 }
 
 func (p *Parser) parseLiteral() *ast.Literal {

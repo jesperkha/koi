@@ -121,10 +121,8 @@ func (a *AstBuilder) printExpr(node Expr) {
 	switch node := node.(type) {
 	case *Literal:
 		a.printLiteral(node)
-	case *NoExpr:
-		a.writeln("<empty>")
 	case nil:
-		a.writeln("<nil>")
+		a.writeln("<empty>")
 	default:
 		a.writeln("[ERR: unhandled expression type]")
 	}

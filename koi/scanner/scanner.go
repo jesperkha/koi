@@ -178,6 +178,8 @@ func (s *Scanner) scanNewline() token.Token {
 	if s.cur() == '\n' {
 		pos := s.tokenPos()
 		endPos := s.tokenEndPos()
+		endPos.Col++
+		endPos.Offset++
 		s.next()
 		return token.Token{
 			Type:   token.NEWLINE,
