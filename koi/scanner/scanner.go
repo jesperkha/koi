@@ -37,16 +37,10 @@ func New(file *token.File, src []byte) *Scanner {
 // Scan consumes the next token and returns it, advancing the Scanner.
 func (s *Scanner) Scan() token.Token {
 	if s.eof() {
-		return token.Token{
-			Eof:  true,
-			Type: token.EOF,
-		}
+		return s.eofToken()
 	}
 
 	tok := s.scanWhitespace()
-	tok.Length = len(tok.Lexeme)
-	tok.Pos = s.tokenPos()
-	tok.EndPos = s.tokenEndPos()
 
 	s.base = s.pos
 	s.startCol = s.col
@@ -79,7 +73,16 @@ func isNum(c byte) bool {
 }
 
 func isWhitespace(c byte) bool {
-	return strings.Contains("\n\t\r ", string(c))
+	return strings.Contains("\t\r ", string(c))
+}
+
+func (s *Scanner) eofToken() token.Token {
+	return token.Token{
+		Type:   token.EOF,
+		Eof:    true,
+		Pos:    s.tokenPos(),
+		EndPos: s.tokenEndPos(),
+	}
 }
 
 func (s *Scanner) err(f string, args ...any) {
@@ -113,6 +116,7 @@ func (s *Scanner) next() {
 		s.row++
 		s.col = 0
 		s.startCol = 0
+		s.base = s.pos + 1
 		s.lineBegin = s.pos + 1
 	}
 
@@ -164,9 +168,22 @@ func (s *Scanner) scanWhitespace() token.Token {
 	}
 
 	if s.eof() {
+		return s.eofToken()
+	}
+
+	return s.scanNewline()
+}
+
+func (s *Scanner) scanNewline() token.Token {
+	if s.cur() == '\n' {
+		pos := s.tokenPos()
+		endPos := s.tokenEndPos()
+		s.next()
 		return token.Token{
-			Type: token.EOF,
-			Eof:  true,
+			Type:   token.NEWLINE,
+			Lexeme: "NEWLINE",
+			Pos:    pos,
+			EndPos: endPos,
 		}
 	}
 
@@ -182,6 +199,9 @@ func (s *Scanner) scanComment() token.Token {
 		s.next()
 	}
 
+	// Newline tokens after comments have no
+	// semantic value so we can just ignore them.
+	s.next()
 	return s.scanWhitespace()
 }
 
@@ -204,6 +224,8 @@ func (s *Scanner) scanIdentifier() token.Token {
 	return token.Token{
 		Type:   typ,
 		Lexeme: str,
+		Pos:    s.tokenPos(),
+		EndPos: s.tokenEndPos(),
 	}
 }
 
@@ -233,6 +255,8 @@ func (s *Scanner) scanNumber() token.Token {
 		Lexeme:  s.interval(),
 		Invalid: dots > 1,
 		Float:   dots > 0,
+		Pos:     s.tokenPos(),
+		EndPos:  s.tokenEndPos(),
 	}
 }
 
@@ -266,6 +290,8 @@ func (s *Scanner) scanString() token.Token {
 		Type:    token.STRING,
 		Lexeme:  s.interval(),
 		Invalid: !closed,
+		Pos:     s.tokenPos(),
+		EndPos:  s.tokenEndPos(),
 	}
 }
 
@@ -282,6 +308,8 @@ func (s *Scanner) scanSymbol() token.Token {
 			return token.Token{
 				Type:   typ,
 				Lexeme: s.interval(),
+				Pos:    s.tokenPos(),
+				EndPos: s.tokenEndPos(),
 			}
 		}
 	}
@@ -291,6 +319,8 @@ func (s *Scanner) scanSymbol() token.Token {
 		return token.Token{
 			Type:   typ,
 			Lexeme: s.interval(),
+			Pos:    s.tokenPos(),
+			EndPos: s.tokenEndPos(),
 		}
 	}
 
@@ -305,5 +335,7 @@ func (s *Scanner) scanIllegal() token.Token {
 		Type:    token.ILLEGAL,
 		Invalid: true,
 		Lexeme:  s.interval(),
+		Pos:     s.tokenPos(),
+		EndPos:  s.tokenEndPos(),
 	}
 }

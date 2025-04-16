@@ -56,6 +56,10 @@ loop:
 		case token.EOF:
 			break loop
 
+		case token.NEWLINE:
+			p.next()
+			continue
+
 		case token.PUB:
 			public = true
 			p.next()

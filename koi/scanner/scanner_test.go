@@ -67,9 +67,6 @@ func assertEq(t *testing.T, s *Scanner, token token.Token) {
 	if tok.Invalid != token.Invalid {
 		t.Errorf("'%s': expected Invalid=%v, got %v", token.Lexeme, token.Invalid, tok.Invalid)
 	}
-	if tok.Length != token.Length {
-		t.Errorf("'%s': expected Length=%v, got %v", token.Lexeme, token.Length, tok.Length)
-	}
 	if tok.Type != token.Type {
 		t.Errorf("'%s': expected Type=%d, got %d", token.Lexeme, token.Type, tok.Type)
 	}
@@ -89,7 +86,6 @@ func tok(typ token.TokenType, lexeme string, col int, row int, invalid bool) tok
 			Row: row,
 			Col: col,
 		},
-		Length:  len(lexeme),
 		Invalid: invalid,
 	}
 }
@@ -171,7 +167,9 @@ func TestWhitespace(t *testing.T) {
 	src := []byte("   \t\n  hello   \n\tworld  ")
 	s := New(&token.File{}, src)
 
+	assertEq(t, s, tok(token.NEWLINE, "NEWLINE", 4, 0, false))
 	assertEq(t, s, tok(token.IDENT, "hello", 2, 1, false))
+	assertEq(t, s, tok(token.NEWLINE, "NEWLINE", 10, 1, false))
 	assertEq(t, s, tok(token.IDENT, "world", 1, 2, false))
 	assertEq(t, s, tok(token.EOF, "", 8, 2, false))
 	assertEof(t, s)
@@ -182,7 +180,10 @@ func TestNewlines(t *testing.T) {
 	s := New(&token.File{}, src)
 
 	assertEq(t, s, tok(token.IDENT, "a", 0, 0, false))
+	assertEq(t, s, tok(token.NEWLINE, "NEWLINE", 1, 0, false))
 	assertEq(t, s, tok(token.IDENT, "b", 0, 1, false))
+	assertEq(t, s, tok(token.NEWLINE, "NEWLINE", 1, 1, false))
+	assertEq(t, s, tok(token.NEWLINE, "NEWLINE", 0, 2, false))
 	assertEq(t, s, tok(token.IDENT, "c", 0, 3, false))
 	assertEof(t, s)
 }
@@ -232,7 +233,7 @@ func TestEmptySource(t *testing.T) {
 }
 
 func TestOnlyWhitespace(t *testing.T) {
-	src := []byte("  \t \n\t ")
+	src := []byte("  \t \r\t ")
 	s := New(&token.File{}, src)
 
 	s.Scan()

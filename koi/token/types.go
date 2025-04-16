@@ -7,6 +7,7 @@ type TokenType int
 const (
 	ILLEGAL TokenType = iota
 	EOF
+	NEWLINE
 
 	// Generic types
 	STRING // String literal
@@ -75,6 +76,7 @@ const (
 var tokenStrings = [...]string{
 	ILLEGAL:    "illegal",
 	EOF:        "eof",
+	NEWLINE:    "newline",
 	STRING:     "string",
 	NUMBER:     "number",
 	IDENT:      "identifier",

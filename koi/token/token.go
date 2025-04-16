@@ -7,7 +7,6 @@ type Token struct {
 	Pos    Pos    // Position of first character in token
 	EndPos Pos    // Position of character immediately after token
 	Lexeme string // The token as a string literal
-	Length int    // The character length of the token
 	Float  bool   // If Type is NUMBER, this is true for floating point literals
 
 	// If the token is EOF. Always true if the type is EOF and
@@ -24,7 +23,14 @@ type Token struct {
 }
 
 func (t Token) String() string {
-	return fmt.Sprintf("{%d '%s' c:%d r:%d}", t.Type, t.Lexeme, t.Pos.Col, t.Pos.Row)
+	return fmt.Sprintf("{%s '%s' c:%d r:%d}", tokenStrings[t.Type], t.Lexeme, t.Pos.Col, t.Pos.Row)
+}
+
+// Print tokens to standard out as formatted by Token.String().
+func Print(toks []Token) {
+	for _, t := range toks {
+		fmt.Println(t.String())
+	}
 }
 
 type Pos struct {
