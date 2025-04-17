@@ -13,6 +13,10 @@ type Type interface {
 	String() string
 }
 
+func Equals(a Type, b Type) bool {
+	return a.Underlying().String() == b.Underlying().String() // Temp fix
+}
+
 type PrimitiveType int
 
 const (
@@ -21,6 +25,7 @@ const (
 	STRING
 	BYTE
 	VOID
+	BOOL
 )
 
 var tokenTypeToPrimitive = map[token.TokenType]PrimitiveType{
@@ -29,6 +34,7 @@ var tokenTypeToPrimitive = map[token.TokenType]PrimitiveType{
 	token.FLOAT:    FLOAT,
 	token.STRING_T: STRING,
 	token.BYTE:     BYTE,
+	token.BOOL:     BOOL,
 }
 
 var primitiveToString = map[PrimitiveType]string{
@@ -37,6 +43,7 @@ var primitiveToString = map[PrimitiveType]string{
 	FLOAT:  "float",
 	STRING: "string",
 	BYTE:   "byte",
+	BOOL:   "bool",
 }
 
 type Primitive struct {
@@ -44,6 +51,9 @@ type Primitive struct {
 }
 
 func (p *Primitive) Underlying() Type {
+	if p.Type == BYTE {
+		return &Primitive{Type: INT}
+	}
 	return p
 }
 

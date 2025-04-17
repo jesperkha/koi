@@ -125,7 +125,7 @@ func (c *Checker) visitReturn(node *ast.Return) {
 
 	t := c.visitExpr(node.E)
 	r := c.scope.getReturnType()
-	if t.String() != r.String() {
+	if !Equals(t, r) {
 		c.err(node, "type %s does not match expected return type %s", t.String(), r.String())
 	}
 }
@@ -135,14 +135,21 @@ func (c *Checker) visitLiteral(node *ast.Literal) Type {
 	t := node.T
 
 	switch t.Type {
+	case token.TRUE, token.FALSE:
+		return &Primitive{Type: BOOL}
+
 	case token.STRING:
 		return &Primitive{Type: STRING}
+
 	case token.NUMBER:
 		if t.Float {
 			return &Primitive{Type: FLOAT}
 		}
 		return &Primitive{Type: INT}
+
+	case token.BYTE_STR:
+		return &Primitive{Type: BYTE}
 	}
 
-	panic("invalid literal: " + node.T.String())
+	panic("unhandled literal: " + node.T.String())
 }

@@ -10,9 +10,10 @@ const (
 	NEWLINE
 
 	// Generic types
-	STRING // String literal
-	NUMBER // Integer literal
-	IDENT  // Identifier
+	STRING   // String literal
+	NUMBER   // Integer literal
+	IDENT    // Identifier
+	BYTE_STR // Single character string with single quotes
 
 	// Keywords
 	TRUE
@@ -71,6 +72,7 @@ const (
 	FLOAT
 	STRING_T
 	BYTE
+	BOOL
 )
 
 var tokenStrings = [...]string{
@@ -128,6 +130,7 @@ var tokenStrings = [...]string{
 	FLOAT:      "float",
 	STRING_T:   "string",
 	BYTE:       "byte",
+	BOOL:       "bool",
 }
 
 func String(t TokenType) string {
@@ -155,6 +158,7 @@ var Keywords = map[string]TokenType{
 	"void":    VOID,
 	"string":  STRING_T,
 	"int":     INT,
+	"bool":    BOOL,
 }
 
 var SingleSymbols = map[string]TokenType{

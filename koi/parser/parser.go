@@ -281,7 +281,7 @@ func (p *Parser) parseType() ast.Type {
 	}
 
 	// Primitive type with only identifier.
-	if p.matchMany(token.STRING_T, token.VOID, token.INT, token.FLOAT, token.BYTE) {
+	if p.matchMany(token.STRING_T, token.VOID, token.INT, token.FLOAT, token.BYTE, token.BOOL) {
 		return &ast.PrimitiveType{
 			T: p.consume(),
 		}
@@ -384,7 +384,7 @@ func (p *Parser) parseExpr() ast.Expr {
 }
 
 func (p *Parser) parseLiteral() *ast.Literal {
-	if !p.matchMany(token.NUMBER, token.STRING, token.TRUE, token.FALSE, token.NIL) {
+	if !p.matchMany(token.NUMBER, token.STRING, token.TRUE, token.FALSE, token.NIL, token.BYTE_STR) {
 		p.err("invalid literal expression")
 		return nil
 	}

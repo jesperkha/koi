@@ -257,7 +257,7 @@ func (s *Scanner) scanNumber() token.Token {
 
 func (s *Scanner) scanString() token.Token {
 	if s.cur() != '"' {
-		return s.scanSymbol()
+		return s.scanByteString()
 	}
 
 	s.next()        // Consume start quote
@@ -285,6 +285,47 @@ func (s *Scanner) scanString() token.Token {
 		Type:    token.STRING,
 		Lexeme:  s.interval(),
 		Invalid: !closed,
+		Pos:     s.tokenPos(),
+		EndPos:  s.tokenEndPos(),
+	}
+}
+
+func (s *Scanner) scanByteString() token.Token {
+	if s.cur() != '\'' {
+		return s.scanSymbol()
+	}
+
+	s.next()        // Consume start quote
+	closed := false // True if found end quote on current line
+
+	length := 0
+	for !s.eof() {
+		if s.cur() == '\'' {
+			s.next() // Consume end quote
+			closed = true
+			break
+		}
+
+		if s.cur() == '\n' {
+			break
+		}
+
+		s.next()
+		length++
+	}
+
+	if !closed {
+		s.err("byte literals must have a terminating quote on the same line")
+	}
+
+	if length != 1 {
+		s.err("byte literals must have exactly one character")
+	}
+
+	return token.Token{
+		Type:    token.BYTE_STR,
+		Lexeme:  s.interval(),
+		Invalid: !closed || length != 1,
 		Pos:     s.tokenPos(),
 		EndPos:  s.tokenEndPos(),
 	}
