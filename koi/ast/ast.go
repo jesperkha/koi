@@ -112,7 +112,7 @@ func (i *Ident) Pos() token.Pos { return i.T.Pos }
 func (i *Ident) End() token.Pos { return i.T.Pos }
 
 func (l *Literal) Pos() token.Pos { return l.T.Pos }
-func (l *Literal) End() token.Pos { return l.T.Pos }
+func (l *Literal) End() token.Pos { return l.T.EndPos }
 
-func (r *Return) Pos() token.Pos { return r.E.Pos() }
+func (r *Return) Pos() token.Pos { return r.Ret.Pos }
 func (r *Return) End() token.Pos { return r.E.End() }

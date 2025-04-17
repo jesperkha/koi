@@ -53,7 +53,7 @@ func (f *File) Line(row int) string {
 
 	offset := f.Lines[row]
 	end := findEndOfLine(f.Src, offset)
-	return string(f.Src[offset:end])
+	return string(f.Src[offset : end+1])
 }
 
 // Returns position of last character on current line.
@@ -65,7 +65,6 @@ func findEndOfLine(src []byte, offset int) int {
 			return i - 1
 		}
 	}
-
 	return len(src) - 1
 }
 

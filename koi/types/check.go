@@ -10,28 +10,44 @@ import (
 )
 
 type Checker struct {
-	err   util.ErrorHandler
-	scope *scope
+	errors    util.ErrorHandler
+	file      *token.File
+	scope     *scope
+	tree      *ast.Ast
+	NumErrors int
 }
 
-func NewChecker() *Checker {
+func NewChecker(file *token.File, tree *ast.Ast) *Checker {
 	return &Checker{
 		scope: newScope(),
+		file:  file,
+		tree:  tree,
 	}
 }
 
-func (c *Checker) Run(tree *ast.Ast) {
-	assert(tree != nil, "tree is nil")
+func (c *Checker) Run() {
+	assert(c.tree != nil, "tree is nil")
 
-	for _, decl := range tree.Nodes {
+	for _, decl := range c.tree.Nodes {
 		c.visitDecl(decl)
 	}
+}
+
+func (c *Checker) Error() error {
+	return c.errors.Error()
 }
 
 func assert(v bool, format string, args ...any) {
 	if !v {
 		panic(fmt.Sprintf("assertion failed: %s", fmt.Sprintf(format, args...)))
 	}
+}
+
+func (c *Checker) err(node ast.Node, format string, arg ...any) {
+	row := node.Pos().Row
+	msg := fmt.Sprintf(format, arg...)
+	c.errors.Pretty(row+1, c.file.Line(row), msg, node.Pos().Col, node.End().Col)
+	c.NumErrors++
 }
 
 func (c *Checker) visitDecl(node ast.Decl) {
@@ -110,7 +126,7 @@ func (c *Checker) visitReturn(node *ast.Return) {
 	t := c.visitExpr(node.E)
 	r := c.scope.getReturnType()
 	if t.String() != r.String() {
-		log.Printf("mismatched types %s and %s", t.String(), r.String())
+		c.err(node, "type %s does not match expected return type %s", t.String(), r.String())
 	}
 }
 
