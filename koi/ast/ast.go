@@ -76,11 +76,11 @@ type (
 	// Function declaration.
 	Func struct {
 		Decl
-		Public bool
-		Name   token.Token
-		Params *NamedTuple
-		Type   Type
-		Block  *Block
+		Public  bool
+		Name    token.Token
+		Params  *NamedTuple
+		RetType Type
+		Block   *Block
 	}
 )
 

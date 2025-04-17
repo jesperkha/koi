@@ -44,7 +44,7 @@ func (a *AstBuilder) printFunc(node *Func) {
 	a.write(fmt.Sprintf("func %s", node.Name.Lexeme))
 	a.printNamedTuple(node.Params)
 	a.write(" ")
-	a.printType(node.Type)
+	a.printType(node.RetType)
 	a.write("\n")
 	a.printBlock(node.Block)
 }

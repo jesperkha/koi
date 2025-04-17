@@ -228,11 +228,11 @@ func (p *Parser) parseFunc(public bool) *ast.Func {
 	block := p.parseBlock()
 
 	return &ast.Func{
-		Public: public,
-		Name:   name,
-		Params: params,
-		Type:   typ,
-		Block:  block,
+		Public:  public,
+		Name:    name,
+		Params:  params,
+		RetType: typ,
+		Block:   block,
 	}
 }
 
