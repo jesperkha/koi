@@ -122,9 +122,17 @@ func (c *Checker) visitFunc(node *ast.Func) {
 
 func (c *Checker) visitReturn(node *ast.Return) {
 	assert(node != nil, "node is ni")
+	r := c.scope.getReturnType()
+
+	if node.E == nil {
+		t := &Primitive{Type: VOID}
+		if !Equals(r, t) {
+			c.err(node, "type %s does not match expected return type %s", t.String(), r.String())
+		}
+		return
+	}
 
 	t := c.visitExpr(node.E)
-	r := c.scope.getReturnType()
 	if !Equals(t, r) {
 		c.err(node, "type %s does not match expected return type %s", t.String(), r.String())
 	}
