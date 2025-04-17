@@ -12,7 +12,7 @@ type Scanner struct {
 	// Number of syntax errors encountered and reported to handler.
 	NumErrors int
 
-	errors util.ErrorList
+	errors util.ErrorHandler
 	file   *token.File
 
 	src       []byte // Source text to scan
@@ -26,11 +26,11 @@ type Scanner struct {
 
 // New makes a new Scanner object for the given file. The src is the raw text
 // input to scan. Scanner only accepts ascii text.
-func New(file *token.File, src []byte) *Scanner {
+func New(file *token.File) *Scanner {
 	return &Scanner{
 		file:   file,
-		src:    src,
-		errors: util.ErrorList{},
+		src:    file.Src,
+		errors: util.ErrorHandler{},
 	}
 }
 
@@ -86,15 +86,8 @@ func (s *Scanner) eofToken() token.Token {
 }
 
 func (s *Scanner) err(f string, args ...any) {
-	lineStr := s.src[s.lineBegin : util.FindEndOfLine(s.src, s.lineBegin)+1]
-	length := s.col - s.startCol
-
-	err := ""
-	err += fmt.Sprintf("error: %s\n", fmt.Sprintf(f, args...))
-	err += fmt.Sprintf("%3d | %s\n", s.row+1, lineStr)
-	err += fmt.Sprintf("    | %s%s\n", strings.Repeat(" ", s.startCol), strings.Repeat("^", length))
-
-	s.errors.Add(fmt.Errorf("%s", err))
+	msg := fmt.Sprintf(f, args...)
+	s.errors.Pretty(s.row+1, s.file.Line(s.row), msg, s.startCol, s.col)
 	s.NumErrors++
 }
 

@@ -9,10 +9,10 @@ import (
 )
 
 func parserFrom(src string) *Parser {
-	file := &token.File{}
-	s := scanner.New(file, []byte(src))
+	file := token.NewFile("test", src)
+	s := scanner.New(file)
 	toks := s.ScanAll()
-	return New(&token.File{}, toks, []byte(src))
+	return New(file, toks)
 }
 
 func TestNoInput(t *testing.T) {

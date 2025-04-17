@@ -10,7 +10,7 @@ import (
 )
 
 type Checker struct {
-	err   util.ErrorList
+	err   util.ErrorHandler
 	scope *scope
 }
 

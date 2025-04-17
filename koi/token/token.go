@@ -40,9 +40,3 @@ type Pos struct {
 	File      *File // File this position refers to
 	LineBegin int   // Offset of beginning of line token is on
 }
-
-type File struct {
-	// Only the file name without path prefix.
-	// Eg. foo/bar/faz.koi -> faz.koi
-	Name string
-}

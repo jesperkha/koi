@@ -4,12 +4,11 @@ import (
 	"testing"
 
 	"github.com/jesperkha/koi/koi/token"
-	"github.com/jesperkha/koi/koi/util"
 )
 
 func TestIter(t *testing.T) {
 	src := []byte("hello world")
-	s := New(&token.File{}, src)
+	s := New(token.NewFile("test", src))
 
 	for i, ch := range src {
 		if s.eof() {
@@ -36,22 +35,6 @@ func TestIter(t *testing.T) {
 
 	if !s.eof() {
 		t.Error("expected eof")
-	}
-}
-
-func TestFindEndOfLine(t *testing.T) {
-	src := []byte("hello there\nmy name is bob")
-
-	// offset: expect
-	cases := map[int]int{
-		5:  10,
-		14: 25,
-	}
-
-	for k, v := range cases {
-		if n := util.FindEndOfLine(src, k); n != v {
-			t.Errorf("expected end=%d, got %d, for offset=%d", v, n, k)
-		}
 	}
 }
 
@@ -92,7 +75,7 @@ func tok(typ token.TokenType, lexeme string, col int, row int, invalid bool) tok
 
 func TestIdent(t *testing.T) {
 	src := []byte("hello foo_bar john123")
-	s := New(&token.File{}, src)
+	s := New(token.NewFile("test", src))
 
 	assertEq(t, s, tok(token.IDENT, "hello", 0, 0, false))
 	assertEq(t, s, tok(token.IDENT, "foo_bar", 6, 0, false))
@@ -102,7 +85,7 @@ func TestIdent(t *testing.T) {
 
 func TestKeyword(t *testing.T) {
 	src := []byte("none nil preturn elsee")
-	s := New(&token.File{}, src)
+	s := New(token.NewFile("test", src))
 
 	assertEq(t, s, tok(token.IDENT, "none", 0, 0, false))
 	assertEq(t, s, tok(token.NIL, "nil", 5, 0, false))
@@ -113,14 +96,14 @@ func TestKeyword(t *testing.T) {
 
 func TestNumber(t *testing.T) {
 	src := []byte("123 1.23")
-	s := New(&token.File{}, src)
+	s := New(token.NewFile("test", src))
 
 	assertEq(t, s, tok(token.NUMBER, "123", 0, 0, false))
 	assertEq(t, s, tok(token.NUMBER, "1.23", 4, 0, false))
 	assertEof(t, s)
 
 	src = []byte("1.1.2 123..4")
-	s = New(&token.File{}, src)
+	s = New(token.NewFile("test", src))
 
 	assertEq(t, s, tok(token.NUMBER, "1.1.2", 0, 0, true))
 	assertEq(t, s, tok(token.NUMBER, "123..4", 6, 0, true))
@@ -129,14 +112,14 @@ func TestNumber(t *testing.T) {
 
 func TestString(t *testing.T) {
 	src := []byte("\"hello\" \"there\"")
-	s := New(&token.File{}, src)
+	s := New(token.NewFile("test", src))
 
 	assertEq(t, s, tok(token.STRING, "\"hello\"", 0, 0, false))
 	assertEq(t, s, tok(token.STRING, "\"there\"", 8, 0, false))
 	assertEof(t, s)
 
 	src = []byte("\"no end quote")
-	s = New(&token.File{}, src)
+	s = New(token.NewFile("test", src))
 
 	assertEq(t, s, tok(token.STRING, "\"no end quote", 0, 0, true))
 	assertEof(t, s)
@@ -144,7 +127,7 @@ func TestString(t *testing.T) {
 
 func TestSymbol(t *testing.T) {
 	src := []byte("++= == /= !!=")
-	s := New(&token.File{}, src)
+	s := New(token.NewFile("test", src))
 
 	assertEq(t, s, tok(token.PLUS, "+", 0, 0, false))
 	assertEq(t, s, tok(token.PLUS_EQ, "+=", 1, 0, false))
@@ -155,7 +138,7 @@ func TestSymbol(t *testing.T) {
 	assertEof(t, s)
 
 	src = []byte("?^$")
-	s = New(&token.File{}, src)
+	s = New(token.NewFile("test", src))
 
 	assertEq(t, s, tok(token.ILLEGAL, "?", 0, 0, true))
 	assertEq(t, s, tok(token.ILLEGAL, "^", 1, 0, true))
@@ -165,7 +148,7 @@ func TestSymbol(t *testing.T) {
 
 func TestWhitespace(t *testing.T) {
 	src := []byte("   \t\n  hello   \n\tworld  ")
-	s := New(&token.File{}, src)
+	s := New(token.NewFile("test", src))
 
 	assertEq(t, s, tok(token.NEWLINE, "NEWLINE", 4, 0, false))
 	assertEq(t, s, tok(token.IDENT, "hello", 2, 1, false))
@@ -177,7 +160,7 @@ func TestWhitespace(t *testing.T) {
 
 func TestNewlines(t *testing.T) {
 	src := []byte("a\nb\n\nc")
-	s := New(&token.File{}, src)
+	s := New(token.NewFile("test", src))
 
 	assertEq(t, s, tok(token.IDENT, "a", 0, 0, false))
 	assertEq(t, s, tok(token.NEWLINE, "NEWLINE", 1, 0, false))
@@ -190,7 +173,7 @@ func TestNewlines(t *testing.T) {
 
 func TestMixedTokens(t *testing.T) {
 	src := []byte("var x = 42 + 3.14;")
-	s := New(&token.File{}, src)
+	s := New(token.NewFile("test", src))
 
 	assertEq(t, s, tok(token.IDENT, "var", 0, 0, false))
 	assertEq(t, s, tok(token.IDENT, "x", 4, 0, false))
@@ -204,7 +187,7 @@ func TestMixedTokens(t *testing.T) {
 
 func TestComplexSymbols(t *testing.T) {
 	src := []byte("<= >= && || != ==")
-	s := New(&token.File{}, src)
+	s := New(token.NewFile("test", src))
 
 	assertEq(t, s, tok(token.LESS_EQ, "<=", 0, 0, false))
 	assertEq(t, s, tok(token.GREATER_EQ, ">=", 3, 0, false))
@@ -217,7 +200,7 @@ func TestComplexSymbols(t *testing.T) {
 
 func TestInvalidNumber(t *testing.T) {
 	src := []byte("123..456")
-	s := New(&token.File{}, src)
+	s := New(token.NewFile("test", src))
 
 	assertEq(t, s, tok(token.NUMBER, "123..456", 0, 0, true))
 	assertEof(t, s)
@@ -225,7 +208,7 @@ func TestInvalidNumber(t *testing.T) {
 
 func TestEmptySource(t *testing.T) {
 	src := []byte("")
-	s := New(&token.File{}, src)
+	s := New(token.NewFile("test", src))
 
 	if !s.eof() {
 		t.Error("expected eof for empty source")
@@ -234,7 +217,7 @@ func TestEmptySource(t *testing.T) {
 
 func TestOnlyWhitespace(t *testing.T) {
 	src := []byte("  \t \r\t ")
-	s := New(&token.File{}, src)
+	s := New(token.NewFile("test", src))
 
 	s.Scan()
 
@@ -245,7 +228,7 @@ func TestOnlyWhitespace(t *testing.T) {
 
 func TestOnlyComment(t *testing.T) {
 	src := []byte("// one comment\n// two comments")
-	s := New(&token.File{}, src)
+	s := New(token.NewFile("test", src))
 
 	s.Scan()
 
@@ -256,7 +239,7 @@ func TestOnlyComment(t *testing.T) {
 
 func TestPunctuation(t *testing.T) {
 	src := []byte(".,:;(){}[]")
-	s := New(&token.File{}, src)
+	s := New(token.NewFile("test", src))
 
 	assertEq(t, s, tok(token.DOT, ".", 0, 0, false))
 	assertEq(t, s, tok(token.COMMA, ",", 1, 0, false))
@@ -273,7 +256,7 @@ func TestPunctuation(t *testing.T) {
 
 func TestComment(t *testing.T) {
 	src := []byte("// this is a comment\n  // another one\nvar//foo\n123")
-	s := New(&token.File{}, src)
+	s := New(token.NewFile("test", src))
 
 	assertEq(t, s, tok(token.IDENT, "var", 0, 2, false))
 	assertEq(t, s, tok(token.NUMBER, "123", 0, 3, false))

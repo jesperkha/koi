@@ -3,7 +3,6 @@ package parser
 import (
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/jesperkha/koi/koi/ast"
 	"github.com/jesperkha/koi/koi/token"
@@ -13,10 +12,9 @@ import (
 type Parser struct {
 	NumErrors int
 
-	errors util.ErrorList
+	errors util.ErrorHandler
 	file   *token.File
 	toks   []token.Token
-	src    []byte
 	pos    int // Current token being looked at
 
 	// Panic mode occurs when the parser encounters an unknown token sequence
@@ -30,12 +28,11 @@ type Parser struct {
 	base      int
 }
 
-func New(file *token.File, toks []token.Token, src []byte) *Parser {
+func New(file *token.File, toks []token.Token) *Parser {
 	return &Parser{
 		toks:   toks,
 		file:   file,
-		src:    src,
-		errors: util.ErrorList{},
+		errors: util.ErrorHandler{},
 	}
 }
 
@@ -175,15 +172,12 @@ func (p *Parser) errFromTo(from token.Token, to token.Token, format string, args
 		return
 	}
 
-	lineStr := p.src[from.Pos.LineBegin : util.FindEndOfLine(p.src, from.Pos.LineBegin)+1]
-	length := to.EndPos.Col - from.Pos.Col
+	row := from.Pos.Row
+	msg := fmt.Sprintf(format, args...)
+	start := from.Pos.Col
+	end := to.EndPos.Col
+	p.errors.Pretty(row+1, p.file.Line(row), msg, start, end)
 
-	err := ""
-	err += fmt.Sprintf("error: %s\n", fmt.Sprintf(format, args...))
-	err += fmt.Sprintf("%3d | %s\n", from.Pos.Row+1, lineStr)
-	err += fmt.Sprintf("    | %s%s\n", strings.Repeat(" ", from.Pos.Col), strings.Repeat("^", length))
-
-	p.errors.Add(fmt.Errorf("%s", err))
 	p.panic()
 	p.NumErrors++
 }
