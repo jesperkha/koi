@@ -207,6 +207,14 @@ func (p *Parser) expectMany(label string, types ...token.TokenType) token.Token 
 	return p.consume()
 }
 
+// Skips to next newline token and returns it. Does the same in case of eof.
+func (p *Parser) gotoNewline() token.Token {
+	for !p.eof() && !p.match(token.NEWLINE) {
+		p.next()
+	}
+	return p.cur()
+}
+
 func (p *Parser) parseFunc(public bool) *ast.Func {
 	p.next() // Func keyword which is guaranteed
 
@@ -320,7 +328,9 @@ func (p *Parser) parseStmt() ast.Stmt {
 		return p.parseBlock()
 
 	default:
-		p.err("invalid statement")
+		from := p.cur()
+		p.gotoNewline()
+		p.errFromTo(from, p.prev(), "invalid statement")
 	}
 
 	return nil
@@ -360,7 +370,10 @@ func (p *Parser) parseBlock() *ast.Block {
 
 		s := p.parseStmt()
 		if !p.matchMany(token.NEWLINE, token.RBRACE) {
-			p.err("expected end of statement")
+			from := p.cur()
+			p.gotoNewline()
+			p.errFromTo(from, p.prev(), "expected end of statement")
+			continue
 		}
 
 		stmts = append(stmts, s)
@@ -389,7 +402,9 @@ func (p *Parser) parseExpr() ast.Expr {
 
 func (p *Parser) parseLiteral() *ast.Literal {
 	if !p.matchMany(token.NUMBER, token.STRING, token.TRUE, token.FALSE, token.NIL, token.BYTE_STR) {
-		p.err("invalid literal expression")
+		from := p.cur()
+		p.gotoNewline()
+		p.errFromTo(from, p.prev(), "invalid expression")
 		return nil
 	}
 
