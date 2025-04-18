@@ -121,7 +121,12 @@ func (l *Literal) Pos() token.Pos { return l.T.Pos }
 func (l *Literal) End() token.Pos { return l.T.EndPos }
 
 func (r *Return) Pos() token.Pos { return r.Ret.Pos }
-func (r *Return) End() token.Pos { return r.E.End() }
+func (r *Return) End() token.Pos {
+	if r.E != nil {
+		return r.E.End()
+	}
+	return r.Ret.EndPos
+}
 
 type TypeKind int
 

@@ -30,7 +30,9 @@ func (c *Checker) Check() *TypedAst {
 
 	tree := &TypedAst{}
 	for _, decl := range c.tree.Nodes {
-		c.visitDecl(decl)
+		if d := c.visitDecl(decl); d != nil {
+			tree.Nodes = append(tree.Nodes, d)
+		}
 	}
 
 	return tree
@@ -94,6 +96,7 @@ func (c *Checker) visitExpr(node ast.Expr) Expr {
 		log.Fatal("unhandled statement type in checker")
 	}
 
+	// Unreachable
 	return nil
 }
 
@@ -151,7 +154,7 @@ func (c *Checker) visitReturn(node *ast.Return) *Return {
 	if node.E == nil {
 		t := &Primitive{Type: VOID}
 		if !Equals(r, t) {
-			c.err(node, "type %s does not match expected return type %s", t.String(), r.String())
+			c.err(node, "expected return type %s", r.String())
 		}
 
 		return &Return{E: nil}
