@@ -2,7 +2,6 @@ package types
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/jesperkha/koi/koi/ast"
 	"github.com/jesperkha/koi/koi/token"
@@ -63,11 +62,8 @@ func (c *Checker) visitDecl(node ast.Decl) Decl {
 		return c.visitFunc(node)
 
 	default:
-		log.Fatal("unhandled declaration type in checker")
+		panic("unhandled declaration type in checker")
 	}
-
-	// Unreachable
-	return nil
 }
 
 func (c *Checker) visitStmt(node ast.Stmt) Stmt {
@@ -77,12 +73,12 @@ func (c *Checker) visitStmt(node ast.Stmt) Stmt {
 	case *ast.Return:
 		return c.visitReturn(node)
 
-	default:
-		log.Fatal("unhandled statement type in checker")
-	}
+	case *ast.Block:
+		return c.visitBlock(node)
 
-	// Unreachable
-	return nil
+	default:
+		panic("unhandled statement type in checker")
+	}
 }
 
 func (c *Checker) visitExpr(node ast.Expr) Expr {
@@ -93,11 +89,8 @@ func (c *Checker) visitExpr(node ast.Expr) Expr {
 		return c.visitLiteral(node)
 
 	default:
-		log.Fatal("unhandled statement type in checker")
+		panic("unhandled statement type in checker")
 	}
-
-	// Unreachable
-	return nil
 }
 
 func (c *Checker) visitType(node ast.Type) Type {
@@ -134,9 +127,10 @@ func (c *Checker) visitFunc(node *ast.Func) *FuncDecl {
 
 	retType := c.visitType(node.RetType)
 	c.ctx.SetReturnType(retType)
+	block := c.visitBlockNoScope(node.Block) // Scope is already made
 
-	for _, stmt := range node.Block.Stmts {
-		c.visitStmt(stmt)
+	if !c.ctx.HasReturned() && !IsVoid(retType) {
+		c.err(node, "function is missing return")
 	}
 
 	return &FuncDecl{
@@ -144,7 +138,25 @@ func (c *Checker) visitFunc(node *ast.Func) *FuncDecl {
 		Name:    node.Name.Lexeme,
 		RetType: retType,
 		Params:  params,
+		Block:   block,
 	}
+}
+
+func (c *Checker) visitBlockNoScope(node *ast.Block) *Block {
+	assert(node != nil, "node is nil")
+
+	stmts := []Stmt{}
+	for _, stmt := range node.Stmts {
+		c.visitStmt(stmt)
+	}
+
+	return &Block{Stmts: stmts}
+}
+
+func (c *Checker) visitBlock(node *ast.Block) *Block {
+	c.ctx.Push()
+	defer c.ctx.Pop()
+	return c.visitBlockNoScope(node)
 }
 
 func (c *Checker) visitReturn(node *ast.Return) *Return {

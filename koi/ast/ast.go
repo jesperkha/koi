@@ -128,6 +128,12 @@ func (r *Return) End() token.Pos {
 	return r.Ret.EndPos
 }
 
+func (b *Block) Pos() token.Pos { return b.LBrace.Pos }
+func (b *Block) End() token.Pos { return b.LBrace.EndPos }
+
+func (f *Func) Pos() token.Pos { return f.Name.Pos }
+func (f *Func) End() token.Pos { return f.Name.EndPos }
+
 type TypeKind int
 
 const (

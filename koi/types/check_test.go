@@ -63,3 +63,12 @@ func TestInvalidReturnType(t *testing.T) {
 		tassert(t, c.NumErrors != 0, "case %d: expected error, got none", i+1)
 	}
 }
+
+func TestMissingReturn(t *testing.T) {
+	c := checkerFrom(t, "func f() int {}")
+	c.Check()
+
+	if c.NumErrors == 0 {
+		t.Error("expected error, got none")
+	}
+}

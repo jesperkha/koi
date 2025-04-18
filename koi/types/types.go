@@ -13,6 +13,10 @@ type Type interface {
 	String() string
 }
 
+func IsVoid(a Type) bool {
+	return a.String() == "void" // Temp fix
+}
+
 func Equals(a Type, b Type) bool {
 	return a.Underlying().String() == b.Underlying().String() // Temp fix
 }

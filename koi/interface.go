@@ -5,6 +5,7 @@ import (
 	"github.com/jesperkha/koi/koi/parser"
 	"github.com/jesperkha/koi/koi/scanner"
 	"github.com/jesperkha/koi/koi/token"
+	"github.com/jesperkha/koi/koi/types"
 )
 
 func ParseFile(filename string, src any) (*ast.Ast, error) {
@@ -27,12 +28,12 @@ func ParseFile(filename string, src any) (*ast.Ast, error) {
 		return nil, p.Error()
 	}
 
-	// c := types.NewChecker(file, ast)
-	// c.Check()
+	c := types.NewChecker(file, ast)
+	c.Check()
 
-	// if c.NumErrors != 0 {
-	// 	return nil, c.Error()
-	// }
+	if c.NumErrors != 0 {
+		return nil, c.Error()
+	}
 
 	return ast, p.Error()
 }

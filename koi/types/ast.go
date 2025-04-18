@@ -43,6 +43,7 @@ type (
 type (
 	Block struct {
 		Stmt
+		Stmts []Stmt
 	}
 
 	Return struct {
