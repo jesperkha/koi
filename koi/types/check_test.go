@@ -29,15 +29,15 @@ func checkerFrom(t *testing.T, src string) *Checker {
 
 func TestValidReturnType(t *testing.T) {
 	cases := []string{
-		"func f() void { \nreturn\n }",
-		"func f() int { \nreturn 0\n }",
-		"func f() float { \nreturn 1.0\n }",
-		"func f() byte { \nreturn 'a'\n }",
-		"func f() byte { \nreturn 10\n }",
-		"func f() int { \nreturn 'a'\n }",
-		"func f() bool { \nreturn false\n }",
-		"func f() bool { \nreturn true\n }",
-		"func f() string { \nreturn \"hello\"\n }",
+		"func f() void { return }",
+		"func f() int { return 0 }",
+		"func f() float { return 1.0 }",
+		"func f() byte { return 'a' }",
+		"func f() byte { return 10 }",
+		"func f() int { return 'a' }",
+		"func f() bool { return false }",
+		"func f() bool { return true }",
+		"func f() string { return \"hello\" }",
 	}
 
 	for i, cas := range cases {
@@ -49,12 +49,12 @@ func TestValidReturnType(t *testing.T) {
 
 func TestInvalidReturnType(t *testing.T) {
 	cases := []string{
-		"func f() void { \nreturn 0\n }",
-		"func f() float { \nreturn 1\n }",
-		"func f() int { \nreturn 1.0\n }",
-		"func f() bool { \nreturn 1\n }",
-		"func f() byte { \nreturn \"hello\"\n }",
-		"func f() int { \nreturn\n }",
+		"func f() void { return 0 }",
+		"func f() float { return 1 }",
+		"func f() int { return 1.0 }",
+		"func f() bool { return 1 }",
+		"func f() byte { return \"hello\" }",
+		"func f() int { return }",
 	}
 
 	for i, cas := range cases {

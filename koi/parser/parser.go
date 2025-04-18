@@ -338,8 +338,6 @@ func (p *Parser) parseReturn() *ast.Return {
 	}
 
 	expr := p.parseExpr()
-	p.expect(token.NEWLINE)
-
 	return &ast.Return{
 		E:   expr,
 		Ret: ret,
@@ -361,6 +359,10 @@ func (p *Parser) parseBlock() *ast.Block {
 		}
 
 		s := p.parseStmt()
+		if !p.matchMany(token.NEWLINE, token.RBRACE) {
+			p.err("expected end of statement")
+		}
+
 		stmts = append(stmts, s)
 	}
 
@@ -376,6 +378,8 @@ func (p *Parser) parseBlock() *ast.Block {
 func (p *Parser) parseExpr() ast.Expr {
 	switch p.cur().Type {
 	case token.NEWLINE:
+		return nil
+	case token.RBRACE:
 		return nil
 
 	default:

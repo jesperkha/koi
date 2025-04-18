@@ -25,11 +25,20 @@ func TestNoInput(t *testing.T) {
 }
 
 func TestEmptyFunction(t *testing.T) {
-	p := parserFrom("pub func foo() void {}\nfunc bar(a int) void {}\nfunc faz(name string, age int) void {}")
+	p := parserFrom("pub func foo() void {} func bar(a int) void {} func faz(name string, age int) void {}")
 	p.Parse()
 
 	if p.Error() != nil {
 		t.Errorf("expected no error for empty function, got %s", p.Error())
+	}
+}
+
+func TestFunctionWithReturn(t *testing.T) {
+	p := parserFrom("func f(a int, b string) int { return 0 }")
+	p.Parse()
+
+	if p.Error() != nil {
+		t.Errorf("expected no error, got %s", p.Error())
 	}
 }
 
@@ -47,7 +56,7 @@ func TestLiteral(t *testing.T) {
 }
 
 func TestPrimitiveTypes(t *testing.T) {
-	src := "int float []int [][]string"
+	src := "int float []int [][]string bool byte void"
 	p := parserFrom(src)
 	expect := strings.SplitSeq(src, " ")
 
