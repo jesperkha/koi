@@ -12,16 +12,16 @@ import (
 type Checker struct {
 	errors    util.ErrorHandler
 	file      *token.File
-	scope     *scope
+	ctx       *Context
 	tree      *ast.Ast
 	NumErrors int
 }
 
 func NewChecker(file *token.File, tree *ast.Ast) *Checker {
 	return &Checker{
-		scope: newScope(),
-		file:  file,
-		tree:  tree,
+		ctx:  NewContext(),
+		file: file,
+		tree: tree,
 	}
 }
 
@@ -116,8 +116,8 @@ func (c *Checker) visitType(node ast.Type) Type {
 }
 
 func (c *Checker) visitFunc(node *ast.Func) *FuncDecl {
-	c.scope.push()
-	defer c.scope.pop()
+	c.ctx.Push()
+	defer c.ctx.Pop()
 
 	params := []*Field{}
 	for i, param := range node.Params.Fields {
@@ -125,7 +125,7 @@ func (c *Checker) visitFunc(node *ast.Func) *FuncDecl {
 		name := param.Name.Lexeme
 		typ := c.visitType(param.Type)
 
-		c.scope.set(name, typ)
+		c.ctx.Set(name, typ)
 		params = append(params, &Field{
 			Name: name,
 			Type: typ,
@@ -133,7 +133,7 @@ func (c *Checker) visitFunc(node *ast.Func) *FuncDecl {
 	}
 
 	retType := c.visitType(node.RetType)
-	c.scope.setReturnType(retType)
+	c.ctx.SetReturnType(retType)
 
 	for _, stmt := range node.Block.Stmts {
 		c.visitStmt(stmt)
@@ -148,8 +148,9 @@ func (c *Checker) visitFunc(node *ast.Func) *FuncDecl {
 }
 
 func (c *Checker) visitReturn(node *ast.Return) *Return {
-	assert(node != nil, "node is ni")
-	r := c.scope.getReturnType()
+	assert(node != nil, "node is nil")
+	r := c.ctx.GetReturnType()
+	c.ctx.MarkReturned()
 
 	if node.E == nil {
 		t := &Primitive{Type: VOID}
