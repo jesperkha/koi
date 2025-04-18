@@ -25,12 +25,15 @@ func NewChecker(file *token.File, tree *ast.Ast) *Checker {
 	}
 }
 
-func (c *Checker) Run() {
+func (c *Checker) Check() *TypedAst {
 	assert(c.tree != nil, "tree is nil")
 
+	tree := &TypedAst{}
 	for _, decl := range c.tree.Nodes {
 		c.visitDecl(decl)
 	}
+
+	return tree
 }
 
 func (c *Checker) Error() error {
@@ -50,31 +53,37 @@ func (c *Checker) err(node ast.Node, format string, arg ...any) {
 	c.NumErrors++
 }
 
-func (c *Checker) visitDecl(node ast.Decl) {
+func (c *Checker) visitDecl(node ast.Decl) Decl {
 	assert(node != nil, "node is nil")
 
 	switch node := node.(type) {
 	case *ast.Func:
-		c.visitFunc(node)
+		return c.visitFunc(node)
 
 	default:
 		log.Fatal("unhandled declaration type in checker")
 	}
+
+	// Unreachable
+	return nil
 }
 
-func (c *Checker) visitStmt(node ast.Stmt) {
+func (c *Checker) visitStmt(node ast.Stmt) Stmt {
 	assert(node != nil, "node is nil")
 
 	switch node := node.(type) {
 	case *ast.Return:
-		c.visitReturn(node)
+		return c.visitReturn(node)
 
 	default:
 		log.Fatal("unhandled statement type in checker")
 	}
+
+	// Unreachable
+	return nil
 }
 
-func (c *Checker) visitExpr(node ast.Expr) Type {
+func (c *Checker) visitExpr(node ast.Expr) Expr {
 	assert(node != nil, "node is nil")
 
 	switch node := node.(type) {
@@ -103,13 +112,21 @@ func (c *Checker) visitType(node ast.Type) Type {
 	}
 }
 
-func (c *Checker) visitFunc(node *ast.Func) {
+func (c *Checker) visitFunc(node *ast.Func) *FuncDecl {
 	c.scope.push()
 	defer c.scope.pop()
 
+	params := []*Field{}
 	for i, param := range node.Params.Fields {
 		assert(param != nil, "param idx=%d is nil", i)
-		c.scope.set(param.Name.Lexeme, c.visitType(param.Type))
+		name := param.Name.Lexeme
+		typ := c.visitType(param.Type)
+
+		c.scope.set(name, typ)
+		params = append(params, &Field{
+			Name: name,
+			Type: typ,
+		})
 	}
 
 	retType := c.visitType(node.RetType)
@@ -118,9 +135,16 @@ func (c *Checker) visitFunc(node *ast.Func) {
 	for _, stmt := range node.Block.Stmts {
 		c.visitStmt(stmt)
 	}
+
+	return &FuncDecl{
+		Public:  node.Public,
+		Name:    node.Name.Lexeme,
+		RetType: retType,
+		Params:  params,
+	}
 }
 
-func (c *Checker) visitReturn(node *ast.Return) {
+func (c *Checker) visitReturn(node *ast.Return) *Return {
 	assert(node != nil, "node is ni")
 	r := c.scope.getReturnType()
 
@@ -129,35 +153,49 @@ func (c *Checker) visitReturn(node *ast.Return) {
 		if !Equals(r, t) {
 			c.err(node, "type %s does not match expected return type %s", t.String(), r.String())
 		}
-		return
+
+		return &Return{E: nil}
 	}
 
-	t := c.visitExpr(node.E)
-	if !Equals(t, r) {
-		c.err(node, "type %s does not match expected return type %s", t.String(), r.String())
+	e := c.visitExpr(node.E)
+	if !Equals(e.Type(), r) {
+		c.err(node, "type %s does not match expected return type %s", e.Type().String(), r.String())
 	}
+
+	return &Return{E: e}
 }
 
-func (c *Checker) visitLiteral(node *ast.Literal) Type {
+func (c *Checker) visitLiteral(node *ast.Literal) *Literal {
 	assert(node != nil, "node is nil")
 	t := node.T
 
+	var typ Type
+	expr := &Literal{
+		TokenType: t.Type,
+		Value:     t.Lexeme,
+	}
+
 	switch t.Type {
 	case token.TRUE, token.FALSE:
-		return &Primitive{Type: BOOL}
+		typ = &Primitive{Type: BOOL}
 
 	case token.STRING:
-		return &Primitive{Type: STRING}
+		typ = &Primitive{Type: STRING}
 
 	case token.NUMBER:
 		if t.Float {
-			return &Primitive{Type: FLOAT}
+			typ = &Primitive{Type: FLOAT}
+		} else {
+			typ = &Primitive{Type: INT}
 		}
-		return &Primitive{Type: INT}
 
 	case token.BYTE_STR:
-		return &Primitive{Type: BYTE}
+		typ = &Primitive{Type: BYTE}
+
+	default:
+		panic("unhandled literal: " + node.T.String())
 	}
 
-	panic("unhandled literal: " + node.T.String())
+	expr.LitType = typ
+	return expr
 }

@@ -29,7 +29,7 @@ func ParseFile(filename string, src any) (*ast.Ast, error) {
 	}
 
 	c := types.NewChecker(file, ast)
-	c.Run()
+	c.Check()
 
 	if c.NumErrors != 0 {
 		return nil, c.Error()
