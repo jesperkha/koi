@@ -56,7 +56,7 @@ func TestLiteral(t *testing.T) {
 }
 
 func TestPrimitiveTypes(t *testing.T) {
-	src := "int float []int [][]string bool byte void"
+	src := "int float bool byte void"
 	p := parserFrom(src)
 	expect := strings.SplitSeq(src, " ")
 

@@ -296,21 +296,21 @@ func (p *Parser) parseType() ast.Type {
 	}
 
 	// Array type.
-	if p.match(token.LBRACK) {
-		lbrack := p.consume()
-		if !p.match(token.RBRACK) {
-			p.err("expected ] to complete array type")
-			return nil
-		}
+	// if p.match(token.LBRACK) {
+	// 	lbrack := p.consume()
+	// 	if !p.match(token.RBRACK) {
+	// 		p.err("expected ] to complete array type")
+	// 		return nil
+	// 	}
 
-		p.next() // ]
-		typ := p.parseType()
+	// 	p.next() // ]
+	// 	typ := p.parseType()
 
-		return &ast.ArrayType{
-			LBrack: lbrack.Pos,
-			Type:   typ,
-		}
-	}
+	// 	return &ast.ArrayType{
+	// 		LBrack: lbrack.Pos,
+	// 		Type:   typ,
+	// 	}
+	// }
 
 	p.errFromTo(start, p.cur(), "invalid type")
 	return nil

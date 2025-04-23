@@ -13,6 +13,10 @@ type (
 	Node interface {
 		Pos() token.Pos // Position of first token in node segment
 		End() token.Pos // Position of last token in node segment
+
+		// Accept a visitor to inspect this node. Must call the appropriate
+		// visit method on the visitor for this node.
+		Accept(v Visitor)
 	}
 
 	Expr interface {
@@ -21,12 +25,6 @@ type (
 
 	Stmt interface {
 		Node
-	}
-
-	Type interface {
-		Node
-		// Get string representation of type, identical to the type syntax.
-		String() string
 	}
 
 	// Declarations are not considered statements for linting purposes.
@@ -38,14 +36,7 @@ type (
 	}
 )
 
-// Expression types
 type (
-	// Invalid expression. Simply a range of tokens containing a syntax error.
-	BadExpr struct {
-		Expr
-		From, To token.Token
-	}
-
 	// Single token identifier literal.
 	Ident struct {
 		Expr
@@ -60,7 +51,6 @@ type (
 	}
 )
 
-// Statement types
 type (
 	Return struct {
 		Stmt
@@ -77,9 +67,7 @@ type (
 	}
 )
 
-// Declaration types
 type (
-	// Function declaration.
 	Func struct {
 		Decl
 		Public  bool
@@ -111,9 +99,6 @@ type (
 	}
 )
 
-func (b *BadExpr) Pos() token.Pos { return b.From.Pos }
-func (b *BadExpr) End() token.Pos { return b.To.Pos }
-
 func (i *Ident) Pos() token.Pos { return i.T.Pos }
 func (i *Ident) End() token.Pos { return i.T.Pos }
 
@@ -133,33 +118,3 @@ func (b *Block) End() token.Pos { return b.LBrace.EndPos }
 
 func (f *Func) Pos() token.Pos { return f.Name.Pos }
 func (f *Func) End() token.Pos { return f.Name.EndPos }
-
-type TypeKind int
-
-const (
-	VOID TypeKind = iota
-	STRING
-	BYTE
-	INT32
-	FLOAT32
-	ARRAY
-)
-
-type (
-	PrimitiveType struct {
-		T token.Token
-	}
-
-	ArrayType struct {
-		LBrack token.Pos
-		Type   Type
-	}
-)
-
-func (p *PrimitiveType) String() string { return p.T.Lexeme }
-func (p *PrimitiveType) Pos() token.Pos { return p.T.Pos }
-func (p *PrimitiveType) End() token.Pos { return p.T.EndPos }
-
-func (a *ArrayType) String() string { return "[]" + a.Type.String() }
-func (a *ArrayType) Pos() token.Pos { return a.LBrack }
-func (a *ArrayType) End() token.Pos { return a.Type.End() }
