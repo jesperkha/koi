@@ -8,7 +8,6 @@ import (
 	"github.com/jesperkha/koi/koi/util"
 )
 
-// Checker implements the Visitor interface to effectively traverse the AST.
 type Checker struct {
 	errors    util.ErrorHandler
 	file      *token.File
@@ -27,10 +26,7 @@ func NewChecker(file *token.File, tree *ast.Ast) *Checker {
 
 func (c *Checker) Check() {
 	assert(c.tree != nil, "tree is nil")
-
-	for _, decl := range c.tree.Nodes {
-		decl.Accept(c)
-	}
+	c.tree.Walk(c)
 }
 
 func (c *Checker) Error() error {
@@ -51,15 +47,17 @@ func (c *Checker) err(node ast.Node, format string, arg ...any) {
 }
 
 func (c *Checker) VisitBlock(node *ast.Block) {
-
+	for _, stmt := range node.Stmts {
+		stmt.Accept(c)
+	}
 }
 
 func (c *Checker) VisitFunc(node *ast.Func) {
-
+	node.Block.Accept(c)
 }
 
 func (c *Checker) VisitReturn(node *ast.Return) {
-
+	node.E.Accept(c)
 }
 
 func (c *Checker) VisitLiteral(node *ast.Literal) {
