@@ -61,7 +61,7 @@ type (
 	Return struct {
 		Stmt
 		Ret token.Token
-		E   Expr
+		E   Expr // Is nil when no return value is specified
 	}
 
 	Block struct {
@@ -91,6 +91,7 @@ type (
 type (
 	// A field is a name-type combination. Eg. "foo int"
 	Field struct {
+		Node
 		Name token.Token
 		Type Type
 	}
@@ -124,3 +125,6 @@ func (b *Block) End() token.Pos { return b.LBrace.EndPos }
 
 func (f *Func) Pos() token.Pos { return f.Name.Pos }
 func (f *Func) End() token.Pos { return f.Name.EndPos }
+
+func (f *Field) Pos() token.Pos { return f.Name.Pos }
+func (f *Field) End() token.Pos { return f.Type.End() }

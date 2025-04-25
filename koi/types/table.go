@@ -14,11 +14,10 @@ type SemanticTable struct {
 // type, or function. Each symbol must have a corresponding type. In the case
 // of function, the type is the return type.
 type Symbol struct {
-	Name  string
-	Kind  SymbolKind
-	Pos   token.Pos
-	Type  TypeInfo
-	Scope *Scope
+	Name string
+	Kind SymbolKind
+	Pos  token.Pos
+	Type TypeInfo
 }
 
 // TypeInfo describes the type of a symbol. Underlying points to the base type
@@ -33,8 +32,8 @@ type TypeInfo struct {
 type TypeKind int
 
 const (
-	PrimitiveType TypeKind = iota
-	ArrayType
+	PrimitiveKind TypeKind = iota
+	ArrayKind
 )
 
 type SymbolKind int
@@ -77,4 +76,35 @@ func (t *SemanticTable) PushScope() {
 // Pop current scope, returning to its parent.
 func (t *SemanticTable) PopScope() {
 	t.currentScope = t.currentScope.parent
+}
+
+// Declare symbol in current scope, overriding any existing one.
+func (t *SemanticTable) Declare(sym Symbol) {
+	t.currentScope.Declare(sym)
+}
+
+func (t *SemanticTable) CurScope() *Scope {
+	return t.currentScope
+}
+
+// Set return type for current scope, overriding any existing one.
+func (t *SemanticTable) SetReturnType(typ TypeInfo) {
+	t.currentScope.SetReturnType(typ)
+}
+
+// Get return type for current scope. Defaults to void type.
+func (t *SemanticTable) ReturnType() TypeInfo {
+	return t.currentScope.ReturnType()
+}
+
+// Mark current scope as having returned, making any succeeding statements
+// unreachable.
+func (t *SemanticTable) MarkReturned() {
+	t.currentScope.MarkReturned()
+}
+
+// Reports whether the current scope has returned or not. Does not check any
+// child scopes.
+func (t *SemanticTable) HasReturned() bool {
+	return t.currentScope.HasReturned()
 }
