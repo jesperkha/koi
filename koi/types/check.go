@@ -9,16 +9,16 @@ import (
 )
 
 type Checker struct {
-	errors    util.ErrorHandler
-	file      *token.File
-	ctx       *Context
+	errors util.ErrorHandler
+	file   *token.File
+	// ctx       *Context
 	tree      *ast.Ast
 	NumErrors int
 }
 
 func NewChecker(file *token.File, tree *ast.Ast) *Checker {
 	return &Checker{
-		ctx:  NewContext(),
+		// ctx:  NewContext(),
 		file: file,
 		tree: tree,
 	}
