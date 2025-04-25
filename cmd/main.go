@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/jesperkha/koi/koi"
 	"github.com/jesperkha/koi/koi/ast"
@@ -10,8 +11,10 @@ import (
 func main() {
 	a, err := koi.ParseFile("main.koi", nil)
 	if err != nil {
-		fmt.Println(err)
-	} else {
-		ast.Print(a)
+		log.Fatal(err)
 	}
+
+	v := ast.NewDebugVisitor()
+	a.Walk(v)
+	fmt.Println(v.String())
 }

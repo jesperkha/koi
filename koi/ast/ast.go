@@ -36,6 +36,12 @@ type (
 	}
 )
 
+func (t *Ast) Walk(v Visitor) {
+	for _, decl := range t.Nodes {
+		decl.Accept(v)
+	}
+}
+
 type (
 	// Single token identifier literal.
 	Ident struct {
