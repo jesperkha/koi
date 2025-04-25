@@ -7,7 +7,7 @@ import "github.com/jesperkha/koi/koi/token"
 type SemanticTable struct {
 	globalScope  *Scope
 	currentScope *Scope
-	typeMap      map[string]TypeInfo
+	typeMap      map[string]TypeInfo // unused
 }
 
 // A Symbol is any declared name with a value. It can be a variable, constant,
@@ -51,6 +51,7 @@ func NewSemanticTable() *SemanticTable {
 	return &SemanticTable{
 		globalScope:  global,
 		currentScope: global,
+		typeMap:      make(map[string]TypeInfo),
 	}
 }
 
