@@ -33,6 +33,22 @@ type (
 	// }
 )
 
+var typeKindNameMap = map[TypeKind]string{
+	INT:    "int",
+	FLOAT:  "float",
+	STRING: "string",
+	BYTE:   "byte",
+	VOID:   "void",
+	BOOL:   "bool",
+}
+
+func TypeKindToName(kind TypeKind) string {
+	if name, ok := typeKindNameMap[kind]; ok {
+		return name
+	}
+	panic("type kind without name")
+}
+
 func (p *PrimitiveType) String() string { return p.T.Lexeme }
 func (p *PrimitiveType) Pos() token.Pos { return p.T.Pos }
 func (p *PrimitiveType) End() token.Pos { return p.T.EndPos }

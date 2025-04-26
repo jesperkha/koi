@@ -7,7 +7,7 @@ import "github.com/jesperkha/koi/koi/token"
 type SemanticTable struct {
 	globalScope  *Scope
 	currentScope *Scope
-	typeMap      map[string]TypeInfo // unused
+	typeMap      map[string]Type // unused
 }
 
 // A Symbol is any declared name with a value. It can be a variable, constant,
@@ -17,17 +17,11 @@ type Symbol struct {
 	Name string
 	Kind SymbolKind
 	Pos  token.Pos
-	Type TypeInfo
+	Type Type
 }
 
 // TypeInfo describes the type of a symbol. Underlying points to the base type
 // and is nil in most cases.
-type TypeInfo struct {
-	Name       string    // Raw name, eg. "int", "[]string" etc
-	Kind       TypeKind  // Type kind is a general type, eg. primitive or array
-	Type       Type      // The actual type, in the case of aliasing, this is nil
-	Underlying *TypeInfo // For aliases, points to underlying type
-}
 
 type TypeKind int
 
@@ -50,7 +44,7 @@ func NewSemanticTable() *SemanticTable {
 	return &SemanticTable{
 		globalScope:  global,
 		currentScope: global,
-		typeMap:      make(map[string]TypeInfo),
+		typeMap:      make(map[string]Type),
 	}
 }
 
@@ -62,7 +56,7 @@ func (t *SemanticTable) Symbol(name string) (sym Symbol, ok bool) {
 
 // TypeOf gets the type info for the given name in the current scope, or any
 // parent scopes. Returns ok bool to indicate if symbol was found.
-func (t *SemanticTable) TypeOf(name string) (typ TypeInfo, ok bool) {
+func (t *SemanticTable) TypeOf(name string) (typ Type, ok bool) {
 	return t.currentScope.TypeOf(name)
 }
 
@@ -88,12 +82,12 @@ func (t *SemanticTable) CurScope() *Scope {
 }
 
 // Set return type for current scope, overriding any existing one.
-func (t *SemanticTable) SetReturnType(typ TypeInfo) {
+func (t *SemanticTable) SetReturnType(typ Type) {
 	t.currentScope.SetReturnType(typ)
 }
 
 // Get return type for current scope. Defaults to void type.
-func (t *SemanticTable) ReturnType() TypeInfo {
+func (t *SemanticTable) ReturnType() Type {
 	return t.currentScope.ReturnType()
 }
 

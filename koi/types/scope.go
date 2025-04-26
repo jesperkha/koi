@@ -7,7 +7,7 @@ type Scope struct {
 
 	// The current scopes expected return type, used for function bodies.
 	// Defaults to void and is never nil. Child scopes will inherit this value.
-	ret TypeInfo
+	ret Type
 
 	// True if there has been a return statement in the current scope (not
 	// counting child scopes such as if-statements or other blocks).
@@ -53,7 +53,7 @@ func (s *Scope) LocalSymbol(name string) (sym Symbol, ok bool) {
 	return sym, ok
 }
 
-func (s *Scope) TypeOf(name string) (typ TypeInfo, ok bool) {
+func (s *Scope) TypeOf(name string) (typ Type, ok bool) {
 	return typ, ok
 }
 
@@ -63,12 +63,12 @@ func (s *Scope) Declare(sym Symbol) {
 }
 
 // Set return type for current scope, overriding any existing one.
-func (s *Scope) SetReturnType(typ TypeInfo) {
+func (s *Scope) SetReturnType(typ Type) {
 	s.ret = typ
 }
 
 // Get return type for current scope. Defaults to void type.
-func (s *Scope) ReturnType() TypeInfo {
+func (s *Scope) ReturnType() Type {
 	return s.ret
 }
 

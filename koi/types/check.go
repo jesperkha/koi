@@ -105,17 +105,10 @@ func (c *Checker) visitMain(node *ast.Func) {
 	panic("visitMain not implemented")
 }
 
-func (c *Checker) visitType(node ast.Type) (typ TypeInfo, ok bool) {
+func (c *Checker) visitType(node ast.Type) (typ Type, ok bool) {
 	switch node := node.(type) {
 	case *ast.PrimitiveType:
-		return TypeInfo{
-			Name: node.T.Lexeme,
-			Kind: PrimitiveKind,
-			Type: PrimitiveType{
-				Kind: node.Kind,
-			},
-			Underlying: nil,
-		}, true
+		return &PrimitiveType{kind: node.Kind}, true
 
 	default:
 		panic("unhandled type in visitType")
@@ -145,12 +138,12 @@ func (c *Checker) VisitReturn(node *ast.Return) {
 
 	if node.E == nil {
 		if !TypeEquals(voidType(), retType) {
-			c.err(node, "expected return type %s", retType.Name)
+			c.err(node, "expected return type %s", retType.String())
 		}
 	} else {
 		t := c.evalExpr(node.E)
 		if !TypeEquals(t, retType) {
-			c.err(node.E, "expression does not match expected return type %s", retType.Name)
+			c.err(node.E, "expression does not match expected return type %s", retType.String())
 		}
 	}
 }
@@ -185,7 +178,5 @@ func (c *Checker) evalLiteral(node *ast.Literal) Type {
 		panic("unhandled token type in evalLiteral")
 	}
 
-	return PrimitiveType{
-		Kind: kind,
-	}
+	return &PrimitiveType{kind: kind}
 }
