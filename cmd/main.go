@@ -1,20 +1,20 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/jesperkha/koi/koi"
-	"github.com/jesperkha/koi/koi/ast"
+	"github.com/jesperkha/koi/koi/ir"
 )
 
 func main() {
-	a, err := koi.ParseFile("main.koi", nil)
+	a, tbl, err := koi.ParseFile("main.koi", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	v := ast.NewDebugVisitor()
-	a.Walk(v)
-	fmt.Println(v.String())
+	b := ir.NewBuilder(a, tbl)
+	if err := b.Build(); err != nil {
+		log.Fatal(err)
+	}
 }

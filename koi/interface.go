@@ -8,32 +8,31 @@ import (
 	"github.com/jesperkha/koi/koi/types"
 )
 
-func ParseFile(filename string, src any) (*ast.Ast, error) {
+func ParseFile(filename string, src any) (*ast.Ast, *types.SemanticTable, error) {
 	file := token.NewFile(filename, src)
 	if file.Err != nil {
-		return nil, file.Err
+		return nil, nil, file.Err
 	}
 
 	s := scanner.New(file)
 	toks := s.ScanAll()
 
 	if s.NumErrors > 0 {
-		return nil, s.Error()
+		return nil, nil, s.Error()
 	}
 
 	p := parser.New(file, toks)
 	ast := p.Parse()
 
 	if p.NumErrors > 0 {
-		return nil, p.Error()
+		return nil, nil, p.Error()
 	}
 
 	c := types.NewChecker(file, ast)
-	c.Check()
-
-	if c.NumErrors != 0 {
-		return nil, c.Error()
+	tbl, err := c.Check()
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return ast, p.Error()
+	return ast, tbl, p.Error()
 }
