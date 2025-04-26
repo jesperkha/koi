@@ -50,8 +50,8 @@ func (c *Checker) err(node ast.Node, format string, arg ...any) {
 func (c *Checker) VisitFunc(node *ast.Func) {
 	name := node.Name.Lexeme
 	if name == "main" {
+		// Do extra checks for main
 		c.visitMain(node)
-		return
 	}
 
 	if f, ok := c.table.Symbol(name); ok {
@@ -65,10 +65,11 @@ func (c *Checker) VisitFunc(node *ast.Func) {
 	}
 
 	funcSymbol := Symbol{
-		Name: node.Name.Lexeme,
-		Kind: FuncSymbol,
-		Pos:  node.Pos(),
-		Type: retType,
+		Name:     node.Name.Lexeme,
+		Exported: node.Public,
+		Kind:     FuncSymbol,
+		Pos:      node.Pos(),
+		Type:     retType,
 	}
 
 	c.table.Declare(funcSymbol) // Declare in global scope
