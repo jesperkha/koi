@@ -69,3 +69,16 @@ func TestIncorrectReturnType(t *testing.T) {
 		}
 	}
 }
+
+func TestUndefinedIdent(t *testing.T) {
+	cases := []string{
+		"func f() int { return foo }",
+	}
+
+	for i, cas := range cases {
+		c := checkerFrom(t, cas)
+		if _, err := c.Check(); err == nil {
+			t.Errorf("expected error from case %d", i+1)
+		}
+	}
+}
