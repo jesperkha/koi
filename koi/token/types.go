@@ -10,10 +10,11 @@ const (
 	NEWLINE
 
 	// Generic types
-	STRING   // String literal
-	NUMBER   // Integer literal
+	STRING_LIT // String literal
+	INT_LIT    // Integer literal
+	FLOAT_LIT
 	IDENT    // Identifier
-	BYTE_STR // Single character string with single quotes
+	BYTE_LIT // Single character string with single quotes
 
 	// Keywords
 	TRUE
@@ -70,7 +71,7 @@ const (
 	VOID
 	INT
 	FLOAT
-	STRING_T
+	STRING
 	BYTE
 	BOOL
 )
@@ -79,8 +80,9 @@ var tokenStrings = [...]string{
 	ILLEGAL:    "illegal",
 	EOF:        "eof",
 	NEWLINE:    "newline",
-	STRING:     "string",
-	NUMBER:     "number",
+	STRING_LIT: "string",
+	INT_LIT:    "int",
+	FLOAT_LIT:  "float",
 	IDENT:      "identifier",
 	TRUE:       "true",
 	FALSE:      "false",
@@ -128,7 +130,7 @@ var tokenStrings = [...]string{
 	VOID:       "void",
 	INT:        "int",
 	FLOAT:      "float",
-	STRING_T:   "string",
+	STRING:     "string",
 	BYTE:       "byte",
 	BOOL:       "bool",
 }
@@ -156,7 +158,7 @@ var Keywords = map[string]TokenType{
 	"byte":    BYTE,
 	"float":   FLOAT,
 	"void":    VOID,
-	"string":  STRING_T,
+	"string":  STRING,
 	"int":     INT,
 	"bool":    BOOL,
 }

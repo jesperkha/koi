@@ -143,7 +143,7 @@ func (c *Checker) VisitReturn(node *ast.Return) {
 	} else {
 		t := c.evalExpr(node.E)
 		if !TypeEquals(t, retType) {
-			c.err(node.E, "expression does not match expected return type %s", retType.String())
+			c.err(node.E, "expected return type %s, got %s", retType.String(), t.String())
 		}
 	}
 }
@@ -158,25 +158,5 @@ func (c *Checker) evalExpr(node ast.Expr) Type {
 }
 
 func (c *Checker) evalLiteral(node *ast.Literal) Type {
-	kind := ast.VOID
-
-	switch node.T.Type {
-	case token.TRUE, token.FALSE:
-		kind = ast.BOOL
-	case token.STRING:
-		kind = ast.STRING
-	case token.BYTE_STR:
-		kind = ast.BYTE
-	case token.NUMBER:
-		if node.T.Float {
-			kind = ast.FLOAT
-		} else {
-			kind = ast.INT
-		}
-
-	default:
-		panic("unhandled token type in evalLiteral")
-	}
-
-	return &PrimitiveType{kind: kind}
+	return &PrimitiveType{kind: ast.TokenToTypeKind(node.T.Type)}
 }

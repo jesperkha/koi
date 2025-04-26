@@ -245,8 +245,13 @@ func (s *Scanner) scanNumber() token.Token {
 		s.err("number literal can have at most one decimal point")
 	}
 
+	typ := token.INT_LIT
+	if dots > 0 {
+		typ = token.FLOAT_LIT
+	}
+
 	return token.Token{
-		Type:    token.NUMBER,
+		Type:    typ,
 		Lexeme:  s.interval(),
 		Invalid: dots > 1,
 		Float:   dots > 0,
@@ -282,7 +287,7 @@ func (s *Scanner) scanString() token.Token {
 	}
 
 	return token.Token{
-		Type:    token.STRING,
+		Type:    token.STRING_LIT,
 		Lexeme:  s.interval(),
 		Invalid: !closed,
 		Pos:     s.tokenPos(),
@@ -323,7 +328,7 @@ func (s *Scanner) scanByteString() token.Token {
 	}
 
 	return token.Token{
-		Type:    token.BYTE_STR,
+		Type:    token.BYTE_LIT,
 		Lexeme:  s.interval(),
 		Invalid: !closed || length != 1,
 		Pos:     s.tokenPos(),
