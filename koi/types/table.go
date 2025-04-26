@@ -14,21 +14,13 @@ type SemanticTable struct {
 // type, or function. Each symbol must have a corresponding type. In the case
 // of function, the type is the return type.
 type Symbol struct {
-	Name string
-	Kind SymbolKind
-	Pos  token.Pos
-	Type Type
+	Name     string     // Symbol name as it appears in the file.
+	RefCount int        // How many times the symbol is referenced. 0 means unused.
+	Exported bool       // If symbol is public. RefCount=0 is ok for exported symbols.
+	Kind     SymbolKind // Type of symbol, eg. variable, function, etc.
+	Pos      token.Pos
+	Type     Type
 }
-
-// TypeInfo describes the type of a symbol. Underlying points to the base type
-// and is nil in most cases.
-
-type TypeKind int
-
-const (
-	PrimitiveKind TypeKind = iota
-	ArrayKind
-)
 
 type SymbolKind int
 
