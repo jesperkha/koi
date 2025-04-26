@@ -82,3 +82,23 @@ func TestUndefinedIdent(t *testing.T) {
 		}
 	}
 }
+
+func TestMainFunc(t *testing.T) {
+	cases := []string{
+		"func main() int { return 0 }",          // Not public
+		"pub func main() float { return 1.0 }",  // Not int
+		"pub func main(a int) int { return 0 }", // Params
+	}
+
+	for i, cas := range cases {
+		c := checkerFrom(t, cas)
+		if _, err := c.Check(); err == nil {
+			t.Errorf("expected error from case %d", i+1)
+		}
+	}
+
+	c := checkerFrom(t, "pub func main() int { return 0 }")
+	if _, err := c.Check(); err != nil {
+		t.Error(err)
+	}
+}

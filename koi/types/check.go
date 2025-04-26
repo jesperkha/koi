@@ -103,7 +103,25 @@ func (c *Checker) VisitFunc(node *ast.Func) {
 }
 
 func (c *Checker) visitMain(node *ast.Func) {
-	panic("visitMain not implemented")
+	// The main function has special requirements which must be satisfied:
+	//	- it cannot have any parameters
+	//	- it must return the int type, and cannot be an alias
+	//	- it must be public (exported)
+	//	- it must be declared in, and only in, the main package
+
+	numParams := len(node.Params.Fields)
+	if numParams != 0 {
+		c.err(node, "main function cannot have parameters")
+	}
+
+	// Comparing with string ensures that there is no aliasing
+	if node.RetType.String() != "int" {
+		c.err(node, "main function must return int type")
+	}
+
+	if !node.Public {
+		c.err(node, "main function must be public")
+	}
 }
 
 func (c *Checker) visitType(node ast.Type) (typ Type, ok bool) {
