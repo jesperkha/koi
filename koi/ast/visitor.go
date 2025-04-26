@@ -7,12 +7,14 @@ type Visitor interface {
 	VisitBlock(node *Block)
 	VisitLiteral(node *Literal)
 	VisitReturn(node *Return)
+	VisitIdent(node *Ident)
 }
 
 func (n *Func) Accept(v Visitor)    { v.VisitFunc(n) }
 func (n *Block) Accept(v Visitor)   { v.VisitBlock(n) }
 func (n *Literal) Accept(v Visitor) { v.VisitLiteral(n) }
 func (n *Return) Accept(v Visitor)  { v.VisitReturn(n) }
+func (n *Ident) Accept(v Visitor)   { v.VisitIdent(n) }
 
 // DebugVisitor implements the Visitor interface. It prints out each node as
 // it visits it, forming a fully printed AST.
@@ -61,4 +63,8 @@ func (d *DebugVisitor) VisitReturn(node *Return) {
 
 func (d *DebugVisitor) VisitLiteral(node *Literal) {
 	d.write("literal: " + node.Value)
+}
+
+func (d *DebugVisitor) VisitIdent(node *Ident) {
+	d.write("ident: " + node.Name)
 }

@@ -35,9 +35,20 @@ func TestEmptyFunction(t *testing.T) {
 }
 
 func TestLiteralReturn(t *testing.T) {
-	c := checkerFrom(t, "func a() int { return 0} func b() float { return 1.0 } func c() string { return \"hello\" }")
-	if _, err := c.Check(); err != nil {
-		t.Error(err)
+	cases := []string{
+		"func f() int { return 123 }",
+		"func f() bool { return true }",
+		"func f() string { return \"hello\" }",
+		"func f() float { return 12.0 }",
+		"func f() void { return }",
+		"func f(a int) int { return a }",
+	}
+
+	for _, cas := range cases {
+		c := checkerFrom(t, cas)
+		if _, err := c.Check(); err != nil {
+			t.Error(err)
+		}
 	}
 }
 
@@ -48,6 +59,7 @@ func TestIncorrectReturnType(t *testing.T) {
 		"func f() string { return 'a' }",
 		"func f() int { }",
 		"func f() void { return 0 }",
+		"func f(a int) string { return a }",
 	}
 
 	for i, cas := range cases {

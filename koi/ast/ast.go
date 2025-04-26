@@ -46,7 +46,8 @@ type (
 	// Single token identifier literal.
 	Ident struct {
 		Expr
-		T token.Token
+		Name string
+		T    token.Token
 	}
 
 	// Primitive literal, eg. string, number, bool etc.
@@ -107,7 +108,7 @@ type (
 )
 
 func (i *Ident) Pos() token.Pos { return i.T.Pos }
-func (i *Ident) End() token.Pos { return i.T.Pos }
+func (i *Ident) End() token.Pos { return i.T.EndPos }
 
 func (l *Literal) Pos() token.Pos { return l.T.Pos }
 func (l *Literal) End() token.Pos { return l.T.EndPos }

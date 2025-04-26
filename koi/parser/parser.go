@@ -402,7 +402,15 @@ func (p *Parser) parseExpr() ast.Expr {
 	}
 }
 
-func (p *Parser) parseLiteral() *ast.Literal {
+func (p *Parser) parseLiteral() ast.Expr {
+	if p.match(token.IDENT) {
+		t := p.consume()
+		return &ast.Ident{
+			Name: t.Lexeme,
+			T:    t,
+		}
+	}
+
 	if !p.matchMany(token.INT_LIT, token.FLOAT_LIT, token.STRING_LIT, token.TRUE, token.FALSE, token.NIL, token.BYTE_LIT) {
 		from := p.cur()
 		p.gotoNewline()

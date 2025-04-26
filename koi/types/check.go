@@ -141,8 +141,11 @@ func (c *Checker) VisitReturn(node *ast.Return) {
 		if !TypeEquals(voidType(), retType) {
 			c.err(node, "expected return type %s", retType.String())
 		}
-	} else {
-		t := c.evalExpr(node.E)
+		return
+	}
+
+	// Error is already reported if nil
+	if t := c.evalExpr(node.E); t != nil {
 		if !TypeEquals(t, retType) {
 			c.err(node.E, "expected return type %s, got %s", retType.String(), t.String())
 		}
@@ -153,11 +156,35 @@ func (c *Checker) VisitLiteral(node *ast.Literal) {
 	// never called
 }
 
+func (c *Checker) VisitIdent(node *ast.Ident) {
+	// never called
+}
+
 // Evaluates given expression to a type and returns it. Returns nil on error.
 func (c *Checker) evalExpr(node ast.Expr) Type {
-	return c.evalLiteral(node.(*ast.Literal)) // no other types yet
+	switch node := node.(type) {
+	case *ast.Literal:
+		return c.evalLiteral(node)
+	case *ast.Ident:
+		return c.evalIdent(node)
+	}
+	panic("unhandled expression type")
 }
 
 func (c *Checker) evalLiteral(node *ast.Literal) Type {
 	return &PrimitiveType{kind: ast.TokenToTypeKind(node.T.Type)}
+}
+
+func (c *Checker) evalIdent(node *ast.Ident) Type {
+	if typ, ok := c.table.Symbol(node.Name); ok {
+		if typ.Kind != VarSymbol && typ.Kind != ConstSymbol {
+			c.err(node, "cannot use symbol as identifier")
+			return nil
+		}
+
+		return typ.Type
+	}
+
+	c.err(node, "%s is undefined", node.Name)
+	return nil
 }
