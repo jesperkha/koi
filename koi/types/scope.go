@@ -3,7 +3,7 @@ package types
 type Scope struct {
 	parent   *Scope   // Parent being nil means this is the global scope
 	children []*Scope // List of all scopes (blocks) appearing in this one
-	symbols  map[string]Symbol
+	symbols  map[string]*Symbol
 
 	// The current scopes expected return type, used for function bodies.
 	// Defaults to void and is never nil. Child scopes will inherit this value.
@@ -24,7 +24,7 @@ func newScope(parent *Scope) *Scope {
 	scope := &Scope{
 		parent:  parent,
 		ret:     voidType(),
-		symbols: make(map[string]Symbol),
+		symbols: make(map[string]*Symbol),
 	}
 
 	if parent != nil {
@@ -35,8 +35,9 @@ func newScope(parent *Scope) *Scope {
 }
 
 // Symbol returns the symbol mapped to name in this scope or any parent scope.
-func (s *Scope) Symbol(name string) (sym Symbol, ok bool) {
+func (s *Scope) Symbol(name string) (sym *Symbol, ok bool) {
 	if sym, ok := s.symbols[name]; ok {
+		sym.RefCount++
 		return sym, true
 	}
 
@@ -48,7 +49,7 @@ func (s *Scope) Symbol(name string) (sym Symbol, ok bool) {
 }
 
 // LocalSymbol returns the symbol mapped to name only in this scope.
-func (s *Scope) LocalSymbol(name string) (sym Symbol, ok bool) {
+func (s *Scope) LocalSymbol(name string) (sym *Symbol, ok bool) {
 	sym, ok = s.symbols[name]
 	return sym, ok
 }
@@ -58,7 +59,7 @@ func (s *Scope) TypeOf(name string) (typ Type, ok bool) {
 }
 
 // Declare symbol in current scope, overriding any existing one.
-func (s *Scope) Declare(sym Symbol) {
+func (s *Scope) Declare(sym *Symbol) {
 	s.symbols[sym.Name] = sym
 }
 

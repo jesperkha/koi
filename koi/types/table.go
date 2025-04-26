@@ -42,7 +42,7 @@ func NewSemanticTable() *SemanticTable {
 
 // Symbol returns the Symbol value for the given name in the current scope, or
 // any parent scopes. Returns ok bool to indicate if the symbol was found.
-func (t *SemanticTable) Symbol(name string) (sym Symbol, ok bool) {
+func (t *SemanticTable) Symbol(name string) (sym *Symbol, ok bool) {
 	return t.currentScope.Symbol(name)
 }
 
@@ -65,7 +65,7 @@ func (t *SemanticTable) PopScope() {
 }
 
 // Declare symbol in current scope, overriding any existing one.
-func (t *SemanticTable) Declare(sym Symbol) {
+func (t *SemanticTable) Declare(sym *Symbol) {
 	t.currentScope.Declare(sym)
 }
 

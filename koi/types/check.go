@@ -64,7 +64,7 @@ func (c *Checker) VisitFunc(node *ast.Func) {
 		return
 	}
 
-	funcSymbol := Symbol{
+	funcSymbol := &Symbol{
 		Name:     node.Name.Lexeme,
 		Exported: node.Public,
 		Kind:     FuncSymbol,
@@ -83,7 +83,7 @@ func (c *Checker) VisitFunc(node *ast.Func) {
 			return
 		}
 
-		symbol := Symbol{
+		symbol := &Symbol{
 			Name: param.Name.Lexeme,
 			Kind: VarSymbol,
 			Pos:  param.Pos(),
