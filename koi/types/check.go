@@ -24,9 +24,10 @@ func NewChecker(file *token.File, tree *ast.Ast) *Checker {
 	}
 }
 
-func (c *Checker) Check() {
+func (c *Checker) Check() (*SemanticTable, error) {
 	assert(c.tree != nil, "tree is nil")
 	c.tree.Walk(c)
+	return c.table, c.Error()
 }
 
 func (c *Checker) Error() error {
@@ -94,7 +95,7 @@ func (c *Checker) VisitFunc(node *ast.Func) {
 	// Visit without scope because we just created one for the parameters.
 	c.visitBlockWithoutScope(node.Block)
 
-	if !c.table.HasReturned() {
+	if !c.table.HasReturned() && !TypeEquals(retType, voidType()) {
 		c.err(node, "function never returns")
 	}
 

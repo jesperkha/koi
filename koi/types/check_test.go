@@ -26,3 +26,34 @@ func checkerFrom(t *testing.T, src string) *Checker {
 	tassert(t, p.NumErrors == 0, "parse error: %s", p.Error())
 	return NewChecker(file, tree)
 }
+
+func TestEmptyFunction(t *testing.T) {
+	c := checkerFrom(t, "func foo() void {}")
+	if _, err := c.Check(); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestLiteralReturn(t *testing.T) {
+	c := checkerFrom(t, "func a() int { return 0} func b() float { return 1.0 } func c() string { return \"hello\" }")
+	if _, err := c.Check(); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestIncorrectReturnType(t *testing.T) {
+	cases := []string{
+		"func f() int { return 1.23 }",
+		"func f() bool { return 0 }",
+		"func f() string { return 'a' }",
+		"func f() int { }",
+		"func f() void { return 0 }",
+	}
+
+	for i, cas := range cases {
+		c := checkerFrom(t, cas)
+		if _, err := c.Check(); err == nil {
+			t.Errorf("expected error from case %d", i+1)
+		}
+	}
+}
