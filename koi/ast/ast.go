@@ -1,6 +1,8 @@
 package ast
 
-import "github.com/jesperkha/koi/koi/token"
+import (
+	"github.com/jesperkha/koi/koi/token"
+)
 
 type (
 	Ast struct {

@@ -108,7 +108,7 @@ func (c *Checker) visitMain(node *ast.Func) {
 	//	- it cannot have any parameters
 	//	- it must return the int type, and cannot be an alias
 	//	- it must be public (exported)
-	//	- it must be declared in, and only in, the main package
+	//	- it must be declared in, and only in, the main package (TODO)
 
 	numParams := len(node.Params.Fields)
 	if numParams != 0 {

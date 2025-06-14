@@ -8,25 +8,35 @@ import (
 
 // Builder implements the Visitor interface
 type Builder struct {
-	eh    *util.ErrorHandler
-	tree  *ast.Ast
-	table *types.SemanticTable
+	eh   *util.ErrorHandler
+	tree *ast.Ast
+	tr   types.TableReader
+	ir   []Instruction
 }
 
-func NewBuilder(tree *ast.Ast, table *types.SemanticTable) *Builder {
+func NewBuilder(tree *ast.Ast, reader types.TableReader) *Builder {
 	return &Builder{
-		eh:    util.NewErrorHandler(),
-		tree:  tree,
-		table: table,
+		eh:   util.NewErrorHandler(),
+		tree: tree,
+		tr:   reader,
 	}
 }
 
-func (b *Builder) Build() error {
+func (b *Builder) Build() ([]Instruction, error) {
 	b.tree.Walk(b)
-	return b.eh.Error()
+	return b.ir, b.eh.Error()
 }
 
 func (b *Builder) VisitFunc(node *ast.Func) {
+	funcName := node.Name.Lexeme
+
+	b.ir = append(b.ir, Instruction{
+		Op:      FUNC,
+		Name:    funcName,
+		Public:  node.Public,
+		RetType: b.tr.Get(funcName).Type,
+	})
+
 	node.Block.Accept(b)
 }
 

@@ -14,7 +14,10 @@ func main() {
 	}
 
 	b := ir.NewBuilder(a, tbl)
-	if err := b.Build(); err != nil {
+	ops, err := b.Build()
+	if err != nil {
 		log.Fatal(err)
 	}
+
+	ir.PrintIR(ops)
 }

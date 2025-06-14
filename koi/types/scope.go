@@ -60,6 +60,7 @@ func (s *Scope) TypeOf(name string) (typ Type, ok bool) {
 
 // Declare symbol in current scope, overriding any existing one.
 func (s *Scope) Declare(sym *Symbol) {
+	sym.Scope = s
 	s.symbols[sym.Name] = sym
 }
 

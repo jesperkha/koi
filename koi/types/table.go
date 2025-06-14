@@ -14,12 +14,13 @@ type SemanticTable struct {
 // type, or function. Each symbol must have a corresponding type. In the case
 // of function, the type is the return type.
 type Symbol struct {
+	Kind     SymbolKind // Type of symbol, eg. variable, function, etc.
 	Name     string     // Symbol name as it appears in the file.
 	RefCount int        // How many times the symbol is referenced. 0 means unused.
 	Exported bool       // If symbol is public. RefCount=0 is ok for exported symbols.
-	Kind     SymbolKind // Type of symbol, eg. variable, function, etc.
+	Type     Type       // Type of symbol, return type for functions.
+	Scope    *Scope     // Scope symbol is declared in, *not* its child scope.
 	Pos      token.Pos
-	Type     Type
 }
 
 type SymbolKind int
@@ -59,9 +60,11 @@ func (t *SemanticTable) PushScope() {
 	t.currentScope = scope
 }
 
-// Pop current scope, returning to its parent.
-func (t *SemanticTable) PopScope() {
+// Pop current scope, returning to its parent. Returns popped scope.
+func (t *SemanticTable) PopScope() *Scope {
+	prev := t.currentScope
 	t.currentScope = t.currentScope.parent
+	return prev
 }
 
 // Declare symbol in current scope, overriding any existing one.
