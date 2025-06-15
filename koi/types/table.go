@@ -97,15 +97,3 @@ func (t *SemanticTable) MarkReturned() {
 func (t *SemanticTable) HasReturned() bool {
 	return t.currentScope.HasReturned()
 }
-
-// Exported returns a list of all exported top-level symbols in the file.
-func (t *SemanticTable) Exported() []*Symbol {
-	exported := []*Symbol{}
-	for _, v := range t.globalScope.symbols {
-		if v.Exported {
-			exported = append(exported, v)
-		}
-	}
-
-	return exported
-}

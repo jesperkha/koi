@@ -54,6 +54,7 @@ func (s *Scope) LocalSymbol(name string) (sym *Symbol, ok bool) {
 	return sym, ok
 }
 
+// TODO: TypeOf not implemented
 func (s *Scope) TypeOf(name string) (typ Type, ok bool) {
 	return typ, ok
 }

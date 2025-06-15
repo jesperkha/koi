@@ -14,20 +14,34 @@ type TableReader interface {
 
 	// Pop current scope and return to parent.
 	Pop()
+
+	// Exported returns a list of all exported top-level symbols in the file.
+	Exported() []*Symbol
 }
 
-func (st *SemanticTable) Get(name string) *Symbol {
-	sym, ok := st.Symbol(name)
+func (t *SemanticTable) Get(name string) *Symbol {
+	sym, ok := t.Symbol(name)
 	if !ok {
 		panic(fmt.Sprintf("undefined symbol after type check: '%s'", name))
 	}
 	return sym
 }
 
-func (st *SemanticTable) Push(scope *Scope) {
-	st.currentScope = scope
+func (t *SemanticTable) Push(scope *Scope) {
+	t.currentScope = scope
 }
 
-func (st *SemanticTable) Pop() {
-	st.currentScope = st.currentScope.parent
+func (t *SemanticTable) Pop() {
+	t.currentScope = t.currentScope.parent
+}
+
+func (t *SemanticTable) Exported() []*Symbol {
+	exported := []*Symbol{}
+	for _, v := range t.globalScope.symbols {
+		if v.Exported {
+			exported = append(exported, v)
+		}
+	}
+
+	return exported
 }
