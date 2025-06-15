@@ -1,6 +1,10 @@
 package types
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/jesperkha/koi/koi/ast"
+)
 
 // The TableReader hides a lot of unnecessary utility functions in the
 // SemanticTable type and extends it with more suited methods for reading
@@ -10,7 +14,7 @@ type TableReader interface {
 	Get(name string) *Symbol
 
 	// Push new scope onto the reader.
-	Push(scope *Scope)
+	Push(block *ast.Block)
 
 	// Pop current scope and return to parent.
 	Pop()
@@ -27,7 +31,11 @@ func (t *SemanticTable) Get(name string) *Symbol {
 	return sym
 }
 
-func (t *SemanticTable) Push(scope *Scope) {
+func (t *SemanticTable) Push(block *ast.Block) {
+	scope, ok := t.scopeMap[block]
+	if !ok {
+		panic("block with no assigned scope")
+	}
 	t.currentScope = scope
 }
 

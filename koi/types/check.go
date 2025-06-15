@@ -72,8 +72,8 @@ func (c *Checker) VisitFunc(node *ast.Func) {
 		Type:     retType,
 	}
 
-	c.table.Declare(funcSymbol) // Declare in global scope
-	c.table.PushScope()         // Push function body
+	c.table.Declare(funcSymbol)   // Declare in global scope
+	c.table.PushScope(node.Block) // Push function body
 	c.table.SetReturnType(retType)
 
 	// Declare all parameters as local variables
@@ -145,7 +145,7 @@ func (c *Checker) visitBlockWithoutScope(node *ast.Block) {
 }
 
 func (c *Checker) VisitBlock(node *ast.Block) {
-	c.table.PushScope()
+	c.table.PushScope(node)
 	for _, stmt := range node.Stmts {
 		stmt.Accept(c)
 	}

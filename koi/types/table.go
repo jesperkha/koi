@@ -1,12 +1,16 @@
 package types
 
-import "github.com/jesperkha/koi/koi/token"
+import (
+	"github.com/jesperkha/koi/koi/ast"
+	"github.com/jesperkha/koi/koi/token"
+)
 
 // The SemanticTable includes all variable, function, and type declarations in
 // the file, and their respective types.
 type SemanticTable struct {
 	globalScope  *Scope
 	currentScope *Scope
+	scopeMap     map[*ast.Block]*Scope
 	typeMap      map[string]Type // unused
 }
 
@@ -37,6 +41,7 @@ func NewSemanticTable() *SemanticTable {
 	return &SemanticTable{
 		globalScope:  global,
 		currentScope: global,
+		scopeMap:     make(map[*ast.Block]*Scope),
 		typeMap:      make(map[string]Type),
 	}
 }
@@ -54,8 +59,9 @@ func (t *SemanticTable) TypeOf(name string) (typ Type, ok bool) {
 }
 
 // Push new scope, making it the child of the current one.
-func (t *SemanticTable) PushScope() {
+func (t *SemanticTable) PushScope(block *ast.Block) {
 	scope := newScope(t.currentScope)
+	t.scopeMap[block] = scope
 	t.currentScope.children = append(t.currentScope.children, scope)
 	t.currentScope = scope
 }
