@@ -18,13 +18,15 @@ func PrintIR(ir []Instruction) {
 			}
 			indent++
 
-		case CONST:
-			if op.Value.Type == Immediate {
-				fmt.Printf("$%d = %s\n", op.Value.Idx, fmt.Sprintf("%d", op.Value.Integer))
+		case STORE_INT64:
+			if op.Value.Type == Literal {
+				fmt.Printf("$%d i64 = %s\n", op.Dest.ID, fmt.Sprintf("%d", op.Value.Integer))
+			} else {
+				fmt.Printf("$%d i64 = $%d\n", op.Dest.ID, op.Value.ID)
 			}
 
 		case RET:
-			fmt.Printf("RET $%d\n", op.Value.Idx)
+			fmt.Printf("RET $%d\n", op.Value.ID)
 
 		default:
 			fmt.Println("unknown op")

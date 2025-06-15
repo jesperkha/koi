@@ -78,8 +78,8 @@ func (b *Builder) VisitReturn(node *ast.Return) {
 		b.ir = append(b.ir, Instruction{
 			Op: RET,
 			Value: Value{
-				Type: Constant,
-				Idx:  result,
+				Type: Variable,
+				ID:   result,
 			},
 		})
 	} else {
@@ -98,10 +98,12 @@ func (b *Builder) VisitLiteral(node *ast.Literal) {
 	}
 
 	b.ir = append(b.ir, Instruction{
-		Op: CONST,
+		Op: STORE_INT64,
+		Dest: Value{
+			ID: b.curIdx,
+		},
 		Value: Value{
-			Idx:     b.curIdx,
-			Type:    Immediate,
+			Type:    Literal,
 			Integer: n,
 		},
 	})

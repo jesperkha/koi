@@ -9,8 +9,9 @@ const (
 
 	FUNC
 	RET
-	CONST
 	PUB
+
+	STORE_INT64
 )
 
 type Instruction struct {
@@ -25,14 +26,16 @@ type Instruction struct {
 }
 
 const (
-	Immediate = iota
-	Constant
+	Literal = iota
 	Variable
 )
 
 type Value struct {
+	ID   int
 	Type int
-	Idx  int
 
 	Integer int
+	Float   float64
+	String  string
+	Byte    byte
 }
