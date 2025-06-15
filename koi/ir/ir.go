@@ -9,7 +9,6 @@ const (
 
 	FUNC
 	RET
-	PUB
 
 	STORE_INT64
 )

@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/jesperkha/koi/koi"
+	"github.com/jesperkha/koi/koi/compile/targets"
 	"github.com/jesperkha/koi/koi/ir"
 )
 
@@ -19,5 +20,5 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ir.PrintIR(ops)
+	targets.Build_x86_64(tbl, ops)
 }
