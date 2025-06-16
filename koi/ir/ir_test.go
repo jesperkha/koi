@@ -51,3 +51,48 @@ func TestMain(t *testing.T) {
 		t.Errorf("expected equal")
 	}
 }
+
+func TestMoreReturns(t *testing.T) {
+	inputs := []string{
+		`
+			func foo() string {
+				return "hello"
+			}
+		`,
+		`
+			func foo() float {
+				return 1.0
+			}
+		`,
+		`
+			func foo() bool {
+				return true
+			}
+		`,
+	}
+
+	expects := []string{
+		`
+			FUNC foo -> string
+				$0 string = hello
+				RET $0
+		`,
+		`
+			FUNC foo -> float
+				$0 f64 = 1.0
+				RET $0
+		`,
+		`
+			FUNC foo -> bool
+				$0 bool = true
+				RET $0
+		`,
+	}
+
+	for i, in := range inputs {
+		ins := irFrom(t, in)
+		if !irCompare(ins, expects[i]) {
+			t.Errorf("expected equal, case %d", i+1)
+		}
+	}
+}

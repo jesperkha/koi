@@ -1,11 +1,11 @@
 package ir
 
 import (
+	"fmt"
 	"log"
-	"strconv"
+	"strings"
 
 	"github.com/jesperkha/koi/koi/ast"
-	"github.com/jesperkha/koi/koi/token"
 	"github.com/jesperkha/koi/koi/types"
 	"github.com/jesperkha/koi/koi/util"
 )
@@ -91,25 +91,34 @@ func (b *Builder) VisitReturn(node *ast.Return) {
 }
 
 func (b *Builder) VisitLiteral(node *ast.Literal) {
-	if node.T.Type != token.INT_LIT {
-		log.Fatal("non-int types not implemented yet")
-	}
+	kind := ast.TokenToTypeKind(node.T.Type)
+	op := NOP
+	value := node.Value
 
-	n, err := strconv.Atoi(node.T.Lexeme)
-	if err != nil {
-		panic("invalid integer literal")
+	switch kind {
+	case ast.INT:
+		op = STORE_INT64
+	case ast.FLOAT:
+		op = STORE_FLOAT64
+	case ast.STRING:
+		op = STORE_STR
+		value = strings.Trim(node.Value, "\"")
+	case ast.BOOL:
+		op = STORE_BOOL
+
+	default:
+		panic("unsupported literal kind: " + fmt.Sprintf("kind=%d", kind))
 	}
 
 	b.ir = append(b.ir, Instruction{
-		Op: STORE_INT64,
-		Dest: Value{
-			ID: b.curIdx,
-		},
+		Op:   op,
+		Dest: Value{ID: b.curIdx},
 		Value: Value{
-			Type:    Literal,
-			Integer: n,
+			Type:  Literal,
+			Value: value,
 		},
 	})
+
 }
 
 func (b *Builder) VisitIdent(node *ast.Ident) {

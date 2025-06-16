@@ -26,9 +26,30 @@ func IrFmt(ir []Instruction) string {
 
 		case STORE_INT64:
 			if op.Value.Type == Literal {
-				s += fmt.Sprintf("$%d i64 = %s\n", op.Dest.ID, fmt.Sprintf("%d", op.Value.Integer))
+				s += fmt.Sprintf("$%d i64 = %s\n", op.Dest.ID, op.Value.Value)
 			} else {
 				s += fmt.Sprintf("$%d i64 = $%d\n", op.Dest.ID, op.Value.ID)
+			}
+
+		case STORE_FLOAT64:
+			if op.Value.Type == Literal {
+				s += fmt.Sprintf("$%d f64 = %s\n", op.Dest.ID, op.Value.Value)
+			} else {
+				s += fmt.Sprintf("$%d f64 = $%d\n", op.Dest.ID, op.Value.ID)
+			}
+
+		case STORE_STR:
+			if op.Value.Type == Literal {
+				s += fmt.Sprintf("$%d string = %s\n", op.Dest.ID, op.Value.Value)
+			} else {
+				s += fmt.Sprintf("$%d string = $%d\n", op.Dest.ID, op.Value.ID)
+			}
+
+		case STORE_BOOL:
+			if op.Value.Type == Literal {
+				s += fmt.Sprintf("$%d bool = %s\n", op.Dest.ID, op.Value.Value)
+			} else {
+				s += fmt.Sprintf("$%d bool = $%d\n", op.Dest.ID, op.Value.ID)
 			}
 
 		case RET:

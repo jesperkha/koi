@@ -19,6 +19,9 @@ const (
 	RET
 
 	STORE_INT64
+	STORE_STR
+	STORE_FLOAT64
+	STORE_BOOL
 )
 
 type Instruction struct {
@@ -38,11 +41,7 @@ const (
 )
 
 type Value struct {
-	ID   int
-	Type int
-
-	Integer int
-	Float   float64
-	String  string
-	Byte    byte
+	ID    int
+	Type  int
+	Value string
 }

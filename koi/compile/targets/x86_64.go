@@ -73,7 +73,7 @@ func (x *x86_64_builder) build() string {
 			x.unindent()
 
 		case ir.STORE_INT64:
-			x.writeln("mov rax, %d", ins.Value.Integer)
+			x.writeln("mov rax, %d", ins.Value.Value)
 		}
 	}
 
