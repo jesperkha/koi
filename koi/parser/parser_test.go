@@ -25,7 +25,12 @@ func TestNoInput(t *testing.T) {
 }
 
 func TestEmptyFunction(t *testing.T) {
-	p := parserFrom("pub func foo() void {} func bar(a int) void {} func faz(name string, age int) void {}")
+	p := parserFrom(`
+		pub func foo() void {}
+		func bar(a int) void {}
+		func faz(name string, age int) void {}
+	`)
+
 	p.Parse()
 
 	if p.Error() != nil {
@@ -34,7 +39,12 @@ func TestEmptyFunction(t *testing.T) {
 }
 
 func TestFunctionWithReturn(t *testing.T) {
-	p := parserFrom("func f(a int, b string) int { return 0 }")
+	p := parserFrom(`
+		func f(a int, b string) int {
+			return 0
+		}
+	`)
+
 	p.Parse()
 
 	if p.Error() != nil {
