@@ -5,20 +5,15 @@ import (
 
 	"github.com/jesperkha/koi/koi"
 	"github.com/jesperkha/koi/koi/compile/targets"
-	"github.com/jesperkha/koi/koi/ir"
+	"github.com/jesperkha/koi/koi/token"
 )
 
 func main() {
-	a, tbl, err := koi.ParseFile("main.koi", nil)
+	file := token.NewFile("main.koi", nil)
+	ir, err := koi.GenerateIR(file)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	b := ir.NewBuilder(a, tbl)
-	ops, err := b.Build()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	targets.Build_x86_64(tbl, ops)
+	targets.Build_x86_64(ir)
 }

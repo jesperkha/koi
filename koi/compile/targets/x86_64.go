@@ -19,10 +19,10 @@ type x86_64_builder struct {
 	lineIndent int
 }
 
-func Build_x86_64(r types.TableReader, ins []ir.Instruction) {
+func Build_x86_64(ir *ir.IR) {
 	b := x86_64_builder{
-		ins: ins,
-		r:   r,
+		ins: ir.Instructions,
+		r:   ir.Table,
 	}
 
 	b.writehdr("global _start")

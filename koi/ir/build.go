@@ -39,9 +39,12 @@ func (b *Builder) setIdx(idx int) {
 	b.curIdx = idx
 }
 
-func (b *Builder) Build() ([]Instruction, error) {
+func (b *Builder) Build() (ir *IR, err error) {
 	b.tree.Walk(b)
-	return b.ir, b.eh.Error()
+	return &IR{
+		Instructions: b.ir,
+		Table:        b.tr,
+	}, b.eh.Error()
 }
 
 func (b *Builder) VisitFunc(node *ast.Func) {

@@ -1,6 +1,14 @@
 package ir
 
-import "github.com/jesperkha/koi/koi/types"
+import (
+	"github.com/jesperkha/koi/koi/types"
+)
+
+// The IR type represents the intermediate representation for a single file.
+type IR struct {
+	Instructions []Instruction
+	Table        types.TableReader
+}
 
 type OpCode int
 
