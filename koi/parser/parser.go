@@ -41,8 +41,6 @@ func (p *Parser) Parse() *ast.Ast {
 		return &ast.Ast{}
 	}
 
-	// True if we found a pub keyword. Reset every iteration.
-	public := false
 	nodes := []ast.Decl{}
 
 loop:
@@ -57,13 +55,8 @@ loop:
 			p.next()
 			continue
 
-		case token.PUB:
-			public = true
-			p.next()
-			continue
-
-		case token.FUNC:
-			n = p.parseFunc(public)
+		case token.FUNC, token.PUB:
+			n = p.parseFunc()
 
 		default:
 			// Unrecoverable error
@@ -72,12 +65,9 @@ loop:
 		}
 
 		nodes = append(nodes, n) // n is never nil
-		public = false
 	}
 
-	return &ast.Ast{
-		Nodes: nodes,
-	}
+	return &ast.Ast{Nodes: nodes}
 }
 
 func (p *Parser) Error() error {
@@ -215,7 +205,13 @@ func (p *Parser) gotoNewline() token.Token {
 	return p.cur()
 }
 
-func (p *Parser) parseFunc(public bool) *ast.Func {
+func (p *Parser) parseFunc() *ast.Func {
+	public := false
+	if p.match(token.PUB) {
+		public = true
+		p.next()
+	}
+
 	p.next() // Func keyword which is guaranteed
 
 	name := p.expect(token.IDENT)
