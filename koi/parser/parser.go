@@ -330,12 +330,11 @@ func (p *Parser) parseStmt() ast.Stmt {
 		return p.parseBlock()
 
 	default:
-		from := p.cur()
-		p.gotoNewline()
-		p.errFromTo(from, p.prev(), "invalid statement")
+		return p.parseExpr()
+		// from := p.cur()
+		// p.gotoNewline()
+		// p.errFromTo(from, p.prev(), "invalid statement")
 	}
-
-	return nil
 }
 
 func (p *Parser) parseReturn() *ast.Return {
@@ -396,10 +395,37 @@ func (p *Parser) parseExpr() ast.Expr {
 		return nil
 	case token.RBRACE:
 		return nil
-
 	default:
-		return p.parseLiteral()
+		return p.parseEquality()
 	}
+}
+
+func (p *Parser) parseEquality() ast.Expr {
+	return p.parseComparison()
+}
+
+func (p *Parser) parseComparison() ast.Expr {
+	return p.parseTerm()
+}
+
+func (p *Parser) parseTerm() ast.Expr {
+	return p.parseFactor()
+}
+
+func (p *Parser) parseFactor() ast.Expr {
+	return p.parseUnary()
+}
+
+func (p *Parser) parseUnary() ast.Expr {
+	return p.parseCall()
+}
+
+func (p *Parser) parseCall() ast.Expr {
+	return p.parseGroup()
+}
+
+func (p *Parser) parseGroup() ast.Expr {
+	return p.parseLiteral()
 }
 
 func (p *Parser) parseLiteral() ast.Expr {
