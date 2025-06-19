@@ -106,9 +106,9 @@ func (c *Checker) VisitFunc(node *ast.Func) {
 func (c *Checker) visitMain(node *ast.Func) {
 	// The main function has special requirements which must be satisfied:
 	//	- it cannot have any parameters
-	//	- it must return the int type, and cannot be an alias
+	//	- it must return the int type, TODO: and cannot be an alias
 	//	- it must be public (exported)
-	//	- it must be declared in, and only in, the main package (TODO)
+	//	- TODO: it must be declared in, and only in, the main package
 
 	numParams := len(node.Params.Fields)
 	if numParams != 0 {
@@ -179,7 +179,12 @@ func (c *Checker) VisitIdent(node *ast.Ident) {
 	// never called
 }
 
+func (c *Checker) VisitCall(node *ast.Call) {
+	// TODO: visit call in type check, match against known function definition
+}
+
 // Evaluates given expression to a type and returns it. Returns nil on error.
+// TODO: this sucks. remove and use visitor pattern fully. set internal cur-type state or smth
 func (c *Checker) evalExpr(node ast.Expr) Type {
 	switch node := node.(type) {
 	case *ast.Literal:

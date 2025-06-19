@@ -8,6 +8,8 @@ import (
 	"github.com/jesperkha/koi/koi/token"
 )
 
+// TODO: more robust parser testing with comparison of generated AST as text
+
 func parserFrom(src string) *Parser {
 	file := token.NewFile("test", src)
 	s := scanner.New(file)

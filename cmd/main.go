@@ -4,16 +4,22 @@ import (
 	"log"
 
 	"github.com/jesperkha/koi/koi"
-	"github.com/jesperkha/koi/koi/compile/targets"
+	"github.com/jesperkha/koi/koi/ast"
 	"github.com/jesperkha/koi/koi/token"
 )
 
 func main() {
 	file := token.NewFile("main.koi", nil)
-	ir, err := koi.GenerateIR(file)
+	tree, _, err := koi.Parse(file)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	targets.Build_x86_64(ir)
+	ast.NewDebugVisitor().Print(tree)
+	// ir, err := koi.GenerateIR(file)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	// targets.Build_x86_64(ir)
 }

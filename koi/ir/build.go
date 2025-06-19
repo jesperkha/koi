@@ -124,3 +124,7 @@ func (b *Builder) VisitLiteral(node *ast.Literal) {
 func (b *Builder) VisitIdent(node *ast.Ident) {
 
 }
+
+func (b *Builder) VisitCall(node *ast.Call) {
+
+}

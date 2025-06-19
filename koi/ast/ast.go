@@ -45,6 +45,14 @@ func (t *Ast) Walk(v Visitor) {
 }
 
 type (
+	// Function call expression
+	Call struct {
+		Callee Expr
+		LParen token.Token
+		Args   []Expr
+		RParen token.Token
+	}
+
 	// Single token identifier literal.
 	Ident struct {
 		Expr
@@ -131,3 +139,6 @@ func (f *Func) End() token.Pos { return f.Name.EndPos }
 
 func (f *Field) Pos() token.Pos { return f.Name.Pos }
 func (f *Field) End() token.Pos { return f.Type.End() }
+
+func (c *Call) Pos() token.Pos { return c.Callee.Pos() }
+func (c *Call) End() token.Pos { return c.RParen.EndPos }

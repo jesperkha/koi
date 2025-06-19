@@ -417,7 +417,51 @@ func (p *Parser) parseUnary() ast.Expr {
 }
 
 func (p *Parser) parseCall() ast.Expr {
-	return p.parseGroup()
+	// Callee must be higher precedence, anything higher will create infinite
+	// recursion. Chained calls are handled below.
+	callee := p.parseGroup()
+
+	// Chained calls are handled automatically by wrapping the previous
+	// callee whenever we find another lparen.
+	for p.match(token.LPAREN) {
+		lparen := p.consume()
+
+		// Return early if no args
+		if p.match(token.RPAREN) {
+			rparen := p.consume()
+			return &ast.Call{
+				Callee: callee,
+				LParen: lparen,
+				Args:   []ast.Expr{},
+				RParen: rparen,
+			}
+		}
+
+		args := []ast.Expr{}
+		for {
+			expr := p.parseExpr()
+			args = append(args, expr)
+			if !p.match(token.COMMA) {
+				break
+			}
+
+			p.next() // Comma
+		}
+
+		if !p.match(token.RPAREN) {
+			p.err("expected ) after argument list")
+		}
+
+		rparen := p.consume()
+		callee = &ast.Call{
+			Callee: callee,
+			LParen: lparen,
+			Args:   args,
+			RParen: rparen,
+		}
+	}
+
+	return callee
 }
 
 func (p *Parser) parseGroup() ast.Expr {
