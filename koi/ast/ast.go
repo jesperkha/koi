@@ -69,6 +69,12 @@ type (
 )
 
 type (
+	// Expression statement is its own statement to handle additional logic
+	// needed for standalone expressions (like formatting when printing AST).
+	ExprStmt struct {
+		E Expr
+	}
+
 	Return struct {
 		Stmt
 		Ret token.Token
@@ -142,3 +148,6 @@ func (f *Field) End() token.Pos { return f.Type.End() }
 
 func (c *Call) Pos() token.Pos { return c.Callee.Pos() }
 func (c *Call) End() token.Pos { return c.RParen.EndPos }
+
+func (e *ExprStmt) Pos() token.Pos { return e.E.Pos() }
+func (e *ExprStmt) End() token.Pos { return e.E.End() }
