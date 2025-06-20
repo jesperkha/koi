@@ -128,3 +128,6 @@ func (b *Builder) VisitIdent(node *ast.Ident) {
 func (b *Builder) VisitCall(node *ast.Call) {
 
 }
+func (b *Builder) VisitExprStmt(node *ast.ExprStmt) {
+
+}

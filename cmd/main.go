@@ -15,7 +15,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ast.NewDebugVisitor().Print(tree)
+	ast.Print(tree)
+
 	// ir, err := koi.GenerateIR(file)
 	// if err != nil {
 	// 	log.Fatal(err)

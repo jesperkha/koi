@@ -4,17 +4,45 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jesperkha/koi/koi/ast"
 	"github.com/jesperkha/koi/koi/scanner"
 	"github.com/jesperkha/koi/koi/token"
 )
-
-// TODO: more robust parser testing with comparison of generated AST as text
 
 func parserFrom(src string) *Parser {
 	file := token.NewFile("test", src)
 	s := scanner.New(file)
 	toks := s.ScanAll()
 	return New(file, toks)
+}
+
+func parseAndCompare(t *testing.T, src string) {
+	p := parserFrom(src)
+	tree := p.Parse()
+	if p.Error() != nil {
+		t.Fatal(p.Error())
+	}
+
+	expectLines := strings.Split(strings.TrimSpace(src), "\n")
+	printLines := strings.Split(strings.TrimSpace(ast.String(tree)), "\n")
+
+	if len(printLines) != len(expectLines) {
+		t.Fatal("number of lines in expected and actual do not match")
+	}
+
+	for i, line := range printLines {
+		expect := strings.TrimSpace(expectLines[i])
+		got := strings.TrimSpace(line)
+		if got != expect {
+			t.Fatalf("expected equal, line %d\n\texpect '%s'\n\tgot '%s'", i+1, expect, got)
+		}
+	}
+}
+
+func assert(t *testing.T, expr bool, msg string) {
+	if !expr {
+		t.Errorf("assert failed: %s", msg)
+	}
 }
 
 func TestNoInput(t *testing.T) {
@@ -27,37 +55,34 @@ func TestNoInput(t *testing.T) {
 }
 
 func TestEmptyFunction(t *testing.T) {
-	p := parserFrom(`
-		pub func foo() void {}
-		func bar(a int) void {}
-		func faz(name string, age int) void {}
-	`)
-
-	p.Parse()
-
-	if p.Error() != nil {
-		t.Errorf("expected no error for empty function, got %s", p.Error())
-	}
-}
-
-func TestFunctionWithReturn(t *testing.T) {
-	p := parserFrom(`
-		func f(a int, b string) int {
-			return 0
+	parseAndCompare(t, `
+		pub func foo() void {
 		}
 	`)
 
-	p.Parse()
+	parseAndCompare(t, `
+		func bar(a int) void {
+		}
+	`)
 
-	if p.Error() != nil {
-		t.Errorf("expected no error, got %s", p.Error())
-	}
+	parseAndCompare(t, `
+		func faz(name string, age int) void {
+		}
+	`)
 }
 
-func assert(t *testing.T, expr bool, msg string) {
-	if !expr {
-		t.Errorf("assert failed: %s", msg)
-	}
+func TestFunctionWithReturn(t *testing.T) {
+	parseAndCompare(t, `
+		func foo(a int, b float) int {
+			return a
+		}
+	`)
+
+	parseAndCompare(t, `
+		pub func bar() void {
+			return
+		}
+	`)
 }
 
 func TestLiteral(t *testing.T) {
@@ -88,4 +113,24 @@ func TestPrimitiveTypes(t *testing.T) {
 			t.Errorf("expected %s, got %s", s, got.String())
 		}
 	}
+}
+
+func TestCall(t *testing.T) {
+	parseAndCompare(t, `
+		func foo() void {
+			bar()
+		}
+	`)
+
+	parseAndCompare(t, `
+		func foo() void {
+			bar(1, "hello", a)
+		}
+	`)
+
+	parseAndCompare(t, `
+		func foo() void {
+			chained(1)(2)
+		}
+	`)
 }

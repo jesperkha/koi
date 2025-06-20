@@ -326,10 +326,9 @@ func (p *Parser) parseStmt() ast.Stmt {
 		return p.parseBlock()
 
 	default:
-		return p.parseExpr()
-		// from := p.cur()
-		// p.gotoNewline()
-		// p.errFromTo(from, p.prev(), "invalid statement")
+		return &ast.ExprStmt{
+			E: p.parseExpr(),
+		}
 	}
 }
 

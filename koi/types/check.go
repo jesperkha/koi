@@ -212,3 +212,7 @@ func (c *Checker) evalIdent(node *ast.Ident) Type {
 	c.err(node, "%s is undefined", node.Name)
 	return nil
 }
+
+func (c *Checker) VisitExprStmt(node *ast.ExprStmt) {
+
+}
