@@ -5,33 +5,37 @@ import (
 	"strings"
 )
 
-// DebugVisitor prints the AST identically to its source, with ideal formatting.
+// Get a string representation of the AST identical to its source, with ideal formatting.
 // Used for testing the parser (by comparing AST to string) and for debugging.
-type DebugVisitor struct {
+func String(tree *Ast) string {
+	return newDebugVisitor(tree).String()
+}
+
+func Print(tree *Ast) {
+	fmt.Println(String(tree))
+}
+
+type debugVisitor struct {
 	sb          *strings.Builder
 	indentLevel int
 	tree        *Ast
 	indented    bool
 }
 
-func NewDebugVisitor(tree *Ast) *DebugVisitor {
-	return &DebugVisitor{
+func newDebugVisitor(tree *Ast) *debugVisitor {
+	return &debugVisitor{
 		sb:          &strings.Builder{},
 		tree:        tree,
 		indentLevel: 0,
 	}
 }
 
-func (d *DebugVisitor) Print() {
+func (d *debugVisitor) String() string {
 	d.tree.Walk(d)
-	fmt.Println(d.String())
-}
-
-func (d *DebugVisitor) String() string {
 	return d.sb.String()
 }
 
-func (d *DebugVisitor) write(f string, args ...any) {
+func (d *debugVisitor) write(f string, args ...any) {
 	if d.indentLevel != 0 && !d.indented {
 		s := strings.Repeat("    ", d.indentLevel) + fmt.Sprintf(f, args...)
 		d.sb.WriteString(s)
@@ -41,18 +45,21 @@ func (d *DebugVisitor) write(f string, args ...any) {
 	}
 }
 
-func (d *DebugVisitor) writeln(f string, args ...any) {
+func (d *debugVisitor) writeln(f string, args ...any) {
 	d.write(f+"\n", args...)
 	d.indented = false
 }
 
-func (d *DebugVisitor) indent(n Node) {
+func (d *debugVisitor) indent(n Node) {
 	d.indentLevel++
 	n.Accept(d)
 	d.indentLevel--
 }
 
-func (d *DebugVisitor) VisitBlock(node *Block) {
+func (d *debugVisitor) VisitBlock(node *Block) {
+	if node == nil {
+		return
+	}
 	d.writeln("{")
 	for _, stmt := range node.Stmts {
 		d.indent(stmt)
@@ -60,7 +67,10 @@ func (d *DebugVisitor) VisitBlock(node *Block) {
 	d.writeln("}")
 }
 
-func (d *DebugVisitor) VisitFunc(node *Func) {
+func (d *debugVisitor) VisitFunc(node *Func) {
+	if node == nil {
+		return
+	}
 	if node.Public {
 		d.write("pub ")
 	}
@@ -78,21 +88,35 @@ func (d *DebugVisitor) VisitFunc(node *Func) {
 	node.Block.Accept(d)
 }
 
-func (d *DebugVisitor) VisitReturn(node *Return) {
+func (d *debugVisitor) VisitReturn(node *Return) {
+	if node == nil {
+		return
+	}
 	d.write("return ")
-	node.E.Accept(d)
+	if node.E != nil {
+		node.E.Accept(d)
+	}
 	d.writeln("")
 }
 
-func (d *DebugVisitor) VisitLiteral(node *Literal) {
+func (d *debugVisitor) VisitLiteral(node *Literal) {
+	if node == nil {
+		return
+	}
 	d.write("%s", node.Value)
 }
 
-func (d *DebugVisitor) VisitIdent(node *Ident) {
+func (d *debugVisitor) VisitIdent(node *Ident) {
+	if node == nil {
+		return
+	}
 	d.write("%s", node.Name)
 }
 
-func (d *DebugVisitor) VisitCall(node *Call) {
+func (d *debugVisitor) VisitCall(node *Call) {
+	if node == nil {
+		return
+	}
 	node.Callee.Accept(d)
 	d.write("(")
 	for i, arg := range node.Args {
@@ -104,7 +128,10 @@ func (d *DebugVisitor) VisitCall(node *Call) {
 	d.write(")")
 }
 
-func (d *DebugVisitor) VisitExprStmt(node *ExprStmt) {
+func (d *debugVisitor) VisitExprStmt(node *ExprStmt) {
+	if node == nil {
+		return
+	}
 	node.E.Accept(d)
 	d.writeln("")
 }
