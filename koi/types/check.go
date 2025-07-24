@@ -171,6 +171,10 @@ func (c *Checker) VisitReturn(node *ast.Return) {
 	}
 }
 
+func (c *Checker) VisitExprStmt(node *ast.ExprStmt) {
+	node.E.Accept(c)
+}
+
 func (c *Checker) VisitLiteral(node *ast.Literal) {
 	// never called
 }
@@ -180,11 +184,13 @@ func (c *Checker) VisitIdent(node *ast.Ident) {
 }
 
 func (c *Checker) VisitCall(node *ast.Call) {
-	// TODO: visit call in type check, match against known function definition
+	// TODO: #2 visit call in type check, match against known function definition
+	// NOTE: not called because visitor pattern not implemented for expressions
+	fmt.Println("call!")
 }
 
 // Evaluates given expression to a type and returns it. Returns nil on error.
-// TODO: this sucks. remove and use visitor pattern fully. set internal cur-type state or smth
+// TODO: #1 this sucks. remove and use visitor pattern fully. set internal cur-type state or smth
 func (c *Checker) evalExpr(node ast.Expr) Type {
 	switch node := node.(type) {
 	case *ast.Literal:
@@ -211,8 +217,4 @@ func (c *Checker) evalIdent(node *ast.Ident) Type {
 
 	c.err(node, "%s is undefined", node.Name)
 	return nil
-}
-
-func (c *Checker) VisitExprStmt(node *ast.ExprStmt) {
-
 }

@@ -133,4 +133,10 @@ func TestCall(t *testing.T) {
 			chained(1)(2)
 		}
 	`)
+
+	parseAndCompare(t, `
+		func foo() void {
+			bar()()()
+		}
+	`)
 }

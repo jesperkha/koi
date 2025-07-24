@@ -424,19 +424,13 @@ func (p *Parser) parseCall() ast.Expr {
 	// callee whenever we find another lparen.
 	for p.match(token.LPAREN) {
 		lparen := p.consume()
+		args := []ast.Expr{}
 
 		// Return early if no args
 		if p.match(token.RPAREN) {
-			rparen := p.consume()
-			return &ast.Call{
-				Callee: callee,
-				LParen: lparen,
-				Args:   []ast.Expr{},
-				RParen: rparen,
-			}
+			goto finish_callee
 		}
 
-		args := []ast.Expr{}
 		for {
 			expr := p.parseExpr()
 			args = append(args, expr)
@@ -451,6 +445,7 @@ func (p *Parser) parseCall() ast.Expr {
 			p.err("expected ) after argument list")
 		}
 
+	finish_callee:
 		rparen := p.consume()
 		callee = &ast.Call{
 			Callee: callee,

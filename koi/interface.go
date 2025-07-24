@@ -22,6 +22,9 @@ func Tokenize(file *token.File) (tokens []token.Token, err error) {
 
 func Parse(file *token.File) (*ast.Ast, *types.SemanticTable, error) {
 	toks, err := Tokenize(file)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	p := parser.New(file, toks)
 	ast := p.Parse()
