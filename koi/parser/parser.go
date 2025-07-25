@@ -12,7 +12,7 @@ import (
 type Parser struct {
 	NumErrors int
 
-	errors util.ErrorHandler
+	errors *util.ErrorHandler
 	file   *token.File
 	toks   []token.Token
 	pos    int // Current token being looked at
@@ -32,7 +32,7 @@ func New(file *token.File, toks []token.Token) *Parser {
 	return &Parser{
 		toks:   toks,
 		file:   file,
-		errors: util.ErrorHandler{},
+		errors: util.NewErrorHandler(),
 	}
 }
 
