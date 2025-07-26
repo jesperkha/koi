@@ -77,7 +77,10 @@ func (d *debugVisitor) VisitFunc(node *Func) {
 
 	d.write("func %s(", node.Name.Lexeme)
 	for i, param := range node.Params.Fields {
-		d.write("%s %s", param.Name.Lexeme, param.Type.String())
+		d.write("%s ", param.Name.Lexeme)
+		param.Type.Accept(d)
+
+		// d.write("%s %s", param.Name.Lexeme, param.Type.String())
 		if i < len(node.Params.Fields)-1 {
 			d.write(", ")
 		}
@@ -134,4 +137,8 @@ func (d *debugVisitor) VisitExprStmt(node *ExprStmt) {
 	}
 	node.E.Accept(d)
 	d.writeln("")
+}
+
+func (d *debugVisitor) VisitPrimitiveType(node *PrimitiveType) {
+	d.write("%s", node.String())
 }

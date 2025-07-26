@@ -5,11 +5,10 @@ import (
 )
 
 type Type interface {
+	Node
+
 	// Get string representation of type, identical to the type syntax.
 	String() string
-
-	Pos() token.Pos
-	End() token.Pos
 }
 
 type TypeKind int

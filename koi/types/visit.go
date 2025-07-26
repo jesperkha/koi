@@ -18,8 +18,8 @@ func (c *Checker) VisitFunc(node *ast.Func) {
 		return
 	}
 
-	retType, ok := c.visitType(node.RetType)
-	if !ok {
+	retType := c.evaluate(node.RetType)
+	if retType == nil {
 		return
 	}
 
@@ -37,8 +37,8 @@ func (c *Checker) VisitFunc(node *ast.Func) {
 
 	// Declare all parameters as local variables
 	for _, param := range node.Params.Fields {
-		typ, ok := c.visitType(param.Type)
-		if !ok {
+		typ := c.evaluate(param.Type)
+		if typ == nil {
 			return
 		}
 
@@ -84,14 +84,8 @@ func (c *Checker) visitMain(node *ast.Func) {
 	}
 }
 
-func (c *Checker) visitType(node ast.Type) (typ Type, ok bool) {
-	switch node := node.(type) {
-	case *ast.PrimitiveType:
-		return &PrimitiveType{kind: node.Kind}, true
-
-	default:
-		panic("unhandled type in visitType")
-	}
+func (c *Checker) VisitPrimitiveType(node *ast.PrimitiveType) {
+	c.setType(&PrimitiveType{kind: node.Kind})
 }
 
 // Same as VisitBlock, but does not create a new scope. This is because some
