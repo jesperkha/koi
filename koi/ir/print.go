@@ -56,7 +56,7 @@ func IrFmt(ir []Instruction) string {
 			s += fmt.Sprintf("RET $%d\n", op.Value.ID)
 
 		default:
-			s += fmt.Sprintf("unknown op")
+			s += "unknown op"
 		}
 	}
 
