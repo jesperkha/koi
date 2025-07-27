@@ -4,47 +4,37 @@ import (
 	"github.com/jesperkha/koi/koi/token"
 )
 
-type (
-	Ast struct {
-		// Declarations are the only top level statements in koi. They contain
-		// all other statements and expressions. Eg. a function has a block
-		// statement, which consists of multiple ifs and calls.
-		Nodes []Decl
-	}
+// Ast contains all parsed nodes for one file.
+type Ast struct {
+	// Declarations are the only top level statements in koi. They contain
+	// all other statements and expressions. Eg. a function has a block
+	// statement, which consists of multiple ifs and calls.
+	Nodes []Decl
+}
 
-	Node interface {
-		Pos() token.Pos // Position of first token in node segment
-		End() token.Pos // Position of last token in node segment
-
-		// Accept a visitor to inspect this node. Must call the appropriate
-		// visit method on the visitor for this node.
-		Accept(v Visitor)
-	}
-
-	Expr interface {
-		Node
-	}
-
-	Stmt interface {
-		Node
-	}
-
-	// Declarations are not considered statements for linting purposes.
-	// Functions, structs, enums etc are all top level statements, and
-	// therefore declarations. This does not include variable declarations,
-	// but does include constant declarations.
-	Decl interface {
-		Node
-	}
-)
-
+// Walk accepts a Visitor and calls each nodes Accept method, passing v.
 func (t *Ast) Walk(v Visitor) {
 	for _, decl := range t.Nodes {
 		decl.Accept(v)
 	}
 }
 
+// A node is any expression, statement, or declaration.
+type Node interface {
+	Pos() token.Pos // Position of first token in node segment
+	End() token.Pos // Position of last token in node segment
+
+	// Accept a visitor to inspect this node. Must call the appropriate
+	// visit method on the visitor for this node.
+	Accept(v Visitor)
+}
+
+// Expression node types
 type (
+	Expr interface {
+		Node
+	}
+
 	// Function call expression
 	Call struct {
 		Callee Expr
@@ -68,7 +58,12 @@ type (
 	}
 )
 
+// Statement node types
 type (
+	Stmt interface {
+		Node
+	}
+
 	// Expression statement is its own statement to handle additional logic
 	// needed for standalone expressions (like formatting when printing AST).
 	ExprStmt struct {
@@ -90,7 +85,16 @@ type (
 	}
 )
 
+// Declaration node types
 type (
+	// Declarations are not considered statements for linting purposes.
+	// Functions, structs, enums etc are all top level statements, and
+	// therefore declarations. This does not include variable declarations,
+	// but does include constant declarations.
+	Decl interface {
+		Node
+	}
+
 	Func struct {
 		Decl
 		Public  bool
