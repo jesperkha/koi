@@ -1,10 +1,9 @@
 use std::fmt;
 
+#[derive(Debug)]
 pub struct Token {
     pub kind: TokenKind,
 
-    /// The token as a string literal
-    pub lexeme: String,
     /// Position of first character in token.
     pub pos: Pos,
     /// Position of character immediately after token
@@ -15,15 +14,38 @@ pub struct Token {
     pub invalid: bool,
 }
 
+impl Token {
+    /// Create new Token. End position is calculated based on lexeme.
+    /// Sets token flags based on kind.
+    pub fn new(kind: TokenKind, lexeme: &str, pos: Pos) -> Token {
+        let length = lexeme.len();
+        let end_pos = Pos {
+            row: pos.row,
+            col: pos.col + length,
+            offset: pos.offset + length,
+            line_begin: pos.line_begin,
+        };
+
+        Token {
+            eof: kind.eq(&TokenKind::Eof),
+            invalid: kind.eq(&TokenKind::Invalid),
+            pos: pos,
+            end_pos: end_pos,
+            kind: kind,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct Pos {
     /// Row in file, starting at 0
-    pub row: i32,
+    pub row: usize,
     /// Column on line, starting at 0
-    pub col: i32,
+    pub col: usize,
     /// Byte offset in file
-    pub offset: i32,
+    pub offset: usize,
     /// Offset of first character on same line as this Pos
-    pub line_begin: i32,
+    pub line_begin: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
