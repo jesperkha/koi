@@ -67,16 +67,14 @@ impl File {
 
         let start = self.lines[row];
         let end = File::find_end_of_line(&self.src, start);
-        str::from_utf8(&self.src[start..end]).expect("Expected valid UTF-8")
+        self.str_range(start, end)
     }
 
     /// Get string in range of (from, to) where both are byte offsets.
     /// Panics if to <= from.
-    pub fn str_range(&self, from: usize, to: usize) -> String {
+    pub fn str_range(&self, from: usize, to: usize) -> &str {
         assert!(from <= to, "range (from, to) where to <= from");
-        str::from_utf8(&self.src[from..to])
-            .expect("invalid utf-8")
-            .to_string()
+        str::from_utf8(&self.src[from..to]).expect("invalid utf-8")
     }
 
     /// Returns the position of the character before the newline,

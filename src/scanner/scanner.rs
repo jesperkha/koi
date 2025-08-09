@@ -48,7 +48,7 @@ impl<'a> Scanner<'a> {
                     let lexeme = self.file.str_range(self.pos, self.pos + length);
 
                     (
-                        Token::new(TokenKind::IdentLit(lexeme), length, self.pos()),
+                        Token::new(TokenKind::IdentLit(lexeme.to_owned()), length, self.pos()),
                         length,
                     )
                 }
