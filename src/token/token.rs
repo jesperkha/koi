@@ -12,13 +12,13 @@ pub struct Token {
     pub eof: bool,
     /// Is the token invalid?
     pub invalid: bool,
+    /// Byte length of token
+    pub length: usize,
 }
 
 impl Token {
-    /// Create new Token. End position is calculated based on lexeme.
-    /// Sets token flags based on kind.
-    pub fn new(kind: TokenKind, lexeme: &str, pos: Pos) -> Token {
-        let length = lexeme.len();
+    /// Create new Token. Sets token flags based on kind.
+    pub fn new(kind: TokenKind, length: usize, pos: Pos) -> Token {
         let end_pos = Pos {
             row: pos.row,
             col: pos.col + length,
@@ -27,6 +27,7 @@ impl Token {
         };
 
         Token {
+            length: length,
             eof: kind.eq(&TokenKind::Eof),
             invalid: kind.eq(&TokenKind::Invalid),
             pos: pos,
@@ -51,6 +52,7 @@ pub struct Pos {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
     Invalid,
+    Whitespace, // Ignored by scanner
     Newline,
     Eof,
 
@@ -132,6 +134,7 @@ impl fmt::Display for TokenKind {
         let s = match self {
             TokenKind::Invalid => "INVALID",
             TokenKind::Eof => "EOF",
+            TokenKind::Whitespace => panic!("whitespace tokens should be discarded"),
             TokenKind::Newline => "NEWLINE",
 
             // Literals
