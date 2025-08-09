@@ -1,0 +1,38 @@
+use core::fmt;
+
+use crate::token::{File, Pos};
+
+#[derive(Debug)]
+pub struct SyntaxError {
+    message: String,
+    line: usize,
+    line_str: String,
+    from: usize,
+    to: usize,
+}
+
+impl fmt::Display for SyntaxError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let err = format!(
+            "error: {}\n{:<3} | {}\n    | {}{}\n",
+            self.message,
+            self.line,
+            self.line_str,
+            " ".repeat(self.from),
+            "^".repeat((self.to - self.from).max(1))
+        );
+        write!(f, "{}", err)
+    }
+}
+
+impl SyntaxError {
+    pub fn new(msg: &str, from: Pos, to: Pos, file: &File) -> SyntaxError {
+        SyntaxError {
+            message: msg.to_string(),
+            line: from.row + 1,
+            line_str: file.line(to.row).to_owned(),
+            from: from.col,
+            to: to.col,
+        }
+    }
+}

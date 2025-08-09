@@ -1,16 +1,16 @@
 use std::vec;
 
 use super::*;
-use crate::token::TokenKind;
+use crate::token::{File, TokenKind};
 
-fn scanner_from(s: &str) -> Scanner {
-    Scanner::new(s.to_string().into_bytes())
+fn scan_source(s: &str) -> ScannerResult {
+    let file = File::new_test_file(s);
+    Scanner::new(&file).scan()
 }
 
 #[test]
 fn test_whitespace_only() {
-    let mut s = scanner_from("  \t \t   \r  ");
-    match s.scan() {
+    match scan_source("  \t \t   \r  ") {
         Ok(toks) => assert_eq!(toks.len(), 0),
         Err(e) => panic!("{:?}", e),
     };
@@ -19,9 +19,7 @@ fn test_whitespace_only() {
 #[test]
 fn test_identifier() {
     let expect = vec!["foo", "bar", "a", "abc_123"];
-    let mut s = scanner_from(expect.join(" ").as_str());
-
-    match s.scan() {
+    match scan_source(expect.join(" ").as_str()) {
         Ok(toks) => {
             assert_eq!(toks.len(), 4);
             for (i, t) in toks.iter().enumerate() {
@@ -35,14 +33,33 @@ fn test_identifier() {
 }
 
 #[test]
+fn test_number() {
+    match scan_source("123") {
+        Ok(toks) => {
+            assert_eq!(toks.len(), 1);
+            assert_eq!(toks[0].length, 3);
+            assert_eq!(toks[0].kind, TokenKind::IntLit(123));
+        }
+        Err(e) => panic!("{:?}", e),
+    }
+    match scan_source("1.23") {
+        Ok(toks) => {
+            assert_eq!(toks.len(), 1);
+            assert_eq!(toks[0].length, 4);
+            assert_eq!(toks[0].kind, TokenKind::FloatLit(1.23));
+        }
+        Err(e) => panic!("{:?}", e),
+    }
+}
+
+#[test]
 fn test_pos() {
-    let mut s = scanner_from("abc def\nhello world");
     let expect_pos = vec![(0, 0), (0, 4), (0, 7), (1, 0), (1, 6)]; // (row, col)
     let expect_end = vec![(0, 3), (0, 7), (0, 8), (1, 5), (1, 11)]; // (row, col)
     let expect_offset = vec![0, 4, 7, 8, 14];
     let expect_line = vec![0, 0, 0, 8, 8];
 
-    match s.scan() {
+    match scan_source("abc def\nhello world") {
         Ok(toks) => {
             assert_eq!(toks.len(), expect_pos.len());
             for (i, t) in toks.iter().enumerate() {

@@ -1,3 +1,5 @@
+use std::fs::read_to_string;
+
 pub struct File {
     /// Name of file, including extension
     pub name: String,
@@ -24,24 +26,17 @@ impl File {
         }
     }
 
-    /// Create new file using text source for testing.
-    pub fn new_test(src: &str) -> File {
-        File {
-            name: "test_file".to_string(),
-            size: src.len() as usize,
-            src: src.to_string().into_bytes(),
-            lines: File::get_line_beginnings(src.as_bytes()),
-        }
+    /// Create new file, reading the content from named file as source.
+    pub fn new_from_file(filename: &str) -> File {
+        let bytes = read_to_string(filename)
+            .expect("failed to read file")
+            .into_bytes();
+        File::new(filename.to_string(), bytes)
     }
 
-    /// Returns the position of the character before the newline,
-    /// or last character in source if none is found.
-    fn find_end_of_line(src: &[u8], offset: usize) -> usize {
-        src[offset..]
-            .iter()
-            .position(|&c| c == b'\n')
-            .and_then(|n| Some(offset + n - 1))
-            .unwrap_or(src.len() - 1)
+    /// Create new file for testing
+    pub fn new_test_file(src: &str) -> File {
+        File::new("test".to_string(), src.to_string().into_bytes())
     }
 
     /// Gets a list of offsets for first character of each line.
@@ -73,6 +68,25 @@ impl File {
         let start = self.lines[row];
         let end = File::find_end_of_line(&self.src, start);
         str::from_utf8(&self.src[start..end]).expect("Expected valid UTF-8")
+    }
+
+    /// Get string in range of (from, to) where both are byte offsets.
+    /// Panics if to <= from.
+    pub fn str_range(&self, from: usize, to: usize) -> String {
+        assert!(from <= to, "range (from, to) where to <= from");
+        str::from_utf8(&self.src[from..to])
+            .expect("invalid utf-8")
+            .to_string()
+    }
+
+    /// Returns the position of the character before the newline,
+    /// or last character in source if none is found.
+    fn find_end_of_line(src: &[u8], offset: usize) -> usize {
+        src[offset..]
+            .iter()
+            .position(|&c| c == b'\n')
+            .and_then(|n| Some(offset + n - 1))
+            .unwrap_or(src.len())
     }
 }
 
