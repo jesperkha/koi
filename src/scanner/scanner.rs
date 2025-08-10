@@ -35,10 +35,7 @@ impl<'a> Scanner<'a> {
                 // Line comment
                 b'/' if matches!(self.peek(), Some(b'/')) => (
                     Token::new(TokenKind::Whitespace, 0, self.pos()),
-                    // +1 because we want to skip the newline after too.
-                    // This is safe to do when pos goes beyond eof
-                    // because its checked before next iteration.
-                    self.peek_while(|b| b != b'\n') + 1,
+                    self.peek_while(|b| b != b'\n'),
                 ),
 
                 // Block comment

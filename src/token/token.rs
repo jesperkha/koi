@@ -37,6 +37,23 @@ impl Token {
     }
 }
 
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?} ({}, {})", self.kind, self.pos.row, self.pos.col)
+    }
+}
+
+pub fn display_tokens(tokens: &[Token]) -> String {
+    format!(
+        "[\n{}\n]",
+        tokens
+            .iter()
+            .map(|t| format!("    {}", t))
+            .collect::<Vec<_>>()
+            .join("\n")
+    )
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct Pos {
     /// Row in file, starting at 0
