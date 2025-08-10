@@ -153,3 +153,23 @@ fn test_line_comment() {
     scan_and_then("// comment", |toks| assert_eq!(toks.len(), 0));
     scan_and_then("// comment\n", |toks| assert_eq!(toks.len(), 0));
 }
+
+#[test]
+fn test_block_comment() {
+    let expect_foo = |toks: Vec<Token>| {
+        assert_eq!(toks.len(), 1);
+        assert_eq!(toks[0].kind, TokenKind::IdentLit("foo".to_string()));
+    };
+
+    scan_and_then("/* comment */foo", expect_foo);
+    scan_and_then("/* nested \n /* comment */\n */ foo", expect_foo);
+    scan_and_then("foo /* nested /* comment\n */ */", expect_foo);
+
+    scan_and_error("/* not closed");
+    scan_and_error("/* not closed /* nested */");
+}
+
+#[test]
+fn test_illegal_token() {
+    scan_and_error("@");
+}

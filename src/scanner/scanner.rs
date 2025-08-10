@@ -26,7 +26,6 @@ impl<'a> Scanner<'a> {
 
         while !self.eof() {
             let (token, consumed) = match self.cur() {
-                // Consume all whitespace (not newline)
                 // Whitespace tokens are ignored and not added to token list
                 v if Scanner::is_whitespace(v) => (
                     Token::new(TokenKind::Whitespace, 0, self.pos()),
@@ -41,6 +40,43 @@ impl<'a> Scanner<'a> {
                     // because its checked before next iteration.
                     self.peek_while(|b| b != b'\n') + 1,
                 ),
+
+                // Block comment
+                b'/' if matches!(self.peek(), Some(b'*')) => {
+                    let mut depth = 1;
+                    let mut i = self.pos + 2; // Skip opening /*
+
+                    while i + 1 < self.len() && depth > 0 {
+                        let c1 = self.at(i);
+                        let c2 = self.at(i + 1);
+
+                        if c1 == b'/' && c2 == b'*' {
+                            depth += 1;
+                            i += 2;
+                            continue;
+                        } else if c1 == b'*' && c2 == b'/' {
+                            depth -= 1;
+                            i += 2;
+                            continue;
+                        }
+
+                        i += 1;
+                    }
+
+                    if depth != 0 {
+                        return Err(SyntaxError::new(
+                            "block comment was not terminated",
+                            self.pos(),
+                            2,
+                            self.file,
+                        ));
+                    }
+
+                    (
+                        Token::new(TokenKind::Whitespace, 0, self.pos()),
+                        i - self.pos,
+                    )
+                }
 
                 // Newline character resets the row and col.
                 b'\n' => {
@@ -66,7 +102,7 @@ impl<'a> Scanner<'a> {
                     }
                 }
 
-                // Number literal
+                // Number
                 v if Scanner::is_number(v) => {
                     let length = self.peek_while(Scanner::is_numeric);
                     let lexeme = self.file.str_range(self.pos, self.pos + length);
@@ -86,6 +122,7 @@ impl<'a> Scanner<'a> {
                     (Token::new(kind, length, self.pos()), length)
                 }
 
+                // String
                 b'"' => {
                     self.pos += 1;
                     let mut length = self.peek_while(Scanner::in_string);
