@@ -1,4 +1,4 @@
-use crate::token::{File, Pos, SyntaxError, Token, TokenKind};
+use crate::token::{File, Pos, SyntaxError, Token, TokenKind, str_to_token};
 
 pub struct Scanner<'a> {
     file: &'a File,
@@ -42,15 +42,19 @@ impl<'a> Scanner<'a> {
                     (Token::new(TokenKind::Newline, 1, pos), 1)
                 }
 
-                // Consume word (identifier or keyword)
+                // Identifier or keyword
                 v if Scanner::is_alpha(v) => {
                     let length = self.peek_while(Scanner::is_alphanum);
                     let lexeme = self.file.str_range(self.pos, self.pos + length);
 
-                    (
-                        Token::new(TokenKind::IdentLit(lexeme.to_owned()), length, self.pos()),
-                        length,
-                    )
+                    if let Some(k) = str_to_token(lexeme) {
+                        (Token::new(k.clone(), length, self.pos()), length)
+                    } else {
+                        (
+                            Token::new(TokenKind::IdentLit(lexeme.to_owned()), length, self.pos()),
+                            length,
+                        )
+                    }
                 }
 
                 // Number literal

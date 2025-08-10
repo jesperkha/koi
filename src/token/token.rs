@@ -129,12 +129,86 @@ pub enum TokenKind {
     Bool,
 }
 
+/// Reserved token lexemes
+static RESERVED: &[(&str, TokenKind)] = &[
+    // Keywords
+    ("true", TokenKind::True),
+    ("false", TokenKind::False),
+    ("return", TokenKind::Return),
+    ("func", TokenKind::Func),
+    ("if", TokenKind::If),
+    ("else", TokenKind::Else),
+    ("for", TokenKind::For),
+    ("import", TokenKind::Import),
+    ("package", TokenKind::Package),
+    ("null", TokenKind::Null),
+    ("pub", TokenKind::Pub),
+    ("error", TokenKind::Error),
+    // Math
+    ("+", TokenKind::Plus),
+    ("-", TokenKind::Minus),
+    ("*", TokenKind::Star),
+    ("/", TokenKind::Slash),
+    ("%", TokenKind::Percent),
+    // Logic
+    ("=", TokenKind::Eq),
+    ("==", TokenKind::EqEq),
+    ("!=", TokenKind::NotEq),
+    ("+=", TokenKind::PlusEq),
+    ("-=", TokenKind::MinusEq),
+    ("*=", TokenKind::StarEq),
+    ("/=", TokenKind::SlashEq),
+    (">", TokenKind::Greater),
+    ("<", TokenKind::Less),
+    (">=", TokenKind::GreaterEq),
+    ("<=", TokenKind::LessEq),
+    ("|", TokenKind::Or),
+    ("||", TokenKind::OrOr),
+    ("&", TokenKind::And),
+    ("&&", TokenKind::AndAnd),
+    ("!", TokenKind::Bang),
+    ("!=", TokenKind::BangEq),
+    // Parenthesis & Brackets
+    ("(", TokenKind::LParen),
+    (")", TokenKind::RParen),
+    ("{", TokenKind::LBrace),
+    ("}", TokenKind::RBrace),
+    ("[", TokenKind::LBrack),
+    ("]", TokenKind::RBrack),
+    // Other symbols
+    (".", TokenKind::Dot),
+    (",", TokenKind::Comma),
+    (";", TokenKind::Semi),
+    (":", TokenKind::Colon),
+    (":=", TokenKind::ColonEq),
+    ("?", TokenKind::Question),
+    // Primitive types
+    ("void", TokenKind::Void),
+    ("int", TokenKind::Int),
+    ("float", TokenKind::Float),
+    ("string", TokenKind::String),
+    ("byte", TokenKind::Byte),
+    ("bool", TokenKind::Bool),
+];
+
+pub fn str_to_token(s: &str) -> Option<&TokenKind> {
+    RESERVED.iter().find(|(kw, _)| *kw == s).map(|(_, t)| t)
+}
+
+pub fn token_to_str(t: TokenKind) -> Option<&'static str> {
+    RESERVED
+        .iter()
+        .find(|(_, tok)| *tok == t)
+        .map(|(kw, _)| *kw)
+}
+
 impl fmt::Display for TokenKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
+            TokenKind::Whitespace => panic!("whitespace tokens should be discarded"),
+
             TokenKind::Invalid => "INVALID",
             TokenKind::Eof => "EOF",
-            TokenKind::Whitespace => panic!("whitespace tokens should be discarded"),
             TokenKind::Newline => "NEWLINE",
 
             // Literals
@@ -145,69 +219,7 @@ impl fmt::Display for TokenKind {
             TokenKind::StringLit(s) => s,
             TokenKind::CharLit(c) => &c.to_string(),
 
-            // Keywords
-            TokenKind::True => "true",
-            TokenKind::False => "false",
-            TokenKind::Return => "return",
-            TokenKind::Func => "func",
-            TokenKind::If => "if",
-            TokenKind::Else => "else",
-            TokenKind::For => "for",
-            TokenKind::Import => "import",
-            TokenKind::Package => "package",
-            TokenKind::Null => "null",
-            TokenKind::Pub => "pub",
-            TokenKind::Error => "error",
-
-            // Math
-            TokenKind::Plus => "+",
-            TokenKind::Minus => "-",
-            TokenKind::Star => "*",
-            TokenKind::Slash => "/",
-            TokenKind::Percent => "%",
-
-            // Logic
-            TokenKind::Eq => "=",
-            TokenKind::EqEq => "==",
-            TokenKind::NotEq => "!=",
-            TokenKind::PlusEq => "+=",
-            TokenKind::MinusEq => "-=",
-            TokenKind::StarEq => "*=",
-            TokenKind::SlashEq => "/=",
-            TokenKind::Greater => ">",
-            TokenKind::Less => "<",
-            TokenKind::GreaterEq => ">=",
-            TokenKind::LessEq => "<=",
-            TokenKind::Or => "|",
-            TokenKind::OrOr => "||",
-            TokenKind::And => "&",
-            TokenKind::AndAnd => "&&",
-            TokenKind::Bang => "!",
-            TokenKind::BangEq => "!=",
-
-            // Parenthesis & Brackets
-            TokenKind::LParen => "(",
-            TokenKind::RParen => ")",
-            TokenKind::LBrace => "{",
-            TokenKind::RBrace => "}",
-            TokenKind::LBrack => "[",
-            TokenKind::RBrack => "]",
-
-            // Other symbols
-            TokenKind::Dot => ".",
-            TokenKind::Comma => ",",
-            TokenKind::Semi => ";",
-            TokenKind::Colon => ":",
-            TokenKind::ColonEq => ":=",
-            TokenKind::Question => "?",
-
-            // Primitive types
-            TokenKind::Void => "void",
-            TokenKind::Int => "int",
-            TokenKind::Float => "float",
-            TokenKind::String => "string",
-            TokenKind::Byte => "byte",
-            TokenKind::Bool => "bool",
+            k => token_to_str(k.clone()).expect("kind was not found in RESERVED map"),
         };
 
         write!(f, "{}", s)

@@ -38,6 +38,17 @@ fn test_identifier() {
 }
 
 #[test]
+fn test_keywords() {
+    scan_and_then("true false pub import", |toks| {
+        assert_eq!(toks.len(), 4);
+        assert_eq!(toks[0].kind, TokenKind::True);
+        assert_eq!(toks[1].kind, TokenKind::False);
+        assert_eq!(toks[2].kind, TokenKind::Pub);
+        assert_eq!(toks[3].kind, TokenKind::Import);
+    });
+}
+
+#[test]
 fn test_number() {
     let _ = scan_and_then("123", |toks| {
         assert_eq!(toks.len(), 1);
