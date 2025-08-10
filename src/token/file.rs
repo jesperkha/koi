@@ -67,7 +67,7 @@ impl File {
 
         let start = self.lines[row];
         let end = File::find_end_of_line(&self.src, start);
-        self.str_range(start, end)
+        self.str_range(start, end + 1) // Range is non-inclusive
     }
 
     /// Get string in range of (from, to) where both are byte offsets.
@@ -84,7 +84,7 @@ impl File {
             .iter()
             .position(|&c| c == b'\n')
             .and_then(|n| Some(offset + n - 1))
-            .unwrap_or(src.len())
+            .unwrap_or(src.len() - 1)
     }
 }
 

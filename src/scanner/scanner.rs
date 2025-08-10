@@ -73,6 +73,29 @@ impl<'a> Scanner<'a> {
                     (Token::new(kind, length, self.pos()), length)
                 }
 
+                b'"' => {
+                    self.pos += 1;
+                    let mut length = self.peek_while(Scanner::in_string);
+                    self.pos -= 1;
+
+                    // Was string actually closed?
+                    let check_pos = self.pos + length + 1; // Of end quote
+                    if check_pos >= self.len() || self.at(check_pos) != b'"' {
+                        let mut pos = self.pos();
+                        pos.col += check_pos;
+                        pos.offset += check_pos;
+                        return Err(SyntaxError::new("expected end quote", pos, 1, self.file));
+                    }
+
+                    length += 2; // Include start and end quote
+                    let lexeme = self.file.str_range(self.pos + 1, self.pos + length - 1);
+
+                    (
+                        Token::new(TokenKind::StringLit(lexeme.to_string()), length, self.pos()),
+                        length,
+                    )
+                }
+
                 _ => return Err(self.error("illegal token", 1)),
             };
 
@@ -102,6 +125,16 @@ impl<'a> Scanner<'a> {
         }
     }
 
+    fn at(&self, pos: usize) -> u8 {
+        assert!(
+            pos < self.len(),
+            "tried to access pos {} when src is {}",
+            pos,
+            self.len()
+        );
+        self.file.src[pos]
+    }
+
     fn cur(&self) -> u8 {
         self.file.src[self.pos]
     }
@@ -115,10 +148,7 @@ impl<'a> Scanner<'a> {
     }
 
     fn error(&self, msg: &str, length: usize) -> SyntaxError {
-        let mut end_pos = self.pos();
-        end_pos.col += length;
-        end_pos.offset += length;
-        SyntaxError::new(msg, self.pos(), end_pos, &self.file)
+        SyntaxError::new(msg, self.pos(), length, &self.file)
     }
 
     /// Peeks tokens while predicate returns true. Returns number of tokens peeked.
@@ -152,5 +182,9 @@ impl<'a> Scanner<'a> {
 
     fn is_alphanum(b: u8) -> bool {
         Scanner::is_alpha(b) || Scanner::is_number(b)
+    }
+
+    fn in_string(b: u8) -> bool {
+        b != b'\n' && b != b'"'
     }
 }

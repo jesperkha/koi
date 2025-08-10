@@ -61,7 +61,7 @@ pub enum TokenKind {
     IntLit(i64),
     FloatLit(f64),
     BoolLit(bool),
-    StringLit(String),
+    StringLit(String), // String does not include quotes
     CharLit(u8),
 
     // Keywords

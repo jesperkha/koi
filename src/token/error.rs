@@ -8,7 +8,7 @@ pub struct SyntaxError {
     line: usize,
     line_str: String,
     from: usize,
-    to: usize,
+    length: usize,
 }
 
 impl fmt::Display for SyntaxError {
@@ -19,20 +19,20 @@ impl fmt::Display for SyntaxError {
             self.line,
             self.line_str,
             " ".repeat(self.from),
-            "^".repeat((self.to - self.from).max(1))
+            "^".repeat(self.length.max(1))
         );
         write!(f, "{}", err)
     }
 }
 
 impl SyntaxError {
-    pub fn new(msg: &str, from: Pos, to: Pos, file: &File) -> SyntaxError {
+    pub fn new(msg: &str, from: Pos, length: usize, file: &File) -> SyntaxError {
         SyntaxError {
             message: msg.to_string(),
             line: from.row + 1,
-            line_str: file.line(to.row).to_owned(),
+            line_str: file.line(from.row).to_owned(),
             from: from.col,
-            to: to.col,
+            length: length,
         }
     }
 }
