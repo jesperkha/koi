@@ -62,12 +62,12 @@ fn test_number() {
         assert_eq!(toks[0].kind, TokenKind::FloatLit(1.23));
     });
 
-    // let _ = scan_source("?123?")
-    //     .map_err(|e| panic!("{:?}", e))
-    //     .map(|toks| {
-    //         assert_eq!(toks.len(), 3);
-    //         assert_eq!(toks[1].kind, TokenKind::IntLit(123));
-    //     });
+    let _ = scan_source("?123?")
+        .map_err(|e| panic!("{:?}", e))
+        .map(|toks| {
+            assert_eq!(toks.len(), 3);
+            assert_eq!(toks[1].kind, TokenKind::IntLit(123));
+        });
 
     if scan_source("1.2.3").is_ok() {
         panic!("expected scanner error");
@@ -114,4 +114,30 @@ fn test_string() {
 
     scan_and_error("\"not terminated, no newline");
     scan_and_error("\"with newline\n123");
+}
+
+#[test]
+fn test_symbols() {
+    scan_and_then("+ - = /", |toks| {
+        assert_eq!(toks.len(), 4);
+        assert_eq!(toks[0].kind, TokenKind::Plus);
+        assert_eq!(toks[1].kind, TokenKind::Minus);
+        assert_eq!(toks[2].kind, TokenKind::Eq);
+        assert_eq!(toks[3].kind, TokenKind::Slash);
+    });
+
+    scan_and_then("+= /= >= :=", |toks| {
+        assert_eq!(toks.len(), 4);
+        assert_eq!(toks[0].kind, TokenKind::PlusEq);
+        assert_eq!(toks[1].kind, TokenKind::SlashEq);
+        assert_eq!(toks[2].kind, TokenKind::GreaterEq);
+        assert_eq!(toks[3].kind, TokenKind::ColonEq);
+    });
+
+    scan_and_then("+-=/", |toks| {
+        assert_eq!(toks.len(), 3);
+        assert_eq!(toks[0].kind, TokenKind::Plus);
+        assert_eq!(toks[1].kind, TokenKind::MinusEq);
+        assert_eq!(toks[2].kind, TokenKind::Slash);
+    });
 }

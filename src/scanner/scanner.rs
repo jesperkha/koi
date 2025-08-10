@@ -100,7 +100,25 @@ impl<'a> Scanner<'a> {
                     )
                 }
 
-                _ => return Err(self.error("illegal token", 1)),
+                _ => {
+                    let try_match = |len| {
+                        let lexeme = self.file.str_range(self.pos, self.pos + len);
+                        str_to_token(&lexeme)
+                            .map(|kind| Token::new(kind.to_owned(), len, self.pos()))
+                    };
+
+                    if let Some(token) = self
+                        .peek()
+                        .filter(|&c| !Scanner::is_alphanum(c))
+                        .and_then(|_| try_match(2))
+                    {
+                        (token, 2)
+                    } else if let Some(token) = try_match(1) {
+                        (token, 1)
+                    } else {
+                        return Err(self.error("illegal token", 1));
+                    }
+                }
             };
 
             self.pos += consumed;
@@ -137,6 +155,14 @@ impl<'a> Scanner<'a> {
             self.len()
         );
         self.file.src[pos]
+    }
+
+    fn peek(&self) -> Option<u8> {
+        if self.pos + 1 >= self.len() {
+            None
+        } else {
+            Some(self.at(self.pos + 1))
+        }
     }
 
     fn cur(&self) -> u8 {
