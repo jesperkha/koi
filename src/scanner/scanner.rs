@@ -33,6 +33,15 @@ impl<'a> Scanner<'a> {
                     self.peek_while(Scanner::is_whitespace),
                 ),
 
+                // Line comment
+                b'/' if matches!(self.peek(), Some(b'/')) => (
+                    Token::new(TokenKind::Whitespace, 0, self.pos()),
+                    // +1 because we want to skip the newline after too.
+                    // This is safe to do when pos goes beyond eof
+                    // because its checked before next iteration.
+                    self.peek_while(|b| b != b'\n') + 1,
+                ),
+
                 // Newline character resets the row and col.
                 b'\n' => {
                     let pos = self.pos();
@@ -100,6 +109,7 @@ impl<'a> Scanner<'a> {
                     )
                 }
 
+                // Match either one or two tokens (single/double symbol)
                 _ => {
                     let try_match = |len| {
                         let lexeme = self.file.str_range(self.pos, self.pos + len);

@@ -141,3 +141,15 @@ fn test_symbols() {
         assert_eq!(toks[2].kind, TokenKind::Slash);
     });
 }
+
+#[test]
+fn test_line_comment() {
+    scan_and_then("hello // comment\nworld", |toks| {
+        assert_eq!(toks.len(), 2);
+        assert_eq!(toks[0].kind, TokenKind::IdentLit("hello".to_string()));
+        assert_eq!(toks[1].kind, TokenKind::IdentLit("world".to_string()));
+    });
+
+    scan_and_then("// comment", |toks| assert_eq!(toks.len(), 0));
+    scan_and_then("// comment\n", |toks| assert_eq!(toks.len(), 0));
+}
