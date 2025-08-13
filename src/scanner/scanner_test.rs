@@ -117,6 +117,19 @@ fn test_string() {
 }
 
 #[test]
+fn test_byte_string() {
+    scan_and_then(r#"'A'"#, |toks| {
+        assert_eq!(toks.len(), 1);
+        assert_eq!(toks[0].kind, TokenKind::StringLit("A".to_string()));
+        assert_eq!(toks[0].length, 3);
+    });
+
+    scan_and_error("'too long'");
+    scan_and_error("''");
+    scan_and_error("'a");
+}
+
+#[test]
 fn test_symbols() {
     scan_and_then("+ - = /", |toks| {
         assert_eq!(toks.len(), 4);

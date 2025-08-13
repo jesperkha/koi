@@ -120,27 +120,16 @@ impl<'a> Scanner<'a> {
                 }
 
                 // String
-                b'"' => {
-                    self.pos += 1;
-                    let mut length = self.peek_while(Scanner::in_string);
-                    self.pos -= 1;
+                b'"' => self.scan_string(b'"')?,
 
-                    // Was string actually closed?
-                    let check_pos = self.pos + length + 1; // Of end quote
-                    if check_pos >= self.len() || self.at(check_pos) != b'"' {
-                        let mut pos = self.pos();
-                        pos.col += check_pos;
-                        pos.offset += check_pos;
-                        return Err(SyntaxError::new("expected end quote", pos, 1, self.file));
+                // Byte string
+                b'\'' => {
+                    let (tokens, length) = self.scan_string(b'\'')?;
+                    if length != 3 {
+                        return Err(self.error("byte string must be exactly one character", length));
                     }
 
-                    length += 2; // Include start and end quote
-                    let lexeme = self.file.str_range(self.pos + 1, self.pos + length - 1);
-
-                    (
-                        Token::new(TokenKind::StringLit(lexeme.to_string()), length, self.pos()),
-                        length,
-                    )
+                    (tokens, length)
                 }
 
                 // Match either one or two tokens (single/double symbol)
@@ -238,6 +227,30 @@ impl<'a> Scanner<'a> {
         consumed
     }
 
+    /// Scans a string literal, starting at the current position.
+    fn scan_string(&mut self, quote: u8) -> Result<(Token, usize), SyntaxError> {
+        self.pos += 1;
+        let mut length = self.peek_while(|b| b != quote && b != b'\n');
+        self.pos -= 1;
+
+        // Was string actually closed?
+        let check_pos = self.pos + length + 1; // Of end quote
+        if check_pos >= self.len() || self.at(check_pos) != quote {
+            let mut pos = self.pos();
+            pos.col += check_pos;
+            pos.offset += check_pos;
+            return Err(SyntaxError::new("expected end quote", pos, 1, self.file));
+        }
+
+        length += 2; // Include start and end quote
+        let lexeme = self.file.str_range(self.pos + 1, self.pos + length - 1);
+
+        Ok((
+            Token::new(TokenKind::StringLit(lexeme.to_string()), length, self.pos()),
+            length,
+        ))
+    }
+
     fn is_number(n: u8) -> bool {
         n >= b'0' && n <= b'9'
     }
@@ -256,9 +269,5 @@ impl<'a> Scanner<'a> {
 
     fn is_alphanum(b: u8) -> bool {
         Scanner::is_alpha(b) || Scanner::is_number(b)
-    }
-
-    fn in_string(b: u8) -> bool {
-        b != b'\n' && b != b'"'
     }
 }
