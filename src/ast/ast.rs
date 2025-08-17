@@ -1,7 +1,4 @@
-use crate::{
-    ast::Visitor,
-    token::{Pos, Token},
-};
+use crate::token::{Pos, Token};
 
 /// A node is any part of the AST, including statements, expressions, and
 /// declarations. Visitors can traverse these nodes to perform operations
@@ -35,6 +32,12 @@ impl Ast {
             node.accept(visitor);
         }
     }
+}
+
+pub trait Visitor {
+    fn visit_literal(&mut self, node: &Token);
+    fn visit_return(&mut self, node: &ReturnNode);
+    fn visit_func(&mut self, node: &FuncNode);
 }
 
 /// Declarations are not considered statements for linting purposes.
