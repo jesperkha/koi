@@ -43,6 +43,7 @@ pub trait Visitor {
     fn visit_literal(&mut self, node: &Token);
     fn visit_return(&mut self, node: &ReturnNode);
     fn visit_func(&mut self, node: &FuncNode);
+    fn visit_block(&mut self, node: &BlockNode);
 }
 
 /// Declarations are not considered statements for linting purposes.
@@ -56,7 +57,7 @@ pub enum Decl {
 
 /// Statements are found inside blocks. They have side effects and do
 /// not result in a value.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Stmt {
     ExprStmt(Expr),
     Return(ReturnNode),
@@ -65,7 +66,7 @@ pub enum Stmt {
 
 /// Expressions are evaluated to produce a value. They can be used
 /// in statements or as part of other expressions.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     Literal(Token),
 }
@@ -76,7 +77,7 @@ pub enum TypeNode {
     Primitive(Token),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ReturnNode {
     pub kw: Token,
     pub expr: Option<Expr>,
@@ -93,7 +94,7 @@ pub struct FuncNode {
     pub body: BlockNode,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlockNode {
     pub lbrace: Token,
     pub stmts: Vec<Stmt>,
@@ -147,11 +148,7 @@ impl Node for Stmt {
         match self {
             Stmt::ExprStmt(node) => node.accept(visitor),
             Stmt::Return(node) => visitor.visit_return(node),
-            Stmt::Block(node) => {
-                for stmt in &node.stmts {
-                    stmt.accept(visitor);
-                }
-            }
+            Stmt::Block(node) => visitor.visit_block(node),
         }
     }
 }
