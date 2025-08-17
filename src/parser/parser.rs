@@ -1,9 +1,9 @@
 use core::panic;
 
 use crate::{
-    ast::{Ast, BlockNode, Decl, Expr, FuncNode, Stmt},
+    ast::{Ast, BlockNode, Decl, Expr, FuncNode, ReturnNode, Stmt},
     parser::ParserError,
-    token::{File, Token, TokenKind},
+    token::{self, File, Token, TokenKind},
 };
 
 pub struct Parser<'a> {
@@ -55,10 +55,9 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_decl(&mut self) -> Result<Decl, ParserError> {
-        let Some(token) = self.cur() else {
-            // Not having checked for eof is a bug in the caller.
-            panic!("parse_decl called without checking eof");
-        };
+        // Not having checked for eof is a bug in the caller.
+        assert!(!self.eof(), "parse_decl called without checking eof");
+        let token = self.cur().unwrap();
 
         match token.kind {
             TokenKind::Func | TokenKind::Pub => {
@@ -113,6 +112,10 @@ impl<'a> Parser<'a> {
                 break;
             }
 
+            if self.eof() {
+                return Err(self.error_token("unexpected end of file while parsing block"));
+            }
+
             let stmt = self.parse_stmt()?;
             stmts.push(stmt);
         }
@@ -126,11 +129,56 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_stmt(&mut self) -> Result<Stmt, ParserError> {
-        todo!()
+        assert!(!self.eof(), "parse_stmt called without checking eof");
+        let token = self.cur().unwrap();
+
+        match token.kind {
+            TokenKind::Return => {
+                let ret = self.parse_return()?;
+                Ok(Stmt::Return(ret))
+            }
+            _ => {
+                let expr = self.parse_expr()?;
+                Ok(Stmt::ExprStmt(expr))
+            }
+        }
     }
 
-    fn parse_expr() -> Result<Expr, ParserError> {
-        todo!()
+    fn parse_return(&mut self) -> Result<ReturnNode, ParserError> {
+        // Assert and consume the 'return' token
+        assert!(self.matches(TokenKind::Return));
+        let kw = self.consume().unwrap();
+
+        let expr = if self.matches(TokenKind::Newline) {
+            None
+        } else {
+            Some(self.parse_expr()?)
+        };
+
+        Ok(ReturnNode { kw, expr })
+    }
+
+    fn parse_expr(&mut self) -> Result<Expr, ParserError> {
+        self.parse_literal()
+    }
+
+    fn parse_literal(&mut self) -> Result<Expr, ParserError> {
+        let Some(token) = self.cur() else {
+            return Err(self.error_token("expected literal expression"));
+        };
+
+        match token.kind {
+            TokenKind::IntLit(_)
+            | TokenKind::IdentLit(_)
+            | TokenKind::FloatLit(_)
+            | TokenKind::StringLit(_)
+            | TokenKind::BoolLit(_)
+            | TokenKind::CharLit(_) => {
+                self.consume();
+                Ok(Expr::Literal(token))
+            }
+            _ => Err(self.error_token("expected literal expression")),
+        }
     }
 
     /// Create error marking the current token.
