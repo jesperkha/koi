@@ -14,6 +14,7 @@ pub trait Node {
     fn accept(&self, visitor: &mut dyn Visitor);
 }
 
+#[derive(Debug)]
 pub struct Ast {
     // Declarations are the only top level statements in koi. They contain
     // all other statements and expressions. Eg. a function has a block
@@ -32,6 +33,10 @@ impl Ast {
             node.accept(visitor);
         }
     }
+
+    pub fn add_node(&mut self, node: Decl) {
+        self.nodes.push(node);
+    }
 }
 
 pub trait Visitor {
@@ -44,12 +49,14 @@ pub trait Visitor {
 /// Functions, structs, enums etc are all top level statements, and
 /// therefore declarations. This does not include variable declarations,
 /// but does include constant declarations.
+#[derive(Debug)]
 pub enum Decl {
     Func(FuncNode),
 }
 
 /// Statements are found inside blocks. They have side effects and do
 /// not result in a value.
+#[derive(Debug)]
 pub enum Stmt {
     ExprStmt(Expr),
     Return(ReturnNode),
@@ -58,34 +65,42 @@ pub enum Stmt {
 
 /// Expressions are evaluated to produce a value. They can be used
 /// in statements or as part of other expressions.
+#[derive(Debug)]
 pub enum Expr {
     Literal(Token),
 }
 
 /// A TypeNode is the AST representation of a type, not the semantic meaning.
+#[derive(Debug)]
 pub enum TypeNode {
     Primitive(Token),
 }
 
+#[derive(Debug)]
 pub struct ReturnNode {
     pub kw: Token,
     pub expr: Option<Expr>,
 }
 
+#[derive(Debug)]
 pub struct FuncNode {
     pub public: bool,
     pub name: Token,
-    pub params: Vec<Field>,
+    pub lparen: Token,
+    pub params: Option<Vec<Field>>,
+    pub rparen: Token,
     pub ret_type: Option<TypeNode>,
     pub body: BlockNode,
 }
 
+#[derive(Debug)]
 pub struct BlockNode {
     pub lbrace: Token,
     pub stmts: Vec<Stmt>,
     pub rbrace: Token,
 }
 
+#[derive(Debug)]
 pub struct Field {
     pub name: Token,
     pub typ: TypeNode,

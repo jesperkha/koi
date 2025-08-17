@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
     pub kind: TokenKind,
 
@@ -54,7 +54,7 @@ pub fn display_tokens(tokens: &[Token]) -> String {
     )
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Pos {
     /// Row in file, starting at 0
     pub row: usize,

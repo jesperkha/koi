@@ -1,14 +1,19 @@
-use koi::{
-    scanner::Scanner,
-    token::{File, display_tokens},
-};
+use koi::{parser::Parser, scanner::Scanner, token::File};
 
 fn main() {
     let file = File::new_from_file("main.koi");
-    let mut s = Scanner::new(&file);
+    let toks = Scanner::new(&file).scan().expect("Failed to scan file");
 
-    match s.scan() {
-        Ok(toks) => println!("{}", display_tokens(&toks)),
-        Err(e) => println!("{}", e),
-    };
+    let mut parser = Parser::new(&file, toks);
+    let ast = parser
+        .parse()
+        .map_err(|errors| {
+            for error in errors {
+                println!("{}", error);
+            }
+            std::process::exit(1);
+        })
+        .unwrap();
+
+    println!("Parsed AST: {:#?}", ast);
 }
