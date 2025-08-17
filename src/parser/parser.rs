@@ -1,9 +1,7 @@
-use core::panic;
-
 use crate::{
     ast::{Ast, BlockNode, Decl, Expr, FuncNode, ReturnNode, Stmt},
     parser::ParserError,
-    token::{self, File, Token, TokenKind},
+    token::{File, Token, TokenKind},
 };
 
 pub struct Parser<'a> {
@@ -20,7 +18,7 @@ pub struct Parser<'a> {
     // Functions which parse statements should have a check at the top for
     // panicMode, and return early with an invalid statement if set.
     panic_mode: bool,
-    base_pos: usize,
+    // base_pos: usize,
 }
 
 pub type ParserResult = Result<Ast, Vec<ParserError>>;
@@ -33,7 +31,6 @@ impl<'a> Parser<'a> {
             file,
             pos: 0,
             panic_mode: false,
-            base_pos: 0,
         }
     }
 
@@ -201,10 +198,6 @@ impl<'a> Parser<'a> {
         } else {
             self.tokens.last().unwrap().clone()
         }
-    }
-
-    fn peek(&self) -> Option<Token> {
-        self.tokens.get(self.pos + 1).cloned()
     }
 
     fn consume(&mut self) -> Option<Token> {
