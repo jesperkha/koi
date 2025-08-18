@@ -72,9 +72,10 @@ pub enum Expr {
 }
 
 /// A TypeNode is the AST representation of a type, not the semantic meaning.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TypeNode {
     Primitive(Token),
+    Ident(Token),
 }
 
 #[derive(Debug, Clone)]
@@ -105,6 +106,27 @@ pub struct BlockNode {
 pub struct Field {
     pub name: Token,
     pub typ: TypeNode,
+}
+
+impl Node for TypeNode {
+    fn pos(&self) -> &Pos {
+        match self {
+            TypeNode::Primitive(token) | TypeNode::Ident(token) => &token.pos,
+        }
+    }
+
+    fn end(&self) -> &Pos {
+        match self {
+            TypeNode::Primitive(token) | TypeNode::Ident(token) => &token.pos,
+        }
+    }
+
+    fn accept(&self, visitor: &mut dyn Visitor) {
+        match self {
+            TypeNode::Primitive(token) => visitor.visit_literal(token),
+            TypeNode::Ident(token) => visitor.visit_literal(token),
+        }
+    }
 }
 
 impl Node for Decl {

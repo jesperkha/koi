@@ -48,17 +48,26 @@ impl Visitor for Printer {
         self.s.push_str("func ");
         self.token(&node.name);
         self.s.push('(');
-        // for (i, param) in node.params.unwrap().iter().enumerate() {
-        //     if i > 0 {
-        //         self.s.push_str(", ");
-        //     }
-        //     self.s.push_str(&param.name.to_string());
-        //     self.s.push(':');
-        //     self.s.push_str(&param.typ.to_string());
-        // }
+
+        if node.params.is_some() {
+            for (i, param) in node.params.as_ref().unwrap().iter().enumerate() {
+                if i > 0 {
+                    self.s.push_str(", ");
+                }
+                self.token(&param.name);
+                self.s.push(' ');
+                param.typ.accept(self);
+            }
+        }
+
         self.s.push(')');
         self.s.push(' ');
-        // self.s.push_str(&node.ret_type.to_string());
+
+        node.ret_type.as_ref().map(|t| {
+            t.accept(self);
+            self.s.push(' ');
+        });
+
         Stmt::Block(node.body.clone()).accept(self);
     }
 

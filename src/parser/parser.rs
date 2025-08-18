@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Ast, BlockNode, Decl, Expr, FuncNode, ReturnNode, Stmt},
+    ast::{Ast, BlockNode, Decl, Expr, Field, FuncNode, ReturnNode, Stmt, TypeNode},
     parser::ParserError,
     token::{File, Token, TokenKind},
 };
@@ -79,7 +79,40 @@ impl<'a> Parser<'a> {
 
         let name = self.expect_identifier("function name")?;
         let lparen = self.expect(TokenKind::LParen)?;
+
+        // If the next token is not a right paren we parse parameters.
+        let params = if self.matches(TokenKind::RParen) {
+            None
+        } else {
+            let mut fields = Vec::new();
+
+            while !self.eof_or_panic() {
+                let field = self.parse_field("parameter name")?;
+                fields.push(field);
+
+                // Done?
+                if self.matches(TokenKind::RParen) {
+                    break;
+                }
+
+                // Must be a comma
+                self.expect(TokenKind::Comma)?;
+            }
+
+            // Bug if empty
+            assert!(!fields.is_empty(), "function parameters cannot be empty");
+            Some(fields)
+        };
+
+        // Closing parenthesis
         let rparen = self.expect(TokenKind::RParen)?;
+
+        // Check for return type
+        let ret_type = if self.matches(TokenKind::LBrace) {
+            None
+        } else {
+            Some(self.parse_type()?)
+        };
 
         let body = self.parse_block()?;
 
@@ -87,13 +120,19 @@ impl<'a> Parser<'a> {
             public,
             name: name.clone(),
             lparen: lparen.clone(),
-            params: None,
+            params,
             rparen: rparen.clone(),
-            ret_type: None,
+            ret_type,
             body,
         };
 
         Ok(func)
+    }
+
+    fn parse_field(&mut self, field_name: &str) -> Result<Field, ParserError> {
+        let name = self.expect_identifier(field_name)?;
+        let typ = self.parse_type()?;
+        Ok(Field { name, typ })
     }
 
     fn parse_block(&mut self) -> Result<BlockNode, ParserError> {
@@ -175,6 +214,24 @@ impl<'a> Parser<'a> {
                 Ok(Expr::Literal(token))
             }
             _ => Err(self.error_token("expected literal expression")),
+        }
+    }
+
+    fn parse_type(&mut self) -> Result<TypeNode, ParserError> {
+        let Some(token) = self.cur() else {
+            return Err(self.error_token("expected type"));
+        };
+
+        match token.kind {
+            TokenKind::IdentLit(_) => {
+                self.consume();
+                Ok(TypeNode::Ident(token))
+            }
+            TokenKind::Int | TokenKind::Float | TokenKind::Bool | TokenKind::Void => {
+                self.consume();
+                Ok(TypeNode::Primitive(token))
+            }
+            _ => Err(self.error_token("invalid type")),
         }
     }
 
