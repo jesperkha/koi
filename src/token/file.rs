@@ -83,7 +83,13 @@ impl File {
         src[offset..]
             .iter()
             .position(|&c| c == b'\n')
-            .and_then(|n| Some(offset + n - 1))
+            .and_then(|n| {
+                if n == 0 {
+                    Some(offset)
+                } else {
+                    Some(offset + n - 1)
+                }
+            })
             .unwrap_or(src.len() - 1)
     }
 }

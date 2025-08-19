@@ -17,12 +17,17 @@ impl Printer {
     }
 
     pub fn print(&mut self, ast: Ast) {
+        println!("{}", self.to_string(ast));
+    }
+
+    pub fn to_string(&mut self, ast: Ast) -> String {
         self.s.clear();
         self.indent = 0;
         for node in ast.nodes {
             node.accept(self);
         }
-        println!("{}", self.s);
+
+        self.s.clone()
     }
 
     fn token(&mut self, token: &Token) {
@@ -86,6 +91,5 @@ impl Visitor for Printer {
             self.s.push_str("    ");
         }
         self.s.push('}');
-        self.s.push('\n');
     }
 }

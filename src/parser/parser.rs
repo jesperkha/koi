@@ -36,19 +36,32 @@ impl<'a> Parser<'a> {
 
     pub fn parse(&mut self) -> ParserResult {
         let mut ast = Ast::new();
-        let decl = self.parse_decl();
 
-        match decl {
-            Ok(decl) => ast.add_node(decl),
-            Err(err) => {
-                self.errors.push(err);
+        while self.skip_whitespace_and_not_eof() {
+            let decl = self.parse_decl();
+
+            match decl {
+                Ok(decl) => ast.add_node(decl),
+                Err(err) => {
+                    self.errors.push(err);
+                }
             }
         }
 
         if self.errors.len() > 0 {
             return Err(self.errors.clone());
         }
+
         Ok(ast)
+    }
+
+    /// Consume newlines until first non-newline token or eof.
+    /// Returns true if not eof after consumption.
+    fn skip_whitespace_and_not_eof(&mut self) -> bool {
+        while !self.eof_or_panic() && self.matches(TokenKind::Newline) {
+            self.consume();
+        }
+        !self.eof()
     }
 
     fn parse_decl(&mut self) -> Result<Decl, ParserError> {
