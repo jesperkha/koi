@@ -27,7 +27,7 @@ fn compare_string(src: &str) {
 }
 
 #[test]
-fn test_function() {
+fn test_function_with_return() {
     compare_string(
         r#"
         func main() {
