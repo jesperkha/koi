@@ -2,6 +2,11 @@ use std::collections::HashMap;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
+use crate::{
+    ast::TypeNode,
+    token::{Token, TokenKind},
+};
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeKind {
     Primitive(PrimitiveType),
@@ -39,6 +44,7 @@ pub type TypeId = usize; // Unique identifier
 pub struct TypeContext {
     types: Vec<Type>,
     cache: HashMap<TypeKind, TypeId>,
+    named: HashMap<String, TypeId>,
 }
 
 impl TypeContext {
@@ -46,9 +52,13 @@ impl TypeContext {
         let mut s = Self {
             types: Vec::new(),
             cache: HashMap::new(),
+            named: HashMap::new(),
         };
 
-        s.init_universe();
+        for t in PrimitiveType::iter() {
+            s.intern(TypeKind::Primitive(t));
+        }
+
         s
     }
 
@@ -59,6 +69,18 @@ impl TypeContext {
             return id;
         }
         self.intern(kind)
+    }
+
+    /// Declare named type. Interns the type if new. Returns the type id.
+    pub fn declare(&mut self, name: String, kind: TypeKind) -> TypeId {
+        let id = self.get_or_intern(kind);
+        self.named.insert(name, id);
+        id
+    }
+
+    /// Get named type from declaration.
+    pub fn get_declared(&self, name: String) -> Option<&Type> {
+        self.named.get(&name).map(|id| self.lookup(*id))
     }
 
     fn intern(&mut self, kind: TypeKind) -> TypeId {
@@ -78,20 +100,18 @@ impl TypeContext {
         &self.types[id]
     }
 
-    /// Resolve a type to its type id by removing any aliasing.
+    /// Resolve a type to its type id for comparisons. Removes any aliasing.
     pub fn resolve(&self, id: TypeId) -> TypeId {
-        let typ = self.lookup(id);
-        match &typ.kind {
+        match &self.lookup(id).kind {
             TypeKind::Alias(target) => self.resolve(*target),
             _ => id,
         }
     }
 
     /// Get a types internal kind. Resolves array item types, pointer target
-    /// types, and unique types underlying kind.
+    /// types, and unique types underlying kind. Do not use for general type comparisons.
     pub fn inner_kind(&self, id: TypeId) -> TypeId {
-        let typ = self.lookup(id);
-        match &typ.kind {
+        match &self.lookup(id).kind {
             TypeKind::Alias(underlying) => self.inner_kind(*underlying),
             _ => id,
         }
@@ -101,17 +121,32 @@ impl TypeContext {
         self.resolve(a) == self.resolve(b)
     }
 
-    /// Initialize all built-in types and aliases known before beginning type check.
-    fn init_universe(&mut self) {
-        for t in PrimitiveType::iter() {
-            self.intern(TypeKind::Primitive(t));
+    /// Returns the type id for a given ast type node (type literal). Refers to internal
+    /// lookup for named types, aliases etc. Empty return means type does not exist.
+    pub fn resolve_ast_node_type(&mut self, node: TypeNode) -> Option<TypeId> {
+        match node {
+            TypeNode::Primitive(tok) => {
+                let prim_kind = Self::ast_primitive_to_type_primitive(tok);
+                Some(self.get_or_intern(TypeKind::Primitive(prim_kind)))
+            }
+
+            TypeNode::Ident(tok) => match tok.kind {
+                TokenKind::IdentLit(name) => self.get_declared(name).map(|t| t.id),
+                _ => panic!("identifier type node did not have a IdentLit token"),
+            },
         }
+    }
 
-        // 'int' and 'float' aliases
-        let int64_id = self.get_or_intern(TypeKind::Primitive(PrimitiveType::Uint64));
-        self.intern(TypeKind::Alias(int64_id));
+    /// Convert AST primitive literal to primitive type.
+    fn ast_primitive_to_type_primitive(token: Token) -> PrimitiveType {
+        match token.kind {
+            TokenKind::Bool => PrimitiveType::Bool,
+            TokenKind::Byte => PrimitiveType::Byte,
 
-        let float64_id = self.get_or_intern(TypeKind::Primitive(PrimitiveType::Float64));
-        self.intern(TypeKind::Alias(float64_id));
+            // Builtin 'aliases'
+            TokenKind::Int => PrimitiveType::Int64,
+            TokenKind::Float => PrimitiveType::Float64,
+            _ => panic!("unknown TypeNode::Primitive kind"),
+        }
     }
 }
