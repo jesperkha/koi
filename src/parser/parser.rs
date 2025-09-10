@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Ast, BlockNode, Decl, Expr, Field, FuncNode, ReturnNode, Stmt, TypeNode},
+    ast::{Ast, BlockNode, Decl, Expr, Field, FuncNode, ReturnNode, Stmt, TypeNode, no_type},
     parser::ParserError,
     token::{File, Token, TokenKind},
 };
@@ -137,6 +137,7 @@ impl<'a> Parser<'a> {
             rparen: rparen.clone(),
             ret_type,
             body,
+            sem_ret_type: no_type(),
         };
 
         Ok(func)
@@ -145,7 +146,11 @@ impl<'a> Parser<'a> {
     fn parse_field(&mut self, field_name: &str) -> Result<Field, ParserError> {
         let name = self.expect_identifier(field_name)?;
         let typ = self.parse_type()?;
-        Ok(Field { name, typ })
+        Ok(Field {
+            name,
+            typ,
+            sem_type: no_type(),
+        })
     }
 
     fn parse_block(&mut self) -> Result<BlockNode, ParserError> {
