@@ -1,4 +1,7 @@
-use crate::token::{Pos, Token};
+use crate::{
+    ast::TypeId,
+    token::{Pos, Token},
+};
 
 pub type NodeId = usize;
 
@@ -103,6 +106,9 @@ pub struct FuncNode {
     pub rparen: Token,
     pub ret_type: Option<TypeNode>,
     pub body: BlockNode,
+
+    // Annotated
+    pub sem_ret_type: TypeId,
 }
 
 #[derive(Debug, Clone)]
@@ -116,6 +122,9 @@ pub struct BlockNode {
 pub struct Field {
     pub name: Token,
     pub typ: TypeNode,
+
+    // Annotated
+    pub sem_type: TypeId,
 }
 
 impl Node for TypeNode {
