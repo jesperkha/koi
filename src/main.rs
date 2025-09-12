@@ -1,4 +1,4 @@
-use koi::{ast::Printer, parser::Parser, scanner::Scanner, token::File};
+use koi::{ast::Printer, parser::Parser, scanner::Scanner, token::File, types::Checker};
 
 fn main() {
     let file = File::new_from_file("main.koi");
@@ -14,6 +14,15 @@ fn main() {
             std::process::exit(1);
         })
         .unwrap();
+
+    Checker::check(&ast, &file).map_or_else(
+        |errs| {
+            for err in errs {
+                println!("{}", err)
+            }
+        },
+        |_| println!("check ok"),
+    );
 
     let mut printer = Printer::new();
     printer.print(ast);

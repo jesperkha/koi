@@ -37,3 +37,8 @@ pub type TypeId = usize; // Unique identifier
 pub fn no_type() -> TypeId {
     return usize::MAX;
 }
+
+/// Get the id of the void type (no type information).
+pub fn void_type() -> TypeId {
+    return usize::MAX - 1;
+}
