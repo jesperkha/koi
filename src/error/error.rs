@@ -36,6 +36,16 @@ impl Error {
         }
     }
 
+    pub fn range(msg: &str, from: &Pos, to: &Pos, file: &File) -> Error {
+        Error {
+            message: msg.to_string(),
+            line: from.row + 1,
+            line_str: file.line(from.row).to_owned(),
+            from: from.col,
+            length: to.col - from.col,
+        }
+    }
+
     pub fn new_syntax(msg: &str, from: &Pos, length: usize, file: &File) -> Error {
         Error {
             message: msg.to_string(),

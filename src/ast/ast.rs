@@ -11,10 +11,19 @@ pub trait Node {
     fn pos(&self) -> &Pos;
     /// Position of last token in node segment.
     fn end(&self) -> &Pos;
+}
 
+pub trait Visitable {
     /// Accept a visitor to inspect this node. Must call the appropriate
     /// visit method on the visitor for this node.
-    fn accept(&self, visitor: &mut dyn Visitor);
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R;
+}
+
+pub trait Visitor<R> {
+    fn visit_func(&mut self, node: &FuncNode) -> R;
+    fn visit_block(&mut self, node: &BlockNode) -> R;
+    fn visit_return(&mut self, node: &ReturnNode) -> R;
+    fn visit_literal(&mut self, node: &Token) -> R;
 }
 
 #[derive(Debug)]
@@ -31,7 +40,7 @@ impl Ast {
     }
 
     /// Walks the AST and applites the visitor to each node.
-    pub fn walk(&mut self, visitor: &mut dyn Visitor) {
+    pub fn walk<R>(&mut self, visitor: &mut dyn Visitor<R>) {
         for node in &self.nodes {
             node.accept(visitor);
         }
@@ -40,13 +49,6 @@ impl Ast {
     pub fn add_node(&mut self, node: Decl) {
         self.nodes.push(node);
     }
-}
-
-pub trait Visitor {
-    fn visit_literal(&mut self, node: &Token);
-    fn visit_return(&mut self, node: &ReturnNode);
-    fn visit_func(&mut self, node: &FuncNode);
-    fn visit_block(&mut self, node: &BlockNode);
 }
 
 /// Declarations are not considered statements for linting purposes.
@@ -129,8 +131,10 @@ impl Node for TypeNode {
             TypeNode::Primitive(token) | TypeNode::Ident(token) => &token.pos,
         }
     }
+}
 
-    fn accept(&self, visitor: &mut dyn Visitor) {
+impl Visitable for TypeNode {
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
         match self {
             TypeNode::Primitive(token) => visitor.visit_literal(token),
             TypeNode::Ident(token) => visitor.visit_literal(token),
@@ -150,8 +154,10 @@ impl Node for Decl {
             Decl::Func(node) => &node.body.rbrace.pos,
         }
     }
+}
 
-    fn accept(&self, visitor: &mut dyn Visitor) {
+impl Visitable for Decl {
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
         match self {
             Decl::Func(node) => visitor.visit_func(node),
         }
@@ -174,8 +180,10 @@ impl Node for Stmt {
             Stmt::Block(node) => &node.rbrace.pos,
         }
     }
+}
 
-    fn accept(&self, visitor: &mut dyn Visitor) {
+impl Visitable for Stmt {
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
         match self {
             Stmt::ExprStmt(node) => node.accept(visitor),
             Stmt::Return(node) => visitor.visit_return(node),
@@ -196,8 +204,10 @@ impl Node for Expr {
             Expr::Literal(token) => &token.pos,
         }
     }
+}
 
-    fn accept(&self, visitor: &mut dyn Visitor) {
+impl Visitable for Expr {
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
         match self {
             Expr::Literal(token) => visitor.visit_literal(token),
         }

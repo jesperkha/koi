@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Ast, BlockNode, FuncNode, Node, ReturnNode, Stmt, Visitor},
+    ast::{Ast, BlockNode, FuncNode, ReturnNode, Stmt, Visitable, Visitor},
     token::Token,
 };
 
@@ -35,7 +35,7 @@ impl Printer {
     }
 }
 
-impl Visitor for Printer {
+impl Visitor<()> for Printer {
     fn visit_literal(&mut self, node: &Token) {
         self.token(node);
     }

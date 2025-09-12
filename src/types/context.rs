@@ -37,6 +37,14 @@ impl TypeContext {
         self.intern(kind)
     }
 
+    /// Shorthand for getting a primitive type id.
+    pub fn primitive(&mut self, kind: PrimitiveType) -> TypeId {
+        self.cache
+            .get(&TypeKind::Primitive(kind))
+            .expect("all primitive types must be assigned at init")
+            .clone()
+    }
+
     /// Declare named type. Interns the type if new. Returns the type id.
     pub fn declare(&mut self, name: String, kind: TypeKind) -> TypeId {
         let id = self.get_or_intern(kind);
@@ -89,22 +97,22 @@ impl TypeContext {
 
     /// Returns the type id for a given ast type node (type literal). Refers to internal
     /// lookup for named types, aliases etc. Empty return means type does not exist.
-    pub fn resolve_ast_node_type(&mut self, node: TypeNode) -> Option<TypeId> {
+    pub fn resolve_ast_node_type(&mut self, node: &TypeNode) -> Option<TypeId> {
         match node {
             TypeNode::Primitive(tok) => {
                 let prim_kind = Self::ast_primitive_to_type_primitive(tok);
                 Some(self.get_or_intern(TypeKind::Primitive(prim_kind)))
             }
 
-            TypeNode::Ident(tok) => match tok.kind {
-                TokenKind::IdentLit(name) => self.get_declared(name).map(|t| t.id),
+            TypeNode::Ident(tok) => match &tok.kind {
+                TokenKind::IdentLit(name) => self.get_declared(name.to_string()).map(|t| t.id),
                 _ => panic!("identifier type node did not have a IdentLit token"),
             },
         }
     }
 
     /// Convert AST primitive literal to primitive type.
-    fn ast_primitive_to_type_primitive(token: Token) -> PrimitiveType {
+    fn ast_primitive_to_type_primitive(token: &Token) -> PrimitiveType {
         match token.kind {
             TokenKind::Bool => PrimitiveType::Bool,
             TokenKind::Byte => PrimitiveType::Byte,
