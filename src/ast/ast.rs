@@ -128,7 +128,7 @@ impl Node for TypeNode {
 
     fn end(&self) -> &Pos {
         match self {
-            TypeNode::Primitive(token) | TypeNode::Ident(token) => &token.pos,
+            TypeNode::Primitive(token) | TypeNode::Ident(token) => &token.end_pos,
         }
     }
 }
@@ -201,7 +201,7 @@ impl Node for Expr {
 
     fn end(&self) -> &Pos {
         match self {
-            Expr::Literal(token) => &token.pos,
+            Expr::Literal(token) => &token.end_pos,
         }
     }
 }

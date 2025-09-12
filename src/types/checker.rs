@@ -31,9 +31,7 @@ impl<'a> Checker<'a> {
         };
 
         for node in &s.ast.nodes {
-            let err = node.accept(&mut s);
-
-            if let Err(err) = err {
+            if let Err(err) = node.accept(&mut s) {
                 s.errs.push(err);
             }
         }
