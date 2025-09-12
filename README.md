@@ -1,6 +1,6 @@
 <br />
 <div align="center">
-  <img src=".github/assets/logo.svg" alt="Logo" width="180">
+  <img src=".github/assets/logo.svg" alt="Logo" width="200">
 
   <p align="center">
     <b>The Koi programming language</b>
