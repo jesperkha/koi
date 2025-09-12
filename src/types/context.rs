@@ -114,12 +114,12 @@ impl TypeContext {
     /// Convert AST primitive literal to primitive type.
     fn ast_primitive_to_type_primitive(token: &Token) -> PrimitiveType {
         match token.kind {
-            TokenKind::Bool => PrimitiveType::Bool,
-            TokenKind::Byte => PrimitiveType::Byte,
+            TokenKind::BoolType => PrimitiveType::Bool,
+            TokenKind::ByteType => PrimitiveType::Byte,
 
             // Builtin 'aliases'
-            TokenKind::Int => PrimitiveType::Int64,
-            TokenKind::Float => PrimitiveType::Float64,
+            TokenKind::IntType => PrimitiveType::Int64,
+            TokenKind::FloatType => PrimitiveType::Float64,
             _ => panic!("unknown TypeNode::Primitive kind"),
         }
     }

@@ -36,12 +36,12 @@ impl<'a> Parser<'a> {
         let mut ast = Ast::new();
 
         while s.skip_whitespace_and_not_eof() {
-            let decl = s.parse_decl();
-
-            match decl {
+            match s.parse_decl() {
                 Ok(decl) => ast.add_node(decl),
                 Err(err) => {
+                    // TODO: add panic mode to not return early on error
                     s.errors.push(err);
+                    return Err(s.errors);
                 }
             }
         }
@@ -224,7 +224,8 @@ impl<'a> Parser<'a> {
             | TokenKind::IdentLit(_)
             | TokenKind::FloatLit(_)
             | TokenKind::StringLit(_)
-            | TokenKind::BoolLit(_)
+            | TokenKind::True
+            | TokenKind::False
             | TokenKind::CharLit(_) => {
                 self.consume();
                 Ok(Expr::Literal(token))
@@ -243,7 +244,7 @@ impl<'a> Parser<'a> {
                 self.consume();
                 Ok(TypeNode::Ident(token))
             }
-            TokenKind::Int | TokenKind::Float | TokenKind::Bool | TokenKind::Void => {
+            TokenKind::IntType | TokenKind::FloatType | TokenKind::BoolType | TokenKind::Void => {
                 self.consume();
                 Ok(TypeNode::Primitive(token))
             }
