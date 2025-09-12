@@ -5,8 +5,8 @@ use crate::token::File;
 
 fn parse_string(src: &str) -> ParserResult {
     let file = File::new_test_file(src);
-    let res = Scanner::new(&file).scan();
-    Parser::new(&file, res.unwrap()).parse()
+    let res = Scanner::scan(&file);
+    Parser::parse(&file, res.unwrap())
 }
 
 fn compare_string(src: &str) {

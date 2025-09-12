@@ -1,11 +1,10 @@
-use core::panic::PanicInfo;
-
 use crate::{
     ast::{
-        Ast, Decl, Expr, FuncNode, PrimitiveType, ReturnNode, Type, TypeId, TypeKind, TypeNode,
-        no_type, void_type,
+        Ast, Decl, Expr, FuncNode, PrimitiveType, ReturnNode, TypeId, TypeKind, TypeNode, no_type,
+        void_type,
     },
-    token::{File, SyntaxError, Token, TokenKind},
+    error::Error,
+    token::{File, Token, TokenKind},
     types::TypeContext,
 };
 
@@ -13,11 +12,10 @@ pub struct Checker<'a> {
     ctx: TypeContext,
     ast: &'a Ast,
     file: &'a File,
-    errs: Vec<SyntaxError>,
+    errs: Vec<Error>,
 }
 
-type TypeError = SyntaxError;
-type CheckResult = Result<TypeContext, Vec<TypeError>>;
+type CheckResult = Result<TypeContext, Vec<Error>>;
 
 impl<'a> Checker<'a> {
     pub fn check(ast: &'a Ast, file: &'a File) -> CheckResult {
@@ -45,7 +43,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn check_func(&mut self, node: &FuncNode) -> Option<TypeError> {
+    fn check_func(&mut self, node: &FuncNode) -> Option<Error> {
         /*
             skjekke om navn er declared
             declare return type i dette scopet
@@ -91,7 +89,7 @@ impl<'a> Checker<'a> {
     }
 
     /// Evaluates a syntactic type to its semantic counterpart.
-    fn eval_syntactic_type(&mut self, node: &TypeNode) -> Result<TypeId, TypeError> {
+    fn eval_syntactic_type(&mut self, node: &TypeNode) -> Result<TypeId, Error> {
         match node {
             TypeNode::Ident(tok) => self
                 .ctx
@@ -108,7 +106,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn error_token(&self, msg: &str, tok: &Token) -> TypeError {
-        TypeError::new(msg, tok.pos.clone(), tok.length, self.file)
+    fn error_token(&self, msg: &str, tok: &Token) -> Error {
+        Error::new(msg, tok, tok, self.file)
     }
 }

@@ -5,7 +5,7 @@ use crate::token::{File, Token, TokenKind};
 
 fn scan_source(s: &str) -> ScannerResult {
     let file = File::new_test_file(s);
-    Scanner::new(&file).scan()
+    Scanner::scan(&file)
 }
 
 fn scan_and_then<P>(src: &str, pred: P)

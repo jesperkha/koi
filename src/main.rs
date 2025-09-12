@@ -2,11 +2,9 @@ use koi::{ast::Printer, parser::Parser, scanner::Scanner, token::File, types::Ch
 
 fn main() {
     let file = File::new_from_file("main.koi");
-    let toks = Scanner::new(&file).scan().expect("Failed to scan file");
+    let toks = Scanner::scan(&file).expect("Failed to scan file");
 
-    let mut parser = Parser::new(&file, toks);
-    let ast = parser
-        .parse()
+    let ast = Parser::parse(&file, toks)
         .map_err(|errors| {
             for error in errors {
                 println!("{}", error);
