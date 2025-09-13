@@ -1,5 +1,7 @@
 use crate::token::{Pos, Token};
 
+pub type NodeId = usize;
+
 /// A node is any part of the AST, including statements, expressions, and
 /// declarations. Visitors can traverse these nodes to perform operations
 /// like linting, analysis, or transformations.
@@ -12,7 +14,7 @@ pub trait Node {
     /// Unique id of the node. Is the offset of the node pos, which is
     /// guaranteed unique for all nodes in the same file.
     /// TODO: test uniqueness of ids
-    fn id(&self) -> usize;
+    fn id(&self) -> NodeId;
 }
 
 pub trait Visitable {

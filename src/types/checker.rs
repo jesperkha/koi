@@ -32,7 +32,7 @@ impl<'a> Checker<'a> {
         };
 
         for node in &s.ast.nodes {
-            if let Err(err) = node.accept(&mut s) {
+            if let Err(err) = s.eval(node) {
                 s.errs.push(err);
             }
         }
@@ -51,10 +51,25 @@ impl<'a> Checker<'a> {
     fn error_token(&self, msg: &str, tok: &Token) -> Error {
         Error::new(msg, tok, tok, self.file)
     }
+
+    /// Type check a Node. If it evaluates to a type it is internalized.
+    fn eval<N: Visitable + Node>(&mut self, node: &N) -> EvalResult {
+        node.accept(self).map(|ty| {
+            if ty != no_type() {
+                // Has to be internalized here since Node methods are
+                // not impemented for node types, just their overarching
+                // kind (stmt, decl etc).
+                self.ctx.intern_node(node, ty);
+            }
+            ty
+        })
+    }
 }
 
-impl<'a> Visitor<Result<TypeId, Error>> for Checker<'a> {
-    fn visit_func(&mut self, node: &FuncNode) -> Result<TypeId, Error> {
+type EvalResult = Result<TypeId, Error>;
+
+impl<'a> Visitor<EvalResult> for Checker<'a> {
+    fn visit_func(&mut self, node: &FuncNode) -> EvalResult {
         let mut ret_type = void_type();
 
         // Evaluate return type if any
@@ -82,22 +97,22 @@ impl<'a> Visitor<Result<TypeId, Error>> for Checker<'a> {
         Ok(no_type())
     }
 
-    fn visit_block(&mut self, node: &BlockNode) -> Result<TypeId, Error> {
+    fn visit_block(&mut self, node: &BlockNode) -> EvalResult {
         for stmt in &node.stmts {
-            if let Err(err) = stmt.accept(self) {
+            if let Err(err) = self.eval(stmt) {
                 return Err(err);
             }
         }
         Ok(no_type())
     }
 
-    fn visit_return(&mut self, node: &ReturnNode) -> Result<TypeId, Error> {
+    fn visit_return(&mut self, node: &ReturnNode) -> EvalResult {
         self.has_returned = true;
 
         // If there is a return expression
         // Evaluate it and compare with current scopes return type
         if let Some(expr) = &node.expr {
-            let ty = match expr.accept(self) {
+            let ty = match self.eval(expr) {
                 Ok(ty) => ty,
                 Err(err) => return Err(err),
             };
@@ -119,7 +134,7 @@ impl<'a> Visitor<Result<TypeId, Error>> for Checker<'a> {
         }
     }
 
-    fn visit_literal(&mut self, node: &Token) -> Result<TypeId, Error> {
+    fn visit_literal(&mut self, node: &Token) -> EvalResult {
         match &node.kind {
             TokenKind::IntLit(_) => Ok(self.ctx.primitive(PrimitiveType::Int64)),
             TokenKind::True | TokenKind::False => Ok(self.ctx.primitive(PrimitiveType::Bool)),

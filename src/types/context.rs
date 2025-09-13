@@ -2,15 +2,21 @@ use std::collections::HashMap;
 use strum::IntoEnumIterator;
 
 use crate::{
-    ast::TypeNode,
+    ast::{Node, NodeId, TypeNode},
     token::{Token, TokenKind},
     types::{PrimitiveType, Type, TypeId, TypeKind},
 };
 
 /// Context for type lookups.
 pub struct TypeContext {
+    /// List of type information. Each `TypeId` maps
+    /// to a `Type` by indexing into this vector.
     types: Vec<Type>,
+    /// Map type kinds to their unique type id.
     cache: HashMap<TypeKind, TypeId>,
+    /// Map AST nodes to their evaluated type.
+    nodes: HashMap<NodeId, TypeId>,
+    /// Map declared type names in current context.
     named: HashMap<String, TypeId>,
 }
 
@@ -20,6 +26,7 @@ impl TypeContext {
             types: Vec::new(),
             cache: HashMap::new(),
             named: HashMap::new(),
+            nodes: HashMap::new(),
         };
 
         for t in PrimitiveType::iter() {
@@ -36,6 +43,19 @@ impl TypeContext {
             return id;
         }
         self.intern(kind)
+    }
+
+    /// Internalize a node and its evaluated type.
+    pub fn intern_node(&mut self, node: &dyn Node, ty: TypeId) {
+        assert!(!self.nodes.contains_key(&node.id()), "duplicate node id");
+        self.nodes.insert(node.id(), ty);
+    }
+
+    pub fn get_node(&self, node: &dyn Node) -> TypeId {
+        self.nodes
+            .get(&node.id())
+            .expect(format!("node id {} not in map", node.id()).as_str())
+            .clone()
     }
 
     /// Shorthand for getting a primitive type id.
@@ -69,6 +89,7 @@ impl TypeContext {
         id
     }
 
+    /// Get the full type information for a given type id.
     pub fn lookup(&self, id: TypeId) -> &Type {
         // Illegal state if id is not known
         assert!(id <= self.types.len());
@@ -76,6 +97,7 @@ impl TypeContext {
     }
 
     /// Resolve a type to its type id for comparisons. Removes any aliasing.
+    /// Does not remove unique type aliases like `inner_kind()`.
     pub fn resolve(&self, id: TypeId) -> TypeId {
         match &self.lookup(id).kind {
             TypeKind::Alias(target) => self.resolve(*target),
@@ -87,11 +109,14 @@ impl TypeContext {
     /// types, and unique types underlying kind. Do not use for general type comparisons.
     pub fn inner_kind(&self, id: TypeId) -> TypeId {
         match &self.lookup(id).kind {
-            TypeKind::Alias(underlying) => self.inner_kind(*underlying),
+            TypeKind::Alias(underlying) | TypeKind::Unique(underlying) => {
+                self.inner_kind(*underlying)
+            }
             _ => id,
         }
     }
 
+    /// Tests if two types are equivalent (resolves any aliasing).
     pub fn equivalent(&self, a: TypeId, b: TypeId) -> bool {
         self.resolve(a) == self.resolve(b)
     }
