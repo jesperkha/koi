@@ -54,7 +54,7 @@ pub fn display_tokens(tokens: &[Token]) -> String {
     )
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct Pos {
     /// Row in file, starting at 0
     pub row: usize,

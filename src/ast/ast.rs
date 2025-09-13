@@ -1,7 +1,4 @@
-use crate::{
-    ast::TypeId,
-    token::{Pos, Token},
-};
+use crate::token::{Pos, Token};
 
 /// A node is any part of the AST, including statements, expressions, and
 /// declarations. Visitors can traverse these nodes to perform operations
@@ -11,6 +8,11 @@ pub trait Node {
     fn pos(&self) -> &Pos;
     /// Position of last token in node segment.
     fn end(&self) -> &Pos;
+
+    /// Unique id of the node. Is the offset of the node pos, which is
+    /// guaranteed unique for all nodes in the same file.
+    /// TODO: test uniqueness of ids
+    fn id(&self) -> usize;
 }
 
 pub trait Visitable {
@@ -98,9 +100,6 @@ pub struct FuncNode {
     pub rparen: Token,
     pub ret_type: Option<TypeNode>,
     pub body: BlockNode,
-
-    // Annotated
-    pub sem_ret_type: TypeId,
 }
 
 #[derive(Debug, Clone)]
@@ -114,9 +113,6 @@ pub struct BlockNode {
 pub struct Field {
     pub name: Token,
     pub typ: TypeNode,
-
-    // Annotated
-    pub sem_type: TypeId,
 }
 
 impl Node for TypeNode {
@@ -130,6 +126,10 @@ impl Node for TypeNode {
         match self {
             TypeNode::Primitive(token) | TypeNode::Ident(token) => &token.end_pos,
         }
+    }
+
+    fn id(&self) -> usize {
+        self.pos().offset
     }
 }
 
@@ -153,6 +153,10 @@ impl Node for Decl {
         match self {
             Decl::Func(node) => &node.body.rbrace.pos,
         }
+    }
+
+    fn id(&self) -> usize {
+        self.pos().offset
     }
 }
 
@@ -180,6 +184,10 @@ impl Node for Stmt {
             Stmt::Block(node) => &node.rbrace.pos,
         }
     }
+
+    fn id(&self) -> usize {
+        self.pos().offset
+    }
 }
 
 impl Visitable for Stmt {
@@ -203,6 +211,10 @@ impl Node for Expr {
         match self {
             Expr::Literal(token) => &token.end_pos,
         }
+    }
+
+    fn id(&self) -> usize {
+        self.pos().offset
     }
 }
 

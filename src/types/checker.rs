@@ -1,11 +1,8 @@
 use crate::{
-    ast::{
-        Ast, BlockNode, FuncNode, Node, PrimitiveType, ReturnNode, TypeId, Visitable, Visitor,
-        no_type, void_type,
-    },
+    ast::{Ast, BlockNode, FuncNode, Node, ReturnNode, Visitable, Visitor},
     error::Error,
     token::{File, Token, TokenKind},
-    types::TypeContext,
+    types::{PrimitiveType, TypeContext, TypeId, no_type, void_type},
 };
 
 pub struct Checker<'a> {

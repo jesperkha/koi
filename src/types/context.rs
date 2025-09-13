@@ -2,8 +2,9 @@ use std::collections::HashMap;
 use strum::IntoEnumIterator;
 
 use crate::{
-    ast::{PrimitiveType, Type, TypeId, TypeKind, TypeNode},
+    ast::TypeNode,
     token::{Token, TokenKind},
+    types::{PrimitiveType, Type, TypeId, TypeKind},
 };
 
 /// Context for type lookups.
