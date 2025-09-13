@@ -44,14 +44,6 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn error(&self, msg: &str, node: &dyn Node) -> Error {
-        Error::range(msg, node.pos(), node.end(), self.file)
-    }
-
-    fn error_token(&self, msg: &str, tok: &Token) -> Error {
-        Error::new(msg, tok, tok, self.file)
-    }
-
     /// Type check a Node. If it evaluates to a type it is internalized.
     fn eval<N: Visitable + Node>(&mut self, node: &N) -> EvalResult {
         node.accept(self).map(|ty| {
@@ -63,6 +55,34 @@ impl<'a> Checker<'a> {
             }
             ty
         })
+    }
+
+    fn error(&self, msg: &str, node: &dyn Node) -> Error {
+        Error::range(msg, node.pos(), node.end(), self.file)
+    }
+
+    fn error_token(&self, msg: &str, tok: &Token) -> Error {
+        Error::new(msg, tok, tok, self.file)
+    }
+
+    fn error_expected_token(&self, msg: &str, expect: TypeId, tok: &Token) -> Error {
+        self.error_token(
+            format!("{}: expected {}", msg, self.ctx.to_string(expect),).as_str(),
+            tok,
+        )
+    }
+
+    fn error_expected_got(&self, msg: &str, expect: TypeId, got: TypeId, node: &dyn Node) -> Error {
+        self.error(
+            format!(
+                "{}: expected {}, got {}",
+                msg,
+                self.ctx.to_string(expect),
+                self.ctx.to_string(got)
+            )
+            .as_str(),
+            node,
+        )
     }
 }
 
@@ -91,7 +111,10 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
 
         // There was no return when there should have been
         if !self.has_returned && ret_type != no_type() {
-            return Err(self.error_token("expected return", &node.name));
+            return Err(self.error_token(
+                format!("missing return in function {}", node.name.kind).as_str(),
+                &node.body.rbrace,
+            ));
         }
 
         Ok(no_type())
@@ -118,7 +141,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             };
 
             if ty != self.rtype {
-                Err(self.error("expected return type _ got _", expr))
+                Err(self.error_expected_got("incorrect return type", self.rtype, ty, expr))
             } else {
                 Ok(ty)
             }
@@ -127,7 +150,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         // Check if current scope has no return type
         } else {
             if self.rtype != void_type() {
-                Err(self.error_token("expected return type _", &node.kw))
+                Err(self.error_expected_token("incorrect return type", self.rtype, &node.kw))
             } else {
                 Ok(void_type())
             }
@@ -136,7 +159,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
 
     fn visit_literal(&mut self, node: &Token) -> EvalResult {
         match &node.kind {
-            TokenKind::IntLit(_) => Ok(self.ctx.primitive(PrimitiveType::Int64)),
+            TokenKind::IntLit(_) => Ok(self.ctx.primitive(PrimitiveType::I64)),
             TokenKind::True | TokenKind::False => Ok(self.ctx.primitive(PrimitiveType::Bool)),
             _ => todo!(),
         }

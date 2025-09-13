@@ -36,6 +36,11 @@ impl TypeContext {
         s
     }
 
+    /// Get the string representation of a type for errors or logging.
+    pub fn to_string(&self, id: TypeId) -> String {
+        format!("{}", self.lookup(self.resolve(id)).kind)
+    }
+
     /// Returns the unique type id for the given kind.
     /// Stores the type in context if not seen before.
     pub fn get_or_intern(&mut self, kind: TypeKind) -> TypeId {
@@ -144,8 +149,8 @@ impl TypeContext {
             TokenKind::ByteType => PrimitiveType::Byte,
 
             // Builtin 'aliases'
-            TokenKind::IntType => PrimitiveType::Int64,
-            TokenKind::FloatType => PrimitiveType::Float64,
+            TokenKind::IntType => PrimitiveType::I64,
+            TokenKind::FloatType => PrimitiveType::F64,
             _ => panic!("unknown TypeNode::Primitive kind"),
         }
     }
