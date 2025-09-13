@@ -16,8 +16,6 @@ pub struct TypeContext {
     cache: HashMap<TypeKind, TypeId>,
     /// Map AST nodes to their evaluated type.
     nodes: HashMap<NodeId, TypeId>,
-    /// Map declared type names in current context.
-    named: HashMap<String, TypeId>,
 }
 
 impl TypeContext {
@@ -25,7 +23,6 @@ impl TypeContext {
         let mut s = Self {
             types: Vec::new(),
             cache: HashMap::new(),
-            named: HashMap::new(), // TODO: add scopes for named declarations
             nodes: HashMap::new(),
         };
 
@@ -89,18 +86,6 @@ impl TypeContext {
             .clone()
     }
 
-    // TODO: differentiate between declared type names and variable declarations
-
-    /// Declare named type.
-    pub fn declare(&mut self, name: String, id: TypeId) {
-        self.named.insert(name, id);
-    }
-
-    /// Get named type from declaration.
-    pub fn get_declared(&self, name: &String) -> Option<&Type> {
-        self.named.get(name).map(|id| self.lookup(*id))
-    }
-
     fn intern(&mut self, kind: TypeKind) -> TypeId {
         let id = self.types.len();
         let typ = Type {
@@ -144,6 +129,8 @@ impl TypeContext {
         self.resolve(a) == self.resolve(b)
     }
 
+    // TODO: move this to checker
+
     /// Returns the type id for a given ast type node (type literal). Refers to internal
     /// lookup for named types, aliases etc. Empty return means type does not exist.
     pub fn resolve_ast_node_type(&mut self, node: &TypeNode) -> Option<TypeId> {
@@ -152,11 +139,11 @@ impl TypeContext {
                 let prim_kind = Self::ast_primitive_to_type_primitive(tok);
                 Some(self.get_or_intern(TypeKind::Primitive(prim_kind)))
             }
-
-            TypeNode::Ident(tok) => match &tok.kind {
-                TokenKind::IdentLit(name) => self.get_declared(name).map(|t| t.id),
-                _ => panic!("identifier type node did not have a IdentLit token"),
-            },
+            _ => None,
+            // TypeNode::Ident(tok) => match &tok.kind {
+            //     TokenKind::IdentLit(name) => self.get_named(name).map(|t| t.id),
+            //     _ => panic!("identifier type node did not have a IdentLit token"),
+            // },
         }
     }
 
