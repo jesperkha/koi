@@ -101,6 +101,16 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             assert_ne!(ret_type, no_type(), "must be valid type or error");
         }
 
+        // Evaluate parameter types
+        if let Some(params) = &node.params {
+            for param in params {
+                match self.ctx.resolve_ast_node_type(&param.typ) {
+                    Some(id) => self.ctx.declare(param.name.kind.to_string(), id),
+                    None => return Err(self.error("not a type", &param.typ)),
+                }
+            }
+        }
+
         // Set for current scope only
         self.rtype = ret_type;
         self.has_returned = false;
@@ -161,6 +171,10 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         match &node.kind {
             TokenKind::IntLit(_) => Ok(self.ctx.primitive(PrimitiveType::I64)),
             TokenKind::True | TokenKind::False => Ok(self.ctx.primitive(PrimitiveType::Bool)),
+            TokenKind::IdentLit(name) => self
+                .ctx
+                .get_declared(name)
+                .map_or(Err(self.error_token("not a type", node)), |t| Ok(t.id)),
             _ => todo!(),
         }
     }

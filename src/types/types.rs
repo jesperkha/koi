@@ -4,10 +4,13 @@ use strum_macros::EnumIter;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeKind {
     Primitive(PrimitiveType),
-    Array(Box<Type>),
-    Pointer(Box<Type>),
+    Array(TypeId),
+    Pointer(TypeId),
     Alias(TypeId),  // Refers to another type definition
     Unique(TypeId), // Distinct nominal type
+
+    // Optional list of parameter types and a optional return type
+    Function(Option<Vec<TypeId>>, Option<TypeId>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -47,24 +50,5 @@ pub fn void_type() -> TypeId {
 impl fmt::Display for PrimitiveType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", format!("{:?}", self).to_lowercase())
-    }
-}
-
-impl fmt::Display for TypeKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            TypeKind::Primitive(p) => write!(f, "{p}"),
-            TypeKind::Array(inner) => write!(f, "[]{}", inner),
-            TypeKind::Pointer(inner) => write!(f, "*{}", inner),
-            TypeKind::Alias(id) => write!(f, "Alias({id})"),
-            TypeKind::Unique(id) => write!(f, "Unique({id})"),
-        }
-    }
-}
-
-impl fmt::Display for Type {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // You could include the type ID if useful for debugging
-        write!(f, "{}#{}", self.kind, self.id)
     }
 }

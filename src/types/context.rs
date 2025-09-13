@@ -25,7 +25,7 @@ impl TypeContext {
         let mut s = Self {
             types: Vec::new(),
             cache: HashMap::new(),
-            named: HashMap::new(),
+            named: HashMap::new(), // TODO: add scopes for named declarations
             nodes: HashMap::new(),
         };
 
@@ -38,7 +38,25 @@ impl TypeContext {
 
     /// Get the string representation of a type for errors or logging.
     pub fn to_string(&self, id: TypeId) -> String {
-        format!("{}", self.lookup(self.resolve(id)).kind)
+        match &self.lookup(id).kind {
+            TypeKind::Primitive(p) => format!("{p}"),
+            TypeKind::Array(inner) => format!("[]{}", self.to_string(*inner)),
+            TypeKind::Pointer(inner) => format!("*{}", self.to_string(*inner)),
+            TypeKind::Alias(id) => format!("Alias({})", self.to_string(*id)),
+            TypeKind::Unique(id) => format!("Unique({})", self.to_string(*id)),
+            TypeKind::Function(params, ret) => {
+                let params_str = params
+                    .as_deref()
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|p| self.to_string(*p))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                let ret_str = ret.map(|r| self.to_string(r)).unwrap_or_default();
+                format!("func ({}) {}", params_str, ret_str)
+            }
+        }
     }
 
     /// Returns the unique type id for the given kind.
@@ -71,16 +89,16 @@ impl TypeContext {
             .clone()
     }
 
-    /// Declare named type. Interns the type if new. Returns the type id.
-    pub fn declare(&mut self, name: String, kind: TypeKind) -> TypeId {
-        let id = self.get_or_intern(kind);
+    // TODO: differentiate between declared type names and variable declarations
+
+    /// Declare named type.
+    pub fn declare(&mut self, name: String, id: TypeId) {
         self.named.insert(name, id);
-        id
     }
 
     /// Get named type from declaration.
-    pub fn get_declared(&self, name: String) -> Option<&Type> {
-        self.named.get(&name).map(|id| self.lookup(*id))
+    pub fn get_declared(&self, name: &String) -> Option<&Type> {
+        self.named.get(name).map(|id| self.lookup(*id))
     }
 
     fn intern(&mut self, kind: TypeKind) -> TypeId {
@@ -136,7 +154,7 @@ impl TypeContext {
             }
 
             TypeNode::Ident(tok) => match &tok.kind {
-                TokenKind::IdentLit(name) => self.get_declared(name.to_string()).map(|t| t.id),
+                TokenKind::IdentLit(name) => self.get_declared(name).map(|t| t.id),
                 _ => panic!("identifier type node did not have a IdentLit token"),
             },
         }
