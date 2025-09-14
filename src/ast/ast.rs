@@ -147,17 +147,31 @@ impl Visitable for TypeNode {
 impl Node for Decl {
     fn pos(&self) -> &Pos {
         match self {
-            Decl::Func(node) => &node.name.pos,
+            Decl::Func(node) => node.pos(),
         }
     }
 
     fn end(&self) -> &Pos {
         match self {
-            Decl::Func(node) => &node.body.rbrace.pos,
+            Decl::Func(node) => node.end(),
         }
     }
 
     fn id(&self) -> usize {
+        self.pos().offset
+    }
+}
+
+impl Node for FuncNode {
+    fn pos(&self) -> &Pos {
+        &self.name.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.body.rbrace.pos
+    }
+
+    fn id(&self) -> NodeId {
         self.pos().offset
     }
 }
@@ -174,20 +188,48 @@ impl Node for Stmt {
     fn pos(&self) -> &Pos {
         match self {
             Stmt::ExprStmt(node) => node.pos(),
-            Stmt::Return(node) => &node.kw.pos,
-            Stmt::Block(node) => &node.lbrace.pos,
+            Stmt::Return(node) => node.pos(),
+            Stmt::Block(node) => node.pos(),
         }
     }
 
     fn end(&self) -> &Pos {
         match self {
             Stmt::ExprStmt(node) => node.end(),
-            Stmt::Return(node) => node.expr.as_ref().map(|e| e.end()).unwrap_or(&node.kw.pos),
-            Stmt::Block(node) => &node.rbrace.pos,
+            Stmt::Return(node) => node.end(),
+            Stmt::Block(node) => node.end(),
         }
     }
 
     fn id(&self) -> usize {
+        self.pos().offset
+    }
+}
+
+impl Node for ReturnNode {
+    fn pos(&self) -> &Pos {
+        &self.kw.pos
+    }
+
+    fn end(&self) -> &Pos {
+        self.expr.as_ref().map(|e| e.end()).unwrap_or(&self.kw.pos)
+    }
+
+    fn id(&self) -> NodeId {
+        self.pos().offset
+    }
+}
+
+impl Node for BlockNode {
+    fn pos(&self) -> &Pos {
+        &self.lbrace.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.rbrace.pos
+    }
+
+    fn id(&self) -> NodeId {
         self.pos().offset
     }
 }
