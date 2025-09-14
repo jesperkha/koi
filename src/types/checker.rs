@@ -103,23 +103,31 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             assert_ne!(ret_type, no_type(), "must be valid type or error");
         }
 
-        // Evaluate parameter types
-        if let Some(params) = &node.params {
-            for param in params {
-                match self.eval(&param.typ) {
-                    Ok(id) => {} // TODO: declare in new scope
-                    Err(err) => return Err(err),
-                }
-            }
-        }
+        // TODO: finish function eval
+        // 1. define function type in global scope
+        // 2. if main function do other checks
+
+        self.sym.push_scope();
 
         // Set for current scope only
         self.rtype = ret_type;
         self.has_returned = false;
 
+        // Evaluate parameter types
+        if let Some(params) = &node.params {
+            for param in params {
+                match self.eval(&param.typ) {
+                    Ok(id) => self.sym.bind(&param.name, id),
+                    Err(err) => return Err(err),
+                }
+            }
+        }
+
         if let Err(err) = self.visit_block(&node.body) {
             return Err(err);
         }
+
+        self.sym.pop_scope();
 
         // There was no return when there should have been
         if !self.has_returned && ret_type != no_type() {
@@ -173,6 +181,10 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         match &node.kind {
             TokenKind::IntLit(_) => Ok(self.ctx.primitive(PrimitiveType::I64)),
             TokenKind::True | TokenKind::False => Ok(self.ctx.primitive(PrimitiveType::Bool)),
+            TokenKind::IdentLit(name) => self
+                .sym
+                .get_symbol(name)
+                .map_or(Err(self.error_token("not declared", node)), Ok),
             _ => todo!(),
         }
     }
@@ -185,7 +197,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             }
             TypeNode::Ident(token) => self
                 .sym
-                .get(token)
+                .get_type(token)
                 .map_or(Err(self.error_token("not a type", token)), |ty| Ok(ty)),
         }
     }

@@ -31,14 +31,17 @@ impl SymTable {
     }
 
     /// Bind a name to a type in the current scope.
-    pub fn bind(&mut self, name: String, ty: TypeId) {
-        self.scopes.last_mut().unwrap().insert(name, ty);
+    pub fn bind(&mut self, name: &Token, ty: TypeId) {
+        self.scopes
+            .last_mut()
+            .unwrap()
+            .insert(name.kind.to_string(), ty);
     }
 
     /// Look up a name starting from the innermost scope outward.
-    pub fn get(&self, name: &Token) -> Option<TypeId> {
+    pub fn get_symbol(&self, name: &String) -> Option<TypeId> {
         for scope in self.scopes.iter().rev() {
-            if let Some(&ty) = scope.get(&name.kind.to_string()) {
+            if let Some(&ty) = scope.get(name) {
                 return Some(ty);
             }
         }
@@ -51,7 +54,7 @@ impl SymTable {
     }
 
     /// Get a declared type.
-    pub fn get_declared(&self, name: &str) -> Option<TypeId> {
-        self.type_decls.get(name).copied()
+    pub fn get_type(&self, name: &Token) -> Option<TypeId> {
+        self.type_decls.get(&name.kind.to_string()).copied()
     }
 }
