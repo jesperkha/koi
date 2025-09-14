@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Ast, BlockNode, FuncNode, ReturnNode, Stmt, Visitable, Visitor},
+    ast::{Ast, BlockNode, FuncNode, ReturnNode, Stmt, TypeNode, Visitable, Visitor},
     token::Token,
 };
 
@@ -91,5 +91,11 @@ impl Visitor<()> for Printer {
             self.s.push_str("    ");
         }
         self.s.push('}');
+    }
+
+    fn visit_type(&mut self, node: &super::TypeNode) -> () {
+        match node {
+            TypeNode::Primitive(tok) | TypeNode::Ident(tok) => self.visit_literal(tok),
+        }
     }
 }

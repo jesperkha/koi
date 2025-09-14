@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::types::TypeId;
+use crate::{token::Token, types::TypeId};
 
 /// The SymTable manages all symbol/type mappings in a file.
 /// The mappings are only used when type checking.
@@ -36,9 +36,9 @@ impl SymTable {
     }
 
     /// Look up a name starting from the innermost scope outward.
-    pub fn get(&self, name: &str) -> Option<TypeId> {
+    pub fn get(&self, name: &Token) -> Option<TypeId> {
         for scope in self.scopes.iter().rev() {
-            if let Some(&ty) = scope.get(name) {
+            if let Some(&ty) = scope.get(&name.kind.to_string()) {
                 return Some(ty);
             }
         }

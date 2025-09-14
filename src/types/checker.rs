@@ -1,12 +1,13 @@
 use crate::{
-    ast::{Ast, BlockNode, FuncNode, Node, ReturnNode, Visitable, Visitor},
+    ast::{Ast, BlockNode, FuncNode, Node, ReturnNode, TypeNode, Visitable, Visitor},
     error::Error,
     token::{File, Token, TokenKind},
-    types::{PrimitiveType, TypeContext, TypeId, no_type, void_type},
+    types::{PrimitiveType, SymTable, TypeContext, TypeId, no_type, void_type},
 };
 
 pub struct Checker<'a> {
     ctx: TypeContext,
+    sym: SymTable,
     ast: &'a Ast,
     file: &'a File,
     errs: Vec<Error>,
@@ -26,6 +27,7 @@ impl<'a> Checker<'a> {
             ast,
             file,
             ctx: TypeContext::new(),
+            sym: SymTable::new(),
             errs: Vec::new(),
             rtype: no_type(),
             has_returned: false,
@@ -86,8 +88,6 @@ impl<'a> Checker<'a> {
     }
 }
 
-// TODO: make TypeNode visitable and eval type here instead of in ctx
-
 type EvalResult = Result<TypeId, Error>;
 
 impl<'a> Visitor<EvalResult> for Checker<'a> {
@@ -96,9 +96,9 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
 
         // Evaluate return type if any
         if let Some(t) = &node.ret_type {
-            match self.ctx.resolve_ast_node_type(t) {
-                Some(id) => ret_type = id,
-                None => return Err(self.error("not a type", t)),
+            match self.eval(t) {
+                Ok(id) => ret_type = id,
+                Err(err) => return Err(err),
             };
             assert_ne!(ret_type, no_type(), "must be valid type or error");
         }
@@ -106,9 +106,9 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         // Evaluate parameter types
         if let Some(params) = &node.params {
             for param in params {
-                match self.ctx.resolve_ast_node_type(&param.typ) {
-                    Some(id) => {} // TODO: declare in new scope
-                    None => return Err(self.error("not a type", &param.typ)),
+                match self.eval(&param.typ) {
+                    Ok(id) => {} // TODO: declare in new scope
+                    Err(err) => return Err(err),
                 }
             }
         }
@@ -175,5 +175,31 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             TokenKind::True | TokenKind::False => Ok(self.ctx.primitive(PrimitiveType::Bool)),
             _ => todo!(),
         }
+    }
+
+    fn visit_type(&mut self, node: &TypeNode) -> EvalResult {
+        match node {
+            TypeNode::Primitive(token) => {
+                let prim = token_to_primitive_type(token);
+                Ok(self.ctx.primitive(prim))
+            }
+            TypeNode::Ident(token) => self
+                .sym
+                .get(token)
+                .map_or(Err(self.error_token("not a type", token)), |ty| Ok(ty)),
+        }
+    }
+}
+
+fn token_to_primitive_type(tok: &Token) -> PrimitiveType {
+    match tok.kind {
+        TokenKind::BoolType => PrimitiveType::Bool,
+        TokenKind::ByteType => PrimitiveType::Byte,
+
+        // Builtin 'aliases'
+        TokenKind::IntType => PrimitiveType::I64,
+        TokenKind::FloatType => PrimitiveType::F64,
+
+        _ => panic!("unknown TypeNode::Primitive kind: {}", tok.kind),
     }
 }

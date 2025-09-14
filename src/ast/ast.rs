@@ -28,6 +28,7 @@ pub trait Visitor<R> {
     fn visit_block(&mut self, node: &BlockNode) -> R;
     fn visit_return(&mut self, node: &ReturnNode) -> R;
     fn visit_literal(&mut self, node: &Token) -> R;
+    fn visit_type(&mut self, node: &TypeNode) -> R;
 }
 
 #[derive(Debug)]
@@ -137,10 +138,7 @@ impl Node for TypeNode {
 
 impl Visitable for TypeNode {
     fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
-        match self {
-            TypeNode::Primitive(token) => visitor.visit_literal(token),
-            TypeNode::Ident(token) => visitor.visit_literal(token),
-        }
+        visitor.visit_type(self)
     }
 }
 

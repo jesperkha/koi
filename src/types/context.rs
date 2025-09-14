@@ -2,8 +2,7 @@ use std::collections::HashMap;
 use strum::IntoEnumIterator;
 
 use crate::{
-    ast::{Node, NodeId, TypeNode},
-    token::{Token, TokenKind},
+    ast::{Node, NodeId},
     types::{PrimitiveType, Type, TypeId, TypeKind},
 };
 
@@ -127,36 +126,5 @@ impl TypeContext {
     /// Tests if two types are equivalent (resolves any aliasing).
     pub fn equivalent(&self, a: TypeId, b: TypeId) -> bool {
         self.resolve(a) == self.resolve(b)
-    }
-
-    // TODO: move this to checker
-
-    /// Returns the type id for a given ast type node (type literal). Refers to internal
-    /// lookup for named types, aliases etc. Empty return means type does not exist.
-    pub fn resolve_ast_node_type(&mut self, node: &TypeNode) -> Option<TypeId> {
-        match node {
-            TypeNode::Primitive(tok) => {
-                let prim_kind = Self::ast_primitive_to_type_primitive(tok);
-                Some(self.get_or_intern(TypeKind::Primitive(prim_kind)))
-            }
-            _ => None,
-            // TypeNode::Ident(tok) => match &tok.kind {
-            //     TokenKind::IdentLit(name) => self.get_named(name).map(|t| t.id),
-            //     _ => panic!("identifier type node did not have a IdentLit token"),
-            // },
-        }
-    }
-
-    /// Convert AST primitive literal to primitive type.
-    fn ast_primitive_to_type_primitive(token: &Token) -> PrimitiveType {
-        match token.kind {
-            TokenKind::BoolType => PrimitiveType::Bool,
-            TokenKind::ByteType => PrimitiveType::Byte,
-
-            // Builtin 'aliases'
-            TokenKind::IntType => PrimitiveType::I64,
-            TokenKind::FloatType => PrimitiveType::F64,
-            _ => panic!("unknown TypeNode::Primitive kind"),
-        }
     }
 }
