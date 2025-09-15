@@ -166,7 +166,7 @@ impl Node for FuncNode {
     }
 
     fn end(&self) -> &Pos {
-        &self.body.rbrace.pos
+        &self.name.end_pos
     }
 
     fn id(&self) -> NodeId {

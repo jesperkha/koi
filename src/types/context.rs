@@ -42,15 +42,13 @@ impl TypeContext {
             TypeKind::Unique(id) => format!("Unique({})", self.to_string(*id)),
             TypeKind::Function(params, ret) => {
                 let params_str = params
-                    .as_deref()
-                    .unwrap_or_default()
                     .iter()
                     .map(|p| self.to_string(*p))
                     .collect::<Vec<_>>()
                     .join(", ");
 
-                let ret_str = ret.map(|r| self.to_string(r)).unwrap_or_default();
-                format!("func ({}) {}", params_str, ret_str)
+                let ret_str = self.to_string(*ret);
+                format!("func({}) {}", params_str, ret_str)
             }
         }
     }

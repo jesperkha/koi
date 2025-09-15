@@ -2,7 +2,7 @@ use crate::{
     ast::{Ast, BlockNode, FuncNode, Node, ReturnNode, TypeNode, Visitable, Visitor},
     error::Error,
     token::{File, Token, TokenKind},
-    types::{PrimitiveType, SymTable, TypeContext, TypeId, no_type, void_type},
+    types::{PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type, void_type},
 };
 
 pub struct Checker<'a> {
@@ -103,24 +103,46 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             assert_ne!(ret_type, no_type(), "must be valid type or error");
         }
 
-        // TODO: finish function eval
-        // 1. define function type in global scope
-        // 2. if main function do other checks
-
-        self.sym.push_scope();
-
-        // Set for current scope only
-        self.rtype = ret_type;
-        self.has_returned = false;
-
         // Evaluate parameter types
-        if let Some(params) = &node.params {
-            for param in params {
-                match self.eval(&param.typ) {
-                    Ok(id) => self.sym.bind(&param.name, id),
+        let mut params = Vec::new();
+        if let Some(pms) = &node.params {
+            for p in pms {
+                match self.eval(&p.typ) {
+                    Ok(id) => params.push((&p.name, id)),
                     Err(err) => return Err(err),
                 }
             }
+        }
+
+        // If this is main() assert return type is int and no params
+        if node.name.kind.to_string() == "main" {
+            let int_id = self.ctx.primitive(PrimitiveType::I64);
+            if !self.ctx.equivalent(ret_type, int_id) {
+                return Err(self.error("main function must return i64", node));
+            }
+
+            if params.len() > 0 {
+                return Err(self.error("main function must not take any argument", node));
+            }
+        }
+
+        // Declare function while still in global scope
+        let func_id = self.ctx.get_or_intern(TypeKind::Function(
+            params.iter().map(|v| v.1).collect(),
+            ret_type,
+        ));
+        if !self.sym.bind(&node.name, func_id) {
+            return Err(self.error_token("already declared", &node.name));
+        }
+
+        // Set up function body
+        self.sym.push_scope();
+        self.rtype = ret_type;
+        self.has_returned = false;
+
+        // Declare params in function body
+        for p in params {
+            self.sym.bind(p.0, p.1);
         }
 
         if let Err(err) = self.visit_block(&node.body) {

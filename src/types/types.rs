@@ -9,8 +9,9 @@ pub enum TypeKind {
     Alias(TypeId),  // Refers to another type definition
     Unique(TypeId), // Distinct nominal type
 
-    // Optional list of parameter types and a optional return type
-    Function(Option<Vec<TypeId>>, Option<TypeId>),
+    /// List of parameter types and a return
+    /// type (void for no return)
+    Function(Vec<TypeId>, TypeId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

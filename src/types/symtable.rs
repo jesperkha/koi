@@ -30,12 +30,14 @@ impl SymTable {
         self.scopes.pop();
     }
 
-    /// Bind a name to a type in the current scope.
-    pub fn bind(&mut self, name: &Token, ty: TypeId) {
+    /// Bind a name to a type in the current scope. Return true if bind
+    /// is ok (name was not already declared).
+    pub fn bind(&mut self, name: &Token, ty: TypeId) -> bool {
         self.scopes
             .last_mut()
             .unwrap()
-            .insert(name.kind.to_string(), ty);
+            .insert(name.kind.to_string(), ty)
+            .is_none()
     }
 
     /// Look up a name starting from the innermost scope outward.
