@@ -174,6 +174,8 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
     fn visit_return(&mut self, node: &ReturnNode) -> EvalResult {
         self.has_returned = true;
 
+        // TODO: warn 'unreachable' for any successive statements in this block
+
         // If there is a return expression
         // Evaluate it and compare with current scopes return type
         if let Some(expr) = &node.expr {
@@ -237,3 +239,5 @@ fn token_to_primitive_type(tok: &Token) -> PrimitiveType {
         _ => panic!("unknown TypeNode::Primitive kind: {}", tok.kind),
     }
 }
+
+// TODO: add testing for Checker and Context

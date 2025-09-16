@@ -14,6 +14,8 @@ pub enum TypeKind {
     Function(Vec<TypeId>, TypeId),
 }
 
+// TODO: add positional info to type object to point to related declarations in errors
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Type {
     pub kind: TypeKind,
