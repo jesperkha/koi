@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Ast, BlockNode, Decl, Expr, Field, FuncNode, ReturnNode, Stmt, TypeNode},
+    ast::{Ast, BlockNode, Decl, Expr, Field, FuncNode, ReturnNode, Stmt, TypeNode, no_type},
     error::Error,
     token::{File, Token, TokenKind},
 };
