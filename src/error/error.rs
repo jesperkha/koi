@@ -4,7 +4,10 @@ use crate::token::{File, Pos, Token};
 
 #[derive(Debug, Clone)]
 pub struct Error {
-    message: String,
+    /// Raw error message without formatting
+    /// Eg. 'not declared'
+    pub message: String,
+
     line: usize,
     line_str: String,
     from: usize,

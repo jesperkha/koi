@@ -19,7 +19,7 @@ pub struct Checker<'a> {
     has_returned: bool,
 }
 
-type CheckResult = Result<TypeContext, Vec<Error>>;
+pub type CheckResult = Result<TypeContext, Vec<Error>>;
 
 impl<'a> Checker<'a> {
     pub fn check(ast: &'a Ast, file: &'a File) -> CheckResult {
@@ -152,7 +152,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         self.sym.pop_scope();
 
         // There was no return when there should have been
-        if !self.has_returned && ret_type != no_type() {
+        if !self.has_returned && ret_type != void_type() {
             return Err(self.error_token(
                 format!("missing return in function {}", node.name.kind).as_str(),
                 &node.body.rbrace,
@@ -239,5 +239,3 @@ fn token_to_primitive_type(tok: &Token) -> PrimitiveType {
         _ => panic!("unknown TypeNode::Primitive kind: {}", tok.kind),
     }
 }
-
-// TODO: add testing for Checker and Context
