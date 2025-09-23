@@ -54,7 +54,7 @@ pub fn display_tokens(tokens: &[Token]) -> String {
     )
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct Pos {
     /// Row in file, starting at 0
     pub row: usize,
@@ -77,7 +77,6 @@ pub enum TokenKind {
     IdentLit(String),
     IntLit(i64),
     FloatLit(f64),
-    BoolLit(bool),
     StringLit(String), // String does not include quotes
     CharLit(u8),
 
@@ -139,11 +138,11 @@ pub enum TokenKind {
 
     // Primitive types
     Void,
-    Int,
-    Float,
-    String,
-    Byte,
-    Bool,
+    IntType,
+    FloatType,
+    StringType,
+    ByteType,
+    BoolType,
 }
 
 /// Reserved token lexemes
@@ -201,11 +200,11 @@ static RESERVED: &[(&str, TokenKind)] = &[
     ("?", TokenKind::Question),
     // Primitive types
     ("void", TokenKind::Void),
-    ("int", TokenKind::Int),
-    ("float", TokenKind::Float),
-    ("string", TokenKind::String),
-    ("byte", TokenKind::Byte),
-    ("bool", TokenKind::Bool),
+    ("int", TokenKind::IntType),
+    ("float", TokenKind::FloatType),
+    ("string", TokenKind::StringType),
+    ("byte", TokenKind::ByteType),
+    ("bool", TokenKind::BoolType),
 ];
 
 pub fn str_to_token(s: &str) -> Option<&TokenKind> {
@@ -232,7 +231,6 @@ impl fmt::Display for TokenKind {
             TokenKind::IdentLit(ident) => &ident,
             TokenKind::IntLit(n) => &n.to_string(),
             TokenKind::FloatLit(f) => &f.to_string(),
-            TokenKind::BoolLit(b) => &b.to_string(),
             TokenKind::StringLit(s) => s,
             TokenKind::CharLit(c) => &c.to_string(),
 

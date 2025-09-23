@@ -1,4 +1,7 @@
-use crate::token::{File, Pos, SyntaxError, Token, TokenKind, str_to_token};
+use crate::{
+    error::Error,
+    token::{File, Pos, Token, TokenKind, str_to_token},
+};
 
 pub struct Scanner<'a> {
     file: &'a File,
@@ -8,20 +11,22 @@ pub struct Scanner<'a> {
     line_begin: usize,
 }
 
-pub type ScannerResult = Result<Vec<Token>, SyntaxError>;
+pub type ScannerResult = Result<Vec<Token>, Error>;
 
 impl<'a> Scanner<'a> {
-    pub fn new(file: &'_ File) -> Scanner<'_> {
-        Scanner {
+    pub fn scan(file: &'_ File) -> ScannerResult {
+        let mut s = Scanner {
             file,
             pos: 0,
             col: 0,
             row: 0,
             line_begin: 0,
-        }
+        };
+
+        s.scan_all()
     }
 
-    pub fn scan(&mut self) -> ScannerResult {
+    fn scan_all(&mut self) -> ScannerResult {
         let mut tokens = Vec::new();
 
         while !self.eof() {
@@ -61,9 +66,9 @@ impl<'a> Scanner<'a> {
                     }
 
                     if depth != 0 {
-                        return Err(SyntaxError::new(
+                        return Err(Error::new_syntax(
                             "block comment was not terminated",
-                            self.pos(),
+                            &self.pos(),
                             2,
                             self.file,
                         ));
@@ -210,8 +215,8 @@ impl<'a> Scanner<'a> {
         self.file.src.len()
     }
 
-    fn error(&self, msg: &str, length: usize) -> SyntaxError {
-        SyntaxError::new(msg, self.pos(), length, &self.file)
+    fn error(&self, msg: &str, length: usize) -> Error {
+        Error::new_syntax(msg, &self.pos(), length, &self.file)
     }
 
     /// Peeks tokens while predicate returns true. Returns number of tokens peeked.
@@ -228,7 +233,7 @@ impl<'a> Scanner<'a> {
     }
 
     /// Scans a string literal, starting at the current position.
-    fn scan_string(&mut self, quote: u8) -> Result<(Token, usize), SyntaxError> {
+    fn scan_string(&mut self, quote: u8) -> Result<(Token, usize), Error> {
         self.pos += 1;
         let mut length = self.peek_while(|b| b != quote && b != b'\n');
         self.pos -= 1;
@@ -239,7 +244,7 @@ impl<'a> Scanner<'a> {
             let mut pos = self.pos();
             pos.col += check_pos;
             pos.offset += check_pos;
-            return Err(SyntaxError::new("expected end quote", pos, 1, self.file));
+            return Err(Error::new_syntax("expected end quote", &pos, 1, self.file));
         }
 
         length += 2; // Include start and end quote

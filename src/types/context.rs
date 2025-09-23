@@ -1,0 +1,128 @@
+use std::collections::HashMap;
+use strum::IntoEnumIterator;
+
+use crate::{
+    ast::{Node, NodeId},
+    types::{PrimitiveType, Type, TypeId, TypeKind},
+};
+
+/// Context for type lookups.
+pub struct TypeContext {
+    /// List of type information. Each `TypeId` maps
+    /// to a `Type` by indexing into this vector.
+    types: Vec<Type>,
+    /// Map type kinds to their unique type id.
+    cache: HashMap<TypeKind, TypeId>,
+    /// Map AST nodes to their evaluated type.
+    nodes: HashMap<NodeId, TypeId>,
+}
+
+impl TypeContext {
+    pub fn new() -> Self {
+        let mut s = Self {
+            types: Vec::new(),
+            cache: HashMap::new(),
+            nodes: HashMap::new(),
+        };
+
+        for t in PrimitiveType::iter() {
+            s.intern(TypeKind::Primitive(t));
+        }
+
+        s
+    }
+
+    /// Get the string representation of a type for errors or logging.
+    pub fn to_string(&self, id: TypeId) -> String {
+        match &self.lookup(id).kind {
+            TypeKind::Primitive(p) => format!("{p}"),
+            TypeKind::Array(inner) => format!("[]{}", self.to_string(*inner)),
+            TypeKind::Pointer(inner) => format!("*{}", self.to_string(*inner)),
+            TypeKind::Alias(id) => format!("Alias({})", self.to_string(*id)),
+            TypeKind::Unique(id) => format!("Unique({})", self.to_string(*id)),
+            TypeKind::Function(params, ret) => {
+                let params_str = params
+                    .iter()
+                    .map(|p| self.to_string(*p))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                let ret_str = self.to_string(*ret);
+                format!("func({}) {}", params_str, ret_str)
+            }
+        }
+    }
+
+    /// Returns the unique type id for the given kind.
+    /// Stores the type in context if not seen before.
+    pub fn get_or_intern(&mut self, kind: TypeKind) -> TypeId {
+        if let Some(&id) = self.cache.get(&kind) {
+            return id;
+        }
+        self.intern(kind)
+    }
+
+    /// Internalize a node and its evaluated type.
+    pub fn intern_node(&mut self, node: &dyn Node, ty: TypeId) {
+        assert!(!self.nodes.contains_key(&node.id()), "duplicate node id");
+        self.nodes.insert(node.id(), ty);
+    }
+
+    pub fn get_node(&self, node: &dyn Node) -> TypeId {
+        self.nodes
+            .get(&node.id())
+            .expect(format!("node id {} not in map", node.id()).as_str())
+            .clone()
+    }
+
+    /// Shorthand for getting a primitive type id.
+    pub fn primitive(&mut self, kind: PrimitiveType) -> TypeId {
+        self.cache
+            .get(&TypeKind::Primitive(kind))
+            .expect("all primitive types must be assigned at init")
+            .clone()
+    }
+
+    fn intern(&mut self, kind: TypeKind) -> TypeId {
+        let id = self.types.len();
+        let typ = Type {
+            kind: kind.clone(),
+            id,
+        };
+        self.types.push(typ);
+        self.cache.insert(kind, id);
+        id
+    }
+
+    /// Get the full type information for a given type id.
+    pub fn lookup(&self, id: TypeId) -> &Type {
+        // Illegal state if id is not known
+        assert!(id <= self.types.len());
+        &self.types[id]
+    }
+
+    /// Resolve a type to its type id for comparisons. Removes any aliasing.
+    /// Does not remove unique type aliases like `inner_kind()`.
+    pub fn resolve(&self, id: TypeId) -> TypeId {
+        match &self.lookup(id).kind {
+            TypeKind::Alias(target) => self.resolve(*target),
+            _ => id,
+        }
+    }
+
+    /// Get a types internal kind. Resolves array item types, pointer target
+    /// types, and unique types underlying kind. Do not use for general type comparisons.
+    pub fn inner_kind(&self, id: TypeId) -> TypeId {
+        match &self.lookup(id).kind {
+            TypeKind::Alias(underlying) | TypeKind::Unique(underlying) => {
+                self.inner_kind(*underlying)
+            }
+            _ => id,
+        }
+    }
+
+    /// Tests if two types are equivalent (resolves any aliasing).
+    pub fn equivalent(&self, a: TypeId, b: TypeId) -> bool {
+        self.resolve(a) == self.resolve(b)
+    }
+}

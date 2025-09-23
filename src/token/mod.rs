@@ -1,8 +1,6 @@
-mod error;
 mod file;
 mod token;
 
-pub use error::*;
 pub use file::*;
 pub use token::*;
 

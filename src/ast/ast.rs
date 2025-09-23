@@ -1,5 +1,7 @@
 use crate::token::{Pos, Token};
 
+pub type NodeId = usize;
+
 /// A node is any part of the AST, including statements, expressions, and
 /// declarations. Visitors can traverse these nodes to perform operations
 /// like linting, analysis, or transformations.
@@ -9,9 +11,24 @@ pub trait Node {
     /// Position of last token in node segment.
     fn end(&self) -> &Pos;
 
+    /// Unique id of the node. Is the offset of the node pos, which is
+    /// guaranteed unique for all nodes in the same file.
+    /// TODO: test uniqueness of ids
+    fn id(&self) -> NodeId;
+}
+
+pub trait Visitable {
     /// Accept a visitor to inspect this node. Must call the appropriate
     /// visit method on the visitor for this node.
-    fn accept(&self, visitor: &mut dyn Visitor);
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R;
+}
+
+pub trait Visitor<R> {
+    fn visit_func(&mut self, node: &FuncNode) -> R;
+    fn visit_block(&mut self, node: &BlockNode) -> R;
+    fn visit_return(&mut self, node: &ReturnNode) -> R;
+    fn visit_literal(&mut self, node: &Token) -> R;
+    fn visit_type(&mut self, node: &TypeNode) -> R;
 }
 
 #[derive(Debug)]
@@ -28,7 +45,7 @@ impl Ast {
     }
 
     /// Walks the AST and applites the visitor to each node.
-    pub fn walk(&mut self, visitor: &mut dyn Visitor) {
+    pub fn walk<R>(&mut self, visitor: &mut dyn Visitor<R>) {
         for node in &self.nodes {
             node.accept(visitor);
         }
@@ -37,13 +54,6 @@ impl Ast {
     pub fn add_node(&mut self, node: Decl) {
         self.nodes.push(node);
     }
-}
-
-pub trait Visitor {
-    fn visit_literal(&mut self, node: &Token);
-    fn visit_return(&mut self, node: &ReturnNode);
-    fn visit_func(&mut self, node: &FuncNode);
-    fn visit_block(&mut self, node: &BlockNode);
 }
 
 /// Declarations are not considered statements for linting purposes.
@@ -117,32 +127,55 @@ impl Node for TypeNode {
 
     fn end(&self) -> &Pos {
         match self {
-            TypeNode::Primitive(token) | TypeNode::Ident(token) => &token.pos,
+            TypeNode::Primitive(token) | TypeNode::Ident(token) => &token.end_pos,
         }
     }
 
-    fn accept(&self, visitor: &mut dyn Visitor) {
-        match self {
-            TypeNode::Primitive(token) => visitor.visit_literal(token),
-            TypeNode::Ident(token) => visitor.visit_literal(token),
-        }
+    fn id(&self) -> usize {
+        self.pos().offset
+    }
+}
+
+impl Visitable for TypeNode {
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
+        visitor.visit_type(self)
     }
 }
 
 impl Node for Decl {
     fn pos(&self) -> &Pos {
         match self {
-            Decl::Func(node) => &node.name.pos,
+            Decl::Func(node) => node.pos(),
         }
     }
 
     fn end(&self) -> &Pos {
         match self {
-            Decl::Func(node) => &node.body.rbrace.pos,
+            Decl::Func(node) => node.end(),
         }
     }
 
-    fn accept(&self, visitor: &mut dyn Visitor) {
+    fn id(&self) -> usize {
+        self.pos().offset
+    }
+}
+
+impl Node for FuncNode {
+    fn pos(&self) -> &Pos {
+        &self.name.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.name.end_pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.pos().offset
+    }
+}
+
+impl Visitable for Decl {
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
         match self {
             Decl::Func(node) => visitor.visit_func(node),
         }
@@ -153,20 +186,54 @@ impl Node for Stmt {
     fn pos(&self) -> &Pos {
         match self {
             Stmt::ExprStmt(node) => node.pos(),
-            Stmt::Return(node) => &node.kw.pos,
-            Stmt::Block(node) => &node.lbrace.pos,
+            Stmt::Return(node) => node.pos(),
+            Stmt::Block(node) => node.pos(),
         }
     }
 
     fn end(&self) -> &Pos {
         match self {
             Stmt::ExprStmt(node) => node.end(),
-            Stmt::Return(node) => node.expr.as_ref().map(|e| e.end()).unwrap_or(&node.kw.pos),
-            Stmt::Block(node) => &node.rbrace.pos,
+            Stmt::Return(node) => node.end(),
+            Stmt::Block(node) => node.end(),
         }
     }
 
-    fn accept(&self, visitor: &mut dyn Visitor) {
+    fn id(&self) -> usize {
+        self.pos().offset
+    }
+}
+
+impl Node for ReturnNode {
+    fn pos(&self) -> &Pos {
+        &self.kw.pos
+    }
+
+    fn end(&self) -> &Pos {
+        self.expr.as_ref().map(|e| e.end()).unwrap_or(&self.kw.pos)
+    }
+
+    fn id(&self) -> NodeId {
+        self.pos().offset
+    }
+}
+
+impl Node for BlockNode {
+    fn pos(&self) -> &Pos {
+        &self.lbrace.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.rbrace.pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.pos().offset
+    }
+}
+
+impl Visitable for Stmt {
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
         match self {
             Stmt::ExprStmt(node) => node.accept(visitor),
             Stmt::Return(node) => visitor.visit_return(node),
@@ -184,11 +251,17 @@ impl Node for Expr {
 
     fn end(&self) -> &Pos {
         match self {
-            Expr::Literal(token) => &token.pos,
+            Expr::Literal(token) => &token.end_pos,
         }
     }
 
-    fn accept(&self, visitor: &mut dyn Visitor) {
+    fn id(&self) -> usize {
+        self.pos().offset
+    }
+}
+
+impl Visitable for Expr {
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
         match self {
             Expr::Literal(token) => visitor.visit_literal(token),
         }

@@ -1,11 +1,11 @@
 use crate::{
     ast::{Ast, BlockNode, Decl, Expr, Field, FuncNode, ReturnNode, Stmt, TypeNode},
-    parser::ParserError,
+    error::Error,
     token::{File, Token, TokenKind},
 };
 
 pub struct Parser<'a> {
-    errors: Vec<ParserError>,
+    errors: Vec<Error>,
     tokens: Vec<Token>,
     pos: usize,
     file: &'a File,
@@ -21,35 +21,33 @@ pub struct Parser<'a> {
     // base_pos: usize,
 }
 
-pub type ParserResult = Result<Ast, Vec<ParserError>>;
+pub type ParserResult = Result<Ast, Vec<Error>>;
 
 impl<'a> Parser<'a> {
-    pub fn new(file: &'a File, tokens: Vec<Token>) -> Self {
-        Parser {
+    pub fn parse(file: &'a File, tokens: Vec<Token>) -> ParserResult {
+        let mut s = Self {
             errors: Vec::new(),
             tokens,
             file,
             pos: 0,
             panic_mode: false,
-        }
-    }
+        };
 
-    pub fn parse(&mut self) -> ParserResult {
         let mut ast = Ast::new();
 
-        while self.skip_whitespace_and_not_eof() {
-            let decl = self.parse_decl();
-
-            match decl {
+        while s.skip_whitespace_and_not_eof() {
+            match s.parse_decl() {
                 Ok(decl) => ast.add_node(decl),
                 Err(err) => {
-                    self.errors.push(err);
+                    // TODO: add panic mode to not return early on error
+                    s.errors.push(err);
+                    return Err(s.errors);
                 }
             }
         }
 
-        if self.errors.len() > 0 {
-            return Err(self.errors.clone());
+        if s.errors.len() > 0 {
+            return Err(s.errors.clone());
         }
 
         Ok(ast)
@@ -64,7 +62,7 @@ impl<'a> Parser<'a> {
         !self.eof()
     }
 
-    fn parse_decl(&mut self) -> Result<Decl, ParserError> {
+    fn parse_decl(&mut self) -> Result<Decl, Error> {
         // Not having checked for eof is a bug in the caller.
         assert!(!self.eof(), "parse_decl called without checking eof");
         let token = self.cur().unwrap();
@@ -82,7 +80,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_function(&mut self, kw: Token) -> Result<FuncNode, ParserError> {
+    fn parse_function(&mut self, kw: Token) -> Result<FuncNode, Error> {
         let public = kw.kind == TokenKind::Pub;
         if public {
             self.consume(); // Consume the 'pub' token
@@ -142,13 +140,13 @@ impl<'a> Parser<'a> {
         Ok(func)
     }
 
-    fn parse_field(&mut self, field_name: &str) -> Result<Field, ParserError> {
+    fn parse_field(&mut self, field_name: &str) -> Result<Field, Error> {
         let name = self.expect_identifier(field_name)?;
         let typ = self.parse_type()?;
         Ok(Field { name, typ })
     }
 
-    fn parse_block(&mut self) -> Result<BlockNode, ParserError> {
+    fn parse_block(&mut self) -> Result<BlockNode, Error> {
         let mut stmts = Vec::new();
         let lbrace = self.expect(TokenKind::LBrace)?;
 
@@ -177,7 +175,7 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_stmt(&mut self) -> Result<Stmt, ParserError> {
+    fn parse_stmt(&mut self) -> Result<Stmt, Error> {
         assert!(!self.eof(), "parse_stmt called without checking eof");
         let token = self.cur().unwrap();
 
@@ -193,7 +191,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_return(&mut self) -> Result<ReturnNode, ParserError> {
+    fn parse_return(&mut self) -> Result<ReturnNode, Error> {
         // Assert and consume the 'return' token
         assert!(self.matches(TokenKind::Return));
         let kw = self.consume().unwrap();
@@ -207,11 +205,11 @@ impl<'a> Parser<'a> {
         Ok(ReturnNode { kw, expr })
     }
 
-    fn parse_expr(&mut self) -> Result<Expr, ParserError> {
+    fn parse_expr(&mut self) -> Result<Expr, Error> {
         self.parse_literal()
     }
 
-    fn parse_literal(&mut self) -> Result<Expr, ParserError> {
+    fn parse_literal(&mut self) -> Result<Expr, Error> {
         let Some(token) = self.cur() else {
             return Err(self.error_token("expected literal expression"));
         };
@@ -221,7 +219,8 @@ impl<'a> Parser<'a> {
             | TokenKind::IdentLit(_)
             | TokenKind::FloatLit(_)
             | TokenKind::StringLit(_)
-            | TokenKind::BoolLit(_)
+            | TokenKind::True
+            | TokenKind::False
             | TokenKind::CharLit(_) => {
                 self.consume();
                 Ok(Expr::Literal(token))
@@ -230,7 +229,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_type(&mut self) -> Result<TypeNode, ParserError> {
+    fn parse_type(&mut self) -> Result<TypeNode, Error> {
         let Some(token) = self.cur() else {
             return Err(self.error_token("expected type"));
         };
@@ -240,7 +239,7 @@ impl<'a> Parser<'a> {
                 self.consume();
                 Ok(TypeNode::Ident(token))
             }
-            TokenKind::Int | TokenKind::Float | TokenKind::Bool | TokenKind::Void => {
+            TokenKind::IntType | TokenKind::FloatType | TokenKind::BoolType | TokenKind::Void => {
                 self.consume();
                 Ok(TypeNode::Primitive(token))
             }
@@ -249,13 +248,13 @@ impl<'a> Parser<'a> {
     }
 
     /// Create error marking the current token.
-    fn error_token(&self, message: &str) -> ParserError {
+    fn error_token(&self, message: &str) -> Error {
         self.error_from_to(message, self.cur_or_last(), self.cur_or_last())
     }
 
     /// Create error marking the given token range.
-    fn error_from_to(&self, message: &str, from: Token, to: Token) -> ParserError {
-        ParserError::new(message, from, to, self.file)
+    fn error_from_to(&self, message: &str, from: Token, to: Token) -> Error {
+        Error::new(message, &from, &to, self.file)
     }
 
     fn cur(&self) -> Option<Token> {
@@ -282,14 +281,14 @@ impl<'a> Parser<'a> {
 
     /// Expects the current token to be of a specific kind.
     /// Returns token if it matches, else error.
-    fn expect(&mut self, kind: TokenKind) -> Result<Token, ParserError> {
+    fn expect(&mut self, kind: TokenKind) -> Result<Token, Error> {
         self.expect_pred(&format!("{}", kind), |t| t.kind == kind)
     }
 
     /// Expects the current token to match a predicate.
     /// Returns token if it matches, else error.
     /// Message is prefixed with "expected ".
-    fn expect_pred<P>(&mut self, message: &str, predicate: P) -> Result<Token, ParserError>
+    fn expect_pred<P>(&mut self, message: &str, predicate: P) -> Result<Token, Error>
     where
         P: Fn(Token) -> bool,
     {
@@ -304,7 +303,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Expects the current token to be an identifier with any content.
-    fn expect_identifier(&mut self, message: &str) -> Result<Token, ParserError> {
+    fn expect_identifier(&mut self, message: &str) -> Result<Token, Error> {
         self.expect_pred(message, |t| matches!(t.kind, TokenKind::IdentLit(_)))
     }
 
