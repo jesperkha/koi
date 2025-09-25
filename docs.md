@@ -148,37 +148,103 @@ numbers := {1 as u8, 2, 3}
 len(numbers) // 3
 ```
 
-### Error handling
-
-You define error types with the `error` keyword. An error is at its core just a string; the error message. You create a new error instance by calling the error like a function and providing a message (or other parameters).
+### Structs
 
 ```go
-// Define new error type
-error FileNotFound
+struct Person {
+    name string
+    age  int
+}
 
-// Error with parameters and body.
-// Simply return the final message as if its a function.
-// Return type can be omitted as its always string
-error SyntaxError(what string, line int) {
-    return fmt.format("{}, line {}", what, line)
+func f() {
+    john := Person{ name: "John", age: 32 }
+    mary := Person{ "Mary", 49 }
+
+    println(john.name) // John
+}
+```
+
+### Tuples
+
+```go
+tuple Podium {
+    string
+    string
+    string
+}
+
+func f() {
+    p := Podium("John", "Mary", "Bob")
+
+    println(p.0) // John
+    println(p.1) // Mary
+    println(p.2) // Bob
+}
+```
+
+### Interfaces
+
+```go
+interface Named {
+    name() string
+}
+
+struct Person is Named {
+    name string
+
+    func name() string {
+        return self.name
+    }
+}
+
+// Using multiple interfaces
+struct File is Writer, Reader, Closer {
+    ...
+}
+```
+
+### Error interface
+
+```go
+// Special builtin interface
+interface Error {
+    error() string
 }
 ```
 
 ```go
-// Koi has a default error type called Error
-// It can be used for generic error messages
-actionFailed := Error("some action failed to complete")
+tuple SyntaxError is Error {
+    string
+    int
 
-notFound := FileNotFound("foo.txt")
+    func error() string {
+        return fmt("syntax error: {}, line {}", self.0, self.1)
+    }
+}
 
-illegalToken := SyntaxError("illegal token", 2) // illegal token, line 2
+func f() error {
+    throw SyntaxError("missing semicolon", 21)
+}
 ```
+
+```go
+// Builtin Err type
+tuple Err is Error {
+    string
+
+    func error() string {
+        return self.0
+    }
+}
+```
+
+### Throw and catch
 
 ```go
 // This function either returns a float or throws an error
 func divide(a float, b float) float | error {
     if b == 0 {
-        throw Error("cannot divide by 0")
+        throw Err("cannot divide by 0")
     }
     return a / b
 }
@@ -188,7 +254,7 @@ func example1() {
     // An error is raised here and we print it out
     // result with be given a default value (0 in this case as it is default for int)
     result := divide(3, 0) catch err {
-        fmt.println("oops, got error: {}", err)
+        println("oops, got error: {}", err)
     }
 }
 
@@ -354,3 +420,4 @@ func main() void {
                        // was conditionally passed to deleteUser
 }
 ``` -->
+
