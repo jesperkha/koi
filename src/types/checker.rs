@@ -115,9 +115,10 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         }
 
         // If this is main() assert return type is int and no params
+        // TODO: make actual none and void types and add getters to context
         if node.name.kind.to_string() == "main" {
             let int_id = self.ctx.primitive(PrimitiveType::I64);
-            if !self.ctx.equivalent(ret_type, int_id) {
+            if ret_type == void_type() || !self.ctx.equivalent(ret_type, int_id) {
                 return Err(self.error("main function must return i64", node));
             }
 
