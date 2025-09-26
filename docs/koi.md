@@ -200,6 +200,7 @@ func f() {
     acc := Account.new("James")
     acc.new() // error: 'new' is a meta method on 'Account' and
               // is not available to 'Account' instances
+}
 ```
 
 ### Tuples

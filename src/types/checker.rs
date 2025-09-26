@@ -2,7 +2,7 @@ use crate::{
     ast::{Ast, BlockNode, FuncNode, Node, ReturnNode, TypeNode, Visitable, Visitor},
     error::Error,
     token::{File, Token, TokenKind},
-    types::{PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type, void_type},
+    types::{PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
 };
 
 pub struct Checker<'a> {
@@ -92,7 +92,7 @@ type EvalResult = Result<TypeId, Error>;
 
 impl<'a> Visitor<EvalResult> for Checker<'a> {
     fn visit_func(&mut self, node: &FuncNode) -> EvalResult {
-        let mut ret_type = void_type();
+        let mut ret_type = self.ctx.void();
 
         // Evaluate return type if any
         if let Some(t) = &node.ret_type {
@@ -115,10 +115,9 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         }
 
         // If this is main() assert return type is int and no params
-        // TODO: make actual none and void types and add getters to context
         if node.name.kind.to_string() == "main" {
             let int_id = self.ctx.primitive(PrimitiveType::I64);
-            if ret_type == void_type() || !self.ctx.equivalent(ret_type, int_id) {
+            if !self.ctx.equivalent(ret_type, int_id) {
                 return Err(self.error("main function must return i64", node));
             }
 
@@ -153,7 +152,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         self.sym.pop_scope();
 
         // There was no return when there should have been
-        if !self.has_returned && ret_type != void_type() {
+        if !self.has_returned && ret_type != self.ctx.void() {
             return Err(self.error_token(
                 format!("missing return in function {}", node.name.kind).as_str(),
                 &node.body.rbrace,
@@ -194,10 +193,10 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         // If there is no return expression
         // Check if current scope has no return type
         } else {
-            if self.rtype != void_type() {
+            if self.rtype != self.ctx.void() {
                 Err(self.error_expected_token("incorrect return type", self.rtype, &node.kw))
             } else {
-                Ok(void_type())
+                Ok(self.ctx.void())
             }
         }
     }

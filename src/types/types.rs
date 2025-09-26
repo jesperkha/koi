@@ -24,6 +24,7 @@ pub struct Type {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EnumIter)]
 pub enum PrimitiveType {
+    Void,
     I8,
     I16,
     I32,
@@ -43,11 +44,6 @@ pub type TypeId = usize; // Unique identifier
 /// Get the id of invalid types (not assigned yet).
 pub fn no_type() -> TypeId {
     return usize::MAX;
-}
-
-/// Get the id of the void type (no type information).
-pub fn void_type() -> TypeId {
-    return usize::MAX - 1;
 }
 
 impl fmt::Display for PrimitiveType {
