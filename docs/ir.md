@@ -17,7 +17,7 @@ type Person
     i64
 end
 
-$0 = alloc Person
+$0 = Person
 $0.0 = const string "John"
 $0.1 = i64 33
 ```

@@ -135,8 +135,6 @@ animal :: "Dog" // Statically stored in data section of binary
 
 ### Arrays
 
-Arrays are stack allocated blocks of memory.
-
 ```rs
 // The type is inferred from the first element
 fruits := {"Banana", "Apple", "Orange"} // type is []string
@@ -157,11 +155,51 @@ struct Person {
 }
 
 func f() {
-    john := Person{ name: "John", age: 32 }
-    mary := Person{ "Mary", 49 }
-
+    john := Person{name: "John", age: 32}
     println(john.name) // John
 }
+```
+
+### Struct methods
+
+```go
+struct Dog {
+    name string
+
+    func bark() {
+        // self is a reference to this Dog instance
+        // and is available in all struct methods
+        println("woof woof my name is {}", self.name)
+    }
+}
+
+func f() {
+    buddy := Dog{name: "Buddy"}
+    buddy.bark() // woof woof my name is Buddy
+}
+```
+
+```go
+struct Account {
+    holder  string
+    balance f64
+    debt    f64
+
+    // Use the 'meta' keyword to make a method globally accessible through the
+    // Account type. The 'self' keyword is not available in meta methods.
+    meta func new(name string) Account {
+        return Account{
+            holder: name,
+            balance: 0,
+            debt: 0,
+        }
+    }
+}
+
+func f() {
+    acc := Account.new("James")
+    acc.new() // error: 'new' is a meta method on 'Account' and
+              // is not available to 'Account' instances
 ```
 
 ### Tuples
@@ -349,75 +387,3 @@ func free(ptr *void!) {
     end(ptr)
 }
 ```
-
-<!--
-```go
-// New user function returns a user pointer with the ! operator,
-// indicating that the caller now owns the memory.
-func newUser(id int, name string) *User! {
-    user := User{
-        .id = id
-        .name = name
-    }
-
-    // alloc() returns a type of *void!
-    return alloc(user)
-}
-
-func deleteUser(user *User!) void {
-    db.removeUser(user.id)
-    free(user)
-}
-
-func main() void {
-    user := newUser(1, "John")
-
-    // Owned memory must be freed in the scope it is allocated in
-    // unless the ownership is passed along somewhere else.
-
-    deleteUser(user!) // Commenting this line out will raise an error as
-                      // user must be freed in this scope or handed off.
-}
-```
-
-```go
-func a(user *User) void {
-    // ...
-}
-
-func b(user *User!) void {
-    // ...
-}
-
-func handleUser(user *User!) void {
-    a(user) // ok
-    b(user) // error: b requires ownership of the pointer
-
-    a(user!) // error: a does not accept ownership
-    b(user!) // ok
-
-    // error: handleUser owns user and must free it
-}
-```
-
-```go
-func newUser() *User! {
-    // ...
-}
-
-func deleteUser(user *User!) void {
-    // ...
-}
-
-func main() void {
-    user := newUser() // Owns user
-
-    if user.name == "John" {
-        deleteUser(user!)
-    }
-
-    println(user.name) // error: user cannot be accessed after ownership
-                       // was conditionally passed to deleteUser
-}
-``` -->
-
