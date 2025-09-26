@@ -28,10 +28,6 @@ impl fmt::Display for Error {
     }
 }
 
-// TODO: bug when having two functions and misspelling second kw as fun
-//       Line string is cropped by one letter
-//       Possible issue with Token position
-
 impl Error {
     pub fn new(msg: &str, from: &Token, to: &Token, file: &File) -> Error {
         Error {
