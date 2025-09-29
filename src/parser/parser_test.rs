@@ -11,7 +11,7 @@ fn parse_string(src: &str) -> ParserResult {
 
 fn compare_string(src: &str) {
     let ast = parse_string(src).expect("failed to parse valid source");
-    let pstr = Printer::new().to_string(ast);
+    let pstr = Printer::to_string(&ast);
 
     let input_lines: Vec<&str> = src.trim().split('\n').collect();
     let fmt_lines: Vec<&str> = pstr.trim().split('\n').collect();

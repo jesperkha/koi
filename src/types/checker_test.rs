@@ -16,8 +16,8 @@ fn assert_error(src: &str, msg: &str) {
     match check(src) {
         Ok(_) => panic!("expected error: '{}'", msg),
         Err(errs) => {
-            assert!(errs.len() == 1, "expected one error, got {}", errs.len());
-            assert_eq!(errs[0].message, msg);
+            assert!(errs.size() == 1, "expected one error, got {}", errs.size());
+            assert_eq!(errs.get(0).message, msg);
         }
     }
 }

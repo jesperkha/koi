@@ -1,6 +1,6 @@
 use crate::{
     ast::{Ast, BlockNode, FuncNode, Node, ReturnNode, TypeNode, Visitable, Visitor},
-    error::Error,
+    error::{Error, ErrorSet},
     token::{File, Token, TokenKind},
     types::{PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
 };
@@ -10,7 +10,7 @@ pub struct Checker<'a> {
     sym: SymTable,
     ast: &'a Ast,
     file: &'a File,
-    errs: Vec<Error>,
+    errs: ErrorSet,
 
     /// Return type in current scope
     rtype: TypeId,
@@ -19,7 +19,7 @@ pub struct Checker<'a> {
     has_returned: bool,
 }
 
-pub type CheckResult = Result<TypeContext, Vec<Error>>;
+pub type CheckResult = Result<TypeContext, ErrorSet>;
 
 impl<'a> Checker<'a> {
     pub fn check(ast: &'a Ast, file: &'a File) -> CheckResult {
@@ -28,18 +28,18 @@ impl<'a> Checker<'a> {
             file,
             ctx: TypeContext::new(),
             sym: SymTable::new(),
-            errs: Vec::new(),
+            errs: ErrorSet::new(),
             rtype: no_type(),
             has_returned: false,
         };
 
         for node in &s.ast.nodes {
             if let Err(err) = s.eval(node) {
-                s.errs.push(err);
+                s.errs.add(err);
             }
         }
 
-        if s.errs.is_empty() {
+        if s.errs.size() == 0 {
             Ok(s.ctx)
         } else {
             Err(s.errs)

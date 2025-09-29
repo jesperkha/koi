@@ -1,5 +1,4 @@
 use core::fmt;
-use std::process::exit;
 
 use crate::token::{File, Pos, Token};
 
@@ -13,6 +12,11 @@ pub struct Error {
     line_str: String,
     from: usize,
     length: usize,
+}
+
+#[derive(Debug)]
+pub struct ErrorSet {
+    errs: Vec<Error>,
 }
 
 impl fmt::Display for Error {
@@ -61,9 +65,29 @@ impl Error {
     }
 }
 
-pub fn print_and_exit(errs: Vec<Error>) {
-    for e in errs {
-        println!("{}", e);
+impl fmt::Display for ErrorSet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for err in &self.errs {
+            write!(f, "{}", err)?;
+        }
+        Ok(())
     }
-    exit(1);
+}
+
+impl ErrorSet {
+    pub fn new() -> Self {
+        Self { errs: Vec::new() }
+    }
+
+    pub fn add(&mut self, err: Error) {
+        self.errs.push(err);
+    }
+
+    pub fn size(&self) -> usize {
+        self.errs.len()
+    }
+
+    pub fn get(&self, i: usize) -> &Error {
+        &self.errs[i]
+    }
 }

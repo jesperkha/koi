@@ -9,25 +9,23 @@ pub struct Printer {
 }
 
 impl Printer {
-    pub fn new() -> Self {
-        Self {
+    /// Convert AST to printable format and print to stdout
+    pub fn print(ast: &Ast) {
+        println!("{}", Printer::to_string(ast));
+    }
+
+    /// Convert AST to printable format
+    pub fn to_string(ast: &Ast) -> String {
+        let mut s = Self {
             s: String::new(),
             indent: 0,
-        }
-    }
+        };
 
-    pub fn print(&mut self, ast: Ast) {
-        println!("{}", self.to_string(ast));
-    }
-
-    pub fn to_string(&mut self, ast: Ast) -> String {
-        self.s.clear();
-        self.indent = 0;
-        for node in ast.nodes {
-            node.accept(self);
+        for node in &ast.nodes {
+            node.accept(&mut s);
         }
 
-        self.s.clone()
+        s.s.clone()
     }
 
     fn token(&mut self, token: &Token) {
@@ -91,6 +89,8 @@ impl Visitor<()> for Printer {
             self.s.push_str("    ");
         }
         self.s.push('}');
+        self.s.push('\n');
+        self.s.push('\n');
     }
 
     fn visit_type(&mut self, node: &super::TypeNode) -> () {
