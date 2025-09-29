@@ -135,6 +135,8 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             return Err(self.error_token("already declared", &node.name));
         }
 
+        self.ctx.intern_node(node, func_id);
+
         // Set up function body
         self.sym.push_scope();
         self.rtype = ret_type;

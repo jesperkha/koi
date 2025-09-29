@@ -1,3 +1,5 @@
+use core::fmt;
+
 pub type ConstId = usize;
 
 pub enum Instruction {
@@ -13,14 +15,15 @@ pub struct FuncInst {
 }
 
 pub enum Value {
+    Void,
     Str(String),
     Float(f64),
     Int(i64),
-    Uint(u64),
     Bool(bool),
     Const(ConstId),
 }
 
+#[derive(Debug)]
 pub enum Primitive {
     Void,
     F32,
@@ -36,9 +39,10 @@ pub enum Primitive {
     Uintptr(Box<Type>),
 }
 
+#[derive(Debug)]
 pub enum Type {
     Primitive(Primitive),
-    Object(Vec<Type>, usize), // List of fields and total size (not aligned)
+    Object(String, Vec<Type>, usize), // List of fields and total size (not aligned)
 }
 
 impl Type {
@@ -52,7 +56,51 @@ impl Type {
                 Primitive::F32 | Primitive::I32 | Primitive::U32 => 4,
                 Primitive::F64 | Primitive::U64 | Primitive::I64 | Primitive::Uintptr(_) => 8,
             },
-            Type::Object(_, size) => *size,
+            Type::Object(_, _, size) => *size,
+        }
+    }
+}
+
+impl fmt::Display for Instruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Instruction::Store(var, ty, value) => write!(f, "${} {} = {}", var, ty, value),
+            Instruction::Return(ty, value) => write!(f, "ret {} {}", ty, value),
+            Instruction::Func(func) => {
+                write!(
+                    f,
+                    "func {}({}) {}",
+                    func.name,
+                    func.params
+                        .iter()
+                        .map(Type::to_string)
+                        .collect::<Vec<String>>()
+                        .join(", "),
+                    func.ret,
+                )
+            }
+        }
+    }
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::Primitive(p) => write!(f, "{}", format!("{:?}", p).to_lowercase()),
+            Type::Object(name, _, _) => write!(f, "{}", name),
+        }
+    }
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Void => Ok(()),
+            Value::Str(s) => write!(f, "{}", s),
+            Value::Int(s) => write!(f, "{}", s),
+            Value::Float(s) => write!(f, "{}", s),
+            Value::Bool(s) => write!(f, "{}", s),
+            Value::Const(s) => write!(f, "${}", s),
         }
     }
 }

@@ -111,6 +111,14 @@ impl TypeContext {
         }
     }
 
+    /// Resolve to base type, removes aliasing and unique types.
+    pub fn deep_resolve(&self, id: TypeId) -> TypeId {
+        match &self.lookup(id).kind {
+            TypeKind::Alias(target) | TypeKind::Unique(target) => self.resolve(*target),
+            _ => id,
+        }
+    }
+
     /// Get a types internal kind. Resolves array item types, pointer target
     /// types, and unique types underlying kind. Do not use for general type comparisons.
     pub fn inner_kind(&self, id: TypeId) -> TypeId {

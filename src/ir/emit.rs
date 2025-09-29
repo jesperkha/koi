@@ -1,33 +1,63 @@
 use crate::{
-    ast::{Ast, BlockNode, FuncNode, ReturnNode, TypeNode, Visitor},
-    error::Error,
-    ir::{FuncInst, Instruction, Type, Value},
-    token::Token,
-    types::{TypeContext, TypeId, TypeKind},
+    ast::{Ast, BlockNode, Expr, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
+    error::ErrorSet,
+    ir::{FuncInst, Instruction, Type, Value, ir},
+    token::{Token, TokenKind},
+    types::{self, TypeContext, TypeId, TypeKind},
 };
 
 pub struct IR<'a> {
-    ast: &'a Ast,
     ctx: &'a TypeContext,
+    errs: ErrorSet,
+    ins: Vec<Instruction>,
 }
 
-impl<'a> IR<'a> {
-    pub fn emit(ast: &'a Ast, ctx: &'a TypeContext) -> Result<Vec<Instruction>, Vec<Error>> {
-        todo!()
-    }
+pub type IRResult = Result<Vec<Instruction>, ErrorSet>;
 
-    fn visit_literal(&self) -> Value {
-        todo!()
+impl<'a> IR<'a> {
+    pub fn emit(ast: &'a Ast, ctx: &'a TypeContext) -> IRResult {
+        let mut s = Self {
+            ctx,
+            errs: ErrorSet::new(),
+            ins: Vec::new(),
+        };
+
+        ast.walk(&mut s);
+        if s.errs.size() == 0 {
+            Ok(s.ins)
+        } else {
+            Err(s.errs)
+        }
     }
 
     /// Convert semantic type to IR type, lowering to primitive or union type.
     fn semtype_to_irtype(&self, id: TypeId) -> Type {
-        todo!()
+        let id = self.ctx.deep_resolve(id);
+        let ty = self.ctx.lookup(id);
+
+        match &ty.kind {
+            TypeKind::Primitive(p) => Type::Primitive(type_primitive_to_ir_primitive(&p)),
+            _ => panic!("unhandled kind {:?}", ty.kind),
+        }
+    }
+
+    fn evaluate(&self, expr: &Expr) -> Value {
+        match expr {
+            Expr::Literal(token) => match &token.kind {
+                TokenKind::True => Value::Bool(true),
+                TokenKind::False => Value::Bool(false),
+                TokenKind::IntLit(n) => Value::Int(*n),
+                TokenKind::FloatLit(n) => Value::Float(*n),
+                TokenKind::StringLit(n) => Value::Str(n.clone()),
+                TokenKind::CharLit(n) => Value::Int((*n).into()),
+                _ => panic!("unhandled token kind in evaluate: {:?}", token.kind),
+            },
+        }
     }
 }
 
-impl<'a> Visitor<Result<Instruction, Error>> for IR<'a> {
-    fn visit_func(&mut self, node: &FuncNode) -> Result<Instruction, Error> {
+impl<'a> Visitor<()> for IR<'a> {
+    fn visit_func(&mut self, node: &FuncNode) {
         let name = node.name.kind.to_string(); // TODO: store as string??
         let func_type = self.ctx.lookup(self.ctx.get_node(node));
 
@@ -42,22 +72,54 @@ impl<'a> Visitor<Result<Instruction, Error>> for IR<'a> {
             .map(|ty| self.semtype_to_irtype(*ty))
             .collect();
 
-        Ok(Instruction::Func(FuncInst { name, params, ret }))
+        let func = Instruction::Func(FuncInst { name, params, ret });
+        self.ins.push(func);
+
+        self.visit_block(&node.body);
     }
 
-    fn visit_block(&mut self, node: &BlockNode) -> Result<Instruction, Error> {
-        todo!()
+    fn visit_block(&mut self, node: &BlockNode) {
+        for stmt in &node.stmts {
+            stmt.accept(self);
+        }
     }
 
-    fn visit_return(&mut self, node: &ReturnNode) -> Result<Instruction, Error> {
-        todo!()
+    fn visit_return(&mut self, node: &ReturnNode) {
+        let id = self.ctx.get_node(node);
+        let ty = self.semtype_to_irtype(id);
+        let val = node
+            .expr
+            .as_ref()
+            .map_or(Value::Void, |expr| self.evaluate(&expr));
+
+        let ret = Instruction::Return(ty, val);
+        self.ins.push(ret);
     }
 
-    fn visit_literal(&mut self, _: &Token) -> Result<Instruction, Error> {
+    fn visit_literal(&mut self, _: &Token) {
         panic!("unused method")
     }
 
-    fn visit_type(&mut self, _: &TypeNode) -> Result<Instruction, Error> {
+    fn visit_type(&mut self, _: &TypeNode) {
         panic!("unused method")
+    }
+}
+
+fn type_primitive_to_ir_primitive(p: &types::PrimitiveType) -> ir::Primitive {
+    // TODO: simpler way or keep? will likely never change
+    match p {
+        types::PrimitiveType::Void => ir::Primitive::Void,
+        types::PrimitiveType::I8 => ir::Primitive::I8,
+        types::PrimitiveType::I16 => ir::Primitive::I16,
+        types::PrimitiveType::I32 => ir::Primitive::I32,
+        types::PrimitiveType::I64 => ir::Primitive::I64,
+        types::PrimitiveType::Byte | types::PrimitiveType::Bool | types::PrimitiveType::U8 => {
+            ir::Primitive::U8
+        }
+        types::PrimitiveType::U16 => ir::Primitive::U16,
+        types::PrimitiveType::U32 => ir::Primitive::U32,
+        types::PrimitiveType::U64 => ir::Primitive::U64,
+        types::PrimitiveType::F32 => ir::Primitive::F32,
+        types::PrimitiveType::F64 => ir::Primitive::F64,
     }
 }

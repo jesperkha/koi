@@ -48,7 +48,7 @@ impl Ast {
     }
 
     /// Walks the AST and applites the visitor to each node.
-    pub fn walk<R>(&mut self, visitor: &mut dyn Visitor<R>) {
+    pub fn walk<R>(&self, visitor: &mut dyn Visitor<R>) {
         for node in &self.nodes {
             node.accept(visitor);
         }
