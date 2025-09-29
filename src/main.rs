@@ -1,6 +1,13 @@
 use std::process::exit;
 
-use koi::{error::ErrorSet, ir::IR, parser::Parser, scanner::Scanner, token::File, types::Checker};
+use koi::{
+    error::ErrorSet,
+    ir::{IR, print_ir},
+    parser::Parser,
+    scanner::Scanner,
+    token::File,
+    types::Checker,
+};
 
 fn print_and_exit(e: ErrorSet) {
     println!("{}", e);
@@ -15,9 +22,7 @@ fn main() {
     let ctx = Checker::check(&ast, &file).map_err(print_and_exit).unwrap();
     let ir = IR::emit(&ast, &ctx).map_err(print_and_exit).unwrap();
 
-    for i in ir {
-        println!("{}", i);
-    }
+    print_ir(ir);
 
     // Printer::print(&ast);
 }
