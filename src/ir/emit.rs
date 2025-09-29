@@ -1,7 +1,7 @@
 use crate::{
     ast::{Ast, BlockNode, Expr, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
     error::ErrorSet,
-    ir::{FuncInst, Instruction, Type, Value, ir},
+    ir::{FuncInst, Ins, Type, Value, ir},
     token::{Token, TokenKind},
     types::{self, TypeContext, TypeId, TypeKind},
 };
@@ -9,10 +9,10 @@ use crate::{
 pub struct IR<'a> {
     ctx: &'a TypeContext,
     errs: ErrorSet,
-    ins: Vec<Instruction>,
+    ins: Vec<Ins>,
 }
 
-pub type IRResult = Result<Vec<Instruction>, ErrorSet>;
+pub type IRResult = Result<Vec<Ins>, ErrorSet>;
 
 impl<'a> IR<'a> {
     pub fn emit(ast: &'a Ast, ctx: &'a TypeContext) -> IRResult {
@@ -72,7 +72,7 @@ impl<'a> Visitor<()> for IR<'a> {
             .map(|ty| self.semtype_to_irtype(*ty))
             .collect();
 
-        let func = Instruction::Func(FuncInst { name, params, ret });
+        let func = Ins::Func(FuncInst { name, params, ret });
         self.ins.push(func);
 
         self.visit_block(&node.body);
@@ -92,7 +92,7 @@ impl<'a> Visitor<()> for IR<'a> {
             .as_ref()
             .map_or(Value::Void, |expr| self.evaluate(&expr));
 
-        let ret = Instruction::Return(ty, val);
+        let ret = Ins::Return(ty, val);
         self.ins.push(ret);
     }
 

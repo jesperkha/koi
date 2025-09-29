@@ -2,7 +2,7 @@ use core::fmt;
 
 pub type ConstId = usize;
 
-pub enum Instruction {
+pub enum Ins {
     Store(ConstId, Type, Value),
     Return(Type, Value),
     Func(FuncInst),
@@ -61,12 +61,12 @@ impl Type {
     }
 }
 
-impl fmt::Display for Instruction {
+impl fmt::Display for Ins {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Instruction::Store(var, ty, value) => write!(f, "${} {} = {}", var, ty, value),
-            Instruction::Return(ty, value) => write!(f, "ret {} {}", ty, value),
-            Instruction::Func(func) => {
+            Ins::Store(var, ty, value) => write!(f, "${} {} = {}", var, ty, value),
+            Ins::Return(ty, value) => write!(f, "ret {} {}", ty, value),
+            Ins::Func(func) => {
                 write!(
                     f,
                     "func {}({}) {}",
