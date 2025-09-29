@@ -8,12 +8,13 @@ pub enum Instruction {
 
 pub struct FuncInst {
     pub name: String,
-    pub args: Vec<Type>,
+    pub params: Vec<Type>,
     pub ret: Type,
 }
 
 pub enum Value {
     Str(String),
+    Float(f64),
     Int(i64),
     Uint(u64),
     Bool(bool),
