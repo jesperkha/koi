@@ -19,7 +19,6 @@ pub enum Value {
     Str(String),
     Float(f64),
     Int(i64),
-    Bool(bool),
     Const(ConstId),
 }
 
@@ -99,7 +98,6 @@ impl fmt::Display for Value {
             Value::Str(s) => write!(f, "{}", s),
             Value::Int(s) => write!(f, "{}", s),
             Value::Float(s) => write!(f, "{}", s),
-            Value::Bool(s) => write!(f, "{}", s),
             Value::Const(s) => write!(f, "${}", s),
         }
     }

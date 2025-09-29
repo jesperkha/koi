@@ -44,8 +44,8 @@ impl<'a> IR<'a> {
     fn evaluate(&self, expr: &Expr) -> Value {
         match expr {
             Expr::Literal(token) => match &token.kind {
-                TokenKind::True => Value::Bool(true),
-                TokenKind::False => Value::Bool(false),
+                TokenKind::True => Value::Int(1),
+                TokenKind::False => Value::Int(0),
                 TokenKind::IntLit(n) => Value::Int(*n),
                 TokenKind::FloatLit(n) => Value::Float(*n),
                 TokenKind::StringLit(n) => Value::Str(n.clone()),

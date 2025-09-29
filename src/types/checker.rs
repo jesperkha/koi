@@ -206,6 +206,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
     fn visit_literal(&mut self, node: &Token) -> EvalResult {
         match &node.kind {
             TokenKind::IntLit(_) => Ok(self.ctx.primitive(PrimitiveType::I64)),
+            TokenKind::FloatLit(_) => Ok(self.ctx.primitive(PrimitiveType::F64)),
             TokenKind::True | TokenKind::False => Ok(self.ctx.primitive(PrimitiveType::Bool)),
             TokenKind::IdentLit(name) => self
                 .sym
