@@ -1,4 +1,5 @@
 use core::fmt;
+use std::process::exit;
 
 use crate::token::{File, Pos, Token};
 
@@ -58,4 +59,11 @@ impl Error {
             length: length,
         }
     }
+}
+
+pub fn print_and_exit(errs: Vec<Error>) {
+    for e in errs {
+        println!("{}", e);
+    }
+    exit(1);
 }
