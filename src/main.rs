@@ -1,27 +1,28 @@
-use koi::{ast::Printer, parser::Parser, scanner::Scanner, token::File, types::Checker};
+use std::process::exit;
+
+use koi::{
+    error::ErrorSet,
+    ir::{IR, print_ir},
+    parser::Parser,
+    scanner::Scanner,
+    token::File,
+    types::Checker,
+};
+
+fn print_and_exit(e: ErrorSet) {
+    println!("{}", e);
+    exit(1);
+}
 
 fn main() {
     let file = File::new_from_file("main.koi");
     let toks = Scanner::scan(&file).expect("Failed to scan file");
 
-    let ast = Parser::parse(&file, toks)
-        .map_err(|errors| {
-            for error in errors {
-                println!("{}", error);
-            }
-            std::process::exit(1);
-        })
-        .unwrap();
+    let ast = Parser::parse(&file, toks).map_err(print_and_exit).unwrap();
+    let ctx = Checker::check(&ast, &file).map_err(print_and_exit).unwrap();
+    let ir = IR::emit(&ast, &ctx).map_err(print_and_exit).unwrap();
 
-    Checker::check(&ast, &file).map_or_else(
-        |errs| {
-            for err in errs {
-                println!("{}", err)
-            }
-        },
-        |_| println!("check ok"),
-    );
+    print_ir(ir);
 
-    let mut printer = Printer::new();
-    printer.print(ast);
+    // Printer::print(&ast);
 }

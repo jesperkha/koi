@@ -63,7 +63,12 @@ impl File {
     pub fn line(&self, row: usize) -> &str {
         // Tokens get their positions from the actual file
         // A failed assert here is a bug
-        assert!(row < self.lines.len(), "row out of bounds");
+        assert!(
+            row < self.lines.len(),
+            "row out of bounds: {} of {}",
+            row,
+            self.lines.len()
+        );
 
         let start = self.lines[row];
         let end = File::find_end_of_line(&self.src, start);
@@ -80,6 +85,10 @@ impl File {
     /// Returns the position of the character before the newline,
     /// or last character in source if none is found.
     fn find_end_of_line(src: &[u8], offset: usize) -> usize {
+        if src[offset] == b'\n' {
+            return if offset == 0 { 0 } else { offset - 1 };
+        }
+
         src[offset..]
             .iter()
             .position(|&c| c == b'\n')

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use strum::IntoEnumIterator;
 
 use crate::{
-    ast::{Node, NodeId},
+    ast::{Node, NodeId, no_type},
     types::{PrimitiveType, Type, TypeId, TypeKind},
 };
 
@@ -96,7 +96,8 @@ impl TypeContext {
 
     /// Get the full type information for a given type id.
     pub fn lookup(&self, id: TypeId) -> &Type {
-        // Illegal state if id is not known
+        // Illegal state if id is noType or not known
+        assert_ne!(id, no_type());
         assert!(id <= self.types.len());
         &self.types[id]
     }
@@ -106,6 +107,14 @@ impl TypeContext {
     pub fn resolve(&self, id: TypeId) -> TypeId {
         match &self.lookup(id).kind {
             TypeKind::Alias(target) => self.resolve(*target),
+            _ => id,
+        }
+    }
+
+    /// Resolve to base type, removes aliasing and unique types.
+    pub fn deep_resolve(&self, id: TypeId) -> TypeId {
+        match &self.lookup(id).kind {
+            TypeKind::Alias(target) | TypeKind::Unique(target) => self.resolve(*target),
             _ => id,
         }
     }
@@ -124,5 +133,10 @@ impl TypeContext {
     /// Tests if two types are equivalent (resolves any aliasing).
     pub fn equivalent(&self, a: TypeId, b: TypeId) -> bool {
         self.resolve(a) == self.resolve(b)
+    }
+
+    /// Shorthand for getting void type
+    pub fn void(&mut self) -> TypeId {
+        self.primitive(PrimitiveType::Void)
     }
 }

@@ -14,6 +14,11 @@ pub struct Error {
     length: usize,
 }
 
+#[derive(Debug)]
+pub struct ErrorSet {
+    errs: Vec<Error>,
+}
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let err = format!(
@@ -27,10 +32,6 @@ impl fmt::Display for Error {
         write!(f, "{}", err)
     }
 }
-
-// TODO: bug when having two functions and misspelling second kw as fun
-//       Line string is cropped by one letter
-//       Possible issue with Token position
 
 impl Error {
     pub fn new(msg: &str, from: &Token, to: &Token, file: &File) -> Error {
@@ -61,5 +62,32 @@ impl Error {
             from: from.col,
             length: length,
         }
+    }
+}
+
+impl fmt::Display for ErrorSet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for err in &self.errs {
+            write!(f, "{}", err)?;
+        }
+        Ok(())
+    }
+}
+
+impl ErrorSet {
+    pub fn new() -> Self {
+        Self { errs: Vec::new() }
+    }
+
+    pub fn add(&mut self, err: Error) {
+        self.errs.push(err);
+    }
+
+    pub fn size(&self) -> usize {
+        self.errs.len()
+    }
+
+    pub fn get(&self, i: usize) -> &Error {
+        &self.errs[i]
     }
 }

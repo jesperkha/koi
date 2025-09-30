@@ -1,11 +1,11 @@
 use crate::{
     ast::{Ast, BlockNode, Decl, Expr, Field, FuncNode, ReturnNode, Stmt, TypeNode, no_type},
-    error::Error,
+    error::{Error, ErrorSet},
     token::{File, Token, TokenKind},
 };
 
 pub struct Parser<'a> {
-    errors: Vec<Error>,
+    errs: ErrorSet,
     tokens: Vec<Token>,
     pos: usize,
     file: &'a File,
@@ -21,12 +21,12 @@ pub struct Parser<'a> {
     // base_pos: usize,
 }
 
-pub type ParserResult = Result<Ast, Vec<Error>>;
+pub type ParserResult = Result<Ast, ErrorSet>;
 
 impl<'a> Parser<'a> {
     pub fn parse(file: &'a File, tokens: Vec<Token>) -> ParserResult {
         let mut s = Self {
-            errors: Vec::new(),
+            errs: ErrorSet::new(),
             tokens,
             file,
             pos: 0,
@@ -40,14 +40,14 @@ impl<'a> Parser<'a> {
                 Ok(decl) => ast.add_node(decl),
                 Err(err) => {
                     // TODO: add panic mode to not return early on error
-                    s.errors.push(err);
-                    return Err(s.errors);
+                    s.errs.add(err);
+                    return Err(s.errs);
                 }
             }
         }
 
-        if s.errors.len() > 0 {
-            return Err(s.errors.clone());
+        if s.errs.size() > 0 {
+            return Err(s.errs);
         }
 
         Ok(ast)

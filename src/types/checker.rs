@@ -1,8 +1,8 @@
 use crate::{
     ast::{Ast, BlockNode, FuncNode, Node, ReturnNode, TypeNode, Visitable, Visitor},
-    error::Error,
+    error::{Error, ErrorSet},
     token::{File, Token, TokenKind},
-    types::{PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type, void_type},
+    types::{PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
 };
 
 pub struct Checker<'a> {
@@ -10,7 +10,7 @@ pub struct Checker<'a> {
     sym: SymTable,
     ast: &'a Ast,
     file: &'a File,
-    errs: Vec<Error>,
+    errs: ErrorSet,
 
     /// Return type in current scope
     rtype: TypeId,
@@ -19,7 +19,7 @@ pub struct Checker<'a> {
     has_returned: bool,
 }
 
-pub type CheckResult = Result<TypeContext, Vec<Error>>;
+pub type CheckResult = Result<TypeContext, ErrorSet>;
 
 impl<'a> Checker<'a> {
     pub fn check(ast: &'a Ast, file: &'a File) -> CheckResult {
@@ -28,18 +28,18 @@ impl<'a> Checker<'a> {
             file,
             ctx: TypeContext::new(),
             sym: SymTable::new(),
-            errs: Vec::new(),
+            errs: ErrorSet::new(),
             rtype: no_type(),
             has_returned: false,
         };
 
         for node in &s.ast.nodes {
             if let Err(err) = s.eval(node) {
-                s.errs.push(err);
+                s.errs.add(err);
             }
         }
 
-        if s.errs.is_empty() {
+        if s.errs.size() == 0 {
             Ok(s.ctx)
         } else {
             Err(s.errs)
@@ -92,7 +92,7 @@ type EvalResult = Result<TypeId, Error>;
 
 impl<'a> Visitor<EvalResult> for Checker<'a> {
     fn visit_func(&mut self, node: &FuncNode) -> EvalResult {
-        let mut ret_type = void_type();
+        let mut ret_type = self.ctx.void();
 
         // Evaluate return type if any
         if let Some(t) = &node.ret_type {
@@ -135,6 +135,8 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             return Err(self.error_token("already declared", &node.name));
         }
 
+        self.ctx.intern_node(node, func_id);
+
         // Set up function body
         self.sym.push_scope();
         self.rtype = ret_type;
@@ -152,7 +154,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         self.sym.pop_scope();
 
         // There was no return when there should have been
-        if !self.has_returned && ret_type != void_type() {
+        if !self.has_returned && ret_type != self.ctx.void() {
             return Err(self.error_token(
                 format!("missing return in function {}", node.name.kind).as_str(),
                 &node.body.rbrace,
@@ -193,10 +195,10 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         // If there is no return expression
         // Check if current scope has no return type
         } else {
-            if self.rtype != void_type() {
+            if self.rtype != self.ctx.void() {
                 Err(self.error_expected_token("incorrect return type", self.rtype, &node.kw))
             } else {
-                Ok(void_type())
+                Ok(self.ctx.void())
             }
         }
     }
@@ -204,6 +206,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
     fn visit_literal(&mut self, node: &Token) -> EvalResult {
         match &node.kind {
             TokenKind::IntLit(_) => Ok(self.ctx.primitive(PrimitiveType::I64)),
+            TokenKind::FloatLit(_) => Ok(self.ctx.primitive(PrimitiveType::F64)),
             TokenKind::True | TokenKind::False => Ok(self.ctx.primitive(PrimitiveType::Bool)),
             TokenKind::IdentLit(name) => self
                 .sym
