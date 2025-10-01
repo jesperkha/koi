@@ -79,6 +79,10 @@ impl ErrorSet {
         Self { errs: Vec::new() }
     }
 
+    pub fn new_with(err: Error) -> Self {
+        Self { errs: vec![err] }
+    }
+
     pub fn add(&mut self, err: Error) {
         self.errs.push(err);
     }

@@ -11,6 +11,8 @@ pub struct Scanner<'a> {
     line_begin: usize,
 }
 
+// TODO: make use of error set, skip to next newline on error to recover
+
 pub type ScannerResult = Result<Vec<Token>, Error>;
 
 impl<'a> Scanner<'a> {
