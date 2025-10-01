@@ -11,8 +11,7 @@ use super::*;
 
 fn expect_equal(src: &str, expect: &str) {
     let file = File::new_test_file(src);
-    let toks = Scanner::scan(&file).unwrap_or_else(|err| panic!("expected no error: {}", err));
-
+    let toks = must(Scanner::scan(&file));
     let ast = must(Parser::parse(&file, toks));
     let ctx = must(Checker::check(&ast, &file));
     let ir = must(IR::emit(&ast, &ctx));

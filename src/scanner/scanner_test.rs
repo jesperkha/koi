@@ -1,7 +1,10 @@
 use std::vec;
 
 use super::*;
-use crate::token::{File, Token, TokenKind};
+use crate::{
+    token::{File, Token, TokenKind},
+    util::must,
+};
 
 fn scan_source(s: &str) -> ScannerResult {
     let file = File::new_test_file(s);
@@ -12,7 +15,7 @@ fn scan_and_then<P>(src: &str, pred: P)
 where
     P: Fn(Vec<Token>),
 {
-    let _ = scan_source(src).map_err(|e| panic!("{:?}", e)).map(pred);
+    pred(must(scan_source(src)));
 }
 
 fn scan_and_error(src: &str) {

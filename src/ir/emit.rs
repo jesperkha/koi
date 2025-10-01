@@ -106,7 +106,6 @@ impl<'a> Visitor<()> for IR<'a> {
 }
 
 fn type_primitive_to_ir_primitive(p: &types::PrimitiveType) -> ir::Primitive {
-    // TODO: simpler way or keep? will likely never change
     match p {
         types::PrimitiveType::Void => ir::Primitive::Void,
         types::PrimitiveType::I8 => ir::Primitive::I8,

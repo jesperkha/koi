@@ -4,8 +4,9 @@ use super::*;
 
 fn check(input: &str) -> CheckResult {
     let file = File::new_test_file(input);
-    let toks = Scanner::scan(&file).unwrap();
-    Parser::parse(&file, toks).and_then(|ast| Checker::check(&ast, &file))
+    Scanner::scan(&file)
+        .and_then(|toks| Parser::parse(&file, toks))
+        .and_then(|ast| Checker::check(&ast, &file))
 }
 
 fn assert_pass(src: &str) -> TypeContext {
