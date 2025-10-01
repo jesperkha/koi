@@ -1,4 +1,4 @@
-use crate::{parser::Parser, scanner::Scanner, token::File};
+use crate::{parser::Parser, scanner::Scanner, token::File, util::must};
 
 use super::*;
 
@@ -8,8 +8,8 @@ fn check(input: &str) -> CheckResult {
     Parser::parse(&file, toks).and_then(|ast| Checker::check(&ast, &file))
 }
 
-fn assert_pass(src: &str) {
-    check(src).expect("expected no errors");
+fn assert_pass(src: &str) -> TypeContext {
+    must(check(src))
 }
 
 fn assert_error(src: &str, msg: &str) {

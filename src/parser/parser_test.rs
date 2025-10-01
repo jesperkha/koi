@@ -1,29 +1,18 @@
-use super::*;
 use crate::ast::Printer;
+use crate::parser::Parser;
 use crate::scanner::Scanner;
 use crate::token::File;
-
-fn parse_string(src: &str) -> ParserResult {
-    let file = File::new_test_file(src);
-    let res = Scanner::scan(&file);
-    Parser::parse(&file, res.unwrap())
-}
+use crate::util::{compare_string_lines_or_panic, must};
 
 fn compare_string(src: &str) {
-    let ast = parse_string(src).expect("failed to parse valid source");
-    let pstr = Printer::to_string(&ast);
-
-    let input_lines: Vec<&str> = src.trim().split('\n').collect();
-    let fmt_lines: Vec<&str> = pstr.trim().split('\n').collect();
-    assert_eq!(
-        input_lines.len(),
-        fmt_lines.len(),
-        "number of lines must be equal"
+    let file = File::new_test_file(src);
+    let ast = Scanner::scan(&file).map_or_else(
+        |err| panic!("unexpected error: {}", err),
+        |res| must(Parser::parse(&file, res)),
     );
 
-    for (i, line) in input_lines.iter().enumerate() {
-        assert_eq!(line.trim(), fmt_lines.get(i).unwrap().trim());
-    }
+    let pstr = Printer::to_string(&ast);
+    compare_string_lines_or_panic(pstr, src.to_string());
 }
 
 #[test]

@@ -1,33 +1,24 @@
 use crate::{
-    ir::print::ir_to_string, parser::Parser, scanner::Scanner, token::File, types::Checker,
+    ir::print::ir_to_string,
+    parser::Parser,
+    scanner::Scanner,
+    token::File,
+    types::Checker,
+    util::{compare_string_lines_or_panic, must},
 };
 
 use super::*;
 
-// TODO: testing suite to not rewrite helpers all the time
-
 fn expect_equal(src: &str, expect: &str) {
     let file = File::new_test_file(src);
-    let toks = Scanner::scan(&file).unwrap();
-    let ast = Parser::parse(&file, toks).unwrap();
-    let ctx = Checker::check(&ast, &file).unwrap();
-    let ir = IR::emit(&ast, &ctx)
-        .map_err(|err| panic!("{}", err))
-        .unwrap();
+    let toks = Scanner::scan(&file).unwrap_or_else(|err| panic!("expected no error: {}", err));
+
+    let ast = must(Parser::parse(&file, toks));
+    let ctx = must(Checker::check(&ast, &file));
+    let ir = must(IR::emit(&ast, &ctx));
 
     let ir_str = ir_to_string(ir);
-    let input_lines: Vec<&str> = expect.trim().split('\n').collect();
-    let fmt_lines: Vec<&str> = ir_str.trim().split('\n').collect();
-
-    assert_eq!(
-        input_lines.len(),
-        fmt_lines.len(),
-        "number of lines must be equal"
-    );
-
-    for (i, line) in input_lines.iter().enumerate() {
-        assert_eq!(line.trim(), fmt_lines.get(i).unwrap().trim());
-    }
+    compare_string_lines_or_panic(ir_str, expect.to_string());
 }
 
 #[test]
