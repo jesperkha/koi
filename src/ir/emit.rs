@@ -10,7 +10,12 @@ pub struct IR<'a> {
     ctx: &'a TypeContext,
     errs: ErrorSet,
     ins: Vec<Ins>,
+
+    // Track if void functions have returned or not to add explicit return
+    has_returned: bool,
 }
+
+// TODO: dead code elimination (warning)
 
 pub type IRResult = Result<Vec<Ins>, ErrorSet>;
 
@@ -20,6 +25,7 @@ impl<'a> IR<'a> {
             ctx,
             errs: ErrorSet::new(),
             ins: Vec::new(),
+            has_returned: false,
         };
 
         ast.walk(&mut s);
@@ -58,7 +64,7 @@ impl<'a> IR<'a> {
 
 impl<'a> Visitor<()> for IR<'a> {
     fn visit_func(&mut self, node: &FuncNode) {
-        let name = node.name.kind.to_string(); // TODO: store as string??
+        let name = node.name.to_string();
         let func_type = self.ctx.lookup(self.ctx.get_node(node));
 
         let TypeKind::Function(ref param_ids, ret_id) = func_type.kind else {
@@ -75,7 +81,16 @@ impl<'a> Visitor<()> for IR<'a> {
         let func = Ins::Func(FuncInst { name, params, ret });
         self.ins.push(func);
 
+        self.has_returned = false;
         self.visit_block(&node.body);
+
+        // Add explicit void return for non-returing functions
+        if !self.has_returned {
+            self.ins.push(Ins::Return(
+                Type::Primitive(ir::Primitive::Void),
+                Value::Void,
+            ));
+        }
     }
 
     fn visit_block(&mut self, node: &BlockNode) {
@@ -94,6 +109,7 @@ impl<'a> Visitor<()> for IR<'a> {
 
         let ret = Ins::Return(ty, val);
         self.ins.push(ret);
+        self.has_returned = true;
     }
 
     fn visit_literal(&mut self, _: &Token) {
@@ -106,7 +122,6 @@ impl<'a> Visitor<()> for IR<'a> {
 }
 
 fn type_primitive_to_ir_primitive(p: &types::PrimitiveType) -> ir::Primitive {
-    // TODO: simpler way or keep? will likely never change
     match p {
         types::PrimitiveType::Void => ir::Primitive::Void,
         types::PrimitiveType::I8 => ir::Primitive::I8,

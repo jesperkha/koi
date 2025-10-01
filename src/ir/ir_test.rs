@@ -11,8 +11,7 @@ use super::*;
 
 fn expect_equal(src: &str, expect: &str) {
     let file = File::new_test_file(src);
-    let toks = Scanner::scan(&file).unwrap_or_else(|err| panic!("expected no error: {}", err));
-
+    let toks = must(Scanner::scan(&file));
     let ast = must(Parser::parse(&file, toks));
     let ctx = must(Checker::check(&ast, &file));
     let ir = must(IR::emit(&ast, &ctx));
@@ -27,6 +26,18 @@ fn test_function_empty_return() {
         r#"
         func f() {
             return
+        }
+    "#,
+        r#"
+        func f() void
+        {
+            ret void
+        }
+        "#,
+    );
+    expect_equal(
+        r#"
+        func f() {
         }
     "#,
         r#"

@@ -1,5 +1,5 @@
 use crate::{
-    error::Error,
+    error::{Error, ErrorSet},
     token::{File, Pos, Token, TokenKind, str_to_token},
 };
 
@@ -9,11 +9,10 @@ pub struct Scanner<'a> {
     row: usize,
     col: usize,
     line_begin: usize,
+    errs: ErrorSet,
 }
 
-// TODO: make use of error set, skip to next newline on error to recover
-
-pub type ScannerResult = Result<Vec<Token>, Error>;
+pub type ScannerResult = Result<Vec<Token>, ErrorSet>;
 
 impl<'a> Scanner<'a> {
     pub fn scan(file: &'_ File) -> ScannerResult {
@@ -23,12 +22,30 @@ impl<'a> Scanner<'a> {
             col: 0,
             row: 0,
             line_begin: 0,
+            errs: ErrorSet::new(),
         };
 
-        s.scan_all()
+        while !s.eof() {
+            match s.scan_all() {
+                // If ok and we did not encounter errors before, return result
+                // Otherwise ignore result as one or more errors have been raised
+                Ok(toks) => {
+                    if s.errs.size() == 0 {
+                        return Ok(toks);
+                    }
+                }
+                // If error add to set and skip to next 'safe' spot
+                Err(err) => {
+                    s.errs.add(err);
+                    s.pos += s.peek_while(|p| !Scanner::is_whitespace(p))
+                }
+            }
+        }
+
+        Err(s.errs)
     }
 
-    fn scan_all(&mut self) -> ScannerResult {
+    fn scan_all(&mut self) -> Result<Vec<Token>, Error> {
         let mut tokens = Vec::new();
 
         while !self.eof() {

@@ -6,10 +6,8 @@ use crate::util::{compare_string_lines_or_panic, must};
 
 fn compare_string(src: &str) {
     let file = File::new_test_file(src);
-    let ast = Scanner::scan(&file).map_or_else(
-        |err| panic!("unexpected error: {}", err),
-        |res| must(Parser::parse(&file, res)),
-    );
+    let toks = must(Scanner::scan(&file));
+    let ast = must(Parser::parse(&file, toks));
 
     let pstr = Printer::to_string(&ast);
     compare_string_lines_or_panic(pstr, src.to_string());

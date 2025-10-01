@@ -36,7 +36,7 @@ impl SymTable {
         self.scopes
             .last_mut()
             .unwrap()
-            .insert(name.kind.to_string(), ty)
+            .insert(name.to_string(), ty)
             .is_none()
     }
 
@@ -57,6 +57,6 @@ impl SymTable {
 
     /// Get a declared type.
     pub fn get_type(&self, name: &Token) -> Option<TypeId> {
-        self.type_decls.get(&name.kind.to_string()).copied()
+        self.type_decls.get(&name.to_string()).copied()
     }
 }
