@@ -16,7 +16,6 @@ pub trait Node {
 
     /// Unique id of the node. Is the offset of the node pos, which is
     /// guaranteed unique for all nodes in the same file.
-    /// TODO: test uniqueness of ids
     fn id(&self) -> NodeId;
 }
 

@@ -39,7 +39,7 @@ impl Token {
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?} ({}, {})", self.kind, self.pos.row, self.pos.col)
+        write!(f, "{}", self.kind.to_string())
     }
 }
 

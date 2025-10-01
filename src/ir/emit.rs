@@ -58,7 +58,7 @@ impl<'a> IR<'a> {
 
 impl<'a> Visitor<()> for IR<'a> {
     fn visit_func(&mut self, node: &FuncNode) {
-        let name = node.name.kind.to_string(); // TODO: store as string??
+        let name = node.name.to_string();
         let func_type = self.ctx.lookup(self.ctx.get_node(node));
 
         let TypeKind::Function(ref param_ids, ret_id) = func_type.kind else {
