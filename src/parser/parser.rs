@@ -39,9 +39,14 @@ impl<'a> Parser<'a> {
             match s.parse_decl() {
                 Ok(decl) => ast.add_node(decl),
                 Err(err) => {
-                    // TODO: add panic mode to not return early on error
                     s.errs.add(err);
-                    return Err(s.errs);
+
+                    // Consume until next 'safe' token to recover.
+                    while !s.matches_any(&[TokenKind::Func]) && !s.eof() {
+                        s.consume();
+                    }
+
+                    s.panic_mode = false;
                 }
             }
         }
@@ -119,7 +124,7 @@ impl<'a> Parser<'a> {
         let rparen = self.expect(TokenKind::RParen)?;
 
         // Check for return type
-        let ret_type = if self.matches(TokenKind::LBrace) {
+        let ret_type = if self.matches(TokenKind::LBrace) || self.matches(TokenKind::Newline) {
             None
         } else {
             Some(self.parse_type()?)
@@ -318,6 +323,15 @@ impl<'a> Parser<'a> {
         } else {
             false
         }
+    }
+
+    fn matches_any(&self, kinds: &[TokenKind]) -> bool {
+        for k in kinds {
+            if self.matches(k.to_owned()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     fn eof(&self) -> bool {

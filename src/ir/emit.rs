@@ -75,6 +75,8 @@ impl<'a> Visitor<()> for IR<'a> {
         let func = Ins::Func(FuncInst { name, params, ret });
         self.ins.push(func);
 
+        // TODO: add void return to non-returing functions
+
         self.visit_block(&node.body);
     }
 
