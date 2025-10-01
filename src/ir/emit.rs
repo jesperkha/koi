@@ -10,6 +10,9 @@ pub struct IR<'a> {
     ctx: &'a TypeContext,
     errs: ErrorSet,
     ins: Vec<Ins>,
+
+    // Track if void functions have returned or not to add explicit return
+    has_returned: bool,
 }
 
 pub type IRResult = Result<Vec<Ins>, ErrorSet>;
@@ -20,6 +23,7 @@ impl<'a> IR<'a> {
             ctx,
             errs: ErrorSet::new(),
             ins: Vec::new(),
+            has_returned: false,
         };
 
         ast.walk(&mut s);
@@ -75,9 +79,16 @@ impl<'a> Visitor<()> for IR<'a> {
         let func = Ins::Func(FuncInst { name, params, ret });
         self.ins.push(func);
 
-        // TODO: add void return to non-returing functions
-
+        self.has_returned = false;
         self.visit_block(&node.body);
+
+        // Add explicit void return for non-returing functions
+        if !self.has_returned {
+            self.ins.push(Ins::Return(
+                Type::Primitive(ir::Primitive::Void),
+                Value::Void,
+            ));
+        }
     }
 
     fn visit_block(&mut self, node: &BlockNode) {
@@ -96,6 +107,7 @@ impl<'a> Visitor<()> for IR<'a> {
 
         let ret = Ins::Return(ty, val);
         self.ins.push(ret);
+        self.has_returned = true;
     }
 
     fn visit_literal(&mut self, _: &Token) {

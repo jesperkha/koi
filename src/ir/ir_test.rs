@@ -35,6 +35,18 @@ fn test_function_empty_return() {
         }
         "#,
     );
+    expect_equal(
+        r#"
+        func f() {
+        }
+    "#,
+        r#"
+        func f() void
+        {
+            ret void
+        }
+        "#,
+    );
 }
 
 #[test]
