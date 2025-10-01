@@ -15,6 +15,8 @@ pub struct IR<'a> {
     has_returned: bool,
 }
 
+// TODO: dead code elimination (warning)
+
 pub type IRResult = Result<Vec<Ins>, ErrorSet>;
 
 impl<'a> IR<'a> {
