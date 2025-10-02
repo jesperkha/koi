@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     ast::{Ast, BlockNode, FuncNode, Node, ReturnNode, TypeNode, Visitable, Visitor},
     error::{Error, ErrorSet},
@@ -7,10 +9,13 @@ use crate::{
 
 pub struct Checker<'a> {
     ctx: TypeContext,
-    sym: SymTable,
+    sym: SymTable<TypeId>,
     ast: &'a Ast,
     file: &'a File,
     errs: ErrorSet,
+
+    /// Map of global type declarations.
+    type_decls: HashMap<String, TypeId>,
 
     /// Return type in current scope
     rtype: TypeId,
@@ -31,6 +36,7 @@ impl<'a> Checker<'a> {
             errs: ErrorSet::new(),
             rtype: no_type(),
             has_returned: false,
+            type_decls: HashMap::new(),
         };
 
         for node in &s.ast.nodes {
@@ -85,6 +91,16 @@ impl<'a> Checker<'a> {
             .as_str(),
             node,
         )
+    }
+
+    /// Declare a global user type.
+    pub fn declare(&mut self, name: String, ty: TypeId) {
+        self.type_decls.insert(name, ty);
+    }
+
+    /// Get a declared type.
+    pub fn get_type(&self, name: &Token) -> Option<TypeId> {
+        self.type_decls.get(&name.to_string()).copied()
     }
 }
 
@@ -209,7 +225,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             TokenKind::IdentLit(name) => self
                 .sym
                 .get_symbol(name)
-                .map_or(Err(self.error_token("not declared", node)), Ok),
+                .map_or(Err(self.error_token("not declared", node)), |t| Ok(*t)),
             _ => todo!(),
         }
     }
@@ -221,7 +237,6 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
                 Ok(self.ctx.primitive(prim))
             }
             TypeNode::Ident(token) => self
-                .sym
                 .get_type(token)
                 .map_or(Err(self.error_token("not a type", token)), |ty| Ok(ty)),
         }

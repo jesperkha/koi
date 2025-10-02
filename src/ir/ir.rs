@@ -21,6 +21,7 @@ pub enum Value {
     Float(f64),
     Int(i64),
     Const(ConstId),
+    Param(usize),
 }
 
 #[derive(Debug)]
@@ -100,6 +101,7 @@ impl fmt::Display for Value {
             Value::Int(s) => write!(f, "{}", s),
             Value::Float(s) => write!(f, "{}", s),
             Value::Const(s) => write!(f, "${}", s),
+            Value::Param(s) => write!(f, "%{}", s),
         }
     }
 }

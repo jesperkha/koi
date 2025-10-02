@@ -1,13 +1,14 @@
 use crate::{
     ast::{Ast, BlockNode, Expr, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
     error::{Error, ErrorSet},
-    ir::{FuncInst, Ins, Type, Value, ir},
+    ir::{FuncInst, Ins, SymTracker, Type, Value, ir},
     token::{Token, TokenKind},
     types::{self, TypeContext, TypeId, TypeKind},
 };
 
 pub struct IR<'a> {
     ctx: &'a TypeContext,
+    sym: SymTracker,
 
     // Track if void functions have returned or not to add explicit return
     has_returned: bool,
@@ -21,6 +22,7 @@ impl<'a> IR<'a> {
     pub fn emit(ast: &'a Ast, ctx: &'a TypeContext) -> IRResult {
         let mut s = Self {
             ctx,
+            sym: SymTracker::new(),
             has_returned: false,
         };
 
@@ -57,6 +59,7 @@ impl<'a> IR<'a> {
                 TokenKind::FloatLit(n) => Value::Float(*n),
                 TokenKind::StringLit(n) => Value::Str(n.clone()),
                 TokenKind::CharLit(n) => Value::Int((*n).into()),
+                TokenKind::IdentLit(name) => self.sym.get(name),
                 _ => panic!("unhandled token kind in evaluate: {:?}", token.kind),
             },
         }
@@ -65,6 +68,8 @@ impl<'a> IR<'a> {
 
 impl<'a> Visitor<Result<Ins, Error>> for IR<'a> {
     fn visit_func(&mut self, node: &FuncNode) -> Result<Ins, Error> {
+        self.sym.new_function_context();
+
         let name = node.name.to_string();
         let func_type = self.ctx.lookup(self.ctx.get_node(node));
 
@@ -73,12 +78,21 @@ impl<'a> Visitor<Result<Ins, Error>> for IR<'a> {
             panic!("function type was not TypeKind::Function")
         };
 
+        // Collect return and param types
         let ret = self.semtype_to_irtype(ret_id);
         let params = param_ids
             .iter()
             .map(|ty| self.semtype_to_irtype(*ty))
             .collect();
 
+        // Declare param indecies
+        if let Some(params) = &node.params {
+            for p in params {
+                self.sym.set_param(p.name.to_string());
+            }
+        }
+
+        // Generate function body IR
         let mut body = Vec::new();
         self.has_returned = false;
 
