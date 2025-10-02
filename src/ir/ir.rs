@@ -12,6 +12,7 @@ pub struct FuncInst {
     pub name: String,
     pub params: Vec<Type>,
     pub ret: Type,
+    pub body: Vec<Ins>,
 }
 
 pub enum Value {

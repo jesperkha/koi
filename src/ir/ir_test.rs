@@ -30,9 +30,7 @@ fn test_function_empty_return() {
     "#,
         r#"
         func f() void
-        {
             ret void
-        }
         "#,
     );
     expect_equal(
@@ -42,9 +40,7 @@ fn test_function_empty_return() {
     "#,
         r#"
         func f() void
-        {
             ret void
-        }
         "#,
     );
 }
@@ -59,9 +55,7 @@ fn test_function_literal_return() {
     "#,
         r#"
         func f() i64
-        {
             ret i64 0
-        }
         "#,
     );
     expect_equal(
@@ -72,9 +66,7 @@ fn test_function_literal_return() {
     "#,
         r#"
         func f() f64
-        {
             ret f64 1.2
-        }
         "#,
     );
     expect_equal(
@@ -85,9 +77,7 @@ fn test_function_literal_return() {
     "#,
         r#"
         func f() u8
-        {
             ret u8 1
-        }
         "#,
     );
 }
@@ -102,9 +92,7 @@ fn test_function_literal_return() {
 //     "#,
 //         r#"
 //         func f(i64) i64
-//         {
 //             ret i64 %0
-//         }
 //         "#,
 //     );
 // }
