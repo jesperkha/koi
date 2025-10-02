@@ -1,6 +1,6 @@
 use crate::{
     ast::{Ast, BlockNode, Expr, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
-    error::ErrorSet,
+    error::{Error, ErrorSet},
     ir::{FuncInst, Ins, Type, Value, ir},
     token::{Token, TokenKind},
     types::{self, TypeContext, TypeId, TypeKind},
@@ -8,8 +8,6 @@ use crate::{
 
 pub struct IR<'a> {
     ctx: &'a TypeContext,
-    errs: ErrorSet,
-    ins: Vec<Ins>,
 
     // Track if void functions have returned or not to add explicit return
     has_returned: bool,
@@ -23,17 +21,20 @@ impl<'a> IR<'a> {
     pub fn emit(ast: &'a Ast, ctx: &'a TypeContext) -> IRResult {
         let mut s = Self {
             ctx,
-            errs: ErrorSet::new(),
-            ins: Vec::new(),
             has_returned: false,
         };
 
-        ast.walk(&mut s);
-        if s.errs.size() == 0 {
-            Ok(s.ins)
-        } else {
-            Err(s.errs)
+        let mut ins = Vec::new();
+        let mut errs = ErrorSet::new();
+
+        for decl in &ast.nodes {
+            match decl.accept(&mut s) {
+                Ok(i) => ins.push(i),
+                Err(err) => errs.add(err),
+            }
         }
+
+        if errs.size() == 0 { Ok(ins) } else { Err(errs) }
     }
 
     /// Convert semantic type to IR type, lowering to primitive or union type.
@@ -62,8 +63,8 @@ impl<'a> IR<'a> {
     }
 }
 
-impl<'a> Visitor<()> for IR<'a> {
-    fn visit_func(&mut self, node: &FuncNode) {
+impl<'a> Visitor<Result<Ins, Error>> for IR<'a> {
+    fn visit_func(&mut self, node: &FuncNode) -> Result<Ins, Error> {
         let name = node.name.to_string();
         let func_type = self.ctx.lookup(self.ctx.get_node(node));
 
@@ -78,28 +79,30 @@ impl<'a> Visitor<()> for IR<'a> {
             .map(|ty| self.semtype_to_irtype(*ty))
             .collect();
 
-        let func = Ins::Func(FuncInst { name, params, ret });
-        self.ins.push(func);
-
+        let mut body = Vec::new();
         self.has_returned = false;
-        self.visit_block(&node.body);
+
+        for stmt in &node.body.stmts {
+            body.push(stmt.accept(self)?);
+        }
 
         // Add explicit void return for non-returing functions
         if !self.has_returned {
-            self.ins.push(Ins::Return(
+            body.push(Ins::Return(
                 Type::Primitive(ir::Primitive::Void),
                 Value::Void,
             ));
         }
+
+        Ok(Ins::Func(FuncInst {
+            name,
+            params,
+            ret,
+            body,
+        }))
     }
 
-    fn visit_block(&mut self, node: &BlockNode) {
-        for stmt in &node.stmts {
-            stmt.accept(self);
-        }
-    }
-
-    fn visit_return(&mut self, node: &ReturnNode) {
+    fn visit_return(&mut self, node: &ReturnNode) -> Result<Ins, Error> {
         let id = self.ctx.get_node(node);
         let ty = self.semtype_to_irtype(id);
         let val = node
@@ -107,16 +110,19 @@ impl<'a> Visitor<()> for IR<'a> {
             .as_ref()
             .map_or(Value::Void, |expr| self.evaluate(&expr));
 
-        let ret = Ins::Return(ty, val);
-        self.ins.push(ret);
         self.has_returned = true;
+        Ok(Ins::Return(ty, val))
     }
 
-    fn visit_literal(&mut self, _: &Token) {
+    fn visit_literal(&mut self, _: &Token) -> Result<Ins, Error> {
         panic!("unused method")
     }
 
-    fn visit_type(&mut self, _: &TypeNode) {
+    fn visit_block(&mut self, _: &BlockNode) -> Result<Ins, Error> {
+        panic!("unused method")
+    }
+
+    fn visit_type(&mut self, _: &TypeNode) -> Result<Ins, Error> {
         panic!("unused method")
     }
 }

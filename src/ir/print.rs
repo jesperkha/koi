@@ -5,21 +5,21 @@ pub fn print_ir(ir: Vec<Ins>) {
 }
 
 pub fn ir_to_string(ir: Vec<Ins>) -> String {
+    ir_to_string_indent(ir, 0)
+}
+
+fn ir_to_string_indent(ir: Vec<Ins>, indent: usize) -> String {
     let mut s = String::new();
-    let mut indent = 0;
     for i in ir {
         s.push_str(format!("{}{}\n", "    ".repeat(indent), i).as_str());
         match i {
-            Ins::Func(_) => {
-                s.push_str(format!("{}{{\n", "    ".repeat(indent)).as_str());
-                indent += 1;
-            }
-            Ins::Return(_, _) => {
-                indent -= 1;
-                s.push_str(format!("{}}}\n", "    ".repeat(indent)).as_str());
-            }
+            Ins::Func(f) => s.push_str(ir_to_string_indent(f.body, indent + 1).as_str()),
             _ => {}
         }
+    }
+
+    if indent > 0 {
+        s += "\n";
     }
 
     s
