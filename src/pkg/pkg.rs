@@ -8,7 +8,7 @@ pub struct Package {
 }
 
 impl Package {
-    fn new(name: String, fs: FileSet, ast: Ast, ctx: TypeContext) -> Self {
+    pub fn new(name: String, fs: FileSet, ast: Ast, ctx: TypeContext) -> Self {
         Self { name, fs, ast, ctx }
     }
 }

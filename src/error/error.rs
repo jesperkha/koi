@@ -67,8 +67,8 @@ impl Error {
 
 impl fmt::Display for ErrorSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for err in &self.errs {
-            write!(f, "{}", err)?;
+        for (i, err) in self.errs.iter().enumerate() {
+            write!(f, "{}{}", err, if i == self.size() - 1 { "" } else { "\n" })?;
         }
         Ok(())
     }

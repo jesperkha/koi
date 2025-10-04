@@ -10,6 +10,7 @@ use crate::{
     pkg::Package,
     scanner::Scanner,
     token::{File, FileSet},
+    types::Checker,
 };
 
 type Res<T> = Result<T, String>;
@@ -64,10 +65,9 @@ fn parse_files(fs: &FileSet) -> Res<TreeSet> {
     let mut ts = TreeSet::new();
 
     for file in &fs.files {
-        match Scanner::scan(file).and_then(|toks| Parser::parse(file, toks)) {
-            Ok(ast) => ts.add(ast),
-            Err(err) => errs.join(err),
-        }
+        Scanner::scan(file)
+            .and_then(|toks| Parser::parse(file, toks))
+            .map_or_else(|err| errs.join(err), |ast| ts.add(ast));
     }
 
     if errs.size() > 0 {
@@ -78,8 +78,9 @@ fn parse_files(fs: &FileSet) -> Res<TreeSet> {
 }
 
 fn type_check_and_create_package(fs: FileSet, ts: TreeSet) -> Res<Package> {
-    // TODO: implement checking of multiple trees together
-    todo!()
+    let ctx = Checker::check_set(&fs, &ts).map_err(|err| err.to_string())?;
+    let ast = TreeSet::join(ts);
+    Ok(Package::new("".to_string(), fs, ast, ctx))
 }
 
 fn generate_ir_unit(pkg: Package) -> Res<IRUnit> {

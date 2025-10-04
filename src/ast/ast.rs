@@ -72,6 +72,16 @@ impl TreeSet {
     pub fn add(&mut self, tree: Ast) {
         self.trees.push(tree);
     }
+
+    pub fn join(set: TreeSet) -> Ast {
+        let mut ast = Ast::new();
+
+        for tree in set.trees {
+            ast.nodes.extend(tree.nodes);
+        }
+
+        ast
+    }
 }
 
 /// Declarations are not considered statements for linting purposes.
@@ -156,7 +166,9 @@ impl Node for TypeNode {
     }
 
     fn id(&self) -> usize {
-        self.pos().offset
+        match self {
+            TypeNode::Primitive(token) | TypeNode::Ident(token) => token.id,
+        }
     }
 }
 
@@ -180,7 +192,9 @@ impl Node for Decl {
     }
 
     fn id(&self) -> usize {
-        self.pos().offset
+        match self {
+            Decl::Func(node) => node.id(),
+        }
     }
 }
 
@@ -194,7 +208,7 @@ impl Node for FuncNode {
     }
 
     fn id(&self) -> NodeId {
-        self.pos().offset
+        self.name.id
     }
 }
 
@@ -224,7 +238,11 @@ impl Node for Stmt {
     }
 
     fn id(&self) -> usize {
-        self.pos().offset
+        match self {
+            Stmt::ExprStmt(node) => node.id(),
+            Stmt::Return(node) => node.id(),
+            Stmt::Block(node) => node.id(),
+        }
     }
 }
 
@@ -238,7 +256,7 @@ impl Node for ReturnNode {
     }
 
     fn id(&self) -> NodeId {
-        self.pos().offset
+        self.kw.id
     }
 }
 
@@ -252,7 +270,7 @@ impl Node for BlockNode {
     }
 
     fn id(&self) -> NodeId {
-        self.pos().offset
+        self.lbrace.id
     }
 }
 
@@ -280,7 +298,9 @@ impl Node for Expr {
     }
 
     fn id(&self) -> usize {
-        self.pos().offset
+        match self {
+            Expr::Literal(token) => token.id,
+        }
     }
 }
 

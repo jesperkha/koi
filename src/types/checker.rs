@@ -1,16 +1,15 @@
 use std::collections::HashMap;
 
 use crate::{
-    ast::{Ast, BlockNode, FuncNode, Node, ReturnNode, TypeNode, Visitable, Visitor},
+    ast::{Ast, BlockNode, FuncNode, Node, ReturnNode, TreeSet, TypeNode, Visitable, Visitor},
     error::{Error, ErrorSet},
-    token::{File, Token, TokenKind},
+    token::{File, FileSet, Token, TokenKind},
     types::{PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
 };
 
 pub struct Checker<'a> {
     ctx: TypeContext,
     sym: SymTable<TypeId>,
-    ast: &'a Ast,
     file: &'a File,
     errs: ErrorSet,
 
@@ -27,9 +26,8 @@ pub struct Checker<'a> {
 pub type CheckResult = Result<TypeContext, ErrorSet>;
 
 impl<'a> Checker<'a> {
-    pub fn check(ast: &'a Ast, file: &'a File) -> CheckResult {
-        let mut s = Self {
-            ast,
+    fn new(file: &'a File) -> Self {
+        Self {
             file,
             ctx: TypeContext::new(),
             sym: SymTable::new(),
@@ -37,11 +35,35 @@ impl<'a> Checker<'a> {
             rtype: no_type(),
             has_returned: false,
             type_decls: HashMap::new(),
-        };
+        }
+    }
 
-        for node in &s.ast.nodes {
+    pub fn check(ast: &'a Ast, file: &'a File) -> CheckResult {
+        let mut s = Self::new(file);
+
+        for node in &ast.nodes {
             if let Err(err) = s.eval(node) {
                 s.errs.add(err);
+            }
+        }
+
+        if s.errs.size() == 0 {
+            Ok(s.ctx)
+        } else {
+            Err(s.errs)
+        }
+    }
+
+    pub fn check_set(fileset: &'a FileSet, set: &TreeSet) -> CheckResult {
+        let mut s = Self::new(&fileset.files[0]); // set first file as temp
+
+        for (i, file) in fileset.files.iter().enumerate() {
+            s.file = file; // Update file in use
+
+            for node in &set.trees[i].nodes {
+                if let Err(err) = s.eval(node) {
+                    s.errs.add(err);
+                }
             }
         }
 
