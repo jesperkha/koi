@@ -16,6 +16,7 @@ pub struct IR<'a> {
 
 // TODO: dead code elimination (warning)
 
+// TODO: make generic error result in error crate: Res<T, ErrorSet>
 pub type IRResult = Result<Vec<Ins>, ErrorSet>;
 
 impl<'a> IR<'a> {

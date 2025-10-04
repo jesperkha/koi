@@ -1,6 +1,14 @@
 use core::fmt;
 
-pub struct IRUnit {}
+pub struct IRUnit {
+    pub ins: Vec<Ins>,
+}
+
+impl IRUnit {
+    pub fn new(ins: Vec<Ins>) -> Self {
+        Self { ins }
+    }
+}
 
 pub type ConstId = usize;
 
@@ -43,13 +51,13 @@ pub enum Primitive {
 }
 
 pub trait IRVisitor<T> {
-    fn visit_func(&self, f: &FuncInst) -> T;
-    fn visit_ret(&self, ty: &Type, v: &Value) -> T;
-    fn visit_store(&self, id: ConstId, ty: &Type, v: &Value) -> T;
+    fn visit_func(&mut self, f: &FuncInst) -> T;
+    fn visit_ret(&mut self, ty: &Type, v: &Value) -> T;
+    fn visit_store(&mut self, id: ConstId, ty: &Type, v: &Value) -> T;
 }
 
 impl Ins {
-    pub fn accept<T>(&self, v: &dyn IRVisitor<T>) -> T {
+    pub fn accept<T>(&self, v: &mut dyn IRVisitor<T>) -> T {
         match self {
             Ins::Store(id, ty, value) => v.visit_store(*id, ty, value),
             Ins::Return(ty, value) => v.visit_ret(ty, value),

@@ -1,5 +1,5 @@
-use crate::ir::Ins;
+use crate::{build::TransUnit, ir::IRUnit};
 
 pub trait Builder {
-    fn assemble_package(&self, ins: Vec<Ins>);
+    fn assemble(self, unit: IRUnit) -> Result<TransUnit, String>;
 }

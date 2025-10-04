@@ -25,6 +25,11 @@ impl<'a> Scanner<'a> {
             errs: ErrorSet::new(),
         };
 
+        // No input
+        if s.eof() {
+            return Ok(Vec::new());
+        }
+
         while !s.eof() {
             match s.scan_all() {
                 // If ok and we did not encounter errors before, return result

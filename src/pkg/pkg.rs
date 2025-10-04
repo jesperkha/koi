@@ -1,10 +1,10 @@
 use crate::{ast::Ast, token::FileSet, types::TypeContext};
 
 pub struct Package {
-    name: String,
-    fs: FileSet,
-    ast: Ast,
-    ctx: TypeContext,
+    pub name: String,
+    pub fs: FileSet,
+    pub ast: Ast,
+    pub ctx: TypeContext,
 }
 
 impl Package {
