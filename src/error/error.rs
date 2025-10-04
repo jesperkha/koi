@@ -7,6 +7,7 @@ pub struct Error {
     /// Raw error message without formatting
     /// Eg. 'not declared'
     pub message: String,
+    filename: String,
 
     line: usize,
     line_str: String,
@@ -22,12 +23,13 @@ pub struct ErrorSet {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let err = format!(
-            "error: {}\n{:<3} | {}\n    | {}{}\n",
+            "{}\nerror: {}\n    |\n{:<3} | {}\n    | {}{}\n",
+            self.filename,
             self.message,
             self.line,
             self.line_str,
             " ".repeat(self.from),
-            "^".repeat(self.length.max(1))
+            "^".repeat(self.length.max(1)),
         );
         write!(f, "{}", err)
     }
@@ -41,6 +43,7 @@ impl Error {
             line_str: file.line(from.pos.row).to_owned(),
             from: from.pos.col,
             length: to.end_pos.col - from.pos.col,
+            filename: file.name.clone(),
         }
     }
 
@@ -51,6 +54,7 @@ impl Error {
             line_str: file.line(from.row).to_owned(),
             from: from.col,
             length: to.col - from.col,
+            filename: file.name.clone(),
         }
     }
 
@@ -61,6 +65,7 @@ impl Error {
             line_str: file.line(from.row).to_owned(),
             from: from.col,
             length: length,
+            filename: file.name.clone(),
         }
     }
 }

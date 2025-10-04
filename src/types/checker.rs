@@ -97,7 +97,7 @@ impl<'a> Checker<'a> {
 
     fn error_expected_token(&self, msg: &str, expect: TypeId, tok: &Token) -> Error {
         self.error_token(
-            format!("{}: expected {}", msg, self.ctx.to_string(expect),).as_str(),
+            format!("{}: expected '{}'", msg, self.ctx.to_string(expect),).as_str(),
             tok,
         )
     }
@@ -105,7 +105,7 @@ impl<'a> Checker<'a> {
     fn error_expected_got(&self, msg: &str, expect: TypeId, got: TypeId, node: &dyn Node) -> Error {
         self.error(
             format!(
-                "{}: expected {}, got {}",
+                "{}: expected '{}', got '{}'",
                 msg,
                 self.ctx.to_string(expect),
                 self.ctx.to_string(got)
@@ -156,11 +156,12 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         if node.name.to_string() == "main" {
             let int_id = self.ctx.primitive(PrimitiveType::I64);
             if !self.ctx.equivalent(ret_type, int_id) {
-                return Err(self.error("main function must return i64", node));
+                // TODO: point to type node if present, else rparen
+                return Err(self.error("main function must return 'i64'", node));
             }
 
             if params.len() > 0 {
-                return Err(self.error("main function must not take any argument", node));
+                return Err(self.error("main function must not take any arguments", node));
             }
         }
 
@@ -194,7 +195,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         // There was no return when there should have been
         if !self.has_returned && ret_type != self.ctx.void() {
             return Err(self.error_token(
-                format!("missing return in function {}", node.name.kind).as_str(),
+                format!("missing return in function '{}'", node.name.kind).as_str(),
                 &node.body.rbrace,
             ));
         }
