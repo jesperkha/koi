@@ -90,4 +90,8 @@ impl ErrorSet {
     pub fn get(&self, i: usize) -> &Error {
         &self.errs[i]
     }
+
+    pub fn join(&mut self, other: ErrorSet) {
+        self.errs.extend_from_slice(&other.errs);
+    }
 }

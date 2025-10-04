@@ -58,6 +58,22 @@ impl Ast {
     }
 }
 
+/// TreeSet is a collection of ASTs which are part of the same translation
+/// unit/package. TreeSets are merged when type checking into one large tree.
+pub struct TreeSet {
+    pub trees: Vec<Ast>,
+}
+
+impl TreeSet {
+    pub fn new() -> Self {
+        Self { trees: Vec::new() }
+    }
+
+    pub fn add(&mut self, tree: Ast) {
+        self.trees.push(tree);
+    }
+}
+
 /// Declarations are not considered statements for linting purposes.
 /// Functions, structs, enums etc are all top level statements, and
 /// therefore declarations. This does not include variable declarations,
