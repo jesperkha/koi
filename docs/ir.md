@@ -15,7 +15,6 @@ $3 = const string "World" # Data section - immutable
 type Person
     string
     i64
-end
 
 $0 = Person
 $0.0 = const string "John"
@@ -34,7 +33,6 @@ fn greeting(string) void
     $0 = const string "Hello {}"
     call println($0, %0)
     ret
-end
 
 fn main() i64
     $0 = const string "John"
@@ -42,5 +40,4 @@ fn main() i64
 
     $0 = 0
     ret $0
-end
 ```

@@ -1,16 +1,20 @@
+use std::collections::HashMap;
+
 use crate::{
-    ast::{Ast, BlockNode, FuncNode, Node, ReturnNode, TypeNode, Visitable, Visitor},
+    ast::{Ast, BlockNode, FuncNode, Node, ReturnNode, TreeSet, TypeNode, Visitable, Visitor},
     error::{Error, ErrorSet},
-    token::{File, Token, TokenKind},
+    token::{File, FileSet, Token, TokenKind},
     types::{PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
 };
 
 pub struct Checker<'a> {
     ctx: TypeContext,
-    sym: SymTable,
-    ast: &'a Ast,
+    sym: SymTable<TypeId>,
     file: &'a File,
     errs: ErrorSet,
+
+    /// Map of global type declarations.
+    type_decls: HashMap<String, TypeId>,
 
     /// Return type in current scope
     rtype: TypeId,
@@ -22,20 +26,44 @@ pub struct Checker<'a> {
 pub type CheckResult = Result<TypeContext, ErrorSet>;
 
 impl<'a> Checker<'a> {
-    pub fn check(ast: &'a Ast, file: &'a File) -> CheckResult {
-        let mut s = Self {
-            ast,
+    fn new(file: &'a File) -> Self {
+        Self {
             file,
             ctx: TypeContext::new(),
             sym: SymTable::new(),
             errs: ErrorSet::new(),
             rtype: no_type(),
             has_returned: false,
-        };
+            type_decls: HashMap::new(),
+        }
+    }
 
-        for node in &s.ast.nodes {
+    pub fn check(ast: &'a Ast, file: &'a File) -> CheckResult {
+        let mut s = Self::new(file);
+
+        for node in &ast.nodes {
             if let Err(err) = s.eval(node) {
                 s.errs.add(err);
+            }
+        }
+
+        if s.errs.size() == 0 {
+            Ok(s.ctx)
+        } else {
+            Err(s.errs)
+        }
+    }
+
+    pub fn check_set(fileset: &'a FileSet, set: &TreeSet) -> CheckResult {
+        let mut s = Self::new(&fileset.files[0]); // set first file as temp
+
+        for (i, file) in fileset.files.iter().enumerate() {
+            s.file = file; // Update file in use
+
+            for node in &set.trees[i].nodes {
+                if let Err(err) = s.eval(node) {
+                    s.errs.add(err);
+                }
             }
         }
 
@@ -69,7 +97,7 @@ impl<'a> Checker<'a> {
 
     fn error_expected_token(&self, msg: &str, expect: TypeId, tok: &Token) -> Error {
         self.error_token(
-            format!("{}: expected {}", msg, self.ctx.to_string(expect),).as_str(),
+            format!("{}: expected '{}'", msg, self.ctx.to_string(expect),).as_str(),
             tok,
         )
     }
@@ -77,7 +105,7 @@ impl<'a> Checker<'a> {
     fn error_expected_got(&self, msg: &str, expect: TypeId, got: TypeId, node: &dyn Node) -> Error {
         self.error(
             format!(
-                "{}: expected {}, got {}",
+                "{}: expected '{}', got '{}'",
                 msg,
                 self.ctx.to_string(expect),
                 self.ctx.to_string(got)
@@ -85,6 +113,16 @@ impl<'a> Checker<'a> {
             .as_str(),
             node,
         )
+    }
+
+    /// Declare a global user type.
+    pub fn declare(&mut self, name: String, ty: TypeId) {
+        self.type_decls.insert(name, ty);
+    }
+
+    /// Get a declared type.
+    pub fn get_type(&self, name: &Token) -> Option<TypeId> {
+        self.type_decls.get(&name.to_string()).copied()
     }
 }
 
@@ -118,11 +156,12 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         if node.name.to_string() == "main" {
             let int_id = self.ctx.primitive(PrimitiveType::I64);
             if !self.ctx.equivalent(ret_type, int_id) {
-                return Err(self.error("main function must return i64", node));
+                // TODO: point to type node if present, else rparen
+                return Err(self.error("main function must return 'i64'", node));
             }
 
             if params.len() > 0 {
-                return Err(self.error("main function must not take any argument", node));
+                return Err(self.error("main function must not take any arguments", node));
             }
         }
 
@@ -156,7 +195,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         // There was no return when there should have been
         if !self.has_returned && ret_type != self.ctx.void() {
             return Err(self.error_token(
-                format!("missing return in function {}", node.name.kind).as_str(),
+                format!("missing return in function '{}'", node.name.kind).as_str(),
                 &node.body.rbrace,
             ));
         }
@@ -209,7 +248,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             TokenKind::IdentLit(name) => self
                 .sym
                 .get_symbol(name)
-                .map_or(Err(self.error_token("not declared", node)), Ok),
+                .map_or(Err(self.error_token("not declared", node)), |t| Ok(*t)),
             _ => todo!(),
         }
     }
@@ -221,7 +260,6 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
                 Ok(self.ctx.primitive(prim))
             }
             TypeNode::Ident(token) => self
-                .sym
                 .get_type(token)
                 .map_or(Err(self.error_token("not a type", token)), |ty| Ok(ty)),
         }

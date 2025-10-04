@@ -53,7 +53,7 @@ fn test_return_type() {
             return true
         }
     "#,
-        "incorrect return type: expected i64, got bool",
+        "incorrect return type: expected 'i64', got 'bool'",
     );
     assert_error(
         r#"
@@ -61,7 +61,7 @@ fn test_return_type() {
             return a
         }
     "#,
-        "incorrect return type: expected bool, got i64",
+        "incorrect return type: expected 'bool', got 'i64'",
     );
 }
 
@@ -78,7 +78,7 @@ fn test_missing_return() {
         func foo() int {
         }
     "#,
-        "missing return in function foo",
+        "missing return in function 'foo'",
     );
 }
 

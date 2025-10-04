@@ -1,7 +1,11 @@
-use std::fmt;
+use std::{
+    fmt,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 #[derive(Debug, Clone)]
 pub struct Token {
+    pub id: usize,
     pub kind: TokenKind,
 
     /// Position of first character in token.
@@ -16,6 +20,12 @@ pub struct Token {
     pub length: usize,
 }
 
+static TOKEN_ID: AtomicUsize = AtomicUsize::new(0);
+
+fn next_id() -> usize {
+    TOKEN_ID.fetch_add(1, Ordering::Relaxed)
+}
+
 impl Token {
     /// Create new Token. Sets token flags based on kind.
     pub fn new(kind: TokenKind, length: usize, pos: Pos) -> Token {
@@ -27,6 +37,7 @@ impl Token {
         };
 
         Token {
+            id: next_id(),
             length: length,
             eof: kind.eq(&TokenKind::Eof),
             invalid: kind.eq(&TokenKind::Invalid),

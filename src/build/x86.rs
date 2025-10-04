@@ -1,0 +1,89 @@
+use crate::{
+    build::{Builder, TransUnit},
+    ir::{IRUnit, IRVisitor, Value},
+};
+
+pub struct X86Builder {
+    src: String,
+    indent: usize,
+}
+
+impl X86Builder {
+    pub fn new() -> Self {
+        Self {
+            src: String::new(),
+            indent: 0,
+        }
+    }
+
+    fn write(&mut self, s: &str) {
+        self.src
+            .push_str(&format!("{}{}", "    ".repeat(self.indent), s));
+    }
+
+    fn writeln(&mut self, s: &str) {
+        self.write(&format!("{}\n", s));
+    }
+
+    fn push(&mut self) {
+        self.indent += 1
+    }
+
+    fn pop(&mut self) {
+        self.indent -= 1;
+    }
+
+    fn comment(&mut self, s: &str) {
+        self.writeln(&format!("; {}", s));
+    }
+}
+
+impl Builder for X86Builder {
+    fn assemble(mut self, unit: IRUnit) -> Result<TransUnit, String> {
+        self.writeln(".intel_syntax noprefix");
+        self.writeln(".section .data");
+        self.writeln(".section .text\n");
+
+        for ins in &unit.ins {
+            ins.accept(&mut self);
+        }
+
+        Ok(TransUnit { source: self.src })
+    }
+}
+
+impl IRVisitor<()> for X86Builder {
+    fn visit_func(&mut self, f: &crate::ir::FuncInst) {
+        self.writeln(&format!(".globl {}", f.name));
+        self.writeln(&format!("{}:", f.name));
+        self.push();
+
+        self.writeln("push rbp");
+        self.writeln("mov rbp, rsp");
+
+        for ins in &f.body {
+            ins.accept(self);
+        }
+
+        self.pop();
+    }
+
+    fn visit_ret(&mut self, ty: &crate::ir::Type, v: &crate::ir::Value) {
+        match v {
+            Value::Void => {}
+            Value::Int(n) => self.writeln(&format!("mov rax, {}", n)),
+
+            Value::Str(_) => todo!(),
+            Value::Float(_) => todo!(),
+            Value::Const(_) => todo!(),
+            Value::Param(_) => todo!(),
+        };
+
+        self.writeln("leave");
+        self.writeln("ret\n");
+    }
+
+    fn visit_store(&mut self, id: crate::ir::ConstId, ty: &crate::ir::Type, v: &crate::ir::Value) {
+        todo!()
+    }
+}
