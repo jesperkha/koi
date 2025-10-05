@@ -32,10 +32,6 @@ impl X86Builder {
     fn pop(&mut self) {
         self.indent -= 1;
     }
-
-    fn comment(&mut self, s: &str) {
-        self.writeln(&format!("; {}", s));
-    }
 }
 
 impl Builder for X86Builder {
@@ -68,7 +64,7 @@ impl IRVisitor<()> for X86Builder {
         self.pop();
     }
 
-    fn visit_ret(&mut self, ty: &crate::ir::Type, v: &crate::ir::Value) {
+    fn visit_ret(&mut self, _ty: &crate::ir::Type, v: &crate::ir::Value) {
         match v {
             Value::Void => {}
             Value::Int(n) => self.writeln(&format!("mov rax, {}", n)),
@@ -83,7 +79,12 @@ impl IRVisitor<()> for X86Builder {
         self.writeln("ret\n");
     }
 
-    fn visit_store(&mut self, id: crate::ir::ConstId, ty: &crate::ir::Type, v: &crate::ir::Value) {
+    fn visit_store(
+        &mut self,
+        _id: crate::ir::ConstId,
+        _ty: &crate::ir::Type,
+        _v: &crate::ir::Value,
+    ) {
         todo!()
     }
 }

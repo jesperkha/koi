@@ -1,4 +1,4 @@
-use std::{fmt::format, fs, process::Command, vec};
+use std::{fs, process::Command, vec};
 
 use crate::{
     ast::TreeSet,
@@ -19,13 +19,12 @@ type Res<T> = Result<T, String>;
 pub fn compile(config: Config) -> Res<()> {
     let fileset = collect_files_in_directory(&config.srcdir)?;
     let treeset = parse_files(&fileset)?;
-    let pkg = type_check_and_create_package(fileset, treeset)?;
-    let ir_unit = generate_ir_unit(pkg)?;
+    let pkg = type_check_and_create_package(&config.srcdir, fileset, treeset)?;
+    let ir_unit = generate_ir_unit(&pkg)?;
     let trans_unit = assemble_ir_unit(&config, ir_unit)?;
 
-    let pkg_name = &format!("{}/main", config.outdir);
-    write_output(pkg_name, &config, trans_unit)?;
-    compile_and_link(vec![pkg_name], &config)?;
+    write_output(&config, &pkg, trans_unit)?;
+    compile_and_link(vec![&pkg], &config)?;
 
     Ok(())
 }
@@ -83,13 +82,20 @@ fn parse_files(fs: &FileSet) -> Res<TreeSet> {
     }
 }
 
-fn type_check_and_create_package(fs: FileSet, ts: TreeSet) -> Res<Package> {
+fn type_check_and_create_package(dir: &str, fs: FileSet, ts: TreeSet) -> Res<Package> {
     let ctx = Checker::check_set(&fs, &ts).map_err(|err| err.to_string())?;
     let ast = TreeSet::join(ts);
-    Ok(Package::new("".to_string(), fs, ast, ctx))
+
+    Ok(Package::new(
+        "main".to_string(), // TODO: get pkg name from ast
+        dir.to_string(),
+        fs,
+        ast,
+        ctx,
+    ))
 }
 
-fn generate_ir_unit(pkg: Package) -> Res<IRUnit> {
+fn generate_ir_unit(pkg: &Package) -> Res<IRUnit> {
     IR::emit(&pkg.ast, &pkg.ctx).map_or_else(|err| Err(err.to_string()), |ins| Ok(IRUnit::new(ins)))
 }
 
@@ -117,19 +123,23 @@ fn cmd(command: &str, args: &[&str]) -> Res<()> {
     }
 }
 
-fn write_output(name: &str, config: &Config, unit: TransUnit) -> Res<()> {
-    if let Err(_) = fs::write(format!("{}.s", name), unit.source) {
+fn write_output(config: &Config, pkg: &Package, unit: TransUnit) -> Res<()> {
+    if let Err(_) = fs::write(pkg.name_as(&config.outdir, "s"), unit.source) {
         return Err("failed to write output".to_string());
     };
 
     Ok(())
 }
 
-fn compile_and_link(packages: Vec<&str>, config: &Config) -> Res<()> {
-    for name in &packages {
+fn compile_and_link(packages: Vec<&Package>, config: &Config) -> Res<()> {
+    for pkg in &packages {
         cmd(
             "as",
-            &["-o", &format!("{}.o", name), &format!("{}.s", name)],
+            &[
+                "-o",
+                &pkg.name_as(&config.outdir, "o"),
+                &pkg.name_as(&config.outdir, "s"),
+            ],
         )?;
     }
 
@@ -138,12 +148,12 @@ fn compile_and_link(packages: Vec<&str>, config: &Config) -> Res<()> {
 
     let names = packages
         .iter()
-        .map(|name| format!("{}.o", name))
+        .map(|pkg| pkg.name_as(&config.outdir, "o"))
         .collect::<Vec<String>>();
 
     let name_refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
 
-    let mut args = vec!["-o", "main", entry_out];
+    let mut args = vec!["-o", &config.outfile, entry_out];
     args.extend_from_slice(&name_refs);
     cmd("ld", &args)
 }
