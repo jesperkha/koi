@@ -98,4 +98,8 @@ impl Visitor<()> for Printer {
             TypeNode::Primitive(tok) | TypeNode::Ident(tok) => self.visit_literal(tok),
         }
     }
+
+    fn visit_package(&mut self, node: &Token) -> () {
+        self.s.push_str(format!("package {}\n\n", node).as_str());
+    }
 }

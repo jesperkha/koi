@@ -31,6 +31,7 @@ pub trait Visitor<R> {
     fn visit_return(&mut self, node: &ReturnNode) -> R;
     fn visit_literal(&mut self, node: &Token) -> R;
     fn visit_type(&mut self, node: &TypeNode) -> R;
+    fn visit_package(&mut self, node: &Token) -> R;
 }
 
 #[derive(Debug)]
@@ -90,6 +91,7 @@ impl TreeSet {
 /// but does include constant declarations.
 #[derive(Debug)]
 pub enum Decl {
+    Package(Token),
     Func(FuncNode),
 }
 
@@ -182,18 +184,21 @@ impl Node for Decl {
     fn pos(&self) -> &Pos {
         match self {
             Decl::Func(node) => node.pos(),
+            Decl::Package(name) => &name.pos,
         }
     }
 
     fn end(&self) -> &Pos {
         match self {
             Decl::Func(node) => node.end(),
+            Decl::Package(name) => &name.end_pos,
         }
     }
 
     fn id(&self) -> usize {
         match self {
             Decl::Func(node) => node.id(),
+            Decl::Package(name) => name.id,
         }
     }
 }
@@ -216,6 +221,7 @@ impl Visitable for Decl {
     fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
         match self {
             Decl::Func(node) => visitor.visit_func(node),
+            Decl::Package(name) => visitor.visit_package(name),
         }
     }
 }

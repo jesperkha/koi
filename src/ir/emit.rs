@@ -140,6 +140,10 @@ impl<'a> Visitor<Result<Ins, Error>> for IR<'a> {
     fn visit_type(&mut self, _: &TypeNode) -> Result<Ins, Error> {
         panic!("unused method")
     }
+
+    fn visit_package(&mut self, node: &Token) -> Result<Ins, Error> {
+        todo!()
+    }
 }
 
 fn type_primitive_to_ir_primitive(p: &types::PrimitiveType) -> ir::Primitive {

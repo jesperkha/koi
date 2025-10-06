@@ -18,7 +18,6 @@ pub struct Parser<'a> {
     // Functions which parse statements should have a check at the top for
     // panicMode, and return early with an invalid statement if set.
     panic_mode: bool,
-    // base_pos: usize,
 }
 
 pub type ParserResult = Result<Ast, ErrorSet>;
@@ -73,15 +72,14 @@ impl<'a> Parser<'a> {
         let token = self.cur().unwrap();
 
         match token.kind {
-            TokenKind::Func | TokenKind::Pub => {
-                let func = self.parse_function(token)?;
-                Ok(Decl::Func(func))
+            TokenKind::Func | TokenKind::Pub => Ok(Decl::Func(self.parse_function(token)?)),
+            TokenKind::Package => {
+                self.consume(); // kw
+                return self
+                    .expect_identifier("package name")
+                    .map(|tok| Decl::Package(tok));
             }
-
-            _ => {
-                // Handle other declaration types
-                Err(self.error_token("expected declaration"))
-            }
+            _ => Err(self.error_token("expected declaration")),
         }
     }
 
@@ -221,7 +219,7 @@ impl<'a> Parser<'a> {
 
     fn parse_literal(&mut self) -> Result<Expr, Error> {
         let Some(token) = self.cur() else {
-            return Err(self.error_token("expected literal expression"));
+            return Err(self.error_token("expected expression"));
         };
 
         match token.kind {
@@ -235,7 +233,7 @@ impl<'a> Parser<'a> {
                 self.consume();
                 Ok(Expr::Literal(token))
             }
-            _ => Err(self.error_token("expected literal expression")),
+            _ => Err(self.error_token("expected expression")),
         }
     }
 
@@ -252,6 +250,9 @@ impl<'a> Parser<'a> {
             TokenKind::IntType | TokenKind::FloatType | TokenKind::BoolType | TokenKind::Void => {
                 self.consume();
                 Ok(TypeNode::Primitive(token))
+            }
+            TokenKind::RParen | TokenKind::RBrace | TokenKind::RBrack => {
+                Err(self.error_token("expected type"))
             }
             _ => Err(self.error_token("invalid type")),
         }

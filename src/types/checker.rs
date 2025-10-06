@@ -11,7 +11,6 @@ pub struct Checker<'a> {
     ctx: TypeContext,
     sym: SymTable<TypeId>,
     file: &'a File,
-    errs: ErrorSet,
 
     /// Map of global type declarations.
     type_decls: HashMap<String, TypeId>,
@@ -31,7 +30,6 @@ impl<'a> Checker<'a> {
             file,
             ctx: TypeContext::new(),
             sym: SymTable::new(),
-            errs: ErrorSet::new(),
             rtype: no_type(),
             has_returned: false,
             type_decls: HashMap::new(),
@@ -40,38 +38,36 @@ impl<'a> Checker<'a> {
 
     pub fn check(ast: &'a Ast, file: &'a File) -> CheckResult {
         let mut s = Self::new(file);
-
-        for node in &ast.nodes {
-            if let Err(err) = s.eval(node) {
-                s.errs.add(err);
-            }
-        }
-
-        if s.errs.size() == 0 {
-            Ok(s.ctx)
-        } else {
-            Err(s.errs)
-        }
+        s.visit_tree(ast).map(|_| s.ctx)
     }
 
     pub fn check_set(fileset: &'a FileSet, set: &TreeSet) -> CheckResult {
         let mut s = Self::new(&fileset.files[0]); // set first file as temp
+        let mut errs = ErrorSet::new();
 
         for (i, file) in fileset.files.iter().enumerate() {
             s.file = file; // Update file in use
-
-            for node in &set.trees[i].nodes {
-                if let Err(err) = s.eval(node) {
-                    s.errs.add(err);
-                }
+            if let Err(e) = s.visit_tree(&set.trees[i]) {
+                errs.join(e);
             }
         }
 
-        if s.errs.size() == 0 {
+        if errs.size() == 0 {
             Ok(s.ctx)
         } else {
-            Err(s.errs)
+            Err(errs)
         }
+    }
+
+    fn visit_tree(&mut self, ast: &Ast) -> Result<(), ErrorSet> {
+        let mut errs = ErrorSet::new();
+        for node in &ast.nodes {
+            if let Err(err) = self.eval(node) {
+                errs.add(err);
+            }
+        }
+
+        if errs.size() == 0 { Ok(()) } else { Err(errs) }
     }
 
     /// Type check a Node. If it evaluates to a type it is internalized.
@@ -263,6 +259,10 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
                 .get_type(token)
                 .map_or(Err(self.error_token("not a type", token)), |ty| Ok(ty)),
         }
+    }
+
+    fn visit_package(&mut self, node: &Token) -> EvalResult {
+        todo!()
     }
 }
 
