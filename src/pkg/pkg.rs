@@ -32,6 +32,6 @@ impl Package {
     pub fn name_as(&self, path: &str, extention: &str) -> String {
         assert!(!extention.starts_with("."));
         assert!(!path.ends_with("/"));
-        format!("{}/{}.{}", path, self.filepath, extention)
+        format!("{}/{}.{}", path, self.name, extention)
     }
 }

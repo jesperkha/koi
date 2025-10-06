@@ -124,7 +124,13 @@ fn cmd(command: &str, args: &[&str]) -> Res<()> {
 }
 
 fn write_output(config: &Config, pkg: &Package, unit: TransUnit) -> Res<()> {
-    if let Err(_) = fs::write(pkg.name_as(&config.outdir, "s"), unit.source) {
+    if !fs::exists(&config.bindir).unwrap_or(false) {
+        if let Err(_) = fs::create_dir(&config.bindir) {
+            return Err(format!("failed to create directory: {}", config.bindir));
+        }
+    }
+
+    if let Err(_) = fs::write(pkg.name_as(&config.bindir, "s"), unit.source) {
         return Err("failed to write output".to_string());
     };
 
@@ -137,18 +143,18 @@ fn compile_and_link(packages: Vec<&Package>, config: &Config) -> Res<()> {
             "as",
             &[
                 "-o",
-                &pkg.name_as(&config.outdir, "o"),
-                &pkg.name_as(&config.outdir, "s"),
+                &pkg.name_as(&config.bindir, "o"),
+                &pkg.name_as(&config.bindir, "s"),
             ],
         )?;
     }
 
-    let entry_out = &format!("{}/{}", config.outdir, "_entry.o");
+    let entry_out = &format!("{}/{}", config.bindir, "_entry.o");
     cmd("as", &["-o", entry_out, "lib/entry.s"])?;
 
     let names = packages
         .iter()
-        .map(|pkg| pkg.name_as(&config.outdir, "o"))
+        .map(|pkg| pkg.name_as(&config.bindir, "o"))
         .collect::<Vec<String>>();
 
     let name_refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();

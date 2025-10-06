@@ -3,8 +3,12 @@ pub enum Target {
 }
 
 pub struct Config {
-    pub outdir: String,
+    /// Directory for assembly and object file output
+    pub bindir: String,
+    /// Name of target executable
     pub outfile: String,
+    /// Root directory of Koi project
     pub srcdir: String,
+    /// Target architecture
     pub target: Target,
 }
