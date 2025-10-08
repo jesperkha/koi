@@ -87,4 +87,6 @@ impl IRVisitor<()> for X86Builder {
     ) {
         todo!()
     }
+
+    fn visit_package(&mut self, _: &str) -> () {}
 }

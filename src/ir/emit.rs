@@ -142,7 +142,7 @@ impl<'a> Visitor<Result<Ins, Error>> for IR<'a> {
     }
 
     fn visit_package(&mut self, node: &Token) -> Result<Ins, Error> {
-        todo!()
+        Ok(Ins::Package(node.to_string()))
     }
 }
 

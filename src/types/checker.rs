@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use crate::{
-    ast::{Ast, BlockNode, FuncNode, Node, ReturnNode, TreeSet, TypeNode, Visitable, Visitor},
+    ast::{
+        Ast, BlockNode, Decl, FuncNode, Node, ReturnNode, TreeSet, TypeNode, Visitable, Visitor,
+    },
     error::{Error, ErrorSet},
     token::{File, FileSet, Token, TokenKind},
     types::{PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
@@ -61,7 +63,26 @@ impl<'a> Checker<'a> {
 
     fn visit_tree(&mut self, ast: &Ast) -> Result<(), ErrorSet> {
         let mut errs = ErrorSet::new();
-        for node in &ast.nodes {
+
+        if ast.nodes.len() == 0 {
+            return Ok(());
+        }
+
+        // Assert package declaration comes first
+        let first_node = &ast.nodes[0];
+        if let Decl::Package(name) = first_node {
+            if let Err(err) = self
+                .ctx
+                .set_pkg_name(&self.file.name, &name.to_string())
+                .map_err(|msg| self.error_token(&msg, name))
+            {
+                errs.add(err);
+            }
+        } else {
+            errs.add(self.error("expected package declaration", first_node));
+        }
+
+        for node in ast.nodes.iter().skip(1) {
             if let Err(err) = self.eval(node) {
                 errs.add(err);
             }
@@ -262,7 +283,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
     }
 
     fn visit_package(&mut self, node: &Token) -> EvalResult {
-        todo!()
+        Err(self.error_token("package already declared earlier in file", node))
     }
 }
 
