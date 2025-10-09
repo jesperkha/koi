@@ -4,7 +4,7 @@ use crate::{
     ast::{
         Ast, BlockNode, Decl, FuncNode, Node, ReturnNode, TreeSet, TypeNode, Visitable, Visitor,
     },
-    error::{Error, ErrorSet},
+    error::{Error, ErrorSet, Res},
     token::{File, FileSet, Token, TokenKind},
     types::{PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
 };
@@ -24,8 +24,6 @@ pub struct Checker<'a> {
     has_returned: bool,
 }
 
-pub type CheckResult = Result<TypeContext, ErrorSet>;
-
 impl<'a> Checker<'a> {
     fn new(file: &'a File) -> Self {
         Self {
@@ -38,12 +36,12 @@ impl<'a> Checker<'a> {
         }
     }
 
-    pub fn check(ast: &'a Ast, file: &'a File) -> CheckResult {
+    pub fn check(ast: &'a Ast, file: &'a File) -> Res<TypeContext> {
         let mut s = Self::new(file);
         s.visit_tree(ast).map(|_| s.ctx)
     }
 
-    pub fn check_set(fileset: &'a FileSet, set: &TreeSet) -> CheckResult {
+    pub fn check_set(fileset: &'a FileSet, set: &TreeSet) -> Res<TypeContext> {
         let mut s = Self::new(&fileset.files[0]); // set first file as temp
         let mut errs = ErrorSet::new();
 

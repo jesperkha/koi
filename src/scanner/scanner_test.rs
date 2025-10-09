@@ -2,11 +2,12 @@ use std::vec;
 
 use super::*;
 use crate::{
+    error::Res,
     token::{File, Token, TokenKind},
     util::must,
 };
 
-fn scan_source(s: &str) -> ScannerResult {
+fn scan_source(s: &str) -> Res<Vec<Token>> {
     let file = File::new_test_file(s);
     Scanner::scan(&file)
 }

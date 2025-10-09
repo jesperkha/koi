@@ -1,8 +1,8 @@
-use crate::{parser::Parser, scanner::Scanner, token::File, util::must};
+use crate::{error::Res, parser::Parser, scanner::Scanner, token::File, util::must};
 
 use super::*;
 
-fn check(input: &str) -> CheckResult {
+fn check(input: &str) -> Res<TypeContext> {
     let file = File::new_test_file(input);
     Scanner::scan(&file)
         .and_then(|toks| Parser::parse(&file, toks))

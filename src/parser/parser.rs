@@ -1,6 +1,6 @@
 use crate::{
     ast::{Ast, BlockNode, Decl, Expr, Field, FuncNode, ReturnNode, Stmt, TypeNode, no_type},
-    error::{Error, ErrorSet},
+    error::{Error, ErrorSet, Res},
     token::{File, Token, TokenKind},
 };
 
@@ -20,10 +20,8 @@ pub struct Parser<'a> {
     panic_mode: bool,
 }
 
-pub type ParserResult = Result<Ast, ErrorSet>;
-
 impl<'a> Parser<'a> {
-    pub fn parse(file: &'a File, tokens: Vec<Token>) -> ParserResult {
+    pub fn parse(file: &'a File, tokens: Vec<Token>) -> Res<Ast> {
         let mut s = Self {
             errs: ErrorSet::new(),
             tokens,

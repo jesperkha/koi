@@ -20,6 +20,8 @@ pub struct ErrorSet {
     errs: Vec<Error>,
 }
 
+pub type Res<T> = Result<T, ErrorSet>;
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let err = format!(

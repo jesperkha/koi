@@ -1,5 +1,5 @@
 use crate::{
-    error::{Error, ErrorSet},
+    error::{Error, ErrorSet, Res},
     token::{File, Pos, Token, TokenKind, str_to_token},
 };
 
@@ -12,10 +12,8 @@ pub struct Scanner<'a> {
     errs: ErrorSet,
 }
 
-pub type ScannerResult = Result<Vec<Token>, ErrorSet>;
-
 impl<'a> Scanner<'a> {
-    pub fn scan(file: &'_ File) -> ScannerResult {
+    pub fn scan(file: &'_ File) -> Res<Vec<Token>> {
         let mut s = Scanner {
             file,
             pos: 0,
