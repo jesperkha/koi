@@ -1,5 +1,6 @@
 use std::fs::read_to_string;
 
+#[derive(Debug)]
 pub struct Source {
     /// Name of file, including extension
     pub name: String,
@@ -9,10 +10,6 @@ pub struct Source {
     pub size: usize,
     /// List of byte offsets for first character in each line.
     pub lines: Vec<usize>,
-}
-
-pub struct FileSet {
-    pub files: Vec<Source>,
 }
 
 impl Source {
@@ -98,15 +95,5 @@ impl Source {
                 }
             })
             .unwrap_or(src.len() - 1)
-    }
-}
-
-impl FileSet {
-    pub fn new() -> FileSet {
-        FileSet { files: Vec::new() }
-    }
-
-    pub fn add(&mut self, file: Source) {
-        self.files.push(file);
     }
 }

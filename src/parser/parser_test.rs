@@ -10,7 +10,7 @@ fn parse(src: &str) -> Result<File, ErrorSet> {
     let file = Source::new_from_string(src);
     let toks = must(Scanner::scan(&file));
     let config = Config::test();
-    Parser::parse(&file, toks, &config)
+    Parser::parse(file, toks, &config)
 }
 
 fn compare_string(src: &str) {

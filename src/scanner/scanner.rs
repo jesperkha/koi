@@ -1,6 +1,6 @@
 use crate::{
     error::{Error, ErrorSet, Res},
-    token::{Source, Pos, Token, TokenKind, str_to_token},
+    token::{Pos, Source, Token, TokenKind, str_to_token},
 };
 
 pub struct Scanner<'a> {
@@ -13,7 +13,7 @@ pub struct Scanner<'a> {
 }
 
 impl<'a> Scanner<'a> {
-    pub fn scan(file: &'_ Source) -> Res<Vec<Token>> {
+    pub fn scan(file: &'a Source) -> Res<Vec<Token>> {
         let mut s = Scanner {
             file,
             pos: 0,

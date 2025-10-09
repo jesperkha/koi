@@ -12,11 +12,11 @@ use super::*;
 
 fn expect_equal(src: &str, expect: &str) {
     let config = Config::test();
-    let file = Source::new_from_string(src);
-    let toks = must(Scanner::scan(&file));
-    let ast = must(Parser::parse(&file, toks, &config));
-    let ctx = must(Checker::check(&ast, &file));
-    let ir = must(IR::emit(&ast, &ctx));
+    let src = Source::new_from_string(src);
+    let toks = must(Scanner::scan(&src));
+    let file = must(Parser::parse(src, toks, &config));
+    let ctx = must(Checker::check(&file));
+    let ir = must(IR::emit(&file, &ctx));
 
     let ir_str = ir_to_string(ir);
     compare_string_lines_or_panic(ir_str, expect.to_string());

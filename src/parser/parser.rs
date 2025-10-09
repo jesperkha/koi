@@ -1,5 +1,5 @@
 use crate::{
-    ast::{BlockNode, Decl, Expr, Field, File, FuncNode, ReturnNode, Stmt, TypeNode, no_type},
+    ast::{BlockNode, Decl, Expr, Field, File, FuncNode, ReturnNode, Stmt, TypeNode},
     config::Config,
     error::{Error, ErrorSet, Res},
     token::{Source, Token, TokenKind},
@@ -9,7 +9,7 @@ pub struct Parser<'a> {
     errs: ErrorSet,
     tokens: Vec<Token>,
     pos: usize,
-    file: &'a Source,
+    file: File,
     config: &'a Config,
 
     // Panic mode occurs when the parser encounters an unknown token sequence
@@ -25,43 +25,45 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse(src: &'a Source, tokens: Vec<Token>, config: &'a Config) -> Res<File> {
-        let mut s = Self {
+    pub fn parse(src: Source, tokens: Vec<Token>, config: &'a Config) -> Res<File> {
+        let s = Self {
             errs: ErrorSet::new(),
             tokens,
-            file: src,
+            file: File::new(src),
             pos: 0,
             panic_mode: false,
             pkg_declared: false,
             config,
         };
 
-        let mut file = File::new();
+        s._parse()
+    }
 
-        while s.skip_whitespace_and_not_eof() {
-            match s.parse_decl() {
+    fn _parse(mut self) -> Res<File> {
+        while self.skip_whitespace_and_not_eof() {
+            match self.parse_decl() {
                 Ok(decl) => match decl {
-                    Decl::Package(name) => file.set_package(name),
-                    _ => file.add_node(decl),
+                    Decl::Package(name) => self.file.set_package(name),
+                    _ => self.file.add_node(decl),
                 },
                 Err(err) => {
-                    s.errs.add(err);
+                    self.errs.add(err);
 
                     // Consume until next 'safe' token to recover.
-                    while !s.matches_any(&[TokenKind::Func]) && !s.eof() {
-                        s.consume();
+                    while !self.matches_any(&[TokenKind::Func]) && !self.eof() {
+                        self.consume();
                     }
 
-                    s.panic_mode = false;
+                    self.panic_mode = false;
                 }
             }
         }
 
-        if s.errs.size() > 0 {
-            return Err(s.errs);
+        if self.errs.size() > 0 {
+            return Err(self.errs);
         }
 
-        Ok(file)
+        Ok(self.file)
     }
 
     /// Consume newlines until first non-newline token or eof.
@@ -157,7 +159,6 @@ impl<'a> Parser<'a> {
             rparen: rparen.clone(),
             ret_type,
             body,
-            sem_ret_type: no_type(),
         };
 
         Ok(func)
@@ -166,11 +167,7 @@ impl<'a> Parser<'a> {
     fn parse_field(&mut self, field_name: &str) -> Result<Field, Error> {
         let name = self.expect_identifier(field_name)?;
         let typ = self.parse_type()?;
-        Ok(Field {
-            name,
-            typ,
-            sem_type: no_type(),
-        })
+        Ok(Field { name, typ })
     }
 
     fn parse_block(&mut self) -> Result<BlockNode, Error> {
@@ -284,7 +281,7 @@ impl<'a> Parser<'a> {
 
     /// Create error marking the given token range.
     fn error_from_to(&self, message: &str, from: Token, to: Token) -> Error {
-        Error::new(message, &from, &to, self.file)
+        Error::new(message, &from, &to, &self.file.src)
     }
 
     fn cur(&self) -> Option<Token> {

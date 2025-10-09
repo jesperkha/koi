@@ -1,16 +1,16 @@
 use std::collections::HashMap;
 
 use crate::{
-    ast::{BlockNode, File, FuncNode, Node, ReturnNode, TreeSet, TypeNode, Visitable, Visitor},
+    ast::{BlockNode, File, FuncNode, Node, ReturnNode, TypeNode, Visitable, Visitor},
     error::{Error, ErrorSet, Res},
-    token::{FileSet, Source, Token, TokenKind},
+    token::{Source, Token, TokenKind},
     types::{PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
 };
 
 pub struct Checker<'a> {
     ctx: TypeContext,
     sym: SymTable<TypeId>,
-    file: &'a Source,
+    src: &'a Source,
 
     /// Map of global type declarations.
     type_decls: HashMap<String, TypeId>,
@@ -22,42 +22,26 @@ pub struct Checker<'a> {
     has_returned: bool,
 }
 
+// TODO: accept multiple files to type check
+// - check that package names are consistent
+// - combine asts into one large ast and check
+// - return Package type with all files included
+
 impl<'a> Checker<'a> {
-    fn new(file: &'a Source) -> Self {
-        Self {
-            file,
+    pub fn check(file: &'a File) -> Res<TypeContext> {
+        let s = Self {
+            src: &file.src,
             ctx: TypeContext::new(),
             sym: SymTable::new(),
             rtype: no_type(),
             has_returned: false,
             type_decls: HashMap::new(),
-        }
+        };
+
+        s._check(file)
     }
 
-    pub fn check(ast: &'a File, file: &'a Source) -> Res<TypeContext> {
-        let mut s = Self::new(file);
-        s.visit_tree(ast).map(|_| s.ctx)
-    }
-
-    pub fn check_set(fileset: &'a FileSet, set: &TreeSet) -> Res<TypeContext> {
-        let mut s = Self::new(&fileset.files[0]); // set first file as temp
-        let mut errs = ErrorSet::new();
-
-        for (i, file) in fileset.files.iter().enumerate() {
-            s.file = file; // Update file in use
-            if let Err(e) = s.visit_tree(&set.trees[i]) {
-                errs.join(e);
-            }
-        }
-
-        if errs.size() == 0 {
-            Ok(s.ctx)
-        } else {
-            Err(errs)
-        }
-    }
-
-    fn visit_tree(&mut self, ast: &File) -> Result<(), ErrorSet> {
+    fn _check(mut self, ast: &File) -> Result<TypeContext, ErrorSet> {
         let mut errs = ErrorSet::new();
 
         for node in &ast.nodes {
@@ -66,7 +50,11 @@ impl<'a> Checker<'a> {
             }
         }
 
-        if errs.size() == 0 { Ok(()) } else { Err(errs) }
+        if errs.size() == 0 {
+            Ok(self.ctx)
+        } else {
+            Err(errs)
+        }
     }
 
     /// Type check a Node. If it evaluates to a type it is internalized.
@@ -83,11 +71,11 @@ impl<'a> Checker<'a> {
     }
 
     fn error(&self, msg: &str, node: &dyn Node) -> Error {
-        Error::range(msg, node.pos(), node.end(), self.file)
+        Error::range(msg, node.pos(), node.end(), self.src)
     }
 
     fn error_token(&self, msg: &str, tok: &Token) -> Error {
-        Error::new(msg, tok, tok, self.file)
+        Error::new(msg, tok, tok, self.src)
     }
 
     fn error_expected_token(&self, msg: &str, expect: TypeId, tok: &Token) -> Error {

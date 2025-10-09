@@ -1,7 +1,4 @@
-use crate::{
-    ast::TypeId,
-    token::{Pos, Token},
-};
+use crate::token::{Pos, Source, Token};
 
 pub type NodeId = usize;
 
@@ -44,14 +41,17 @@ pub struct File {
     // all other statements and expressions. Eg. a function has a block
     // statement, which consists of multiple ifs and calls.
     pub nodes: Vec<Decl>,
+
+    pub src: Source,
 }
 
 impl File {
-    pub fn new() -> Self {
+    pub fn new(src: Source) -> Self {
         File {
             nodes: Vec::new(),
             package: None,
             pkgname: "unnamed".to_string(),
+            src,
         }
     }
 
@@ -69,32 +69,6 @@ impl File {
     pub fn set_package(&mut self, t: Token) {
         self.pkgname = t.to_string();
         self.package = Some(t);
-    }
-}
-
-/// TreeSet is a collection of ASTs which are part of the same translation
-/// unit/package. TreeSets are merged when type checking into one large tree.
-pub struct TreeSet {
-    pub trees: Vec<File>,
-}
-
-impl TreeSet {
-    pub fn new() -> Self {
-        Self { trees: Vec::new() }
-    }
-
-    pub fn add(&mut self, tree: File) {
-        self.trees.push(tree);
-    }
-
-    pub fn join(set: TreeSet) -> File {
-        let mut ast = File::new();
-
-        for tree in set.trees {
-            ast.nodes.extend(tree.nodes);
-        }
-
-        ast
     }
 }
 
@@ -146,9 +120,6 @@ pub struct FuncNode {
     pub rparen: Token,
     pub ret_type: Option<TypeNode>,
     pub body: BlockNode,
-
-    // Annotated
-    pub sem_ret_type: TypeId,
 }
 
 #[derive(Debug, Clone)]
@@ -162,9 +133,6 @@ pub struct BlockNode {
 pub struct Field {
     pub name: Token,
     pub typ: TypeNode,
-
-    // Annotated
-    pub sem_type: TypeId,
 }
 
 impl Node for TypeNode {
