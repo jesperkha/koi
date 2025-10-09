@@ -1,26 +1,19 @@
 use std::vec;
 
-use super::*;
 use crate::{
-    error::Res,
-    token::{Source, Token, TokenKind},
-    util::must,
+    token::{Token, TokenKind},
+    util::{must, scan_string},
 };
-
-fn scan_source(s: &str) -> Res<Vec<Token>> {
-    let file = Source::new_from_string(s);
-    scan(&file)
-}
 
 fn scan_and_then<P>(src: &str, pred: P)
 where
     P: Fn(Vec<Token>),
 {
-    pred(must(scan_source(src)));
+    pred(must(scan_string(src)));
 }
 
 fn scan_and_error(src: &str) {
-    assert!(scan_source(src).is_err());
+    assert!(scan_string(src).is_err());
 }
 
 #[test]
@@ -66,14 +59,14 @@ fn test_number() {
         assert_eq!(toks[0].kind, TokenKind::FloatLit(1.23));
     });
 
-    let _ = scan_source("?123?")
+    let _ = scan_string("?123?")
         .map_err(|e| panic!("{:?}", e))
         .map(|toks| {
             assert_eq!(toks.len(), 3);
             assert_eq!(toks[1].kind, TokenKind::IntLit(123));
         });
 
-    if scan_source("1.2.3").is_ok() {
+    if scan_string("1.2.3").is_ok() {
         panic!("expected scanner error");
     }
 }

@@ -1,21 +1,14 @@
-use crate::{config::Config, error::Res, parser::parse, scanner::scan, token::Source, util::must};
+use crate::{
+    pkg::Package,
+    util::{check_string, must},
+};
 
-use super::*;
-
-fn check_text(input: &str) -> Res<TypeContext> {
-    let config = Config::test();
-    let file = Source::new_from_string(input);
-    scan(&file)
-        .and_then(|toks| parse(file, toks, &config))
-        .and_then(|file| check(vec![file]).map(|pkg| pkg.ctx))
-}
-
-fn assert_pass(src: &str) -> TypeContext {
-    must(check_text(src))
+fn assert_pass(src: &str) -> Package {
+    must(check_string(src))
 }
 
 fn assert_error(src: &str, msg: &str) {
-    match check_text(src) {
+    match check_string(src) {
         Ok(_) => panic!("expected error: '{}'", msg),
         Err(errs) => {
             assert!(errs.size() == 1, "expected one error, got {}", errs.size());

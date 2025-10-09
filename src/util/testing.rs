@@ -1,4 +1,13 @@
-use crate::error::ErrorSet;
+use crate::{
+    ast::File,
+    config::Config,
+    error::{ErrorSet, Res},
+    parser::parse,
+    pkg::Package,
+    scanner::scan,
+    token::{Source, Token},
+    types::check,
+};
 
 pub fn compare_string_lines_or_panic(ina: String, inb: String) {
     let a: Vec<&str> = ina.trim().split('\n').collect();
@@ -18,4 +27,19 @@ pub fn compare_string_lines_or_panic(ina: String, inb: String) {
 
 pub fn must<T>(res: Result<T, ErrorSet>) -> T {
     res.unwrap_or_else(|err| panic!("unexpected error: {}", err))
+}
+
+pub fn scan_string(src: &str) -> Res<Vec<Token>> {
+    let src = Source::new_from_string(src);
+    scan(&src)
+}
+
+pub fn parse_string(src: &str) -> Res<File> {
+    let src = Source::new_from_string(src);
+    let config = Config::test();
+    scan(&src).and_then(|toks| parse(src, toks, &config))
+}
+
+pub fn check_string(src: &str) -> Res<Package> {
+    check(vec![parse_string(src)?])
 }

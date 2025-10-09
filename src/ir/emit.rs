@@ -1,6 +1,6 @@
 use crate::{
-    ast::{File, BlockNode, Expr, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
-    error::{Error, ErrorSet},
+    ast::{BlockNode, Expr, File, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
+    error::{Error, ErrorSet, Res},
     ir::{FuncInst, Ins, SymTracker, Type, Value, ir},
     token::{Token, TokenKind},
     types::{self, TypeContext, TypeId, TypeKind},
@@ -16,11 +16,12 @@ pub struct IR<'a> {
 
 // TODO: dead code elimination (warning)
 
-// TODO: make generic error result in error crate: Res<T, ErrorSet>
-pub type IRResult = Result<Vec<Ins>, ErrorSet>;
+// TODO: export single function
+
+// TODO: adapt emitter to multi-file
 
 impl<'a> IR<'a> {
-    pub fn emit(ast: &'a File, ctx: &'a TypeContext) -> IRResult {
+    pub fn emit(ast: &'a File, ctx: &'a TypeContext) -> Res<Vec<Ins>> {
         let mut s = Self {
             ctx,
             sym: SymTracker::new(),

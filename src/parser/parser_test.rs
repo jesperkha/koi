@@ -1,26 +1,14 @@
-use crate::ast::{File, Printer};
-use crate::config::Config;
-use crate::error::ErrorSet;
-use crate::parser::parse;
-use crate::scanner::scan;
-use crate::token::Source;
-use crate::util::{compare_string_lines_or_panic, must};
-
-fn parse_text(src: &str) -> Result<File, ErrorSet> {
-    let file = Source::new_from_string(src);
-    let toks = must(scan(&file));
-    let config = Config::test();
-    parse(file, toks, &config)
-}
+use crate::ast::Printer;
+use crate::util::{compare_string_lines_or_panic, must, parse_string};
 
 fn compare_string(src: &str) {
-    let ast = must(parse_text(src));
+    let ast = must(parse_string(src));
     let pstr = Printer::to_string(&ast);
     compare_string_lines_or_panic(pstr, src.to_string());
 }
 
 fn expect_error(src: &str, error: &str) {
-    if let Err(e) = parse_text(src) {
+    if let Err(e) = parse_string(src) {
         assert_eq!(e.size(), 1);
         assert_eq!(e.get(0).message, error);
     } else {
