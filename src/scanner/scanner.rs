@@ -3,7 +3,12 @@ use crate::{
     token::{Pos, Source, Token, TokenKind, str_to_token},
 };
 
-pub struct Scanner<'a> {
+pub fn scan(src: &Source) -> Res<Vec<Token>> {
+    let scanner = Scanner::new(src);
+    scanner.scan()
+}
+
+struct Scanner<'a> {
     file: &'a Source,
     pos: usize,
     row: usize,
@@ -12,13 +17,8 @@ pub struct Scanner<'a> {
     errs: ErrorSet,
 }
 
-pub fn scan(src: &Source) -> Res<Vec<Token>> {
-    let scanner = Scanner::new(src);
-    scanner.scan()
-}
-
 impl<'a> Scanner<'a> {
-    pub fn new(file: &'a Source) -> Self {
+    fn new(file: &'a Source) -> Self {
         Scanner {
             file,
             pos: 0,
@@ -29,7 +29,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    pub fn scan(mut self) -> Res<Vec<Token>> {
+    fn scan(mut self) -> Res<Vec<Token>> {
         // No input
         if self.eof() {
             return Ok(Vec::new());

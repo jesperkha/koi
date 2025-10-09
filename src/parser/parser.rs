@@ -5,7 +5,12 @@ use crate::{
     token::{Source, Token, TokenKind},
 };
 
-pub struct Parser<'a> {
+pub fn parse(src: Source, tokens: Vec<Token>, config: &Config) -> Res<File> {
+    let parser = Parser::new(src, tokens, config);
+    parser.parse()
+}
+
+struct Parser<'a> {
     errs: ErrorSet,
     tokens: Vec<Token>,
     pos: usize,
@@ -24,13 +29,8 @@ pub struct Parser<'a> {
     pkg_declared: bool, // Package name declared yet?
 }
 
-pub fn parse(src: Source, tokens: Vec<Token>, config: &Config) -> Res<File> {
-    let parser = Parser::new(src, tokens, config);
-    parser.parse()
-}
-
 impl<'a> Parser<'a> {
-    pub fn new(src: Source, tokens: Vec<Token>, config: &'a Config) -> Self {
+    fn new(src: Source, tokens: Vec<Token>, config: &'a Config) -> Self {
         Self {
             errs: ErrorSet::new(),
             tokens,

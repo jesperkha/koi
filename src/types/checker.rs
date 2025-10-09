@@ -8,22 +8,6 @@ use crate::{
     types::{PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
 };
 
-pub struct Checker<'a> {
-    ctx: &'a mut TypeContext,
-    sym: SymTable<TypeId>,
-    file: &'a File,
-
-    /// Map of global type declarations.
-    type_decls: HashMap<String, TypeId>,
-
-    /// Return type in current scope
-    rtype: TypeId,
-
-    /// Has returned in the base function scope
-    /// Not counting nested scopes as returning there is optional
-    has_returned: bool,
-}
-
 pub fn check(files: Vec<File>) -> Res<Package> {
     let mut ctx = TypeContext::new();
     let mut errs = ErrorSet::new();
@@ -40,8 +24,24 @@ pub fn check(files: Vec<File>) -> Res<Package> {
     Ok(Package::new("name".to_string(), "".to_string(), files, ctx))
 }
 
+struct Checker<'a> {
+    ctx: &'a mut TypeContext,
+    sym: SymTable<TypeId>,
+    file: &'a File,
+
+    /// Map of global type declarations.
+    type_decls: HashMap<String, TypeId>,
+
+    /// Return type in current scope
+    rtype: TypeId,
+
+    /// Has returned in the base function scope
+    /// Not counting nested scopes as returning there is optional
+    has_returned: bool,
+}
+
 impl<'a> Checker<'a> {
-    pub fn new(file: &'a File, ctx: &'a mut TypeContext) -> Self {
+    fn new(file: &'a File, ctx: &'a mut TypeContext) -> Self {
         Self {
             file,
             ctx,
@@ -52,7 +52,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    pub fn check(mut self) -> ErrorSet {
+    fn check(mut self) -> ErrorSet {
         let mut errs = ErrorSet::new();
 
         for node in &self.file.nodes {
