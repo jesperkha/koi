@@ -1,6 +1,6 @@
 use std::fs::read_to_string;
 
-pub struct File {
+pub struct Source {
     /// Name of file, including extension
     pub name: String,
     /// File contents
@@ -12,31 +12,29 @@ pub struct File {
 }
 
 pub struct FileSet {
-    pub files: Vec<File>,
+    pub files: Vec<Source>,
 }
 
-impl File {
+impl Source {
     /// Create new file object using given source.
-    pub fn new(filename: String, src: Vec<u8>) -> File {
-        File {
-            lines: File::get_line_beginnings(src.as_slice()),
+    pub fn new(filename: String, src: Vec<u8>) -> Source {
+        Source {
+            lines: Source::get_line_beginnings(src.as_slice()),
             name: filename,
-            size: src.len() as usize,
+            size: src.len(),
             src: src,
         }
     }
 
-    /// Create new file, reading the content from named file as source.
-    pub fn new_from_file(filename: &str) -> File {
-        let bytes = read_to_string(filename)
-            .expect("failed to read file")
-            .into_bytes();
-        File::new(filename.to_string(), bytes)
+    /// Create new source file, reading the content from named file as source.
+    pub fn new_from_file(filename: &str) -> Result<Source, String> {
+        read_to_string(filename).map_or(Err(format!("failed to read file '{}'", filename)), |f| {
+            Ok(Source::new(filename.to_string(), f.into_bytes()))
+        })
     }
 
-    /// Create new file for testing
-    pub fn new_test_file(src: &str) -> File {
-        File::new("test".to_string(), src.to_string().into_bytes())
+    pub fn new_from_string(src: &str) -> Source {
+        Source::new("".to_string(), src.to_string().into_bytes())
     }
 
     /// Gets a list of offsets for first character of each line.
@@ -47,7 +45,7 @@ impl File {
 
         while i < src.len() {
             lines.push(i);
-            i = File::find_end_of_line(src, i);
+            i = Source::find_end_of_line(src, i);
             i += 2;
         }
 
@@ -71,7 +69,7 @@ impl File {
         );
 
         let start = self.lines[row];
-        let end = File::find_end_of_line(&self.src, start);
+        let end = Source::find_end_of_line(&self.src, start);
         self.str_range(start, end + 1) // Range is non-inclusive
     }
 
@@ -108,7 +106,7 @@ impl FileSet {
         FileSet { files: Vec::new() }
     }
 
-    pub fn add(&mut self, file: File) {
+    pub fn add(&mut self, file: Source) {
         self.files.push(file);
     }
 }

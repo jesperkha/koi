@@ -35,16 +35,24 @@ pub trait Visitor<R> {
 }
 
 #[derive(Debug)]
-pub struct Ast {
+pub struct File {
+    /// Package name token at beginning of file
+    pub package: Option<Token>,
+    /// Package name as string, or 'unnamed' if not specified (test files)
+    pub pkgname: String,
     // Declarations are the only top level statements in koi. They contain
     // all other statements and expressions. Eg. a function has a block
     // statement, which consists of multiple ifs and calls.
     pub nodes: Vec<Decl>,
 }
 
-impl Ast {
+impl File {
     pub fn new() -> Self {
-        Ast { nodes: Vec::new() }
+        File {
+            nodes: Vec::new(),
+            package: None,
+            pkgname: "unnamed".to_string(),
+        }
     }
 
     /// Walks the AST and applites the visitor to each node.
@@ -57,12 +65,17 @@ impl Ast {
     pub fn add_node(&mut self, node: Decl) {
         self.nodes.push(node);
     }
+
+    pub fn set_package(&mut self, t: Token) {
+        self.pkgname = t.to_string();
+        self.package = Some(t);
+    }
 }
 
 /// TreeSet is a collection of ASTs which are part of the same translation
 /// unit/package. TreeSets are merged when type checking into one large tree.
 pub struct TreeSet {
-    pub trees: Vec<Ast>,
+    pub trees: Vec<File>,
 }
 
 impl TreeSet {
@@ -70,12 +83,12 @@ impl TreeSet {
         Self { trees: Vec::new() }
     }
 
-    pub fn add(&mut self, tree: Ast) {
+    pub fn add(&mut self, tree: File) {
         self.trees.push(tree);
     }
 
-    pub fn join(set: TreeSet) -> Ast {
-        let mut ast = Ast::new();
+    pub fn join(set: TreeSet) -> File {
+        let mut ast = File::new();
 
         for tree in set.trees {
             ast.nodes.extend(tree.nodes);

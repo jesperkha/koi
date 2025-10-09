@@ -1,14 +1,16 @@
 use crate::{
-    ast::{Ast, BlockNode, Decl, Expr, Field, FuncNode, ReturnNode, Stmt, TypeNode, no_type},
+    ast::{BlockNode, Decl, Expr, Field, File, FuncNode, ReturnNode, Stmt, TypeNode, no_type},
+    config::Config,
     error::{Error, ErrorSet, Res},
-    token::{File, Token, TokenKind},
+    token::{Source, Token, TokenKind},
 };
 
 pub struct Parser<'a> {
     errs: ErrorSet,
     tokens: Vec<Token>,
     pos: usize,
-    file: &'a File,
+    file: &'a Source,
+    config: &'a Config,
 
     // Panic mode occurs when the parser encounters an unknown token sequence
     // and needs to synchronize to a 'clean' state. When panic mode starts,
@@ -18,23 +20,30 @@ pub struct Parser<'a> {
     // Functions which parse statements should have a check at the top for
     // panicMode, and return early with an invalid statement if set.
     panic_mode: bool,
+
+    pkg_declared: bool, // Package name declared yet?
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse(file: &'a File, tokens: Vec<Token>) -> Res<Ast> {
+    pub fn parse(src: &'a Source, tokens: Vec<Token>, config: &'a Config) -> Res<File> {
         let mut s = Self {
             errs: ErrorSet::new(),
             tokens,
-            file,
+            file: src,
             pos: 0,
             panic_mode: false,
+            pkg_declared: false,
+            config,
         };
 
-        let mut ast = Ast::new();
+        let mut file = File::new();
 
         while s.skip_whitespace_and_not_eof() {
             match s.parse_decl() {
-                Ok(decl) => ast.add_node(decl),
+                Ok(decl) => match decl {
+                    Decl::Package(name) => file.set_package(name),
+                    _ => file.add_node(decl),
+                },
                 Err(err) => {
                     s.errs.add(err);
 
@@ -52,7 +61,7 @@ impl<'a> Parser<'a> {
             return Err(s.errs);
         }
 
-        Ok(ast)
+        Ok(file)
     }
 
     /// Consume newlines until first non-newline token or eof.
@@ -69,13 +78,25 @@ impl<'a> Parser<'a> {
         assert!(!self.eof(), "parse_decl called without checking eof");
         let token = self.cur().unwrap();
 
+        // Check that package declaration comes first
+        if !self.pkg_declared && !self.config.anon_packages {
+            self.pkg_declared = true;
+            self.expect_msg(TokenKind::Package, "package declaration")?;
+            return self
+                .expect_identifier("package name")
+                .map(|tok| Decl::Package(tok));
+        }
+
         match token.kind {
             TokenKind::Func | TokenKind::Pub => Ok(Decl::Func(self.parse_function(token)?)),
             TokenKind::Package => {
-                self.consume(); // kw
-                return self
-                    .expect_identifier("package name")
-                    .map(|tok| Decl::Package(tok));
+                if !self.config.anon_packages {
+                    Err(self.error_token("only declare package once, and as the first statement"))
+                } else {
+                    self.consume(); // kw
+                    self.expect_identifier("package name")
+                        .map(|t| Decl::Package(t))
+                }
             }
             _ => Err(self.error_token("expected declaration")),
         }
@@ -292,6 +313,11 @@ impl<'a> Parser<'a> {
     /// Returns token if it matches, else error.
     fn expect(&mut self, kind: TokenKind) -> Result<Token, Error> {
         self.expect_pred(&format!("{}", kind), |t| t.kind == kind)
+    }
+
+    /// Same as expect but with a message
+    fn expect_msg(&mut self, kind: TokenKind, msg: &str) -> Result<Token, Error> {
+        self.expect_pred(msg, |t| t.kind == kind)
     }
 
     /// Expects the current token to match a predicate.

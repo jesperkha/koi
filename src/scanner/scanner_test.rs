@@ -3,12 +3,12 @@ use std::vec;
 use super::*;
 use crate::{
     error::Res,
-    token::{File, Token, TokenKind},
+    token::{Source, Token, TokenKind},
     util::must,
 };
 
 fn scan_source(s: &str) -> Res<Vec<Token>> {
-    let file = File::new_test_file(s);
+    let file = Source::new_from_string(s);
     Scanner::scan(&file)
 }
 

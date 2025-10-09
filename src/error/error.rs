@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::token::{File, Pos, Token};
+use crate::token::{Source, Pos, Token};
 
 #[derive(Debug, Clone)]
 pub struct Error {
@@ -38,7 +38,7 @@ impl fmt::Display for Error {
 }
 
 impl Error {
-    pub fn new(msg: &str, from: &Token, to: &Token, file: &File) -> Error {
+    pub fn new(msg: &str, from: &Token, to: &Token, file: &Source) -> Error {
         Error {
             message: msg.to_string(),
             line: from.pos.row + 1,
@@ -49,7 +49,7 @@ impl Error {
         }
     }
 
-    pub fn range(msg: &str, from: &Pos, to: &Pos, file: &File) -> Error {
+    pub fn range(msg: &str, from: &Pos, to: &Pos, file: &Source) -> Error {
         Error {
             message: msg.to_string(),
             line: from.row + 1,
@@ -60,7 +60,7 @@ impl Error {
         }
     }
 
-    pub fn new_syntax(msg: &str, from: &Pos, length: usize, file: &File) -> Error {
+    pub fn new_syntax(msg: &str, from: &Pos, length: usize, file: &Source) -> Error {
         Error {
             message: msg.to_string(),
             line: from.row + 1,

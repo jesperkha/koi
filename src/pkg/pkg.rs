@@ -1,4 +1,4 @@
-use crate::{ast::Ast, token::FileSet, types::TypeContext};
+use crate::{ast::File, token::FileSet, types::TypeContext};
 
 pub struct Package {
     /// Name of package. eg. 'main'
@@ -6,12 +6,12 @@ pub struct Package {
     /// Relative path to package from project root
     pub filepath: String,
     pub fs: FileSet,
-    pub ast: Ast,
+    pub ast: File,
     pub ctx: TypeContext,
 }
 
 impl Package {
-    pub fn new(name: String, filepath: String, fs: FileSet, ast: Ast, ctx: TypeContext) -> Self {
+    pub fn new(name: String, filepath: String, fs: FileSet, ast: File, ctx: TypeContext) -> Self {
         Self {
             name,
             filepath,

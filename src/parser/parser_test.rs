@@ -1,14 +1,16 @@
-use crate::ast::{Ast, Printer};
+use crate::ast::{File, Printer};
+use crate::config::Config;
 use crate::error::ErrorSet;
 use crate::parser::Parser;
 use crate::scanner::Scanner;
-use crate::token::File;
+use crate::token::Source;
 use crate::util::{compare_string_lines_or_panic, must};
 
-fn parse(src: &str) -> Result<Ast, ErrorSet> {
-    let file = File::new_test_file(src);
+fn parse(src: &str) -> Result<File, ErrorSet> {
+    let file = Source::new_from_string(src);
     let toks = must(Scanner::scan(&file));
-    Parser::parse(&file, toks)
+    let config = Config::test();
+    Parser::parse(&file, toks, &config)
 }
 
 fn compare_string(src: &str) {
@@ -115,19 +117,6 @@ fn test_function_with_error() {
 
 #[test]
 fn test_package_decl() {
-    compare_string(
-        r#"
-        package p
-    "#,
-    );
-    compare_string(
-        r#"
-        package p
-
-        func f() {
-        }
-    "#,
-    );
     expect_error(
         r#"
         package

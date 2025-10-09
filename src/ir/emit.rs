@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Ast, BlockNode, Expr, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
+    ast::{File, BlockNode, Expr, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
     error::{Error, ErrorSet},
     ir::{FuncInst, Ins, SymTracker, Type, Value, ir},
     token::{Token, TokenKind},
@@ -20,7 +20,7 @@ pub struct IR<'a> {
 pub type IRResult = Result<Vec<Ins>, ErrorSet>;
 
 impl<'a> IR<'a> {
-    pub fn emit(ast: &'a Ast, ctx: &'a TypeContext) -> IRResult {
+    pub fn emit(ast: &'a File, ctx: &'a TypeContext) -> IRResult {
         let mut s = Self {
             ctx,
             sym: SymTracker::new(),

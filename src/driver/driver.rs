@@ -3,13 +3,14 @@ use std::{fs, process::Command, vec};
 use crate::{
     ast::TreeSet,
     build::{Builder, TransUnit, X86Builder},
+    config,
     driver::{Config, Target},
     error::ErrorSet,
     ir::{IR, IRUnit},
     parser::Parser,
     pkg::Package,
     scanner::Scanner,
-    token::{File, FileSet},
+    token::{FileSet, Source},
     types::Checker,
 };
 
@@ -58,7 +59,7 @@ fn collect_files_in_directory(dir: &str) -> Res<FileSet> {
     for file in files {
         match fs::read(&file) {
             Err(err) => return Err(format!("failed to read file: {}", err)),
-            Ok(src) => set.add(File::new(file, src)),
+            Ok(src) => set.add(Source::new(file, src)),
         }
     }
 
@@ -69,9 +70,12 @@ fn parse_files(fs: &FileSet) -> Res<TreeSet> {
     let mut errs = ErrorSet::new();
     let mut ts = TreeSet::new();
 
+    // TODO: driver impl
+    let c = config::Config::default();
+
     for file in &fs.files {
         Scanner::scan(file)
-            .and_then(|toks| Parser::parse(file, toks))
+            .and_then(|toks| Parser::parse(file, toks, &c))
             .map_or_else(|err| errs.join(err), |ast| ts.add(ast));
     }
 

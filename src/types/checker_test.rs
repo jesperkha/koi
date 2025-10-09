@@ -1,11 +1,14 @@
-use crate::{error::Res, parser::Parser, scanner::Scanner, token::File, util::must};
+use crate::{
+    config::Config, error::Res, parser::Parser, scanner::Scanner, token::Source, util::must,
+};
 
 use super::*;
 
 fn check(input: &str) -> Res<TypeContext> {
-    let file = File::new_test_file(input);
+    let config = Config::test();
+    let file = Source::new_from_string(input);
     Scanner::scan(&file)
-        .and_then(|toks| Parser::parse(&file, toks))
+        .and_then(|toks| Parser::parse(&file, toks, &config))
         .and_then(|ast| Checker::check(&ast, &file))
 }
 

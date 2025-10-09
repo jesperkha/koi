@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Ast, BlockNode, FuncNode, ReturnNode, Stmt, TypeNode, Visitable, Visitor},
+    ast::{File, BlockNode, FuncNode, ReturnNode, Stmt, TypeNode, Visitable, Visitor},
     token::Token,
 };
 
@@ -10,12 +10,12 @@ pub struct Printer {
 
 impl Printer {
     /// Convert AST to printable format and print to stdout
-    pub fn print(ast: &Ast) {
+    pub fn print(ast: &File) {
         println!("{}", Printer::to_string(ast));
     }
 
     /// Convert AST to printable format
-    pub fn to_string(ast: &Ast) -> String {
+    pub fn to_string(ast: &File) -> String {
         let mut s = Self {
             s: String::new(),
             indent: 0,
