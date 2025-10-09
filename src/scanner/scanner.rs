@@ -12,40 +12,47 @@ pub struct Scanner<'a> {
     errs: ErrorSet,
 }
 
+pub fn scan(src: &Source) -> Res<Vec<Token>> {
+    let scanner = Scanner::new(src);
+    scanner.scan()
+}
+
 impl<'a> Scanner<'a> {
-    pub fn scan(file: &'a Source) -> Res<Vec<Token>> {
-        let mut s = Scanner {
+    pub fn new(file: &'a Source) -> Self {
+        Scanner {
             file,
             pos: 0,
             col: 0,
             row: 0,
             line_begin: 0,
             errs: ErrorSet::new(),
-        };
+        }
+    }
 
+    pub fn scan(mut self) -> Res<Vec<Token>> {
         // No input
-        if s.eof() {
+        if self.eof() {
             return Ok(Vec::new());
         }
 
-        while !s.eof() {
-            match s.scan_all() {
+        while !self.eof() {
+            match self.scan_all() {
                 // If ok and we did not encounter errors before, return result
                 // Otherwise ignore result as one or more errors have been raised
                 Ok(toks) => {
-                    if s.errs.size() == 0 {
+                    if self.errs.size() == 0 {
                         return Ok(toks);
                     }
                 }
                 // If error add to set and skip to next 'safe' spot
                 Err(err) => {
-                    s.errs.add(err);
-                    s.pos += s.peek_while(|p| !Scanner::is_whitespace(p))
+                    self.errs.add(err);
+                    self.pos += self.peek_while(|p| !Scanner::is_whitespace(p))
                 }
             }
         }
 
-        Err(s.errs)
+        Err(self.errs)
     }
 
     fn scan_all(&mut self) -> Result<Vec<Token>, Error> {

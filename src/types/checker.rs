@@ -24,12 +24,7 @@ pub struct Checker<'a> {
     has_returned: bool,
 }
 
-// TODO: accept multiple files to type check
-// - check that package names are consistent
-// - combine asts into one large ast and check
-// - return Package type with all files included
-
-pub fn check_files(files: Vec<File>) -> Res<Package> {
+pub fn check(files: Vec<File>) -> Res<Package> {
     let mut ctx = TypeContext::new();
     let mut errs = ErrorSet::new();
 

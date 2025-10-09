@@ -9,7 +9,7 @@ use crate::{
 
 fn scan_source(s: &str) -> Res<Vec<Token>> {
     let file = Source::new_from_string(s);
-    Scanner::scan(&file)
+    scan(&file)
 }
 
 fn scan_and_then<P>(src: &str, pred: P)

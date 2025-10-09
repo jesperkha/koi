@@ -24,9 +24,14 @@ pub struct Parser<'a> {
     pkg_declared: bool, // Package name declared yet?
 }
 
+pub fn parse(src: Source, tokens: Vec<Token>, config: &Config) -> Res<File> {
+    let parser = Parser::new(src, tokens, config);
+    parser.parse()
+}
+
 impl<'a> Parser<'a> {
-    pub fn parse(src: Source, tokens: Vec<Token>, config: &'a Config) -> Res<File> {
-        let s = Self {
+    pub fn new(src: Source, tokens: Vec<Token>, config: &'a Config) -> Self {
+        Self {
             errs: ErrorSet::new(),
             tokens,
             file: File::new(src),
@@ -34,12 +39,10 @@ impl<'a> Parser<'a> {
             panic_mode: false,
             pkg_declared: false,
             config,
-        };
-
-        s._parse()
+        }
     }
 
-    fn _parse(mut self) -> Res<File> {
+    fn parse(mut self) -> Res<File> {
         while self.skip_whitespace_and_not_eof() {
             match self.parse_decl() {
                 Ok(decl) => match decl {

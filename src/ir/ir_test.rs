@@ -1,10 +1,10 @@
 use crate::{
     config::Config,
     ir::print::ir_to_string,
-    parser::Parser,
-    scanner::Scanner,
+    parser::parse,
+    scanner::scan,
     token::Source,
-    types::check_files,
+    types::check,
     util::{compare_string_lines_or_panic, must},
 };
 
@@ -13,9 +13,9 @@ use super::*;
 fn expect_equal(src: &str, expect: &str) {
     let config = Config::test();
     let src = Source::new_from_string(src);
-    let toks = must(Scanner::scan(&src));
-    let file = must(Parser::parse(src, toks, &config));
-    let pkg = must(check_files(vec![file]));
+    let toks = must(scan(&src));
+    let file = must(parse(src, toks, &config));
+    let pkg = must(check(vec![file]));
     let ir = must(IR::emit(&pkg.files[0], &pkg.ctx));
 
     let ir_str = ir_to_string(ir);

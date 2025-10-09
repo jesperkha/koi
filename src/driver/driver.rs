@@ -1,17 +1,6 @@
 use std::{fs, process::Command, vec};
 
-use crate::{
-    build::{Builder, TransUnit, X86Builder},
-    config,
-    driver::{Config, Target},
-    error::ErrorSet,
-    ir::{IR, IRUnit},
-    parser::Parser,
-    pkg::Package,
-    scanner::Scanner,
-    token::Source,
-    types::Checker,
-};
+use crate::driver::Config;
 
 type Res<T> = Result<T, String>;
 
