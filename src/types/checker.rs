@@ -3,20 +3,22 @@ use std::collections::HashMap;
 use crate::{
     ast::{BlockNode, File, FuncNode, Node, ReturnNode, TypeNode, Visitable, Visitor},
     error::{Error, ErrorSet, Res},
-    token::{Source, Token, TokenKind},
+    pkg::Package,
+    token::{Token, TokenKind},
     types::{PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
 };
 
 pub struct Checker<'a> {
-    ctx: TypeContext,
+    ctx: &'a mut TypeContext,
     sym: SymTable<TypeId>,
-    src: &'a Source,
+    file: &'a File,
 
     /// Map of global type declarations.
     type_decls: HashMap<String, TypeId>,
 
     /// Return type in current scope
     rtype: TypeId,
+
     /// Has returned in the base function scope
     /// Not counting nested scopes as returning there is optional
     has_returned: bool,
@@ -27,34 +29,44 @@ pub struct Checker<'a> {
 // - combine asts into one large ast and check
 // - return Package type with all files included
 
+pub fn check_files(files: Vec<File>) -> Res<Package> {
+    let mut ctx = TypeContext::new();
+    let mut errs = ErrorSet::new();
+
+    for file in &files {
+        let checker = Checker::new(&file, &mut ctx);
+        errs.join(checker.check());
+    }
+
+    if errs.size() > 0 {
+        return Err(errs);
+    }
+
+    Ok(Package::new("name".to_string(), "".to_string(), files, ctx))
+}
+
 impl<'a> Checker<'a> {
-    pub fn check(file: &'a File) -> Res<TypeContext> {
-        let s = Self {
-            src: &file.src,
-            ctx: TypeContext::new(),
+    pub fn new(file: &'a File, ctx: &'a mut TypeContext) -> Self {
+        Self {
+            file,
+            ctx,
             sym: SymTable::new(),
             rtype: no_type(),
             has_returned: false,
             type_decls: HashMap::new(),
-        };
-
-        s._check(file)
+        }
     }
 
-    fn _check(mut self, ast: &File) -> Result<TypeContext, ErrorSet> {
+    pub fn check(mut self) -> ErrorSet {
         let mut errs = ErrorSet::new();
 
-        for node in &ast.nodes {
+        for node in &self.file.nodes {
             if let Err(err) = self.eval(node) {
                 errs.add(err);
             }
         }
 
-        if errs.size() == 0 {
-            Ok(self.ctx)
-        } else {
-            Err(errs)
-        }
+        errs
     }
 
     /// Type check a Node. If it evaluates to a type it is internalized.
@@ -71,11 +83,11 @@ impl<'a> Checker<'a> {
     }
 
     fn error(&self, msg: &str, node: &dyn Node) -> Error {
-        Error::range(msg, node.pos(), node.end(), self.src)
+        Error::range(msg, node.pos(), node.end(), &self.file.src)
     }
 
     fn error_token(&self, msg: &str, tok: &Token) -> Error {
-        Error::new(msg, tok, tok, self.src)
+        Error::new(msg, tok, tok, &self.file.src)
     }
 
     fn error_expected_token(&self, msg: &str, expect: TypeId, tok: &Token) -> Error {

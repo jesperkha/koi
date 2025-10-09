@@ -9,7 +9,7 @@ fn check(input: &str) -> Res<TypeContext> {
     let file = Source::new_from_string(input);
     Scanner::scan(&file)
         .and_then(|toks| Parser::parse(file, toks, &config))
-        .and_then(|ast| Checker::check(&ast))
+        .and_then(|file| check_files(vec![file]).map(|pkg| pkg.ctx))
 }
 
 fn assert_pass(src: &str) -> TypeContext {

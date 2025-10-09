@@ -4,7 +4,7 @@ use crate::{
     parser::Parser,
     scanner::Scanner,
     token::Source,
-    types::Checker,
+    types::check_files,
     util::{compare_string_lines_or_panic, must},
 };
 
@@ -15,8 +15,8 @@ fn expect_equal(src: &str, expect: &str) {
     let src = Source::new_from_string(src);
     let toks = must(Scanner::scan(&src));
     let file = must(Parser::parse(src, toks, &config));
-    let ctx = must(Checker::check(&file));
-    let ir = must(IR::emit(&file, &ctx));
+    let pkg = must(check_files(vec![file]));
+    let ir = must(IR::emit(&pkg.files[0], &pkg.ctx));
 
     let ir_str = ir_to_string(ir);
     compare_string_lines_or_panic(ir_str, expect.to_string());
