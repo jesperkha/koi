@@ -1,5 +1,6 @@
 use crate::{
     ast::File,
+    build::{Builder, X86Builder},
     config::Config,
     error::{ErrorSet, Res},
     ir::{IRUnit, emit_ir},
@@ -46,4 +47,11 @@ pub fn check_string(src: &str) -> Res<Package> {
 
 pub fn emit_string(src: &str) -> Res<IRUnit> {
     check_string(src).and_then(|pkg| emit_ir(&pkg))
+}
+
+pub fn compile_string(src: &str) -> Result<String, String> {
+    emit_string(src)
+        .map_err(|err| err.to_string())
+        .and_then(|ir| X86Builder::new().assemble(ir))
+        .and_then(|unit| Ok(unit.source))
 }

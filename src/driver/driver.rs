@@ -1,11 +1,7 @@
-use std::{fs, process::Command, vec};
-
-use crate::driver::Config;
-
 type Res<T> = Result<T, String>;
 
 /// Compiler entry point and main driver
-pub fn compile(config: Config) -> Res<()> {
+pub fn compile() -> Res<()> {
     // let fileset = collect_files_in_directory(&config.srcdir)?;
     // let treeset = parse_files(&fileset)?;
     // let pkg = type_check_and_create_package(&config.srcdir, fileset, treeset)?;
