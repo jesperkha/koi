@@ -1,12 +1,13 @@
 use tracing::{error, info, trace};
 
 use crate::{
+    config::Config,
     error::{Error, ErrorSet, Res},
     token::{Pos, Source, Token, TokenKind, str_to_token},
 };
 
-pub fn scan(src: &Source) -> Res<Vec<Token>> {
-    let scanner = Scanner::new(src);
+pub fn scan(src: &Source, config: &Config) -> Res<Vec<Token>> {
+    let scanner = Scanner::new(src, config);
     scanner.scan()
 }
 
@@ -17,11 +18,13 @@ struct Scanner<'a> {
     col: usize,
     line_begin: usize,
     errs: ErrorSet,
+    config: &'a Config,
 }
 
 impl<'a> Scanner<'a> {
-    fn new(file: &'a Source) -> Self {
+    fn new(file: &'a Source, config: &'a Config) -> Self {
         Scanner {
+            config,
             file,
             pos: 0,
             col: 0,

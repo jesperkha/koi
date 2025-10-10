@@ -4,19 +4,20 @@ use tracing::{error, info};
 
 use crate::{
     ast::{BlockNode, File, FuncNode, Node, ReturnNode, TypeNode, Visitable, Visitor},
+    config::Config,
     error::{Error, ErrorSet, Res},
     token::{Token, TokenKind},
     types::{Package, PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
 };
 
-pub fn check(files: Vec<File>) -> Res<Package> {
+pub fn check(files: Vec<File>, config: &Config) -> Res<Package> {
     let mut ctx = TypeContext::new();
     let mut errs = ErrorSet::new();
 
     info!("checking {} files", files.len());
 
     for file in &files {
-        let checker = Checker::new(&file, &mut ctx);
+        let checker = Checker::new(&file, &mut ctx, config);
         errs.join(checker.check());
     }
 
@@ -33,6 +34,7 @@ struct Checker<'a> {
     ctx: &'a mut TypeContext,
     sym: SymTable<TypeId>,
     file: &'a File,
+    config: &'a Config,
 
     /// Map of global type declarations.
     type_decls: HashMap<String, TypeId>,
@@ -46,8 +48,9 @@ struct Checker<'a> {
 }
 
 impl<'a> Checker<'a> {
-    fn new(file: &'a File, ctx: &'a mut TypeContext) -> Self {
+    fn new(file: &'a File, ctx: &'a mut TypeContext, config: &'a Config) -> Self {
         Self {
+            config,
             file,
             ctx,
             sym: SymTable::new(),

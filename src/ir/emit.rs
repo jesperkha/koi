@@ -2,14 +2,15 @@ use tracing::info;
 
 use crate::{
     ast::{BlockNode, Decl, Expr, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
+    config::Config,
     error::{Error, ErrorSet, Res},
     ir::{FuncInst, IRUnit, Ins, SymTracker, Type, Value, ir},
     token::{Token, TokenKind},
     types::{self, Package, TypeContext, TypeId, TypeKind},
 };
 
-pub fn emit_ir(pkg: &Package) -> Res<IRUnit> {
-    let emitter = Emitter::new(pkg);
+pub fn emit_ir(pkg: &Package, config: &Config) -> Res<IRUnit> {
+    let emitter = Emitter::new(pkg, config);
     emitter.emit()
 }
 
@@ -17,6 +18,7 @@ struct Emitter<'a> {
     ctx: &'a TypeContext,
     nodes: &'a [Decl],
     sym: SymTracker,
+    config: &'a Config,
 
     // Track if void functions have returned or not to add explicit return
     has_returned: bool,
@@ -25,9 +27,10 @@ struct Emitter<'a> {
 // TODO: dead code elimination (warning)
 
 impl<'a> Emitter<'a> {
-    fn new(pkg: &'a Package) -> Self {
+    fn new(pkg: &'a Package, config: &'a Config) -> Self {
         info!("package '{}' at {}", pkg.name, pkg.filepath);
         Self {
+            config,
             ctx: &pkg.ctx,
             nodes: &pkg.nodes,
             sym: SymTracker::new(),

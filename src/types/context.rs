@@ -6,6 +6,8 @@ use crate::{
     types::{PrimitiveType, Type, TypeId, TypeKind},
 };
 
+// TODO: context dump with all bindings and types
+
 /// Context for type lookups.
 pub struct TypeContext {
     /// Name of package, 'unnamed' if anonymous package
@@ -21,6 +23,7 @@ pub struct TypeContext {
 }
 
 impl TypeContext {
+    // TODO: accept exported symbols and intern at init
     pub fn new() -> Self {
         let mut s = Self {
             pkg_name: "unnamed".to_string(),

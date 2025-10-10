@@ -3,8 +3,6 @@ pub struct Config {
     pub anon_packages: bool,
 }
 
-// TODO: make all components accept config
-
 impl Config {
     pub fn default() -> Self {
         Self {

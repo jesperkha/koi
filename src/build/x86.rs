@@ -1,16 +1,19 @@
 use crate::{
     build::{Builder, TransUnit},
+    config::Config,
     ir::{IRUnit, IRVisitor, Value},
 };
 
-pub struct X86Builder {
+pub struct X86Builder<'a> {
+    config: &'a Config,
     src: String,
     indent: usize,
 }
 
-impl X86Builder {
-    pub fn new() -> Self {
+impl<'a> X86Builder<'a> {
+    pub fn new(config: &'a Config) -> Self {
         Self {
+            config,
             src: String::new(),
             indent: 0,
         }
@@ -34,7 +37,7 @@ impl X86Builder {
     }
 }
 
-impl Builder for X86Builder {
+impl<'a> Builder for X86Builder<'a> {
     fn assemble(mut self, unit: IRUnit) -> Result<TransUnit, String> {
         self.writeln(".intel_syntax noprefix");
         self.writeln(".section .data");
@@ -48,7 +51,7 @@ impl Builder for X86Builder {
     }
 }
 
-impl IRVisitor<()> for X86Builder {
+impl<'a> IRVisitor<()> for X86Builder<'a> {
     fn visit_func(&mut self, f: &crate::ir::FuncInst) {
         self.writeln(&format!(".globl {}", f.name));
         self.writeln(&format!("{}:", f.name));

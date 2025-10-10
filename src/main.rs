@@ -1,6 +1,6 @@
 use std::fs::read_to_string;
 
-use koi::util::compile_string;
+use koi::util::debug_print_all_steps;
 use tracing_subscriber::EnvFilter;
 
 fn main() {
@@ -11,6 +11,5 @@ fn main() {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    compile_string(&read_to_string("main.koi").unwrap())
-        .map_or_else(|err| println!("{}", err), |src| println!("{}", src))
+    debug_print_all_steps(&read_to_string("main.koi").unwrap());
 }
