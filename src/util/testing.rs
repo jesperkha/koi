@@ -4,10 +4,9 @@ use crate::{
     error::{ErrorSet, Res},
     ir::{IRUnit, emit_ir},
     parser::parse,
-    pkg::Package,
     scanner::scan,
     token::{Source, Token},
-    types::check,
+    types::{Package, check},
 };
 
 pub fn compare_string_lines_or_panic(ina: String, inb: String) {

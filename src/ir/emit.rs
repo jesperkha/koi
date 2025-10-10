@@ -2,9 +2,8 @@ use crate::{
     ast::{BlockNode, Decl, Expr, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
     error::{Error, ErrorSet, Res},
     ir::{FuncInst, IRUnit, Ins, SymTracker, Type, Value, ir},
-    pkg::Package,
     token::{Token, TokenKind},
-    types::{self, TypeContext, TypeId, TypeKind},
+    types::{self, Package, TypeContext, TypeId, TypeKind},
 };
 
 pub fn emit_ir(pkg: &Package) -> Res<IRUnit> {

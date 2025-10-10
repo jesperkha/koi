@@ -1,5 +1,5 @@
 use crate::{
-    pkg::Package,
+    types::Package,
     util::{check_string, must},
 };
 

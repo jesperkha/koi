@@ -3,9 +3,8 @@ use std::collections::HashMap;
 use crate::{
     ast::{BlockNode, File, FuncNode, Node, ReturnNode, TypeNode, Visitable, Visitor},
     error::{Error, ErrorSet, Res},
-    pkg::Package,
     token::{Token, TokenKind},
-    types::{PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
+    types::{Package, PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
 };
 
 pub fn check(files: Vec<File>) -> Res<Package> {
