@@ -232,7 +232,7 @@ pub fn token_to_str(t: TokenKind) -> Option<&'static str> {
 impl fmt::Display for TokenKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = match self {
-            TokenKind::Whitespace => panic!("whitespace tokens should be discarded"),
+            TokenKind::Whitespace => "WHITESPACE",
 
             TokenKind::Invalid => "INVALID",
             TokenKind::Eof => "EOF",

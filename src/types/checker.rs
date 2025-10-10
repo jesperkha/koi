@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use tracing::{error, info};
+
 use crate::{
     ast::{BlockNode, File, FuncNode, Node, ReturnNode, TypeNode, Visitable, Visitor},
     error::{Error, ErrorSet, Res},
@@ -11,15 +13,19 @@ pub fn check(files: Vec<File>) -> Res<Package> {
     let mut ctx = TypeContext::new();
     let mut errs = ErrorSet::new();
 
+    info!("checking {} files", files.len());
+
     for file in &files {
         let checker = Checker::new(&file, &mut ctx);
         errs.join(checker.check());
     }
 
-    if errs.size() > 0 {
+    if errs.len() > 0 {
+        info!("fail, finished all with {} errors", errs.len());
         return Err(errs);
     }
 
+    info!("success, all files");
     Ok(Package::new("name".to_string(), "".to_string(), files, ctx))
 }
 
@@ -53,6 +59,7 @@ impl<'a> Checker<'a> {
 
     fn check(mut self) -> ErrorSet {
         let mut errs = ErrorSet::new();
+        info!("file '{}', pkg '{}'", self.file.src.name, self.file.pkgname);
 
         for node in &self.file.nodes {
             if let Err(err) = self.eval(node) {
@@ -60,6 +67,9 @@ impl<'a> Checker<'a> {
             }
         }
 
+        if errs.len() > 0 {
+            info!("fail, finished with {} errors", errs.len());
+        }
         errs
     }
 
@@ -77,10 +87,12 @@ impl<'a> Checker<'a> {
     }
 
     fn error(&self, msg: &str, node: &dyn Node) -> Error {
+        error!("{}", msg);
         Error::range(msg, node.pos(), node.end(), &self.file.src)
     }
 
     fn error_token(&self, msg: &str, tok: &Token) -> Error {
+        error!("{}", msg);
         Error::new(msg, tok, tok, &self.file.src)
     }
 

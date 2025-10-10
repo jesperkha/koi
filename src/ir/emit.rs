@@ -1,3 +1,5 @@
+use tracing::info;
+
 use crate::{
     ast::{BlockNode, Decl, Expr, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
     error::{Error, ErrorSet, Res},
@@ -24,6 +26,7 @@ struct Emitter<'a> {
 
 impl<'a> Emitter<'a> {
     fn new(pkg: &'a Package) -> Self {
+        info!("package '{}' at {}", pkg.name, pkg.filepath);
         Self {
             ctx: &pkg.ctx,
             nodes: &pkg.nodes,
@@ -43,9 +46,11 @@ impl<'a> Emitter<'a> {
             }
         }
 
-        if errs.size() == 0 {
+        if errs.len() == 0 {
+            info!("success, {} instructions", ins.len());
             Ok(IRUnit::new(ins))
         } else {
+            info!("fail, finished with {} errors", errs.len());
             Err(errs)
         }
     }

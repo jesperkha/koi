@@ -1,3 +1,5 @@
+use tracing::{error, info, trace};
+
 use crate::{
     error::{Error, ErrorSet, Res},
     token::{Pos, Source, Token, TokenKind, str_to_token},
@@ -30,8 +32,11 @@ impl<'a> Scanner<'a> {
     }
 
     fn scan(mut self) -> Res<Vec<Token>> {
+        info!("file '{}'", self.file.name);
+
         // No input
         if self.eof() {
+            info!("no input");
             return Ok(Vec::new());
         }
 
@@ -40,7 +45,8 @@ impl<'a> Scanner<'a> {
                 // If ok and we did not encounter errors before, return result
                 // Otherwise ignore result as one or more errors have been raised
                 Ok(toks) => {
-                    if self.errs.size() == 0 {
+                    if self.errs.len() == 0 {
+                        info!("success, {} tokens", toks.len());
                         return Ok(toks);
                     }
                 }
@@ -52,6 +58,7 @@ impl<'a> Scanner<'a> {
             }
         }
 
+        info!("fail, finished with {} errors", self.errs.len());
         Err(self.errs)
     }
 
@@ -188,6 +195,7 @@ impl<'a> Scanner<'a> {
                 }
             };
 
+            trace!("consumed token: '{}'", token);
             self.pos += consumed;
 
             // Col must not advance after a newline. It is reset to 0 above and must remain 0
@@ -245,6 +253,7 @@ impl<'a> Scanner<'a> {
     }
 
     fn error(&self, msg: &str, length: usize) -> Error {
+        error!("{}", msg);
         Error::new_syntax(msg, &self.pos(), length, &self.file)
     }
 

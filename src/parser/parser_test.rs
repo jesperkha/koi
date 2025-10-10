@@ -9,7 +9,7 @@ fn compare_string(src: &str) {
 
 fn expect_error(src: &str, error: &str) {
     if let Err(e) = parse_string(src) {
-        assert_eq!(e.size(), 1);
+        assert_eq!(e.len(), 1);
         assert_eq!(e.get(0).message, error);
     } else {
         panic!("expected error");

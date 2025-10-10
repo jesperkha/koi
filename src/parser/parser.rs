@@ -1,3 +1,5 @@
+use tracing::{error, info};
+
 use crate::{
     ast::{BlockNode, Decl, Expr, Field, File, FuncNode, ReturnNode, Stmt, TypeNode},
     config::Config,
@@ -43,6 +45,12 @@ impl<'a> Parser<'a> {
     }
 
     fn parse(mut self) -> Res<File> {
+        info!("file '{}'", self.file.src.name);
+
+        if self.config.anon_packages {
+            info!("ignoring package");
+        }
+
         while self.skip_whitespace_and_not_eof() {
             match self.parse_decl() {
                 Ok(decl) => match decl {
@@ -62,10 +70,12 @@ impl<'a> Parser<'a> {
             }
         }
 
-        if self.errs.size() > 0 {
+        if self.errs.len() > 0 {
+            info!("fail, finished with {} errors", self.errs.len());
             return Err(self.errs);
         }
 
+        info!("success, part of package '{}'", self.file.pkgname);
         Ok(self.file)
     }
 
@@ -284,6 +294,7 @@ impl<'a> Parser<'a> {
 
     /// Create error marking the given token range.
     fn error_from_to(&self, message: &str, from: Token, to: Token) -> Error {
+        error!("{}", message);
         Error::new(message, &from, &to, &self.file.src)
     }
 

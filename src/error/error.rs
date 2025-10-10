@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::token::{Source, Pos, Token};
+use crate::token::{Pos, Source, Token};
 
 #[derive(Debug, Clone)]
 pub struct Error {
@@ -75,7 +75,7 @@ impl Error {
 impl fmt::Display for ErrorSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for (i, err) in self.errs.iter().enumerate() {
-            write!(f, "{}{}", err, if i == self.size() - 1 { "" } else { "\n" })?;
+            write!(f, "{}{}", err, if i == self.len() - 1 { "" } else { "\n" })?;
         }
         Ok(())
     }
@@ -90,7 +90,7 @@ impl ErrorSet {
         self.errs.push(err);
     }
 
-    pub fn size(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.errs.len()
     }
 
