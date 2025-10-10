@@ -1,13 +1,20 @@
 use crate::{
-    ast::{BlockNode, Expr, File, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
+    ast::{BlockNode, Decl, Expr, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
     error::{Error, ErrorSet, Res},
-    ir::{FuncInst, Ins, SymTracker, Type, Value, ir},
+    ir::{FuncInst, IRUnit, Ins, SymTracker, Type, Value, ir},
+    pkg::Package,
     token::{Token, TokenKind},
     types::{self, TypeContext, TypeId, TypeKind},
 };
 
-pub struct IR<'a> {
+pub fn emit_ir(pkg: &Package) -> Res<IRUnit> {
+    let emitter = Emitter::new(pkg);
+    emitter.emit()
+}
+
+struct Emitter<'a> {
     ctx: &'a TypeContext,
+    nodes: &'a [Decl],
     sym: SymTracker,
 
     // Track if void functions have returned or not to add explicit return
@@ -16,29 +23,32 @@ pub struct IR<'a> {
 
 // TODO: dead code elimination (warning)
 
-// TODO: export single function
-
-// TODO: adapt emitter to multi-file
-
-impl<'a> IR<'a> {
-    pub fn emit(ast: &'a File, ctx: &'a TypeContext) -> Res<Vec<Ins>> {
-        let mut s = Self {
-            ctx,
+impl<'a> Emitter<'a> {
+    fn new(pkg: &'a Package) -> Self {
+        Self {
+            ctx: &pkg.ctx,
+            nodes: &pkg.nodes,
             sym: SymTracker::new(),
             has_returned: false,
-        };
+        }
+    }
 
+    fn emit(mut self) -> Res<IRUnit> {
         let mut ins = Vec::new();
         let mut errs = ErrorSet::new();
 
-        for decl in &ast.nodes {
-            match decl.accept(&mut s) {
+        for decl in self.nodes {
+            match decl.accept(&mut self) {
                 Ok(i) => ins.push(i),
                 Err(err) => errs.add(err),
             }
         }
 
-        if errs.size() == 0 { Ok(ins) } else { Err(errs) }
+        if errs.size() == 0 {
+            Ok(IRUnit::new(ins))
+        } else {
+            Err(errs)
+        }
     }
 
     /// Convert semantic type to IR type, lowering to primitive or union type.
@@ -68,7 +78,7 @@ impl<'a> IR<'a> {
     }
 }
 
-impl<'a> Visitor<Result<Ins, Error>> for IR<'a> {
+impl<'a> Visitor<Result<Ins, Error>> for Emitter<'a> {
     fn visit_func(&mut self, node: &FuncNode) -> Result<Ins, Error> {
         self.sym.new_function_context();
 

@@ -105,11 +105,6 @@ impl<'a> Checker<'a> {
         )
     }
 
-    /// Declare a global user type.
-    pub fn declare(&mut self, name: String, ty: TypeId) {
-        self.type_decls.insert(name, ty);
-    }
-
     /// Get a declared type.
     pub fn get_type(&self, name: &Token) -> Option<TypeId> {
         self.type_decls.get(&name.to_string()).copied()

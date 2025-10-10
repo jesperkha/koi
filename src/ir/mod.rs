@@ -3,10 +3,10 @@ mod ir;
 mod print;
 mod sym;
 
-pub use emit::IR;
+pub use emit::emit_ir;
 pub use ir::*;
 pub use print::print_ir;
-pub use sym::*;
+pub use sym::SymTracker;
 
 #[cfg(test)]
 mod ir_test;

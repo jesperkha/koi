@@ -1,4 +1,7 @@
-use crate::{ast::File, types::TypeContext};
+use crate::{
+    ast::{Decl, File},
+    types::TypeContext,
+};
 
 pub struct Package {
     /// Name of package. eg. 'main'
@@ -7,11 +10,20 @@ pub struct Package {
     pub filepath: String,
     pub ctx: TypeContext,
     pub files: Vec<File>,
+    pub nodes: Vec<Decl>,
 }
 
 impl Package {
-    pub fn new(name: String, filepath: String, files: Vec<File>, ctx: TypeContext) -> Self {
+    pub fn new(name: String, filepath: String, mut files: Vec<File>, ctx: TypeContext) -> Self {
+        // Join ASTs
+        let nodes = files
+            .iter_mut()
+            .map(|f| std::mem::take(&mut f.nodes))
+            .flatten()
+            .collect::<Vec<_>>();
+
         Self {
+            nodes,
             name,
             filepath,
             ctx,

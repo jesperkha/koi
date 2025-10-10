@@ -2,6 +2,7 @@ use crate::{
     ast::File,
     config::Config,
     error::{ErrorSet, Res},
+    ir::{IRUnit, emit_ir},
     parser::parse,
     pkg::Package,
     scanner::scan,
@@ -42,4 +43,8 @@ pub fn parse_string(src: &str) -> Res<File> {
 
 pub fn check_string(src: &str) -> Res<Package> {
     check(vec![parse_string(src)?])
+}
+
+pub fn emit_string(src: &str) -> Res<IRUnit> {
+    check_string(src).and_then(|pkg| emit_ir(&pkg))
 }
