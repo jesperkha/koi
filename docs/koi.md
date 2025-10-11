@@ -288,29 +288,41 @@ func divide(a float, b float) float | error {
     return a / b
 }
 
-// Example 1: Catching errors
-func example1() {
-    // An error is raised here and we print it out
-    // result with be given a default value (0 in this case as it is default for int)
+func example() {
+    // An error is raised here and we print it out.
+    // result will be given a default value
+    // (0 in this case as it is the default for float)
     result := divide(3, 0) catch err {
         println("oops, got error: {}", err)
     }
 }
 
-// Example 2: Re-throwing errors
-func example2() error {
-    // ? operator just throws the error again
-    result1 := divide(1, 0)?
+func example() {
+    result := divide(8, 2) // error: error must be handled
+}
+```
 
-    // Is the same as this
-    result2 := divide(1, 0) catch err {
+### The `?` and `??` operators
+
+```go
+func example() error {
+    // ? operator just throws the error again
+    result := divide(1, 0)?
+
+    // shorthand for this
+    result := divide(1, 0) catch err {
         throw err
     }
 }
 
-// Example 3: Errors must be handled
-func example3() {
-    result := divide(8, 2) // error: error must be handled
+func example() error {
+    // ?? operator panics if an error is thrown
+    result := divide(1, 0)??
+
+    // shorthand for this
+    result := divide(1, 0) catch err {
+        panic("{}", err)
+    }
 }
 ```
 
