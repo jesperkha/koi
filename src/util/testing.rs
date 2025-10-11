@@ -1,9 +1,9 @@
 use crate::{
-    ast::{File, Printer},
+    ast::File,
     build::{Builder, X86Builder},
     config::Config,
     error::{ErrorSet, Res},
-    ir::{IRUnit, emit_ir, print_ir},
+    ir::{IRUnit, emit_ir},
     parser::parse,
     scanner::scan,
     token::{Source, Token},
@@ -67,13 +67,13 @@ pub fn debug_print_all_steps(src: &str) {
     scan(&source, &config)
         .and_then(|toks| parse(source, toks, &config))
         .and_then(|file| {
-            Printer::print(&file);
+            println!("{}", file);
             check(vec![file], &config)
         })
         .and_then(|pkg| emit_ir(&pkg, &config))
         .map_err(|err| err.to_string())
         .and_then(|unit| {
-            print_ir(&unit.ins);
+            println!("{}", unit);
             X86Builder::new(&config).assemble(unit)
         })
         .map_or_else(

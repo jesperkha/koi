@@ -1,5 +1,7 @@
 use core::fmt;
 
+use crate::ir::print::ir_to_string;
+
 pub struct IRUnit {
     pub ins: Vec<Ins>,
 }
@@ -7,6 +9,12 @@ pub struct IRUnit {
 impl IRUnit {
     pub fn new(ins: Vec<Ins>) -> Self {
         Self { ins }
+    }
+}
+
+impl fmt::Display for IRUnit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", ir_to_string(&self.ins))
     }
 }
 
@@ -19,6 +27,7 @@ pub enum Ins {
     Func(FuncInst),
 }
 
+// TODO: public functions
 pub struct FuncInst {
     pub name: String,
     pub params: Vec<Type>,

@@ -1,4 +1,9 @@
-use crate::token::{Pos, Source, Token};
+use core::fmt;
+
+use crate::{
+    ast::Printer,
+    token::{Pos, Source, Token},
+};
 
 pub type NodeId = usize;
 
@@ -69,6 +74,12 @@ impl File {
     pub fn set_package(&mut self, t: Token) {
         self.pkgname = t.to_string();
         self.package = Some(t);
+    }
+}
+
+impl fmt::Display for File {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", Printer::to_string(self))
     }
 }
 

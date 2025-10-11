@@ -4,9 +4,6 @@ pub fn print_ir(ir: &Vec<Ins>) {
     println!("{}", ir_to_string(ir));
 }
 
-// TODO: make this a method on IRUnit
-// Do same with print for ast
-
 pub fn ir_to_string(ir: &Vec<Ins>) -> String {
     ir_to_string_indent(ir, 0)
 }
