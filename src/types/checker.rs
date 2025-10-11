@@ -151,14 +151,22 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             }
         }
 
-        // If this is main() assert return type is int and no params
+        // If this is the main function we do additional checks
         if node.name.to_string() == "main" {
             let int_id = self.ctx.primitive(PrimitiveType::I64);
+
+            // If return type is not int
             if !self.ctx.equivalent(ret_type, int_id) {
-                // TODO: point to type node if present, else rparen
-                return Err(self.error("main function must return 'i64'", node));
+                let msg = "main function must return 'i64'";
+                return Err(node
+                    .ret_type
+                    .as_ref()
+                    .map_or(self.error_token(msg, &node.rparen), |ty_node| {
+                        self.error(msg, ty_node)
+                    }));
             }
 
+            // No parameters allowed
             if params.len() > 0 {
                 return Err(self.error("main function must not take any arguments", node));
             }
