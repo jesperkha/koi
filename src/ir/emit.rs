@@ -129,6 +129,7 @@ impl<'a> Visitor<Result<Ins, Error>> for Emitter<'a> {
 
         Ok(Ins::Func(FuncInst {
             name,
+            public: node.public,
             params,
             ret,
             body,

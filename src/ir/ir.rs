@@ -27,9 +27,9 @@ pub enum Ins {
     Func(FuncInst),
 }
 
-// TODO: public functions
 pub struct FuncInst {
     pub name: String,
+    pub public: bool,
     pub params: Vec<Type>,
     pub ret: Type,
     pub body: Vec<Ins>,

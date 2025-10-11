@@ -118,7 +118,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_function(&mut self, kw: Token) -> Result<FuncNode, Error> {
-        let public = kw.kind == TokenKind::Pub;
+        let mut public = kw.kind == TokenKind::Pub;
         if public {
             self.consume(); // Consume the 'pub' token
         }
@@ -127,6 +127,11 @@ impl<'a> Parser<'a> {
 
         let name = self.expect_identifier("function name")?;
         let lparen = self.expect(TokenKind::LParen)?;
+
+        // Automatically set main as public for convenience
+        if name.to_string() == "main" {
+            public = true;
+        }
 
         // If the next token is not a right paren we parse parameters.
         let params = if self.matches(TokenKind::RParen) {

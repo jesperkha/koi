@@ -53,7 +53,10 @@ impl<'a> Builder for X86Builder<'a> {
 
 impl<'a> IRVisitor<()> for X86Builder<'a> {
     fn visit_func(&mut self, f: &crate::ir::FuncInst) {
-        self.writeln(&format!(".globl {}", f.name));
+        if f.public {
+            self.writeln(&format!(".globl {}", f.name));
+        }
+
         self.writeln(&format!("{}:", f.name));
         self.push();
 
