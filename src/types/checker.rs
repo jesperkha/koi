@@ -170,6 +170,11 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             if params.len() > 0 {
                 return Err(self.error("main function must not take any arguments", node));
             }
+
+            // Must be package main
+            if self.file.pkgname != "main" {
+                return Err(self.error("main function can only be declared in main package", node));
+            }
         }
 
         // Declare function while still in global scope
