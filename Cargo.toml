@@ -8,3 +8,4 @@ strum = "0.26"
 strum_macros = "0.26"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+walkdir = "2"

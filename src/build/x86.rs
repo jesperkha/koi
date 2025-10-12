@@ -11,14 +11,6 @@ pub struct X86Builder<'a> {
 }
 
 impl<'a> X86Builder<'a> {
-    pub fn new(config: &'a Config) -> Self {
-        Self {
-            config,
-            src: String::new(),
-            indent: 0,
-        }
-    }
-
     fn write(&mut self, s: &str) {
         self.src
             .push_str(&format!("{}{}", "    ".repeat(self.indent), s));
@@ -37,7 +29,15 @@ impl<'a> X86Builder<'a> {
     }
 }
 
-impl<'a> Builder for X86Builder<'a> {
+impl<'a> Builder<'a> for X86Builder<'a> {
+    fn new(config: &'a Config) -> Self {
+        Self {
+            config,
+            src: String::new(),
+            indent: 0,
+        }
+    }
+
     fn assemble(mut self, unit: IRUnit) -> Result<TransUnit, String> {
         self.writeln(".intel_syntax noprefix");
         self.writeln(".section .data");

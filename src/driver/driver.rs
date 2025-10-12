@@ -1,4 +1,21 @@
-type Res<T> = Result<T, String>;
+use std::{
+    fs::{self},
+    path::PathBuf,
+};
+
+use walkdir::WalkDir;
+
+use crate::{
+    ast::File,
+    build::{TransUnit, X86Builder, assemble},
+    config::Config,
+    error::ErrorSet,
+    ir::{IRUnit, emit_ir},
+    parser::parse,
+    scanner::scan,
+    token::Source,
+    types::{Package, check},
+};
 
 /// Compiler entry point and main driver
 pub fn compile() -> Res<()> {
@@ -14,86 +31,149 @@ pub fn compile() -> Res<()> {
     Ok(())
 }
 
-// fn collect_files_in_directory(dir: &str) -> Res<FileSet> {
-//     let mut files = Vec::new();
+type Res<T> = Result<T, String>;
 
-//     let dirents = match fs::read_dir(&dir) {
-//         Err(_) => return Err(format!("failed to read directory: '{}'", dir)),
-//         Ok(ents) => ents,
-//     };
+pub enum Target {
+    X86_64,
+}
 
-//     for entry in dirents {
-//         let path = match entry {
-//             Err(err) => return Err(format!("failed to read file: {}", err)),
-//             Ok(ent) => ent.path(),
-//         };
+pub struct BuildConfig {
+    /// Directory for assembly and object file output
+    pub bindir: String,
+    /// Name of target executable
+    pub outfile: String,
+    /// Root directory of Koi project
+    pub srcdir: String,
+    /// Target architecture
+    pub target: Target,
+}
 
-//         if !path.is_file() {
-//             continue;
-//         }
+pub struct Driver<'a> {
+    config: &'a Config,
+}
 
-//         if let Some(ext) = path.extension() {
-//             if ext == "koi" {
-//                 files.push(path.display().to_string());
-//             }
-//         }
-//     }
+impl<'a> Driver<'a> {
+    pub fn new(config: &'a Config) -> Self {
+        Self { config }
+    }
 
-//     let mut set = FileSet::new();
-//     for file in files {
-//         match fs::read(&file) {
-//             Err(err) => return Err(format!("failed to read file: {}", err)),
-//             Ok(src) => set.add(Source::new(file, src)),
-//         }
-//     }
+    pub fn compile(&mut self, config: BuildConfig) -> Res<()> {
+        let source_dirs = list_source_directories(&config.srcdir)?;
 
-//     Ok(set)
-// }
+        for dir in source_dirs {
+            println!("{}", dir.display());
+        }
 
-// fn parse_files(fs: &FileSet) -> Res<FileSet> {
-//     let mut errs = ErrorSet::new();
-//     let mut ts = FileSet::new();
+        Ok(())
+    }
 
-//     // TODO: driver impl
-//     let c = config::Config::default();
+    fn parse_files(&self, sources: Vec<Source>) -> Res<Vec<File>> {
+        let mut errs = ErrorSet::new();
+        let mut files = Vec::new();
 
-//     for file in &fs.files {
-//         Scanner::scan(file)
-//             .and_then(|toks| Parser::parse(file, toks, &c))
-//             .map_or_else(|err| errs.join(err), |ast| ts.add(ast));
-//     }
+        for src in sources {
+            scan(&src, self.config)
+                .and_then(|toks| parse(src, toks, self.config))
+                .map_or_else(|err| errs.join(err), |file| files.push(file));
+        }
 
-//     if errs.size() > 0 {
-//         Err(errs.to_string())
-//     } else {
-//         Ok(ts)
-//     }
-// }
+        if errs.len() > 0 {
+            Err(errs.to_string())
+        } else {
+            Ok(files)
+        }
+    }
 
-// fn type_check_and_create_package(dir: &str, fs: FileSet, ts: FileSet) -> Res<Package> {
-//     let ctx = Checker::check_set(&fs, &ts).map_err(|err| err.to_string())?;
-//     let ast = FileSet::join(ts);
+    fn type_check_and_create_package(&self, files: Vec<File>) -> Res<Package> {
+        check(files, self.config).map_err(|errs| errs.to_string())
+    }
 
-//     Ok(Package::new(
-//         "main".to_string(), // TODO: get pkg name from ast
-//         dir.to_string(),
-//         fs,
-//         ast,
-//         ctx,
-//     ))
-// }
+    fn emit_package_ir(&self, pkg: &Package) -> Res<IRUnit> {
+        emit_ir(pkg, self.config).map_err(|errs| errs.to_string())
+    }
 
-// fn generate_ir_unit(pkg: &Package) -> Res<IRUnit> {
-//     IR::emit(&pkg.ast, &pkg.ctx).map_or_else(|err| Err(err.to_string()), |ins| Ok(IRUnit::new(ins)))
-// }
+    fn assemble_ir_unit(&self, unit: IRUnit, target: Target) -> Res<TransUnit> {
+        match target {
+            Target::X86_64 => assemble::<X86Builder>(self.config, unit),
+        }
+    }
+}
 
-// fn assemble_ir_unit(config: &Config, unit: IRUnit) -> Res<TransUnit> {
-//     let builder = match config.target {
-//         Target::X86_64 => X86Builder::new(),
-//     };
+fn is_hidden(entry: &walkdir::DirEntry) -> bool {
+    entry
+        .file_name()
+        .to_str()
+        .map(|s| s.starts_with("."))
+        .unwrap_or(false)
+}
 
-//     builder.assemble(unit)
-// }
+/// List all subdirectories in path, including path. Ignores hidden
+/// directories and ones listed in other ignore lists (config or .gitignore).
+fn list_source_directories(path: &str) -> Result<Vec<PathBuf>, String> {
+    let mut dirs = Vec::new();
+    let mut errors = Vec::new();
+
+    // TODO: ignore based on config and .gitignore
+
+    for entry in WalkDir::new(path)
+        .into_iter()
+        .filter_entry(|e| !is_hidden(e))
+    {
+        match entry {
+            Ok(e) => {
+                if e.file_type().is_dir() {
+                    dirs.push(e.path().to_path_buf());
+                }
+            }
+            Err(err) => {
+                errors.push(err.to_string());
+            }
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(dirs)
+    } else {
+        Err(errors.join("\n"))
+    }
+}
+
+/// Collects all koi files in given directory and returns as a list of sources.
+fn collect_files_in_directory(dir: &str) -> Res<Vec<Source>> {
+    let mut files = Vec::new();
+
+    let dirents = match fs::read_dir(&dir) {
+        Err(_) => return Err(format!("failed to read directory: '{}'", dir)),
+        Ok(ents) => ents,
+    };
+
+    for entry in dirents {
+        let path = match entry {
+            Err(err) => return Err(format!("failed to read file: {}", err)),
+            Ok(ent) => ent.path(),
+        };
+
+        if !path.is_file() {
+            continue;
+        }
+
+        if let Some(ext) = path.extension() {
+            if ext == "koi" {
+                files.push(path.display().to_string());
+            }
+        }
+    }
+
+    let mut set = Vec::new();
+    for file in files {
+        match fs::read(&file) {
+            Err(err) => return Err(format!("failed to read file: {}", err)),
+            Ok(src) => set.push(Source::new(file, src)),
+        }
+    }
+
+    Ok(set)
+}
 
 // fn cmd(command: &str, args: &[&str]) -> Res<()> {
 //     let status = Command::new(command)
