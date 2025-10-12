@@ -1,6 +1,6 @@
 use std::{
     fs::{self},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use walkdir::WalkDir;
@@ -16,20 +16,6 @@ use crate::{
     token::Source,
     types::{Package, check},
 };
-
-/// Compiler entry point and main driver
-pub fn compile() -> Res<()> {
-    // let fileset = collect_files_in_directory(&config.srcdir)?;
-    // let treeset = parse_files(&fileset)?;
-    // let pkg = type_check_and_create_package(&config.srcdir, fileset, treeset)?;
-    // let ir_unit = generate_ir_unit(&pkg)?;
-    // let trans_unit = assemble_ir_unit(&config, ir_unit)?;
-
-    // write_output(&config, &pkg, trans_unit)?;
-    // compile_and_link(vec![&pkg], &config)?;
-
-    Ok(())
-}
 
 type Res<T> = Result<T, String>;
 
@@ -126,7 +112,10 @@ fn list_source_directories(path: &str) -> Result<Vec<PathBuf>, String> {
                 }
             }
             Err(err) => {
-                errors.push(err.to_string());
+                errors.push(format!(
+                    "failed to read directory: {}",
+                    err.path().unwrap_or(Path::new("")).display()
+                ));
             }
         }
     }
