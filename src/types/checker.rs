@@ -16,6 +16,9 @@ pub fn check(files: Vec<File>, config: &Config) -> Res<Package> {
 
     info!("checking {} files", files.len());
 
+    // TODO: remove this check and handle empty packages properly
+    assert!(files.len() > 0, "no files to type check");
+
     for file in &files {
         let checker = Checker::new(&file, &mut ctx, config);
         errs.join(checker.check());
@@ -26,8 +29,16 @@ pub fn check(files: Vec<File>, config: &Config) -> Res<Package> {
         return Err(errs);
     }
 
+    // TODO: assert all pkg names equal
+
     info!("success, all files");
-    Ok(Package::new("name".to_string(), "".to_string(), files, ctx))
+    Ok(Package::new(
+        files[0].pkgname.clone(),
+        // TODO: filepath in packages, copy from file
+        "".to_string(),
+        files,
+        ctx,
+    ))
 }
 
 struct Checker<'a> {

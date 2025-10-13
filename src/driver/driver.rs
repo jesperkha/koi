@@ -1,8 +1,10 @@
 use std::{
     fs::{self},
     path::{Path, PathBuf},
+    process::Command,
 };
 
+use tracing::info;
 use walkdir::WalkDir;
 
 use crate::{
@@ -44,10 +46,32 @@ impl<'a> Driver<'a> {
     }
 
     pub fn compile(&mut self, config: BuildConfig) -> Res<()> {
-        let source_dirs = list_source_directories(&config.srcdir)?;
+        if !fs::exists(&config.bindir).unwrap_or(false) {
+            if let Err(_) = fs::create_dir(&config.bindir) {
+                return Err(format!("failed to create directory: {}", config.bindir));
+            }
+        }
 
-        for dir in source_dirs {
-            println!("{}", dir.display());
+        let source_dirs = list_source_directories(&config.srcdir)?;
+        let mut asm_files = Vec::new();
+
+        for dir in &source_dirs {
+            let sources = collect_files_in_directory(dir)?;
+            let file = self.parse_files(sources)?;
+            let pkg = self.type_check_and_create_package(file)?;
+            let ir_unit = self.emit_package_ir(&pkg)?;
+            let asm = self.assemble_ir_unit(ir_unit, &config.target)?;
+
+            let outfile = write_output_file(&config.bindir, &pkg.name, &asm.source)?;
+            info!("output assembly file: {}", outfile.display());
+            asm_files.push(outfile);
+        }
+
+        for file in &asm_files {
+            info!("assembling: {}", file.display());
+            let src = file.to_string_lossy();
+            let out = file.with_extension("o");
+            cmd("as", &["-o", &out.to_string_lossy(), &src])?;
         }
 
         Ok(())
@@ -78,7 +102,7 @@ impl<'a> Driver<'a> {
         emit_ir(pkg, self.config).map_err(|errs| errs.to_string())
     }
 
-    fn assemble_ir_unit(&self, unit: IRUnit, target: Target) -> Res<TransUnit> {
+    fn assemble_ir_unit(&self, unit: IRUnit, target: &Target) -> Res<TransUnit> {
         match target {
             Target::X86_64 => assemble::<X86Builder>(self.config, unit),
         }
@@ -128,11 +152,11 @@ fn list_source_directories(path: &str) -> Result<Vec<PathBuf>, String> {
 }
 
 /// Collects all koi files in given directory and returns as a list of sources.
-fn collect_files_in_directory(dir: &str) -> Res<Vec<Source>> {
+fn collect_files_in_directory(dir: &PathBuf) -> Res<Vec<Source>> {
     let mut files = Vec::new();
 
-    let dirents = match fs::read_dir(&dir) {
-        Err(_) => return Err(format!("failed to read directory: '{}'", dir)),
+    let dirents = match fs::read_dir(dir) {
+        Err(_) => return Err(format!("failed to read directory: '{}'", dir.display())),
         Ok(ents) => ents,
     };
 
@@ -164,21 +188,33 @@ fn collect_files_in_directory(dir: &str) -> Res<Vec<Source>> {
     Ok(set)
 }
 
-// fn cmd(command: &str, args: &[&str]) -> Res<()> {
-//     let status = Command::new(command)
-//         .args(args)
-//         .status()
-//         .or_else(|_| Err(format!("failed to run command: {}", command)))?;
+/// Writes output assembly file to given directory with given package name.
+/// Returns path to written file.
+fn write_output_file(dir: &str, pkgname: &str, content: &str) -> Res<PathBuf> {
+    let fmtpath = &format!("{}/{}.s", dir, pkgname);
+    let path = Path::new(fmtpath);
+    if let Err(_) = fs::write(&path, content) {
+        return Err("failed to write output".to_string());
+    };
 
-//     if !status.success() {
-//         Err(format!(
-//             "command '{}' exited with a non-success code",
-//             command,
-//         ))
-//     } else {
-//         Ok(())
-//     }
-// }
+    Ok(path.to_path_buf())
+}
+
+fn cmd(command: &str, args: &[&str]) -> Res<()> {
+    let status = Command::new(command)
+        .args(args)
+        .status()
+        .or_else(|_| Err(format!("failed to run command: {}", command)))?;
+
+    if !status.success() {
+        Err(format!(
+            "command '{}' exited with a non-success code",
+            command,
+        ))
+    } else {
+        Ok(())
+    }
+}
 
 // fn write_output(config: &Config, pkg: &Package, unit: TransUnit) -> Res<()> {
 //     if !fs::exists(&config.bindir).unwrap_or(false) {
