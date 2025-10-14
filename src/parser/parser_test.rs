@@ -126,3 +126,53 @@ fn test_package_decl() {
     //     "expected package declaration first",
     // );
 }
+
+#[test]
+fn test_function_call() {
+    compare_string(
+        r#"
+        func f() {
+            f()
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            f(1)
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            f(1, 2, true, abc)
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            a(b(d), b(c(d)))
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_complex_function_call() {
+    compare_string(
+        r#"
+        func f() {
+            f()()()
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            a(b()(c))(c, d())
+        }
+    "#,
+    );
+}

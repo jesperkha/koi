@@ -291,6 +291,10 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
     fn visit_package(&mut self, node: &Token) -> EvalResult {
         Err(self.error_token("package already declared earlier in file", node))
     }
+
+    fn visit_call(&mut self, node: &crate::ast::CallExpr) -> EvalResult {
+        todo!()
+    }
 }
 
 fn token_to_primitive_type(tok: &Token) -> PrimitiveType {

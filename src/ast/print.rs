@@ -1,5 +1,5 @@
 use crate::{
-    ast::{File, BlockNode, FuncNode, ReturnNode, Stmt, TypeNode, Visitable, Visitor},
+    ast::{BlockNode, File, FuncNode, ReturnNode, Stmt, TypeNode, Visitable, Visitor},
     token::Token,
 };
 
@@ -44,7 +44,6 @@ impl Visitor<()> for Printer {
             self.s.push(' ');
             expr.accept(self);
         }
-        self.s.push('\n');
     }
 
     fn visit_func(&mut self, node: &FuncNode) {
@@ -83,6 +82,7 @@ impl Visitor<()> for Printer {
                 self.s.push_str("    ");
             }
             stmt.accept(self);
+            self.s.push('\n');
         }
         self.indent -= 1;
         for _ in 0..self.indent {
@@ -101,5 +101,17 @@ impl Visitor<()> for Printer {
 
     fn visit_package(&mut self, node: &Token) -> () {
         self.s.push_str(format!("package {}\n\n", node).as_str());
+    }
+
+    fn visit_call(&mut self, node: &super::CallExpr) -> () {
+        node.callee.accept(self);
+        self.s.push('(');
+        for (i, arg) in node.args.iter().enumerate() {
+            arg.accept(self);
+            if i != node.args.len() - 1 {
+                self.s.push_str(", ");
+            }
+        }
+        self.s.push(')');
     }
 }

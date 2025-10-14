@@ -34,6 +34,7 @@ pub trait Visitor<R> {
     fn visit_literal(&mut self, node: &Token) -> R;
     fn visit_type(&mut self, node: &TypeNode) -> R;
     fn visit_package(&mut self, node: &Token) -> R;
+    fn visit_call(&mut self, node: &CallExpr) -> R;
 }
 
 #[derive(Debug)]
@@ -107,6 +108,7 @@ pub enum Stmt {
 #[derive(Debug, Clone)]
 pub enum Expr {
     Literal(Token),
+    Call(CallExpr),
 }
 
 /// A TypeNode is the AST representation of a type, not the semantic meaning.
@@ -114,6 +116,14 @@ pub enum Expr {
 pub enum TypeNode {
     Primitive(Token),
     Ident(Token),
+}
+
+#[derive(Debug, Clone)]
+pub struct CallExpr {
+    pub callee: Box<Expr>,
+    pub lparen: Token,
+    pub args: Vec<Expr>,
+    pub rparen: Token,
 }
 
 #[derive(Debug, Clone)]
@@ -286,18 +296,21 @@ impl Node for Expr {
     fn pos(&self) -> &Pos {
         match self {
             Expr::Literal(token) => &token.pos,
+            Expr::Call(call) => &call.callee.pos(),
         }
     }
 
     fn end(&self) -> &Pos {
         match self {
             Expr::Literal(token) => &token.end_pos,
+            Expr::Call(call) => &call.rparen.pos,
         }
     }
 
     fn id(&self) -> usize {
         match self {
             Expr::Literal(token) => token.id,
+            Expr::Call(call) => call.lparen.id,
         }
     }
 }
@@ -306,6 +319,7 @@ impl Visitable for Expr {
     fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
         match self {
             Expr::Literal(token) => visitor.visit_literal(token),
+            Expr::Call(call) => visitor.visit_call(&call),
         }
     }
 }
