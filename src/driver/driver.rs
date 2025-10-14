@@ -74,6 +74,24 @@ impl<'a> Driver<'a> {
             cmd("as", &["-o", &out.to_string_lossy(), &src])?;
         }
 
+        let entry_o = format!("{}/entry.o", config.bindir);
+        cmd("as", &["-o", &entry_o, "lib/compile/entry.s"])?;
+
+        let mut objectfiles = vec![entry_o];
+        for file in asm_files {
+            objectfiles.push(file.with_extension("o").to_string_lossy().to_string());
+        }
+
+        let mut args = vec!["-o", &config.outfile, "-nostdlib"];
+        args.extend_from_slice(
+            &objectfiles
+                .iter()
+                .map(|f| f.as_str())
+                .collect::<Vec<&str>>(),
+        );
+
+        cmd("ld", &args)?;
+
         Ok(())
     }
 
