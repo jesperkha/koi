@@ -81,7 +81,8 @@ impl<'a> Emitter<'a> {
                 TokenKind::IdentLit(name) => self.sym.get(name),
                 _ => panic!("unhandled token kind in evaluate: {:?}", token.kind),
             },
-            Expr::Call(call_expr) => todo!(),
+            Expr::Call(call) => self.evaluate(&call.callee),
+            Expr::Group(grp) => self.evaluate(&grp.inner),
         }
     }
 }
@@ -166,6 +167,10 @@ impl<'a> Visitor<Result<Ins, Error>> for Emitter<'a> {
     }
 
     fn visit_call(&mut self, node: &crate::ast::CallExpr) -> Result<Ins, Error> {
+        todo!()
+    }
+
+    fn visit_group(&mut self, node: &crate::ast::GroupExpr) -> Result<Ins, Error> {
         todo!()
     }
 }

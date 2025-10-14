@@ -17,6 +17,27 @@ fn expect_error(src: &str, error: &str) {
 }
 
 #[test]
+fn test_literal() {
+    compare_string(
+        r#"
+        func f() {
+            foo
+            bar
+            faz
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            (123)
+            ((abc))
+        }
+    "#,
+    );
+}
+
+#[test]
 fn test_function_with_return() {
     compare_string(
         r#"
@@ -172,6 +193,13 @@ fn test_complex_function_call() {
         r#"
         func f() {
             a(b()(c))(c, d())
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            ((a()(b()))()(a()))(a)
         }
     "#,
     );

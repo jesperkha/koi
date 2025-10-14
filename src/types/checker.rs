@@ -295,6 +295,10 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
     fn visit_call(&mut self, node: &crate::ast::CallExpr) -> EvalResult {
         todo!()
     }
+
+    fn visit_group(&mut self, node: &crate::ast::GroupExpr) -> EvalResult {
+        todo!()
+    }
 }
 
 fn token_to_primitive_type(tok: &Token) -> PrimitiveType {

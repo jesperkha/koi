@@ -114,4 +114,10 @@ impl Visitor<()> for Printer {
         }
         self.s.push(')');
     }
+
+    fn visit_group(&mut self, node: &super::GroupExpr) -> () {
+        self.s.push('(');
+        node.inner.accept(self);
+        self.s.push(')');
+    }
 }

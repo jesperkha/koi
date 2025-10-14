@@ -1,7 +1,10 @@
 use tracing::{error, info};
 
 use crate::{
-    ast::{BlockNode, CallExpr, Decl, Expr, Field, File, FuncNode, ReturnNode, Stmt, TypeNode},
+    ast::{
+        BlockNode, CallExpr, Decl, Expr, Field, File, FuncNode, GroupExpr, ReturnNode, Stmt,
+        TypeNode,
+    },
     config::Config,
     error::{Error, ErrorSet, Res},
     token::{Source, Token, TokenKind},
@@ -252,7 +255,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_call(&mut self) -> Result<Expr, Error> {
-        let mut expr = self.parse_literal()?;
+        let mut expr = self.parse_group()?;
 
         while self.matches(TokenKind::LParen) {
             let lparen = self.must_consume()?;
@@ -277,6 +280,22 @@ impl<'a> Parser<'a> {
         }
 
         Ok(expr)
+    }
+
+    fn parse_group(&mut self) -> Result<Expr, Error> {
+        if self.matches(TokenKind::LParen) {
+            let lparen = self.must_consume()?;
+            let inner = self.parse_expr()?;
+            let rparen = self.expect(TokenKind::RParen)?;
+
+            return Ok(Expr::Group(GroupExpr {
+                lparen,
+                inner: Box::new(inner),
+                rparen,
+            }));
+        }
+
+        self.parse_literal()
     }
 
     fn parse_literal(&mut self) -> Result<Expr, Error> {

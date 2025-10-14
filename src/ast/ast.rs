@@ -35,6 +35,7 @@ pub trait Visitor<R> {
     fn visit_type(&mut self, node: &TypeNode) -> R;
     fn visit_package(&mut self, node: &Token) -> R;
     fn visit_call(&mut self, node: &CallExpr) -> R;
+    fn visit_group(&mut self, node: &GroupExpr) -> R;
 }
 
 #[derive(Debug)]
@@ -108,6 +109,7 @@ pub enum Stmt {
 #[derive(Debug, Clone)]
 pub enum Expr {
     Literal(Token),
+    Group(GroupExpr),
     Call(CallExpr),
 }
 
@@ -123,6 +125,13 @@ pub struct CallExpr {
     pub callee: Box<Expr>,
     pub lparen: Token,
     pub args: Vec<Expr>,
+    pub rparen: Token,
+}
+
+#[derive(Debug, Clone)]
+pub struct GroupExpr {
+    pub lparen: Token,
+    pub inner: Box<Expr>,
     pub rparen: Token,
 }
 
@@ -297,6 +306,7 @@ impl Node for Expr {
         match self {
             Expr::Literal(token) => &token.pos,
             Expr::Call(call) => &call.callee.pos(),
+            Expr::Group(grp) => &grp.lparen.pos,
         }
     }
 
@@ -304,6 +314,7 @@ impl Node for Expr {
         match self {
             Expr::Literal(token) => &token.end_pos,
             Expr::Call(call) => &call.rparen.pos,
+            Expr::Group(grp) => &grp.rparen.pos,
         }
     }
 
@@ -311,6 +322,7 @@ impl Node for Expr {
         match self {
             Expr::Literal(token) => token.id,
             Expr::Call(call) => call.lparen.id,
+            Expr::Group(grp) => grp.rparen.id,
         }
     }
 }
@@ -320,6 +332,7 @@ impl Visitable for Expr {
         match self {
             Expr::Literal(token) => visitor.visit_literal(token),
             Expr::Call(call) => visitor.visit_call(&call),
+            Expr::Group(grp) => visitor.visit_group(&grp),
         }
     }
 }
