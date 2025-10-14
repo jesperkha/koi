@@ -29,8 +29,9 @@ go.work.sum
 bin
 *.asm
 *.o
-
+main
 
 # Added by cargo
 
 /target
+/_test

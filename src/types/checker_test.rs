@@ -1,23 +1,17 @@
-use crate::{parser::Parser, scanner::Scanner, token::File, util::must};
+use crate::{
+    types::Package,
+    util::{check_string, must},
+};
 
-use super::*;
-
-fn check(input: &str) -> CheckResult {
-    let file = File::new_test_file(input);
-    Scanner::scan(&file)
-        .and_then(|toks| Parser::parse(&file, toks))
-        .and_then(|ast| Checker::check(&ast, &file))
-}
-
-fn assert_pass(src: &str) -> TypeContext {
-    must(check(src))
+fn assert_pass(src: &str) -> Package {
+    must(check_string(src))
 }
 
 fn assert_error(src: &str, msg: &str) {
-    match check(src) {
+    match check_string(src) {
         Ok(_) => panic!("expected error: '{}'", msg),
         Err(errs) => {
-            assert!(errs.size() == 1, "expected one error, got {}", errs.size());
+            assert!(errs.len() == 1, "expected one error, got {}", errs.len());
             assert_eq!(errs.get(0).message, msg);
         }
     }

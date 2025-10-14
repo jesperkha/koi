@@ -6,8 +6,13 @@ use crate::{
     types::{PrimitiveType, Type, TypeId, TypeKind},
 };
 
+// TODO: context dump with all bindings and types
+
 /// Context for type lookups.
 pub struct TypeContext {
+    /// Name of package, 'unnamed' if anonymous package
+    pkg_name: String,
+    pkg_file: String, // File declared in for error
     /// List of type information. Each `TypeId` maps
     /// to a `Type` by indexing into this vector.
     types: Vec<Type>,
@@ -18,8 +23,11 @@ pub struct TypeContext {
 }
 
 impl TypeContext {
+    // TODO: accept exported symbols and intern at init
     pub fn new() -> Self {
         let mut s = Self {
+            pkg_name: "unnamed".to_string(),
+            pkg_file: "unnamed".to_string(),
             types: Vec::new(),
             cache: HashMap::new(),
             nodes: HashMap::new(),
@@ -30,6 +38,24 @@ impl TypeContext {
         }
 
         s
+    }
+
+    pub fn pkg_name(&self) -> &str {
+        &self.pkg_name
+    }
+
+    /// Tries to set package name. Returns error if name was already set to something else.
+    pub fn set_pkg_name(&mut self, filename: &str, name: &str) -> Result<(), String> {
+        if self.pkg_name == "unnamed" || self.pkg_name == name {
+            self.pkg_name = name.to_string();
+            self.pkg_file = filename.to_string();
+            Ok(())
+        } else {
+            Err(format!(
+                "package name already declared as '{}' in {}",
+                self.pkg_name, self.pkg_file,
+            ))
+        }
     }
 
     /// Get the string representation of a type for errors or logging.

@@ -1,77 +1,90 @@
 use std::collections::HashMap;
 
+use tracing::{error, info};
+
 use crate::{
-    ast::{Ast, BlockNode, FuncNode, Node, ReturnNode, TreeSet, TypeNode, Visitable, Visitor},
-    error::{Error, ErrorSet},
-    token::{File, FileSet, Token, TokenKind},
-    types::{PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
+    ast::{BlockNode, File, FuncNode, Node, ReturnNode, TypeNode, Visitable, Visitor},
+    config::Config,
+    error::{Error, ErrorSet, Res},
+    token::{Token, TokenKind},
+    types::{Package, PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
 };
 
-pub struct Checker<'a> {
-    ctx: TypeContext,
+pub fn check(files: Vec<File>, config: &Config) -> Res<Package> {
+    let mut ctx = TypeContext::new();
+    let mut errs = ErrorSet::new();
+
+    info!("checking {} files", files.len());
+
+    // TODO: remove this check and handle empty packages properly
+    assert!(files.len() > 0, "no files to type check");
+
+    for file in &files {
+        let checker = Checker::new(&file, &mut ctx, config);
+        errs.join(checker.check());
+    }
+
+    if errs.len() > 0 {
+        info!("fail, finished all with {} errors", errs.len());
+        return Err(errs);
+    }
+
+    // TODO: assert all pkg names equal
+
+    info!("success, all files");
+    Ok(Package::new(
+        files[0].pkgname.clone(),
+        // TODO: filepath in packages, copy from file
+        "".to_string(),
+        files,
+        ctx,
+    ))
+}
+
+struct Checker<'a> {
+    ctx: &'a mut TypeContext,
     sym: SymTable<TypeId>,
     file: &'a File,
-    errs: ErrorSet,
+    config: &'a Config,
 
     /// Map of global type declarations.
     type_decls: HashMap<String, TypeId>,
 
     /// Return type in current scope
     rtype: TypeId,
+
     /// Has returned in the base function scope
     /// Not counting nested scopes as returning there is optional
     has_returned: bool,
 }
 
-pub type CheckResult = Result<TypeContext, ErrorSet>;
-
 impl<'a> Checker<'a> {
-    fn new(file: &'a File) -> Self {
+    fn new(file: &'a File, ctx: &'a mut TypeContext, config: &'a Config) -> Self {
         Self {
+            config,
             file,
-            ctx: TypeContext::new(),
+            ctx,
             sym: SymTable::new(),
-            errs: ErrorSet::new(),
             rtype: no_type(),
             has_returned: false,
             type_decls: HashMap::new(),
         }
     }
 
-    pub fn check(ast: &'a Ast, file: &'a File) -> CheckResult {
-        let mut s = Self::new(file);
+    fn check(mut self) -> ErrorSet {
+        let mut errs = ErrorSet::new();
+        info!("file '{}', pkg '{}'", self.file.src.name, self.file.pkgname);
 
-        for node in &ast.nodes {
-            if let Err(err) = s.eval(node) {
-                s.errs.add(err);
+        for node in &self.file.nodes {
+            if let Err(err) = self.eval(node) {
+                errs.add(err);
             }
         }
 
-        if s.errs.size() == 0 {
-            Ok(s.ctx)
-        } else {
-            Err(s.errs)
+        if errs.len() > 0 {
+            info!("fail, finished with {} errors", errs.len());
         }
-    }
-
-    pub fn check_set(fileset: &'a FileSet, set: &TreeSet) -> CheckResult {
-        let mut s = Self::new(&fileset.files[0]); // set first file as temp
-
-        for (i, file) in fileset.files.iter().enumerate() {
-            s.file = file; // Update file in use
-
-            for node in &set.trees[i].nodes {
-                if let Err(err) = s.eval(node) {
-                    s.errs.add(err);
-                }
-            }
-        }
-
-        if s.errs.size() == 0 {
-            Ok(s.ctx)
-        } else {
-            Err(s.errs)
-        }
+        errs
     }
 
     /// Type check a Node. If it evaluates to a type it is internalized.
@@ -88,11 +101,13 @@ impl<'a> Checker<'a> {
     }
 
     fn error(&self, msg: &str, node: &dyn Node) -> Error {
-        Error::range(msg, node.pos(), node.end(), self.file)
+        error!("{}", msg);
+        Error::range(msg, node.pos(), node.end(), &self.file.src)
     }
 
     fn error_token(&self, msg: &str, tok: &Token) -> Error {
-        Error::new(msg, tok, tok, self.file)
+        error!("{}", msg);
+        Error::new(msg, tok, tok, &self.file.src)
     }
 
     fn error_expected_token(&self, msg: &str, expect: TypeId, tok: &Token) -> Error {
@@ -113,11 +128,6 @@ impl<'a> Checker<'a> {
             .as_str(),
             node,
         )
-    }
-
-    /// Declare a global user type.
-    pub fn declare(&mut self, name: String, ty: TypeId) {
-        self.type_decls.insert(name, ty);
     }
 
     /// Get a declared type.
@@ -152,16 +162,29 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             }
         }
 
-        // If this is main() assert return type is int and no params
+        // If this is the main function we do additional checks
         if node.name.to_string() == "main" {
             let int_id = self.ctx.primitive(PrimitiveType::I64);
+
+            // If return type is not int
             if !self.ctx.equivalent(ret_type, int_id) {
-                // TODO: point to type node if present, else rparen
-                return Err(self.error("main function must return 'i64'", node));
+                let msg = "main function must return 'i64'";
+                return Err(node
+                    .ret_type
+                    .as_ref()
+                    .map_or(self.error_token(msg, &node.rparen), |ty_node| {
+                        self.error(msg, ty_node)
+                    }));
             }
 
+            // No parameters allowed
             if params.len() > 0 {
                 return Err(self.error("main function must not take any arguments", node));
+            }
+
+            // Must be package main
+            if self.file.pkgname != "main" {
+                return Err(self.error("main function can only be declared in main package", node));
             }
         }
 
@@ -263,6 +286,10 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
                 .get_type(token)
                 .map_or(Err(self.error_token("not a type", token)), |ty| Ok(ty)),
         }
+    }
+
+    fn visit_package(&mut self, node: &Token) -> EvalResult {
+        Err(self.error_token("package already declared earlier in file", node))
     }
 }
 

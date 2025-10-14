@@ -1,14 +1,24 @@
+use tracing::info;
+
 use crate::{
-    ast::{Ast, BlockNode, Expr, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
-    error::{Error, ErrorSet},
-    ir::{FuncInst, Ins, SymTracker, Type, Value, ir},
+    ast::{BlockNode, Decl, Expr, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
+    config::Config,
+    error::{Error, ErrorSet, Res},
+    ir::{FuncInst, IRUnit, Ins, SymTracker, Type, Value, ir},
     token::{Token, TokenKind},
-    types::{self, TypeContext, TypeId, TypeKind},
+    types::{self, Package, TypeContext, TypeId, TypeKind},
 };
 
-pub struct IR<'a> {
+pub fn emit_ir(pkg: &Package, config: &Config) -> Res<IRUnit> {
+    let emitter = Emitter::new(pkg, config);
+    emitter.emit()
+}
+
+struct Emitter<'a> {
     ctx: &'a TypeContext,
+    nodes: &'a [Decl],
     sym: SymTracker,
+    config: &'a Config,
 
     // Track if void functions have returned or not to add explicit return
     has_returned: bool,
@@ -16,28 +26,36 @@ pub struct IR<'a> {
 
 // TODO: dead code elimination (warning)
 
-// TODO: make generic error result in error crate: Res<T, ErrorSet>
-pub type IRResult = Result<Vec<Ins>, ErrorSet>;
-
-impl<'a> IR<'a> {
-    pub fn emit(ast: &'a Ast, ctx: &'a TypeContext) -> IRResult {
-        let mut s = Self {
-            ctx,
+impl<'a> Emitter<'a> {
+    fn new(pkg: &'a Package, config: &'a Config) -> Self {
+        info!("package '{}' at {}", pkg.name, pkg.filepath);
+        Self {
+            config,
+            ctx: &pkg.ctx,
+            nodes: &pkg.nodes,
             sym: SymTracker::new(),
             has_returned: false,
-        };
+        }
+    }
 
+    fn emit(mut self) -> Res<IRUnit> {
         let mut ins = Vec::new();
         let mut errs = ErrorSet::new();
 
-        for decl in &ast.nodes {
-            match decl.accept(&mut s) {
+        for decl in self.nodes {
+            match decl.accept(&mut self) {
                 Ok(i) => ins.push(i),
                 Err(err) => errs.add(err),
             }
         }
 
-        if errs.size() == 0 { Ok(ins) } else { Err(errs) }
+        if errs.len() == 0 {
+            info!("success, {} instructions", ins.len());
+            Ok(IRUnit::new(ins))
+        } else {
+            info!("fail, finished with {} errors", errs.len());
+            Err(errs)
+        }
     }
 
     /// Convert semantic type to IR type, lowering to primitive or union type.
@@ -67,7 +85,7 @@ impl<'a> IR<'a> {
     }
 }
 
-impl<'a> Visitor<Result<Ins, Error>> for IR<'a> {
+impl<'a> Visitor<Result<Ins, Error>> for Emitter<'a> {
     fn visit_func(&mut self, node: &FuncNode) -> Result<Ins, Error> {
         self.sym.new_function_context();
 
@@ -111,6 +129,7 @@ impl<'a> Visitor<Result<Ins, Error>> for IR<'a> {
 
         Ok(Ins::Func(FuncInst {
             name,
+            public: node.public,
             params,
             ret,
             body,
@@ -139,6 +158,10 @@ impl<'a> Visitor<Result<Ins, Error>> for IR<'a> {
 
     fn visit_type(&mut self, _: &TypeNode) -> Result<Ins, Error> {
         panic!("unused method")
+    }
+
+    fn visit_package(&mut self, node: &Token) -> Result<Ins, Error> {
+        Ok(Ins::Package(node.to_string()))
     }
 }
 

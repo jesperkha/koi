@@ -7,9 +7,9 @@
 .globl _start
 
 _start:
-    call main
-    mov r12, rax
+	call main
+	mov r12, rax
 
-	mov	rax, 60
-	mov	rdi, r12
+	mov rax, 60
+	mov rdi, r12
 	syscall

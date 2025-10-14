@@ -1,53 +1,68 @@
+use tracing::{error, info, trace};
+
 use crate::{
-    error::{Error, ErrorSet},
-    token::{File, Pos, Token, TokenKind, str_to_token},
+    config::Config,
+    error::{Error, ErrorSet, Res},
+    token::{Pos, Source, Token, TokenKind, str_to_token},
 };
 
-pub struct Scanner<'a> {
-    file: &'a File,
+pub fn scan(src: &Source, config: &Config) -> Res<Vec<Token>> {
+    let scanner = Scanner::new(src, config);
+    scanner.scan()
+}
+
+struct Scanner<'a> {
+    file: &'a Source,
     pos: usize,
     row: usize,
     col: usize,
     line_begin: usize,
     errs: ErrorSet,
+    config: &'a Config,
 }
 
-pub type ScannerResult = Result<Vec<Token>, ErrorSet>;
-
 impl<'a> Scanner<'a> {
-    pub fn scan(file: &'_ File) -> ScannerResult {
-        let mut s = Scanner {
+    fn new(file: &'a Source, config: &'a Config) -> Self {
+        Scanner {
+            config,
             file,
             pos: 0,
             col: 0,
             row: 0,
             line_begin: 0,
             errs: ErrorSet::new(),
-        };
+        }
+    }
+
+    fn scan(mut self) -> Res<Vec<Token>> {
+        info!("file '{}'", self.file.name);
 
         // No input
-        if s.eof() {
+        if self.eof() {
+            info!("no input");
             return Ok(Vec::new());
         }
 
-        while !s.eof() {
-            match s.scan_all() {
+        while !self.eof() {
+            match self.scan_all() {
                 // If ok and we did not encounter errors before, return result
                 // Otherwise ignore result as one or more errors have been raised
                 Ok(toks) => {
-                    if s.errs.size() == 0 {
+                    if self.errs.len() == 0 {
+                        info!("success, {} tokens", toks.len());
                         return Ok(toks);
                     }
                 }
                 // If error add to set and skip to next 'safe' spot
                 Err(err) => {
-                    s.errs.add(err);
-                    s.pos += s.peek_while(|p| !Scanner::is_whitespace(p))
+                    self.errs.add(err);
+                    self.pos += self.peek_while(|p| !Scanner::is_whitespace(p))
                 }
             }
         }
 
-        Err(s.errs)
+        info!("fail, finished with {} errors", self.errs.len());
+        Err(self.errs)
     }
 
     fn scan_all(&mut self) -> Result<Vec<Token>, Error> {
@@ -183,6 +198,7 @@ impl<'a> Scanner<'a> {
                 }
             };
 
+            trace!("consumed token: '{}'", token);
             self.pos += consumed;
 
             // Col must not advance after a newline. It is reset to 0 above and must remain 0
@@ -240,6 +256,7 @@ impl<'a> Scanner<'a> {
     }
 
     fn error(&self, msg: &str, length: usize) -> Error {
+        error!("{}", msg);
         Error::new_syntax(msg, &self.pos(), length, &self.file)
     }
 

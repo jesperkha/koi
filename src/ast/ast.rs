@@ -1,6 +1,8 @@
+use core::fmt;
+
 use crate::{
-    ast::TypeId,
-    token::{Pos, Token},
+    ast::Printer,
+    token::{Pos, Source, Token},
 };
 
 pub type NodeId = usize;
@@ -31,19 +33,31 @@ pub trait Visitor<R> {
     fn visit_return(&mut self, node: &ReturnNode) -> R;
     fn visit_literal(&mut self, node: &Token) -> R;
     fn visit_type(&mut self, node: &TypeNode) -> R;
+    fn visit_package(&mut self, node: &Token) -> R;
 }
 
 #[derive(Debug)]
-pub struct Ast {
+pub struct File {
+    /// Package name token at beginning of file
+    pub package: Option<Token>,
+    /// Package name as string, or 'unnamed' if not specified (test files)
+    pub pkgname: String,
     // Declarations are the only top level statements in koi. They contain
     // all other statements and expressions. Eg. a function has a block
     // statement, which consists of multiple ifs and calls.
     pub nodes: Vec<Decl>,
+
+    pub src: Source,
 }
 
-impl Ast {
-    pub fn new() -> Self {
-        Ast { nodes: Vec::new() }
+impl File {
+    pub fn new(src: Source) -> Self {
+        File {
+            nodes: Vec::new(),
+            package: None,
+            pkgname: "unnamed".to_string(),
+            src,
+        }
     }
 
     /// Walks the AST and applites the visitor to each node.
@@ -56,31 +70,16 @@ impl Ast {
     pub fn add_node(&mut self, node: Decl) {
         self.nodes.push(node);
     }
+
+    pub fn set_package(&mut self, t: Token) {
+        self.pkgname = t.to_string();
+        self.package = Some(t);
+    }
 }
 
-/// TreeSet is a collection of ASTs which are part of the same translation
-/// unit/package. TreeSets are merged when type checking into one large tree.
-pub struct TreeSet {
-    pub trees: Vec<Ast>,
-}
-
-impl TreeSet {
-    pub fn new() -> Self {
-        Self { trees: Vec::new() }
-    }
-
-    pub fn add(&mut self, tree: Ast) {
-        self.trees.push(tree);
-    }
-
-    pub fn join(set: TreeSet) -> Ast {
-        let mut ast = Ast::new();
-
-        for tree in set.trees {
-            ast.nodes.extend(tree.nodes);
-        }
-
-        ast
+impl fmt::Display for File {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", Printer::to_string(self))
     }
 }
 
@@ -90,6 +89,7 @@ impl TreeSet {
 /// but does include constant declarations.
 #[derive(Debug)]
 pub enum Decl {
+    Package(Token),
     Func(FuncNode),
 }
 
@@ -131,9 +131,6 @@ pub struct FuncNode {
     pub rparen: Token,
     pub ret_type: Option<TypeNode>,
     pub body: BlockNode,
-
-    // Annotated
-    pub sem_ret_type: TypeId,
 }
 
 #[derive(Debug, Clone)]
@@ -147,9 +144,6 @@ pub struct BlockNode {
 pub struct Field {
     pub name: Token,
     pub typ: TypeNode,
-
-    // Annotated
-    pub sem_type: TypeId,
 }
 
 impl Node for TypeNode {
@@ -182,18 +176,21 @@ impl Node for Decl {
     fn pos(&self) -> &Pos {
         match self {
             Decl::Func(node) => node.pos(),
+            Decl::Package(name) => &name.pos,
         }
     }
 
     fn end(&self) -> &Pos {
         match self {
             Decl::Func(node) => node.end(),
+            Decl::Package(name) => &name.end_pos,
         }
     }
 
     fn id(&self) -> usize {
         match self {
             Decl::Func(node) => node.id(),
+            Decl::Package(name) => name.id,
         }
     }
 }
@@ -216,6 +213,7 @@ impl Visitable for Decl {
     fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
         match self {
             Decl::Func(node) => visitor.visit_func(node),
+            Decl::Package(name) => visitor.visit_package(name),
         }
     }
 }

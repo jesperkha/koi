@@ -1,22 +1,10 @@
 use crate::{
     ir::print::ir_to_string,
-    parser::Parser,
-    scanner::Scanner,
-    token::File,
-    types::Checker,
-    util::{compare_string_lines_or_panic, must},
+    util::{compare_string_lines_or_panic, emit_string, must},
 };
 
-use super::*;
-
 fn expect_equal(src: &str, expect: &str) {
-    let file = File::new_test_file(src);
-    let toks = must(Scanner::scan(&file));
-    let ast = must(Parser::parse(&file, toks));
-    let ctx = must(Checker::check(&ast, &file));
-    let ir = must(IR::emit(&ast, &ctx));
-
-    let ir_str = ir_to_string(ir);
+    let ir_str = ir_to_string(&must(emit_string(src)).ins);
     compare_string_lines_or_panic(ir_str, expect.to_string());
 }
 

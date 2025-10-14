@@ -1,7 +1,7 @@
-mod file;
+mod source;
 mod token;
 
-pub use file::*;
+pub use source::*;
 pub use token::*;
 
 #[cfg(test)]

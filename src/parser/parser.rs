@@ -1,14 +1,23 @@
+use tracing::{error, info};
+
 use crate::{
-    ast::{Ast, BlockNode, Decl, Expr, Field, FuncNode, ReturnNode, Stmt, TypeNode, no_type},
-    error::{Error, ErrorSet},
-    token::{File, Token, TokenKind},
+    ast::{BlockNode, Decl, Expr, Field, File, FuncNode, ReturnNode, Stmt, TypeNode},
+    config::Config,
+    error::{Error, ErrorSet, Res},
+    token::{Source, Token, TokenKind},
 };
 
-pub struct Parser<'a> {
+pub fn parse(src: Source, tokens: Vec<Token>, config: &Config) -> Res<File> {
+    let parser = Parser::new(src, tokens, config);
+    parser.parse()
+}
+
+struct Parser<'a> {
     errs: ErrorSet,
     tokens: Vec<Token>,
     pos: usize,
-    file: &'a File,
+    file: File,
+    config: &'a Config,
 
     // Panic mode occurs when the parser encounters an unknown token sequence
     // and needs to synchronize to a 'clean' state. When panic mode starts,
@@ -18,44 +27,56 @@ pub struct Parser<'a> {
     // Functions which parse statements should have a check at the top for
     // panicMode, and return early with an invalid statement if set.
     panic_mode: bool,
-    // base_pos: usize,
+
+    pkg_declared: bool, // Package name declared yet?
 }
 
-pub type ParserResult = Result<Ast, ErrorSet>;
-
 impl<'a> Parser<'a> {
-    pub fn parse(file: &'a File, tokens: Vec<Token>) -> ParserResult {
-        let mut s = Self {
+    fn new(src: Source, tokens: Vec<Token>, config: &'a Config) -> Self {
+        Self {
             errs: ErrorSet::new(),
             tokens,
-            file,
+            file: File::new(src),
             pos: 0,
             panic_mode: false,
-        };
+            pkg_declared: false,
+            config,
+        }
+    }
 
-        let mut ast = Ast::new();
+    fn parse(mut self) -> Res<File> {
+        info!("file '{}'", self.file.src.name);
 
-        while s.skip_whitespace_and_not_eof() {
-            match s.parse_decl() {
-                Ok(decl) => ast.add_node(decl),
+        if self.config.anon_packages {
+            info!("ignoring package");
+        }
+
+        while self.skip_whitespace_and_not_eof() {
+            match self.parse_decl() {
+                Ok(decl) => match decl {
+                    Decl::Package(name) => self.file.set_package(name),
+                    _ => self.file.add_node(decl),
+                },
                 Err(err) => {
-                    s.errs.add(err);
+                    self.errs.add(err);
 
                     // Consume until next 'safe' token to recover.
-                    while !s.matches_any(&[TokenKind::Func]) && !s.eof() {
-                        s.consume();
+                    while !self.matches_any(&[TokenKind::Func]) && !self.eof() {
+                        self.consume();
                     }
 
-                    s.panic_mode = false;
+                    self.panic_mode = false;
                 }
             }
         }
 
-        if s.errs.size() > 0 {
-            return Err(s.errs);
+        if self.errs.len() > 0 {
+            info!("fail, finished with {} errors", self.errs.len());
+            return Err(self.errs);
         }
 
-        Ok(ast)
+        info!("success, part of package '{}'", self.file.pkgname);
+        Ok(self.file)
     }
 
     /// Consume newlines until first non-newline token or eof.
@@ -72,21 +93,32 @@ impl<'a> Parser<'a> {
         assert!(!self.eof(), "parse_decl called without checking eof");
         let token = self.cur().unwrap();
 
-        match token.kind {
-            TokenKind::Func | TokenKind::Pub => {
-                let func = self.parse_function(token)?;
-                Ok(Decl::Func(func))
-            }
+        // Check that package declaration comes first
+        if !self.pkg_declared && !self.config.anon_packages {
+            self.pkg_declared = true;
+            self.expect_msg(TokenKind::Package, "package declaration")?;
+            return self
+                .expect_identifier("package name")
+                .map(|tok| Decl::Package(tok));
+        }
 
-            _ => {
-                // Handle other declaration types
-                Err(self.error_token("expected declaration"))
+        match token.kind {
+            TokenKind::Func | TokenKind::Pub => Ok(Decl::Func(self.parse_function(token)?)),
+            TokenKind::Package => {
+                if !self.config.anon_packages {
+                    Err(self.error_token("only declare package once, and as the first statement"))
+                } else {
+                    self.consume(); // kw
+                    self.expect_identifier("package name")
+                        .map(|t| Decl::Package(t))
+                }
             }
+            _ => Err(self.error_token("expected declaration")),
         }
     }
 
     fn parse_function(&mut self, kw: Token) -> Result<FuncNode, Error> {
-        let public = kw.kind == TokenKind::Pub;
+        let mut public = kw.kind == TokenKind::Pub;
         if public {
             self.consume(); // Consume the 'pub' token
         }
@@ -95,6 +127,11 @@ impl<'a> Parser<'a> {
 
         let name = self.expect_identifier("function name")?;
         let lparen = self.expect(TokenKind::LParen)?;
+
+        // Automatically set main as public for convenience
+        if name.to_string() == "main" {
+            public = true;
+        }
 
         // If the next token is not a right paren we parse parameters.
         let params = if self.matches(TokenKind::RParen) {
@@ -140,7 +177,6 @@ impl<'a> Parser<'a> {
             rparen: rparen.clone(),
             ret_type,
             body,
-            sem_ret_type: no_type(),
         };
 
         Ok(func)
@@ -149,11 +185,7 @@ impl<'a> Parser<'a> {
     fn parse_field(&mut self, field_name: &str) -> Result<Field, Error> {
         let name = self.expect_identifier(field_name)?;
         let typ = self.parse_type()?;
-        Ok(Field {
-            name,
-            typ,
-            sem_type: no_type(),
-        })
+        Ok(Field { name, typ })
     }
 
     fn parse_block(&mut self) -> Result<BlockNode, Error> {
@@ -221,7 +253,7 @@ impl<'a> Parser<'a> {
 
     fn parse_literal(&mut self) -> Result<Expr, Error> {
         let Some(token) = self.cur() else {
-            return Err(self.error_token("expected literal expression"));
+            return Err(self.error_token("expected expression"));
         };
 
         match token.kind {
@@ -235,7 +267,7 @@ impl<'a> Parser<'a> {
                 self.consume();
                 Ok(Expr::Literal(token))
             }
-            _ => Err(self.error_token("expected literal expression")),
+            _ => Err(self.error_token("expected expression")),
         }
     }
 
@@ -253,6 +285,9 @@ impl<'a> Parser<'a> {
                 self.consume();
                 Ok(TypeNode::Primitive(token))
             }
+            TokenKind::RParen | TokenKind::RBrace | TokenKind::RBrack => {
+                Err(self.error_token("expected type"))
+            }
             _ => Err(self.error_token("invalid type")),
         }
     }
@@ -264,7 +299,8 @@ impl<'a> Parser<'a> {
 
     /// Create error marking the given token range.
     fn error_from_to(&self, message: &str, from: Token, to: Token) -> Error {
-        Error::new(message, &from, &to, self.file)
+        error!("{}", message);
+        Error::new(message, &from, &to, &self.file.src)
     }
 
     fn cur(&self) -> Option<Token> {
@@ -293,6 +329,11 @@ impl<'a> Parser<'a> {
     /// Returns token if it matches, else error.
     fn expect(&mut self, kind: TokenKind) -> Result<Token, Error> {
         self.expect_pred(&format!("{}", kind), |t| t.kind == kind)
+    }
+
+    /// Same as expect but with a message
+    fn expect_msg(&mut self, kind: TokenKind, msg: &str) -> Result<Token, Error> {
+        self.expect_pred(msg, |t| t.kind == kind)
     }
 
     /// Expects the current token to match a predicate.

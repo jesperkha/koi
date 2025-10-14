@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::token::{File, Pos, Token};
+use crate::token::{Pos, Source, Token};
 
 #[derive(Debug, Clone)]
 pub struct Error {
@@ -20,6 +20,8 @@ pub struct ErrorSet {
     errs: Vec<Error>,
 }
 
+pub type Res<T> = Result<T, ErrorSet>;
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let err = format!(
@@ -36,7 +38,7 @@ impl fmt::Display for Error {
 }
 
 impl Error {
-    pub fn new(msg: &str, from: &Token, to: &Token, file: &File) -> Error {
+    pub fn new(msg: &str, from: &Token, to: &Token, file: &Source) -> Error {
         Error {
             message: msg.to_string(),
             line: from.pos.row + 1,
@@ -47,7 +49,7 @@ impl Error {
         }
     }
 
-    pub fn range(msg: &str, from: &Pos, to: &Pos, file: &File) -> Error {
+    pub fn range(msg: &str, from: &Pos, to: &Pos, file: &Source) -> Error {
         Error {
             message: msg.to_string(),
             line: from.row + 1,
@@ -58,7 +60,7 @@ impl Error {
         }
     }
 
-    pub fn new_syntax(msg: &str, from: &Pos, length: usize, file: &File) -> Error {
+    pub fn new_syntax(msg: &str, from: &Pos, length: usize, file: &Source) -> Error {
         Error {
             message: msg.to_string(),
             line: from.row + 1,
@@ -73,7 +75,7 @@ impl Error {
 impl fmt::Display for ErrorSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for (i, err) in self.errs.iter().enumerate() {
-            write!(f, "{}{}", err, if i == self.size() - 1 { "" } else { "\n" })?;
+            write!(f, "{}{}", err, if i == self.len() - 1 { "" } else { "\n" })?;
         }
         Ok(())
     }
@@ -88,7 +90,7 @@ impl ErrorSet {
         self.errs.push(err);
     }
 
-    pub fn size(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.errs.len()
     }
 

@@ -1,14 +1,30 @@
-use koi::driver::{Config, Target, compile};
+use std::fs::read_to_string;
+
+use koi::{
+    config::Config,
+    driver::{BuildConfig, Driver, Target},
+    util::debug_print_all_steps,
+};
+use tracing_subscriber::EnvFilter;
 
 fn main() {
-    let config = Config {
-        outdir: "bin".to_string(),
-        outfile: "main".to_string(),
-        srcdir: ".".to_string(),
-        target: Target::X86_64,
-    };
+    // Configure global subscriber for tracing
+    // Run with RUST_LOG=<level> (trace, debug, info, warn, error)
+    // Defaults to error
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
 
-    if let Err(err) = compile(config) {
-        println!("{}", err);
-    }
+    //debug_print_all_steps(&read_to_string("main.koi").unwrap());
+
+    let config = Config::default();
+    let mut driver = Driver::new(&config);
+    let _ = driver
+        .compile(BuildConfig {
+            bindir: "bin".to_string(),
+            outfile: "main".to_string(),
+            srcdir: "_test".to_string(),
+            target: Target::X86_64,
+        })
+        .map_err(|e| println!("{}", e));
 }

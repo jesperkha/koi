@@ -1,21 +1,16 @@
 use crate::{
     build::{Builder, TransUnit},
+    config::Config,
     ir::{IRUnit, IRVisitor, Value},
 };
 
-pub struct X86Builder {
+pub struct X86Builder<'a> {
+    config: &'a Config,
     src: String,
     indent: usize,
 }
 
-impl X86Builder {
-    pub fn new() -> Self {
-        Self {
-            src: String::new(),
-            indent: 0,
-        }
-    }
-
+impl<'a> X86Builder<'a> {
     fn write(&mut self, s: &str) {
         self.src
             .push_str(&format!("{}{}", "    ".repeat(self.indent), s));
@@ -32,13 +27,17 @@ impl X86Builder {
     fn pop(&mut self) {
         self.indent -= 1;
     }
-
-    fn comment(&mut self, s: &str) {
-        self.writeln(&format!("; {}", s));
-    }
 }
 
-impl Builder for X86Builder {
+impl<'a> Builder<'a> for X86Builder<'a> {
+    fn new(config: &'a Config) -> Self {
+        Self {
+            config,
+            src: String::new(),
+            indent: 0,
+        }
+    }
+
     fn assemble(mut self, unit: IRUnit) -> Result<TransUnit, String> {
         self.writeln(".intel_syntax noprefix");
         self.writeln(".section .data");
@@ -52,9 +51,12 @@ impl Builder for X86Builder {
     }
 }
 
-impl IRVisitor<()> for X86Builder {
+impl<'a> IRVisitor<()> for X86Builder<'a> {
     fn visit_func(&mut self, f: &crate::ir::FuncInst) {
-        self.writeln(&format!(".globl {}", f.name));
+        if f.public {
+            self.writeln(&format!(".globl {}", f.name));
+        }
+
         self.writeln(&format!("{}:", f.name));
         self.push();
 
@@ -68,7 +70,7 @@ impl IRVisitor<()> for X86Builder {
         self.pop();
     }
 
-    fn visit_ret(&mut self, ty: &crate::ir::Type, v: &crate::ir::Value) {
+    fn visit_ret(&mut self, _ty: &crate::ir::Type, v: &crate::ir::Value) {
         match v {
             Value::Void => {}
             Value::Int(n) => self.writeln(&format!("mov rax, {}", n)),
@@ -83,7 +85,14 @@ impl IRVisitor<()> for X86Builder {
         self.writeln("ret\n");
     }
 
-    fn visit_store(&mut self, id: crate::ir::ConstId, ty: &crate::ir::Type, v: &crate::ir::Value) {
+    fn visit_store(
+        &mut self,
+        _id: crate::ir::ConstId,
+        _ty: &crate::ir::Type,
+        _v: &crate::ir::Value,
+    ) {
         todo!()
     }
+
+    fn visit_package(&mut self, _: &str) -> () {}
 }
