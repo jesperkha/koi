@@ -313,7 +313,7 @@ impl Node for Expr {
     fn end(&self) -> &Pos {
         match self {
             Expr::Literal(token) => &token.end_pos,
-            Expr::Call(call) => &call.rparen.pos,
+            Expr::Call(call) => &call.rparen.end_pos,
             Expr::Group(grp) => &grp.rparen.pos,
         }
     }

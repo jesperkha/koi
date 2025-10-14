@@ -3,10 +3,13 @@ use std::collections::HashMap;
 use tracing::{error, info};
 
 use crate::{
-    ast::{BlockNode, File, FuncNode, Node, ReturnNode, TypeNode, Visitable, Visitor},
+    ast::{
+        BlockNode, CallExpr, File, FuncNode, GroupExpr, Node, ReturnNode, TypeNode, Visitable,
+        Visitor,
+    },
     config::Config,
     error::{Error, ErrorSet, Res},
-    token::{Token, TokenKind},
+    token::{Pos, Token, TokenKind},
     types::{Package, PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
 };
 
@@ -108,6 +111,11 @@ impl<'a> Checker<'a> {
     fn error_token(&self, msg: &str, tok: &Token) -> Error {
         error!("{}", msg);
         Error::new(msg, tok, tok, &self.file.src)
+    }
+
+    fn error_from_to(&self, msg: &str, from: &Pos, to: &Pos) -> Error {
+        error!("{}", msg);
+        Error::range(msg, from, to, &self.file.src)
     }
 
     fn error_expected_token(&self, msg: &str, expect: TypeId, tok: &Token) -> Error {
@@ -292,12 +300,45 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         Err(self.error_token("package already declared earlier in file", node))
     }
 
-    fn visit_call(&mut self, node: &crate::ast::CallExpr) -> EvalResult {
-        todo!()
+    fn visit_call(&mut self, node: &CallExpr) -> EvalResult {
+        let callee_kind = node
+            .callee
+            .accept(self)
+            .and_then(|id| Ok(self.ctx.lookup(id)))?
+            .kind
+            .clone();
+
+        if let TypeKind::Function(params, ret_id) = &callee_kind {
+            // Check if number of arguments matches
+            let n_params = params.len();
+            let n_args = node.args.len();
+            if n_params != n_args {
+                let msg = format!("function takes {} arguments, got {}", n_params, n_args,);
+                return Err(self.error_from_to(&msg, node.callee.pos(), &node.rparen.pos));
+            }
+
+            // Check if each argument type matches the param type
+            for (i, param_id) in params.iter().enumerate() {
+                let arg_id = node.args[i].accept(self)?;
+                if *param_id != arg_id {
+                    let msg = format!(
+                        "mismatched types in function call. expected '{}', got '{}'",
+                        self.ctx.to_string(*param_id),
+                        self.ctx.to_string(arg_id)
+                    );
+                    return Err(self.error(&msg, &node.args[i]));
+                }
+            }
+
+            return Ok(*ret_id);
+        }
+
+        info!("callee type is actually: {:?}", callee_kind);
+        Err(self.error("not a function", &*node.callee))
     }
 
-    fn visit_group(&mut self, node: &crate::ast::GroupExpr) -> EvalResult {
-        todo!()
+    fn visit_group(&mut self, node: &GroupExpr) -> EvalResult {
+        node.inner.accept(self)
     }
 }
 
