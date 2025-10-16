@@ -75,10 +75,12 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
         self.writeln("push rbp");
         self.writeln("mov rbp, rsp");
 
+        // TODO: sub rsp with aligned stack size
+
         // TODO: stack alignment and fetch param regs based on type
         let registers = ["edi", "esi", "edx", "ecx", "r8", "r9"];
         for i in 0..f.params.len() {
-            self.writeln(&format!("mov [rsp-{}], {}", (i + 1) * 4, registers[i]));
+            self.writeln(&format!("mov [rbp-{}], {}", (i + 1) * 4, registers[i]));
         }
 
         for ins in &f.body {
@@ -93,7 +95,7 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
             Value::Void => {}
             Value::Int(n) => self.writeln(&format!("mov eax, {}", n)),
             Value::Const(id) => self.writeln(&format!("mov eax, {}", self.get(*id))),
-            Value::Param(id) => self.writeln(&format!("mov eax, [rsp-{}]", (id + 1) * 4)),
+            Value::Param(id) => self.writeln(&format!("mov eax, [rbp-{}]", (id + 1) * 4)),
             Value::Str(_) => todo!(),
             Value::Float(_) => todo!(),
             Value::Function(_) => todo!(),
