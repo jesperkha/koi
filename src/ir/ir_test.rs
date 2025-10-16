@@ -70,17 +70,103 @@ fn test_function_literal_return() {
     );
 }
 
-// #[test]
-// fn test_function_parameter_return() {
-//     expect_equal(
-//         r#"
-//         func f(a int) int {
-//             return a
-//         }
-//     "#,
-//         r#"
-//         func f(i64) i64
-//             ret i64 %0
-//         "#,
-//     );
-// }
+#[test]
+fn test_function_parameter_return() {
+    expect_equal(
+        r#"
+        func f(a int) int {
+            return a
+        }
+    "#,
+        r#"
+        func f(i64) i64
+            ret i64 %0
+        "#,
+    );
+}
+
+#[test]
+fn test_function_call() {
+    expect_equal(
+        r#"
+        func f() int {
+            return 0
+        }
+
+        func g() int {
+            return f()
+        }
+    "#,
+        r#"
+        func f() i64
+            ret i64 0
+
+        func g() i64
+            $0 i64 = call f()
+            ret i64 $0
+        "#,
+    );
+}
+
+#[test]
+fn test_function_call_with_params() {
+    expect_equal(
+        r#"
+        func f(a int, b bool) int {
+            return a
+        }
+
+        func g(a int, b bool) int {
+            return f(a, b)
+        }
+    "#,
+        r#"
+        func f(i64, u8) i64
+            ret i64 %0
+
+        func g(i64, u8) i64
+            $0 i64 = call f(%0, %1)
+            ret i64 $0
+        "#,
+    );
+}
+
+#[test]
+fn test_multiple_function_calls() {
+    expect_equal(
+        r#"
+        func f(a int) int {
+            return a
+        }
+
+        func g(a int) int {
+            return f(f(f(a)))
+        }
+    "#,
+        r#"
+        func f(i64) i64
+            ret i64 %0
+
+        func g(i64) i64
+            $0 i64 = call f(%0)
+            $1 i64 = call f($0)
+            $2 i64 = call f($1)
+            ret i64 $2
+        "#,
+    );
+    expect_equal(
+        r#"
+        func f(a int, b int) int {
+            return f(1, f(f(2, a), f(3, a)))
+        }
+    "#,
+        r#"
+        func f(i64, i64) i64
+            $0 i64 = call f(2, %0)
+            $1 i64 = call f(3, %0)
+            $2 i64 = call f($0, $1)
+            $3 i64 = call f(1, $2)
+            ret i64 $3
+        "#,
+    );
+}

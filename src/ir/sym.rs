@@ -30,6 +30,13 @@ impl SymTracker {
         id
     }
 
+    /// Create new const id for a temporary value
+    pub fn next(&mut self) -> ConstId {
+        let id = self.curid;
+        self.curid += 1;
+        id
+    }
+
     /// Create new parameter id for name in this context
     pub fn set_param(&mut self, s: String) {
         self.params.insert(s, self.curparam);

@@ -305,7 +305,7 @@ impl Node for Expr {
     fn pos(&self) -> &Pos {
         match self {
             Expr::Literal(token) => &token.pos,
-            Expr::Call(call) => &call.callee.pos(),
+            Expr::Call(call) => call.pos(),
             Expr::Group(grp) => &grp.lparen.pos,
         }
     }
@@ -313,7 +313,7 @@ impl Node for Expr {
     fn end(&self) -> &Pos {
         match self {
             Expr::Literal(token) => &token.end_pos,
-            Expr::Call(call) => &call.rparen.end_pos,
+            Expr::Call(call) => call.end(),
             Expr::Group(grp) => &grp.rparen.pos,
         }
     }
@@ -321,9 +321,23 @@ impl Node for Expr {
     fn id(&self) -> usize {
         match self {
             Expr::Literal(token) => token.id,
-            Expr::Call(call) => call.lparen.id,
+            Expr::Call(call) => call.id(),
             Expr::Group(grp) => grp.rparen.id,
         }
+    }
+}
+
+impl Node for CallExpr {
+    fn pos(&self) -> &Pos {
+        &self.lparen.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.rparen.end_pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.lparen.id
     }
 }
 

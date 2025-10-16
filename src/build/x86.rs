@@ -74,11 +74,11 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
         match v {
             Value::Void => {}
             Value::Int(n) => self.writeln(&format!("mov rax, {}", n)),
-
             Value::Str(_) => todo!(),
             Value::Float(_) => todo!(),
             Value::Const(_) => todo!(),
             Value::Param(_) => todo!(),
+            Value::Function(_) => todo!(),
         };
 
         self.writeln("leave");
@@ -95,4 +95,8 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
     }
 
     fn visit_package(&mut self, _: &str) -> () {}
+
+    fn visit_call(&mut self, c: &crate::ir::CallIns) -> () {
+        todo!()
+    }
 }

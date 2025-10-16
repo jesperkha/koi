@@ -301,12 +301,8 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
     }
 
     fn visit_call(&mut self, node: &CallExpr) -> EvalResult {
-        let callee_kind = node
-            .callee
-            .accept(self)
-            .and_then(|id| Ok(self.ctx.lookup(id)))?
-            .kind
-            .clone();
+        let callee_id = self.eval(node.callee.as_ref())?;
+        let callee_kind = self.ctx.lookup(callee_id).kind.clone();
 
         if let TypeKind::Function(params, ret_id) = &callee_kind {
             // Check if number of arguments matches
@@ -319,7 +315,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
 
             // Check if each argument type matches the param type
             for (i, param_id) in params.iter().enumerate() {
-                let arg_id = node.args[i].accept(self)?;
+                let arg_id = self.eval(&node.args[i])?;
                 if *param_id != arg_id {
                     let msg = format!(
                         "mismatched types in function call. expected '{}', got '{}'",

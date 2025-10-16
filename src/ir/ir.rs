@@ -25,6 +25,7 @@ pub enum Ins {
     Store(ConstId, Type, Value),
     Return(Type, Value),
     Func(FuncInst),
+    Call(CallIns),
 }
 
 pub struct FuncInst {
@@ -35,6 +36,13 @@ pub struct FuncInst {
     pub body: Vec<Ins>,
 }
 
+pub struct CallIns {
+    pub callee: Value,
+    pub ty: Type,
+    pub args: Vec<Value>,
+    pub result: ConstId,
+}
+
 pub enum Value {
     Void,
     Str(String),
@@ -42,6 +50,7 @@ pub enum Value {
     Int(i64),
     Const(ConstId),
     Param(usize),
+    Function(String),
 }
 
 #[derive(Debug)]
@@ -63,6 +72,7 @@ pub enum Primitive {
 pub trait IRVisitor<T> {
     fn visit_package(&mut self, name: &str) -> T;
     fn visit_func(&mut self, f: &FuncInst) -> T;
+    fn visit_call(&mut self, c: &CallIns) -> T;
     fn visit_ret(&mut self, ty: &Type, v: &Value) -> T;
     fn visit_store(&mut self, id: ConstId, ty: &Type, v: &Value) -> T;
 }
@@ -74,6 +84,7 @@ impl Ins {
             Ins::Store(id, ty, value) => v.visit_store(*id, ty, value),
             Ins::Return(ty, value) => v.visit_ret(ty, value),
             Ins::Func(func) => v.visit_func(func),
+            Ins::Call(call) => v.visit_call(call),
         }
     }
 }
@@ -119,6 +130,20 @@ impl fmt::Display for Ins {
                     func.ret,
                 )
             }
+            Ins::Call(call) => {
+                write!(
+                    f,
+                    "${} {} = call {}({})",
+                    call.result,
+                    call.ty,
+                    call.callee,
+                    call.args
+                        .iter()
+                        .map(|a| a.to_string())
+                        .collect::<Vec<String>>()
+                        .join(", "),
+                )
+            }
         }
     }
 }
@@ -141,6 +166,7 @@ impl fmt::Display for Value {
             Value::Float(s) => write!(f, "{}", s),
             Value::Const(s) => write!(f, "${}", s),
             Value::Param(s) => write!(f, "%{}", s),
+            Value::Function(s) => write!(f, "{}", s),
         }
     }
 }

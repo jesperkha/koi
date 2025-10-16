@@ -3,7 +3,10 @@ use std::mem;
 use tracing::info;
 
 use crate::{
-    ast::{BlockNode, Decl, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
+    ast::{
+        BlockNode, CallExpr, Decl, Expr, FuncNode, GroupExpr, ReturnNode, TypeNode, Visitable,
+        Visitor,
+    },
     config::Config,
     error::{Error, ErrorSet, Res},
     ir::{FuncInst, IRUnit, Ins, SymTracker, Type, Value, ir},
@@ -168,25 +171,49 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         })
     }
 
+    fn visit_package(&mut self, node: &Token) -> Result<Value, Error> {
+        self.push(Ins::Package(node.to_string()));
+        Ok(Value::Void)
+    }
+
+    fn visit_call(&mut self, call: &CallExpr) -> Result<Value, Error> {
+        let callee = match &*call.callee {
+            Expr::Literal(t) => match &t.kind {
+                TokenKind::IdentLit(name) => Value::Function(name.clone()),
+                _ => panic!("unchecked invalid function call"),
+            },
+            e => e.accept(self)?,
+        };
+
+        let args = call
+            .args
+            .iter()
+            .map(|arg| arg.accept(self))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let ty = self.semtype_to_irtype(self.ctx.get_node(call));
+        let result = self.sym.next(); // declare after evaluating args to avoid incorrect id order
+
+        self.push(Ins::Call(ir::CallIns {
+            callee,
+            ty,
+            args,
+            result,
+        }));
+
+        Ok(Value::Const(result))
+    }
+
+    fn visit_group(&mut self, group: &GroupExpr) -> Result<Value, Error> {
+        group.inner.accept(self)
+    }
+
     fn visit_block(&mut self, _: &BlockNode) -> Result<Value, Error> {
         panic!("unused method")
     }
 
     fn visit_type(&mut self, _: &TypeNode) -> Result<Value, Error> {
         panic!("unused method")
-    }
-
-    fn visit_package(&mut self, node: &Token) -> Result<Value, Error> {
-        self.push(Ins::Package(node.to_string()));
-        Ok(Value::Void)
-    }
-
-    fn visit_call(&mut self, _: &crate::ast::CallExpr) -> Result<Value, Error> {
-        todo!()
-    }
-
-    fn visit_group(&mut self, _: &crate::ast::GroupExpr) -> Result<Value, Error> {
-        todo!()
     }
 }
 
