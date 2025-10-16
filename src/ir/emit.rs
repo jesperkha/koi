@@ -183,7 +183,11 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         let args = call
             .args
             .iter()
-            .map(|arg| arg.accept(self))
+            .map(|arg| {
+                let value = arg.accept(self)?;
+                let ty = self.semtype_to_irtype(self.ctx.get_node(arg));
+                Ok((ty, value))
+            })
             .collect::<Result<Vec<_>, _>>()?;
 
         let ty = self.semtype_to_irtype(self.ctx.get_node(call));

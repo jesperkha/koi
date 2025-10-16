@@ -38,7 +38,7 @@ pub struct FuncInst {
 pub struct CallIns {
     pub callee: Value,
     pub ty: Type,
-    pub args: Vec<Value>,
+    pub args: Vec<(Type, Value)>,
     pub result: ConstId,
 }
 
@@ -50,6 +50,12 @@ pub enum Value {
     Const(ConstId),
     Param(usize),
     Function(String),
+}
+
+#[derive(Debug)]
+pub enum Type {
+    Primitive(Primitive),
+    Object(String, Vec<Type>, usize), // List of fields and total size (not aligned)
 }
 
 #[derive(Debug)]
@@ -65,6 +71,7 @@ pub enum Primitive {
     I16,
     I32,
     I64,
+    String,
     Uintptr(Box<Type>),
 }
 
@@ -86,12 +93,6 @@ impl Ins {
     }
 }
 
-#[derive(Debug)]
-pub enum Type {
-    Primitive(Primitive),
-    Object(String, Vec<Type>, usize), // List of fields and total size (not aligned)
-}
-
 impl Type {
     /// Get size of type in bytes
     pub fn size(&self) -> usize {
@@ -101,7 +102,11 @@ impl Type {
                 Primitive::U8 | Primitive::I8 => 1,
                 Primitive::U16 | Primitive::I16 => 2,
                 Primitive::F32 | Primitive::I32 | Primitive::U32 => 4,
-                Primitive::F64 | Primitive::U64 | Primitive::I64 | Primitive::Uintptr(_) => 8,
+                Primitive::F64
+                | Primitive::U64
+                | Primitive::I64
+                | Primitive::Uintptr(_)
+                | Primitive::String => 8,
             },
             Type::Object(_, _, size) => *size,
         }
@@ -135,7 +140,7 @@ impl fmt::Display for Ins {
                     call.callee,
                     call.args
                         .iter()
-                        .map(|a| a.to_string())
+                        .map(|a| format!("{} {}", a.0, a.1))
                         .collect::<Vec<String>>()
                         .join(", "),
                 )
