@@ -1,13 +1,16 @@
+use std::collections::HashMap;
+
 use crate::{
     build::{Builder, TransUnit},
     config::Config,
-    ir::{IRUnit, IRVisitor, Value},
+    ir::{ConstId, IRUnit, IRVisitor, Value},
 };
 
 pub struct X86Builder<'a> {
     _config: &'a Config,
     src: String,
     indent: usize,
+    regmap: HashMap<ConstId, String>,
 }
 
 impl<'a> X86Builder<'a> {
@@ -27,6 +30,14 @@ impl<'a> X86Builder<'a> {
     fn pop(&mut self) {
         self.indent -= 1;
     }
+
+    fn bind(&mut self, id: ConstId, reg: &str) {
+        self.regmap.insert(id, reg.to_string());
+    }
+
+    fn get(&self, id: ConstId) -> &str {
+        self.regmap.get(&id).expect("unknown const id")
+    }
 }
 
 impl<'a> Builder<'a> for X86Builder<'a> {
@@ -35,6 +46,7 @@ impl<'a> Builder<'a> for X86Builder<'a> {
             _config: config,
             src: String::new(),
             indent: 0,
+            regmap: HashMap::new(),
         }
     }
 
@@ -63,6 +75,12 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
         self.writeln("push rbp");
         self.writeln("mov rbp, rsp");
 
+        // TODO: stack alignment and fetch param regs based on type
+        let registers = ["edi", "esi", "edx", "ecx", "r8", "r9"];
+        for i in 0..f.params.len() {
+            self.writeln(&format!("mov [rsp-{}], {}", (i + 1) * 4, registers[i]));
+        }
+
         for ins in &f.body {
             ins.accept(self);
         }
@@ -73,11 +91,11 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
     fn visit_ret(&mut self, _ty: &crate::ir::Type, v: &crate::ir::Value) {
         match v {
             Value::Void => {}
-            Value::Int(n) => self.writeln(&format!("mov rax, {}", n)),
+            Value::Int(n) => self.writeln(&format!("mov eax, {}", n)),
+            Value::Const(id) => self.writeln(&format!("mov eax, {}", self.get(*id))),
+            Value::Param(id) => self.writeln(&format!("mov eax, [rsp-{}]", (id + 1) * 4)),
             Value::Str(_) => todo!(),
             Value::Float(_) => todo!(),
-            Value::Const(_) => todo!(),
-            Value::Param(_) => todo!(),
             Value::Function(_) => todo!(),
         };
 
@@ -95,6 +113,23 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
     }
 
     fn visit_call(&mut self, c: &crate::ir::CallIns) -> () {
-        todo!()
+        let registers = ["edi", "esi", "edx", "ecx", "r8", "r9"];
+
+        match &c.callee {
+            Value::Function(name) => {
+                for (i, arg) in c.args.iter().enumerate() {
+                    match arg {
+                        Value::Int(n) => self.writeln(&format!("mov {}, {}", registers[i], n)),
+                        Value::Const(id) => {
+                            self.writeln(&format!("mov {}, {}", registers[i], self.get(*id)))
+                        }
+                        _ => panic!("invalid call argument"),
+                    }
+                }
+                self.writeln(&format!("call {}", name));
+                self.bind(c.result, "eax");
+            }
+            _ => panic!("invalid call callee"),
+        }
     }
 }
