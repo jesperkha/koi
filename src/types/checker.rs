@@ -104,17 +104,14 @@ impl<'a> Checker<'a> {
     }
 
     fn error(&self, msg: &str, node: &dyn Node) -> Error {
-        error!("{}", msg);
         Error::range(msg, node.pos(), node.end(), &self.file.src)
     }
 
     fn error_token(&self, msg: &str, tok: &Token) -> Error {
-        error!("{}", msg);
         Error::new(msg, tok, tok, &self.file.src)
     }
 
     fn error_from_to(&self, msg: &str, from: &Pos, to: &Pos) -> Error {
-        error!("{}", msg);
         Error::range(msg, from, to, &self.file.src)
     }
 

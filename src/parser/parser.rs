@@ -346,7 +346,6 @@ impl<'a> Parser<'a> {
 
     /// Create error marking the given token range.
     fn error_from_to(&self, message: &str, from: Token, to: Token) -> Error {
-        error!("{}", message);
         Error::new(message, &from, &to, &self.file.src)
     }
 
