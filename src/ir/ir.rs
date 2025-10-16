@@ -21,7 +21,6 @@ impl fmt::Display for IRUnit {
 pub type ConstId = usize;
 
 pub enum Ins {
-    Package(String),
     Store(ConstId, Type, Value),
     Return(Type, Value),
     Func(FuncInst),
@@ -70,7 +69,6 @@ pub enum Primitive {
 }
 
 pub trait IRVisitor<T> {
-    fn visit_package(&mut self, name: &str) -> T;
     fn visit_func(&mut self, f: &FuncInst) -> T;
     fn visit_call(&mut self, c: &CallIns) -> T;
     fn visit_ret(&mut self, ty: &Type, v: &Value) -> T;
@@ -80,7 +78,6 @@ pub trait IRVisitor<T> {
 impl Ins {
     pub fn accept<T>(&self, v: &mut dyn IRVisitor<T>) -> T {
         match self {
-            Ins::Package(name) => v.visit_package(&name),
             Ins::Store(id, ty, value) => v.visit_store(*id, ty, value),
             Ins::Return(ty, value) => v.visit_ret(ty, value),
             Ins::Func(func) => v.visit_func(func),
@@ -114,7 +111,6 @@ impl Type {
 impl fmt::Display for Ins {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Ins::Package(name) => write!(f, "pkg '{}'", name),
             Ins::Store(var, ty, value) => write!(f, "${} {} = {}", var, ty, value),
             Ins::Return(ty, value) => write!(f, "ret {} {}", ty, value),
             Ins::Func(func) => {

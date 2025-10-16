@@ -94,8 +94,6 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
         todo!()
     }
 
-    fn visit_package(&mut self, _: &str) -> () {}
-
     fn visit_call(&mut self, c: &crate::ir::CallIns) -> () {
         todo!()
     }

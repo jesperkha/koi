@@ -171,11 +171,6 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         })
     }
 
-    fn visit_package(&mut self, node: &Token) -> Result<Value, Error> {
-        self.push(Ins::Package(node.to_string()));
-        Ok(Value::Void)
-    }
-
     fn visit_call(&mut self, call: &CallExpr) -> Result<Value, Error> {
         let callee = match &*call.callee {
             Expr::Literal(t) => match &t.kind {
@@ -213,6 +208,10 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
     }
 
     fn visit_type(&mut self, _: &TypeNode) -> Result<Value, Error> {
+        panic!("unused method")
+    }
+
+    fn visit_package(&mut self, _: &Token) -> Result<Value, Error> {
         panic!("unused method")
     }
 }
