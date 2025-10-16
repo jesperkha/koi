@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use tracing::{error, info};
+use tracing::info;
 
 use crate::{
     ast::{
