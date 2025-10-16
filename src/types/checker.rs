@@ -272,6 +272,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         match &node.kind {
             TokenKind::IntLit(_) => Ok(self.ctx.primitive(PrimitiveType::I64)),
             TokenKind::FloatLit(_) => Ok(self.ctx.primitive(PrimitiveType::F64)),
+            TokenKind::StringLit(_) => Ok(self.ctx.primitive(PrimitiveType::String)),
             TokenKind::True | TokenKind::False => Ok(self.ctx.primitive(PrimitiveType::Bool)),
             TokenKind::IdentLit(name) => self
                 .sym
@@ -343,6 +344,8 @@ fn token_to_primitive_type(tok: &Token) -> PrimitiveType {
         // Builtin 'aliases'
         TokenKind::IntType => PrimitiveType::I64,
         TokenKind::FloatType => PrimitiveType::F64,
+
+        TokenKind::StringType => PrimitiveType::String,
 
         _ => panic!("unknown TypeNode::Primitive kind: {}", tok.kind),
     }

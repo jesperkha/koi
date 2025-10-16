@@ -328,7 +328,11 @@ impl<'a> Parser<'a> {
                 self.consume();
                 Ok(TypeNode::Ident(token))
             }
-            TokenKind::IntType | TokenKind::FloatType | TokenKind::BoolType | TokenKind::Void => {
+            TokenKind::IntType
+            | TokenKind::FloatType
+            | TokenKind::BoolType
+            | TokenKind::Void
+            | TokenKind::StringType => {
                 self.consume();
                 Ok(TypeNode::Primitive(token))
             }

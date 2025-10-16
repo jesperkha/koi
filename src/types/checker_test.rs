@@ -155,3 +155,14 @@ fn test_function_call_fail() {
         "function takes 2 arguments, got 1",
     );
 }
+
+#[test]
+fn test_string_literal() {
+    assert_pass(
+        r#"
+        func f(s string) string {
+            return s
+        }
+    "#,
+    );
+}

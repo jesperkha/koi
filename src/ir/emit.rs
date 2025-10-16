@@ -9,7 +9,7 @@ use crate::{
     },
     config::Config,
     error::{Error, ErrorSet, Res},
-    ir::{FuncInst, IRUnit, Ins, SymTracker, Type, Value, ir},
+    ir::{FuncInst, IRUnit, Ins, StringDataIns, SymTracker, Type, Value, ir},
     token::{Token, TokenKind},
     types::{self, Package, TypeContext, TypeId, TypeKind},
 };
@@ -29,6 +29,7 @@ struct Emitter<'a> {
 
     // Track if void functions have returned or not to add explicit return
     has_returned: bool,
+    curstr: usize,
 }
 
 // TODO: dead code elimination (warning)
@@ -43,6 +44,7 @@ impl<'a> Emitter<'a> {
             sym: SymTracker::new(),
             has_returned: false,
             ins: vec![Vec::new()],
+            curstr: 0,
         }
     }
 
@@ -86,6 +88,11 @@ impl<'a> Emitter<'a> {
 
     fn push(&mut self, ins: Ins) {
         self.ins.last_mut().expect("scope list is empty").push(ins);
+    }
+
+    fn next_string_name(&mut self) -> String {
+        self.curstr += 1;
+        format!("S{}", self.curstr)
     }
 }
 
@@ -164,9 +171,19 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
             TokenKind::False => Value::Int(0),
             TokenKind::IntLit(n) => Value::Int(*n),
             TokenKind::FloatLit(n) => Value::Float(*n),
-            TokenKind::StringLit(n) => Value::Str(n.clone()),
             TokenKind::CharLit(n) => Value::Int((*n).into()),
             TokenKind::IdentLit(name) => self.sym.get(name),
+            TokenKind::StringLit(n) => {
+                let name = self.next_string_name();
+
+                self.push(Ins::StringData(StringDataIns {
+                    name: name.to_owned(),
+                    length: n.len(),
+                    value: n.to_owned(),
+                }));
+
+                Value::Data(name.to_owned())
+            }
             _ => panic!("unhandled token kind in evaluate: {:?}", token.kind),
         })
     }
@@ -235,5 +252,6 @@ fn type_primitive_to_ir_primitive(p: &types::PrimitiveType) -> ir::Primitive {
         types::PrimitiveType::U64 => ir::Primitive::U64,
         types::PrimitiveType::F32 => ir::Primitive::F32,
         types::PrimitiveType::F64 => ir::Primitive::F64,
+        types::PrimitiveType::String => ir::Primitive::Str,
     }
 }
