@@ -161,7 +161,10 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
     }
 
     fn visit_ret(&mut self, ty: &crate::ir::Type, v: &crate::ir::Value) {
-        self.mov(&self.alloc.return_reg(ty), v, ty);
+        // If not void
+        if ty.size() != 0 {
+            self.mov(&self.alloc.return_reg(ty), v, ty);
+        }
         self.writeln("leave");
         self.writeln("ret\n");
     }
