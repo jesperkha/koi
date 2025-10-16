@@ -98,3 +98,60 @@ fn test_undeclared_param() {
         "not declared",
     );
 }
+
+#[test]
+fn test_function_call_pass() {
+    assert_pass(
+        r#"
+        func f(a int, b int) int {
+            return 0
+        }
+        func g() int {
+            return f(1, 2)
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(a int) int {
+            return f(f(f(1)))
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_function_call_fail() {
+    assert_error(
+        r#"
+        func f() {
+            g()
+        }
+    "#,
+        "not declared",
+    );
+    assert_error(
+        r#"
+        func f() {
+            (1)()
+        }
+    "#,
+        "not a function",
+    );
+    assert_error(
+        r#"
+        func f() {
+            f()()
+        }
+    "#,
+        "not a function",
+    );
+    assert_error(
+        r#"
+        func f(a int, b int) {
+            f(1)
+        }
+    "#,
+        "function takes 2 arguments, got 1",
+    );
+}

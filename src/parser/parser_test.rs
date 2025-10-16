@@ -17,6 +17,27 @@ fn expect_error(src: &str, error: &str) {
 }
 
 #[test]
+fn test_literal() {
+    compare_string(
+        r#"
+        func f() {
+            foo
+            bar
+            faz
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            (123)
+            ((abc))
+        }
+    "#,
+    );
+}
+
+#[test]
 fn test_function_with_return() {
     compare_string(
         r#"
@@ -125,4 +146,61 @@ fn test_package_decl() {
     // "#,
     //     "expected package declaration first",
     // );
+}
+
+#[test]
+fn test_function_call() {
+    compare_string(
+        r#"
+        func f() {
+            f()
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            f(1)
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            f(1, 2, true, abc)
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            a(b(d), b(c(d)))
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_complex_function_call() {
+    compare_string(
+        r#"
+        func f() {
+            f()()()
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            a(b()(c))(c, d())
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            ((a()(b()))()(a()))(a)
+        }
+    "#,
+    );
 }

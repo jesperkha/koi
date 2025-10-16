@@ -15,8 +15,10 @@ fn main() {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    //debug_print_all_steps(&read_to_string("main.koi").unwrap());
+    debug_print_all_steps(&read_to_string("_test/main.koi").unwrap());
+}
 
+fn compile() {
     let config = Config::default();
     let mut driver = Driver::new(&config);
     let _ = driver

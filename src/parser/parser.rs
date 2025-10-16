@@ -1,7 +1,10 @@
 use tracing::{error, info};
 
 use crate::{
-    ast::{BlockNode, Decl, Expr, Field, File, FuncNode, ReturnNode, Stmt, TypeNode},
+    ast::{
+        BlockNode, CallExpr, Decl, Expr, Field, File, FuncNode, GroupExpr, ReturnNode, Stmt,
+        TypeNode,
+    },
     config::Config,
     error::{Error, ErrorSet, Res},
     token::{Source, Token, TokenKind},
@@ -248,6 +251,50 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expr(&mut self) -> Result<Expr, Error> {
+        self.parse_call()
+    }
+
+    fn parse_call(&mut self) -> Result<Expr, Error> {
+        let mut expr = self.parse_group()?;
+
+        while self.matches(TokenKind::LParen) {
+            let lparen = self.must_consume()?;
+            let mut args = Vec::new();
+
+            while !self.matches(TokenKind::RParen) {
+                args.push(self.parse_expr()?);
+                if self.matches(TokenKind::RParen) {
+                    break;
+                }
+
+                self.expect(TokenKind::Comma)?;
+            }
+
+            let rparen = self.expect(TokenKind::RParen)?;
+            expr = Expr::Call(CallExpr {
+                callee: Box::new(expr),
+                args,
+                lparen,
+                rparen,
+            })
+        }
+
+        Ok(expr)
+    }
+
+    fn parse_group(&mut self) -> Result<Expr, Error> {
+        if self.matches(TokenKind::LParen) {
+            let lparen = self.must_consume()?;
+            let inner = self.parse_expr()?;
+            let rparen = self.expect(TokenKind::RParen)?;
+
+            return Ok(Expr::Group(GroupExpr {
+                lparen,
+                inner: Box::new(inner),
+                rparen,
+            }));
+        }
+
         self.parse_literal()
     }
 
@@ -299,7 +346,6 @@ impl<'a> Parser<'a> {
 
     /// Create error marking the given token range.
     fn error_from_to(&self, message: &str, from: Token, to: Token) -> Error {
-        error!("{}", message);
         Error::new(message, &from, &to, &self.file.src)
     }
 
@@ -323,6 +369,12 @@ impl<'a> Parser<'a> {
         } else {
             None
         }
+    }
+
+    /// Consumes current token and returns it. Errors if EOF.
+    fn must_consume(&mut self) -> Result<Token, Error> {
+        self.consume()
+            .map_or(Err(self.error_token("unexpected end of file")), |t| Ok(t))
     }
 
     /// Expects the current token to be of a specific kind.

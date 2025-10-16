@@ -1,7 +1,12 @@
+use std::mem;
+
 use tracing::info;
 
 use crate::{
-    ast::{BlockNode, Decl, Expr, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
+    ast::{
+        BlockNode, CallExpr, Decl, Expr, FuncNode, GroupExpr, ReturnNode, TypeNode, Visitable,
+        Visitor,
+    },
     config::Config,
     error::{Error, ErrorSet, Res},
     ir::{FuncInst, IRUnit, Ins, SymTracker, Type, Value, ir},
@@ -11,14 +16,16 @@ use crate::{
 
 pub fn emit_ir(pkg: &Package, config: &Config) -> Res<IRUnit> {
     let emitter = Emitter::new(pkg, config);
-    emitter.emit()
+    emitter.emit().map(|ins| IRUnit::new(ins))
 }
 
 struct Emitter<'a> {
     ctx: &'a TypeContext,
     nodes: &'a [Decl],
     sym: SymTracker,
-    config: &'a Config,
+    _config: &'a Config,
+
+    ins: Vec<Vec<Ins>>,
 
     // Track if void functions have returned or not to add explicit return
     has_returned: bool,
@@ -30,28 +37,28 @@ impl<'a> Emitter<'a> {
     fn new(pkg: &'a Package, config: &'a Config) -> Self {
         info!("package '{}' at {}", pkg.name, pkg.filepath);
         Self {
-            config,
+            _config: config,
             ctx: &pkg.ctx,
             nodes: &pkg.nodes,
             sym: SymTracker::new(),
             has_returned: false,
+            ins: vec![Vec::new()],
         }
     }
 
-    fn emit(mut self) -> Res<IRUnit> {
-        let mut ins = Vec::new();
+    fn emit(mut self) -> Res<Vec<Ins>> {
         let mut errs = ErrorSet::new();
 
         for decl in self.nodes {
             match decl.accept(&mut self) {
-                Ok(i) => ins.push(i),
+                Ok(_) => {}
                 Err(err) => errs.add(err),
             }
         }
 
         if errs.len() == 0 {
-            info!("success, {} instructions", ins.len());
-            Ok(IRUnit::new(ins))
+            info!("success, {} instructions", self.ins.len());
+            Ok(mem::take(&mut self.ins[0]))
         } else {
             info!("fail, finished with {} errors", errs.len());
             Err(errs)
@@ -69,24 +76,21 @@ impl<'a> Emitter<'a> {
         }
     }
 
-    fn evaluate(&self, expr: &Expr) -> Value {
-        match expr {
-            Expr::Literal(token) => match &token.kind {
-                TokenKind::True => Value::Int(1),
-                TokenKind::False => Value::Int(0),
-                TokenKind::IntLit(n) => Value::Int(*n),
-                TokenKind::FloatLit(n) => Value::Float(*n),
-                TokenKind::StringLit(n) => Value::Str(n.clone()),
-                TokenKind::CharLit(n) => Value::Int((*n).into()),
-                TokenKind::IdentLit(name) => self.sym.get(name),
-                _ => panic!("unhandled token kind in evaluate: {:?}", token.kind),
-            },
-        }
+    fn push_scope(&mut self) {
+        self.ins.push(Vec::new());
+    }
+
+    fn pop_scope(&mut self) -> Vec<Ins> {
+        self.ins.pop().expect("scope list is empty")
+    }
+
+    fn push(&mut self, ins: Ins) {
+        self.ins.last_mut().expect("scope list is empty").push(ins);
     }
 }
 
-impl<'a> Visitor<Result<Ins, Error>> for Emitter<'a> {
-    fn visit_func(&mut self, node: &FuncNode) -> Result<Ins, Error> {
+impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
+    fn visit_func(&mut self, node: &FuncNode) -> Result<Value, Error> {
         self.sym.new_function_context();
 
         let name = node.name.to_string();
@@ -112,12 +116,14 @@ impl<'a> Visitor<Result<Ins, Error>> for Emitter<'a> {
         }
 
         // Generate function body IR
-        let mut body = Vec::new();
         self.has_returned = false;
+        self.push_scope();
 
         for stmt in &node.body.stmts {
-            body.push(stmt.accept(self)?);
+            stmt.accept(self)?;
         }
+
+        let mut body = self.pop_scope();
 
         // Add explicit void return for non-returing functions
         if !self.has_returned {
@@ -127,41 +133,86 @@ impl<'a> Visitor<Result<Ins, Error>> for Emitter<'a> {
             ));
         }
 
-        Ok(Ins::Func(FuncInst {
+        self.push(Ins::Func(FuncInst {
             name,
             public: node.public,
             params,
             ret,
             body,
-        }))
+        }));
+
+        Ok(Value::Void)
     }
 
-    fn visit_return(&mut self, node: &ReturnNode) -> Result<Ins, Error> {
+    fn visit_return(&mut self, node: &ReturnNode) -> Result<Value, Error> {
         let id = self.ctx.get_node(node);
         let ty = self.semtype_to_irtype(id);
         let val = node
             .expr
             .as_ref()
-            .map_or(Value::Void, |expr| self.evaluate(&expr));
+            .map_or(Ok(Value::Void), |expr| expr.accept(self))?;
 
         self.has_returned = true;
-        Ok(Ins::Return(ty, val))
+        self.push(Ins::Return(ty, val));
+
+        Ok(Value::Void)
     }
 
-    fn visit_literal(&mut self, _: &Token) -> Result<Ins, Error> {
+    fn visit_literal(&mut self, token: &Token) -> Result<Value, Error> {
+        Ok(match &token.kind {
+            TokenKind::True => Value::Int(1),
+            TokenKind::False => Value::Int(0),
+            TokenKind::IntLit(n) => Value::Int(*n),
+            TokenKind::FloatLit(n) => Value::Float(*n),
+            TokenKind::StringLit(n) => Value::Str(n.clone()),
+            TokenKind::CharLit(n) => Value::Int((*n).into()),
+            TokenKind::IdentLit(name) => self.sym.get(name),
+            _ => panic!("unhandled token kind in evaluate: {:?}", token.kind),
+        })
+    }
+
+    fn visit_call(&mut self, call: &CallExpr) -> Result<Value, Error> {
+        let callee = match &*call.callee {
+            Expr::Literal(t) => match &t.kind {
+                TokenKind::IdentLit(name) => Value::Function(name.clone()),
+                _ => panic!("unchecked invalid function call"),
+            },
+            e => e.accept(self)?,
+        };
+
+        let args = call
+            .args
+            .iter()
+            .map(|arg| arg.accept(self))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let ty = self.semtype_to_irtype(self.ctx.get_node(call));
+        let result = self.sym.next(); // declare after evaluating args to avoid incorrect id order
+
+        self.push(Ins::Call(ir::CallIns {
+            callee,
+            ty,
+            args,
+            result,
+        }));
+
+        Ok(Value::Const(result))
+    }
+
+    fn visit_group(&mut self, group: &GroupExpr) -> Result<Value, Error> {
+        group.inner.accept(self)
+    }
+
+    fn visit_block(&mut self, _: &BlockNode) -> Result<Value, Error> {
         panic!("unused method")
     }
 
-    fn visit_block(&mut self, _: &BlockNode) -> Result<Ins, Error> {
+    fn visit_type(&mut self, _: &TypeNode) -> Result<Value, Error> {
         panic!("unused method")
     }
 
-    fn visit_type(&mut self, _: &TypeNode) -> Result<Ins, Error> {
+    fn visit_package(&mut self, _: &Token) -> Result<Value, Error> {
         panic!("unused method")
-    }
-
-    fn visit_package(&mut self, node: &Token) -> Result<Ins, Error> {
-        Ok(Ins::Package(node.to_string()))
     }
 }
 

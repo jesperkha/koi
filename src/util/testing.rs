@@ -67,17 +67,25 @@ pub fn debug_print_all_steps(src: &str) {
     scan(&source, &config)
         .and_then(|toks| parse(source, toks, &config))
         .and_then(|file| {
+            println!("SOURCE CODE");
+            println!("===========\n");
             println!("{}", file);
             check(vec![file], &config)
         })
         .and_then(|pkg| emit_ir(&pkg, &config))
         .map_err(|err| err.to_string())
         .and_then(|unit| {
+            println!("INTERMEDIATE REPRESENTATION");
+            println!("===========================\n");
             println!("{}", unit);
             X86Builder::new(&config).assemble(unit)
         })
         .map_or_else(
             |err| println!("{}", err),
-            |unit| println!("{}", unit.source),
+            |unit| {
+                println!("ASSEMBLY (X86)");
+                println!("==============\n");
+                println!("{}", unit.source);
+            },
         );
 }

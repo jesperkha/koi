@@ -34,6 +34,8 @@ pub trait Visitor<R> {
     fn visit_literal(&mut self, node: &Token) -> R;
     fn visit_type(&mut self, node: &TypeNode) -> R;
     fn visit_package(&mut self, node: &Token) -> R;
+    fn visit_call(&mut self, node: &CallExpr) -> R;
+    fn visit_group(&mut self, node: &GroupExpr) -> R;
 }
 
 #[derive(Debug)]
@@ -107,6 +109,8 @@ pub enum Stmt {
 #[derive(Debug, Clone)]
 pub enum Expr {
     Literal(Token),
+    Group(GroupExpr),
+    Call(CallExpr),
 }
 
 /// A TypeNode is the AST representation of a type, not the semantic meaning.
@@ -114,6 +118,21 @@ pub enum Expr {
 pub enum TypeNode {
     Primitive(Token),
     Ident(Token),
+}
+
+#[derive(Debug, Clone)]
+pub struct CallExpr {
+    pub callee: Box<Expr>,
+    pub lparen: Token,
+    pub args: Vec<Expr>,
+    pub rparen: Token,
+}
+
+#[derive(Debug, Clone)]
+pub struct GroupExpr {
+    pub lparen: Token,
+    pub inner: Box<Expr>,
+    pub rparen: Token,
 }
 
 #[derive(Debug, Clone)]
@@ -286,19 +305,39 @@ impl Node for Expr {
     fn pos(&self) -> &Pos {
         match self {
             Expr::Literal(token) => &token.pos,
+            Expr::Call(call) => call.pos(),
+            Expr::Group(grp) => &grp.lparen.pos,
         }
     }
 
     fn end(&self) -> &Pos {
         match self {
             Expr::Literal(token) => &token.end_pos,
+            Expr::Call(call) => call.end(),
+            Expr::Group(grp) => &grp.rparen.end_pos,
         }
     }
 
     fn id(&self) -> usize {
         match self {
             Expr::Literal(token) => token.id,
+            Expr::Call(call) => call.id(),
+            Expr::Group(grp) => grp.rparen.id,
         }
+    }
+}
+
+impl Node for CallExpr {
+    fn pos(&self) -> &Pos {
+        &self.lparen.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.rparen.end_pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.lparen.id
     }
 }
 
@@ -306,6 +345,8 @@ impl Visitable for Expr {
     fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
         match self {
             Expr::Literal(token) => visitor.visit_literal(token),
+            Expr::Call(call) => visitor.visit_call(&call),
+            Expr::Group(grp) => visitor.visit_group(&grp),
         }
     }
 }
