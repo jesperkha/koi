@@ -3,7 +3,7 @@ use std::mem;
 use tracing::info;
 
 use crate::{
-    ast::{BlockNode, Decl, Expr, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
+    ast::{BlockNode, Decl, FuncNode, ReturnNode, TypeNode, Visitable, Visitor},
     config::Config,
     error::{Error, ErrorSet, Res},
     ir::{FuncInst, IRUnit, Ins, SymTracker, Type, Value, ir},
@@ -20,7 +20,7 @@ struct Emitter<'a> {
     ctx: &'a TypeContext,
     nodes: &'a [Decl],
     sym: SymTracker,
-    config: &'a Config,
+    _config: &'a Config,
 
     ins: Vec<Vec<Ins>>,
 
@@ -34,7 +34,7 @@ impl<'a> Emitter<'a> {
     fn new(pkg: &'a Package, config: &'a Config) -> Self {
         info!("package '{}' at {}", pkg.name, pkg.filepath);
         Self {
-            config,
+            _config: config,
             ctx: &pkg.ctx,
             nodes: &pkg.nodes,
             sym: SymTracker::new(),
@@ -70,23 +70,6 @@ impl<'a> Emitter<'a> {
         match &ty.kind {
             TypeKind::Primitive(p) => Type::Primitive(type_primitive_to_ir_primitive(&p)),
             _ => panic!("unhandled kind {:?}", ty.kind),
-        }
-    }
-
-    fn evaluate(&self, expr: &Expr) -> Value {
-        match expr {
-            Expr::Literal(token) => match &token.kind {
-                TokenKind::True => Value::Int(1),
-                TokenKind::False => Value::Int(0),
-                TokenKind::IntLit(n) => Value::Int(*n),
-                TokenKind::FloatLit(n) => Value::Float(*n),
-                TokenKind::StringLit(n) => Value::Str(n.clone()),
-                TokenKind::CharLit(n) => Value::Int((*n).into()),
-                TokenKind::IdentLit(name) => self.sym.get(name),
-                _ => panic!("unhandled token kind in evaluate: {:?}", token.kind),
-            },
-            Expr::Call(call) => self.evaluate(&call.callee),
-            Expr::Group(grp) => self.evaluate(&grp.inner),
         }
     }
 
@@ -164,7 +147,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         let val = node
             .expr
             .as_ref()
-            .map_or(Value::Void, |expr| self.evaluate(&expr));
+            .map_or(Ok(Value::Void), |expr| expr.accept(self))?;
 
         self.has_returned = true;
         self.push(Ins::Return(ty, val));
@@ -172,8 +155,17 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         Ok(Value::Void)
     }
 
-    fn visit_literal(&mut self, _: &Token) -> Result<Value, Error> {
-        panic!("unused method")
+    fn visit_literal(&mut self, token: &Token) -> Result<Value, Error> {
+        Ok(match &token.kind {
+            TokenKind::True => Value::Int(1),
+            TokenKind::False => Value::Int(0),
+            TokenKind::IntLit(n) => Value::Int(*n),
+            TokenKind::FloatLit(n) => Value::Float(*n),
+            TokenKind::StringLit(n) => Value::Str(n.clone()),
+            TokenKind::CharLit(n) => Value::Int((*n).into()),
+            TokenKind::IdentLit(name) => self.sym.get(name),
+            _ => panic!("unhandled token kind in evaluate: {:?}", token.kind),
+        })
     }
 
     fn visit_block(&mut self, _: &BlockNode) -> Result<Value, Error> {
@@ -189,11 +181,11 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         Ok(Value::Void)
     }
 
-    fn visit_call(&mut self, node: &crate::ast::CallExpr) -> Result<Value, Error> {
+    fn visit_call(&mut self, _: &crate::ast::CallExpr) -> Result<Value, Error> {
         todo!()
     }
 
-    fn visit_group(&mut self, node: &crate::ast::GroupExpr) -> Result<Value, Error> {
+    fn visit_group(&mut self, _: &crate::ast::GroupExpr) -> Result<Value, Error> {
         todo!()
     }
 }

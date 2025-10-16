@@ -5,7 +5,7 @@ use crate::{
 };
 
 pub struct X86Builder<'a> {
-    config: &'a Config,
+    _config: &'a Config,
     src: String,
     indent: usize,
 }
@@ -32,7 +32,7 @@ impl<'a> X86Builder<'a> {
 impl<'a> Builder<'a> for X86Builder<'a> {
     fn new(config: &'a Config) -> Self {
         Self {
-            config,
+            _config: config,
             src: String::new(),
             indent: 0,
         }

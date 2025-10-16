@@ -48,7 +48,7 @@ struct Checker<'a> {
     ctx: &'a mut TypeContext,
     sym: SymTable<TypeId>,
     file: &'a File,
-    config: &'a Config,
+    _config: &'a Config,
 
     /// Map of global type declarations.
     type_decls: HashMap<String, TypeId>,
@@ -64,7 +64,7 @@ struct Checker<'a> {
 impl<'a> Checker<'a> {
     fn new(file: &'a File, ctx: &'a mut TypeContext, config: &'a Config) -> Self {
         Self {
-            config,
+            _config: config,
             file,
             ctx,
             sym: SymTable::new(),

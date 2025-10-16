@@ -18,13 +18,13 @@ struct Scanner<'a> {
     col: usize,
     line_begin: usize,
     errs: ErrorSet,
-    config: &'a Config,
+    _config: &'a Config,
 }
 
 impl<'a> Scanner<'a> {
     fn new(file: &'a Source, config: &'a Config) -> Self {
         Scanner {
-            config,
+            _config: config,
             file,
             pos: 0,
             col: 0,
