@@ -125,7 +125,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_function_def(&mut self) -> Result<FuncDeclNode, Error> {
-        self.consume(); // Consume the 'func' token
+        self.expect(TokenKind::Func)?;
 
         let name = self.expect_identifier("function name")?;
         let lparen = self.expect(TokenKind::LParen)?;
