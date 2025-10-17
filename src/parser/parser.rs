@@ -5,7 +5,7 @@ use tracing::info;
 use crate::{
     ast::{
         BlockNode, CallExpr, Decl, Expr, Field, File, FuncDeclNode, FuncNode, GroupExpr,
-        ReturnNode, Stmt, TypeNode,
+        ReturnNode, Stmt, TypeNode, VarDeclNode,
     },
     config::Config,
     error::{Error, ErrorSet, Res},
@@ -252,6 +252,31 @@ impl<'a> Parser<'a> {
             TokenKind::Return => {
                 let ret = self.parse_return()?;
                 Ok(Stmt::Return(ret))
+            }
+            TokenKind::IdentLit(_) => {
+                // Check if next token is := or ::
+                if self.pos + 1 < self.tokens.len()
+                    && matches!(
+                        self.tokens[self.pos + 1].kind,
+                        TokenKind::ColonEq | TokenKind::ColonColon
+                    )
+                {
+                    // Variable declaration
+                    let name = self.must_consume()?; // identifier
+                    let symbol = self.must_consume()?; // := or ::
+                    let expr = self.parse_expr()?;
+                    let constant = matches!(symbol.kind, TokenKind::ColonColon);
+                    Ok(Stmt::VarDecl(VarDeclNode {
+                        name,
+                        symbol,
+                        expr,
+                        constant,
+                    }))
+                } else {
+                    // Otherwise parse expression
+                    let expr = self.parse_expr()?;
+                    Ok(Stmt::ExprStmt(expr))
+                }
             }
             _ => {
                 let expr = self.parse_expr()?;

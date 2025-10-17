@@ -205,3 +205,52 @@ fn test_extern() {
     "#,
     );
 }
+
+#[test]
+fn test_variable_decl() {
+    compare_string(
+        r#"
+        func f() {
+            a := 0
+            b := true
+            c :: 1.23
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            a := 0
+            b := a
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() int {
+            a := 0
+            return a
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_variable_decl_error() {
+    expect_error(
+        r#"
+        func f() {
+            a :=
+        }
+    "#,
+        "expected expression",
+    );
+    expect_error(
+        r#"
+        func f() {
+            a ::
+        }
+    "#,
+        "expected expression",
+    );
+}

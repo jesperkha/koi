@@ -37,6 +37,7 @@ pub trait Visitor<R> {
     fn visit_package(&mut self, node: &Token) -> R;
     fn visit_call(&mut self, node: &CallExpr) -> R;
     fn visit_group(&mut self, node: &GroupExpr) -> R;
+    fn visit_vardecl(&mut self, node: &VarDeclNode) -> R;
 }
 
 #[derive(Debug)]
@@ -104,6 +105,7 @@ pub enum Stmt {
     ExprStmt(Expr),
     Return(ReturnNode),
     Block(BlockNode),
+    VarDecl(VarDeclNode),
 }
 
 /// Expressions are evaluated to produce a value. They can be used
@@ -128,6 +130,14 @@ pub struct CallExpr {
     pub lparen: Token,
     pub args: Vec<Expr>,
     pub rparen: Token,
+}
+
+#[derive(Debug, Clone)]
+pub struct VarDeclNode {
+    pub constant: bool,
+    pub name: Token,
+    pub symbol: Token,
+    pub expr: Expr,
 }
 
 #[derive(Debug, Clone)]
@@ -272,6 +282,7 @@ impl Node for Stmt {
             Stmt::ExprStmt(node) => node.pos(),
             Stmt::Return(node) => node.pos(),
             Stmt::Block(node) => node.pos(),
+            Stmt::VarDecl(node) => node.pos(),
         }
     }
 
@@ -280,6 +291,7 @@ impl Node for Stmt {
             Stmt::ExprStmt(node) => node.end(),
             Stmt::Return(node) => node.end(),
             Stmt::Block(node) => node.end(),
+            Stmt::VarDecl(node) => node.end(),
         }
     }
 
@@ -288,7 +300,22 @@ impl Node for Stmt {
             Stmt::ExprStmt(node) => node.id(),
             Stmt::Return(node) => node.id(),
             Stmt::Block(node) => node.id(),
+            Stmt::VarDecl(node) => node.id(),
         }
+    }
+}
+
+impl Node for VarDeclNode {
+    fn pos(&self) -> &Pos {
+        &self.name.pos
+    }
+
+    fn end(&self) -> &Pos {
+        self.expr.end()
+    }
+
+    fn id(&self) -> NodeId {
+        self.name.id
     }
 }
 
@@ -326,6 +353,7 @@ impl Visitable for Stmt {
             Stmt::ExprStmt(node) => node.accept(visitor),
             Stmt::Return(node) => visitor.visit_return(node),
             Stmt::Block(node) => visitor.visit_block(node),
+            Stmt::VarDecl(node) => visitor.visit_vardecl(node),
         }
     }
 }

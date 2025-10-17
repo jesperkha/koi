@@ -335,6 +335,10 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
 
         Ok(id)
     }
+
+    fn visit_vardecl(&mut self, node: &crate::ast::VarDeclNode) -> EvalResult {
+        todo!()
+    }
 }
 
 fn token_to_primitive_type(tok: &Token) -> PrimitiveType {
