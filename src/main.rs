@@ -15,8 +15,8 @@ fn main() {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    debug_print_all_steps(&read_to_string("_test/main.koi").unwrap());
-    //compile();
+    // debug_print_all_steps(&read_to_string("_test/main.koi").unwrap());
+    compile();
 }
 
 fn compile() {

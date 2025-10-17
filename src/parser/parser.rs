@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use tracing::info;
 
 use crate::{
@@ -131,12 +133,22 @@ impl<'a> Parser<'a> {
         let name = self.expect_identifier("function name")?;
         let lparen = self.expect(TokenKind::LParen)?;
 
-        // TODO: check for duplicate param names
         // If the next token is not a right paren we parse parameters.
         let mut params = Vec::new();
+        let mut param_names = HashSet::new();
         if !self.matches(TokenKind::RParen) {
             while !self.eof_or_panic() {
                 let field = self.parse_field("parameter name")?;
+
+                // If name already exists
+                if !param_names.insert(field.name.to_string()) {
+                    return Err(self.error_from_to(
+                        "duplicate parameter name",
+                        &field.name,
+                        &field.name,
+                    ));
+                }
+
                 params.push(field);
 
                 // Done?
@@ -357,12 +369,12 @@ impl<'a> Parser<'a> {
 
     /// Create error marking the current token.
     fn error_token(&self, message: &str) -> Error {
-        self.error_from_to(message, self.cur_or_last(), self.cur_or_last())
+        self.error_from_to(message, &self.cur_or_last(), &self.cur_or_last())
     }
 
     /// Create error marking the given token range.
-    fn error_from_to(&self, message: &str, from: Token, to: Token) -> Error {
-        Error::new(message, &from, &to, &self.file.src)
+    fn error_from_to(&self, message: &str, from: &Token, to: &Token) -> Error {
+        Error::new(message, from, to, &self.file.src)
     }
 
     fn cur(&self) -> Option<Token> {

@@ -122,6 +122,12 @@ fn test_function_with_error() {
     "#,
         "expected type",
     );
+    expect_error(
+        r#"
+        func f(n int, n int) {}
+    "#,
+        "duplicate parameter name",
+    );
 }
 
 #[test]
