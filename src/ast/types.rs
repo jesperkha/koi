@@ -29,6 +29,7 @@ pub enum PrimitiveType {
     Float64,
     Bool,
     Byte,
+    String,
 }
 
 pub type TypeId = usize; // Unique identifier

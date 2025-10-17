@@ -122,6 +122,12 @@ fn test_function_with_error() {
     "#,
         "expected type",
     );
+    expect_error(
+        r#"
+        func f(n int, n int) {}
+    "#,
+        "duplicate parameter name",
+    );
 }
 
 #[test]
@@ -132,20 +138,6 @@ fn test_package_decl() {
     "#,
         "expected package name",
     );
-    // expect_error(
-    //     r#"
-    //     package a
-    //     package b
-    // "#,
-    //     "package can only be declared once",
-    // );
-    // expect_error(
-    //     r#"
-    //     func f() {}
-    //     package p
-    // "#,
-    //     "expected package declaration first",
-    // );
 }
 
 #[test]
@@ -201,6 +193,15 @@ fn test_complex_function_call() {
         func f() {
             ((a()(b()))()(a()))(a)
         }
+    "#,
+    );
+}
+
+#[test]
+fn test_extern() {
+    compare_string(
+        r#"
+        extern func write(fd int, s string, len int) int
     "#,
     );
 }

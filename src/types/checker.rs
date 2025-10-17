@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use tracing::{error, info};
+use tracing::info;
 
 use crate::{
     ast::{
-        BlockNode, CallExpr, File, FuncNode, GroupExpr, Node, ReturnNode, TypeNode, Visitable,
-        Visitor,
+        BlockNode, CallExpr, Field, File, FuncNode, GroupExpr, Node, ReturnNode, TypeNode,
+        Visitable, Visitor,
     },
     config::Config,
     error::{Error, ErrorSet, Res},
@@ -74,14 +74,14 @@ impl<'a> Checker<'a> {
         }
     }
 
+    /// Iterates over each node in the file and type checks. Populates
+    /// TypeContext with files types. Collects errors.
     fn check(mut self) -> ErrorSet {
         let mut errs = ErrorSet::new();
         info!("file '{}', pkg '{}'", self.file.src.name, self.file.pkgname);
 
-        for node in &self.file.nodes {
-            if let Err(err) = self.eval(node) {
-                errs.add(err);
-            }
+        for n in &self.file.nodes {
+            let _ = self.eval(n).map_err(|e| errs.add(e));
         }
 
         if errs.len() > 0 {
@@ -94,13 +94,18 @@ impl<'a> Checker<'a> {
     fn eval<N: Visitable + Node>(&mut self, node: &N) -> EvalResult {
         node.accept(self).map(|ty| {
             if ty != no_type() {
-                // Has to be internalized here since Node methods are
-                // not impemented for node types, just their overarching
+                // Has to be internalized here since Node methods are not
+                // impemented for all node types, just their overarching
                 // kind (stmt, decl etc).
                 self.ctx.intern_node(node, ty);
             }
             ty
         })
+    }
+
+    /// Evaluate an option of a node. Defaults to void type if not present.
+    fn eval_optional<V: Visitable + Node>(&mut self, v: &Option<V>) -> Result<TypeId, Error> {
+        v.as_ref().map_or(Ok(self.ctx.void()), |r| self.eval(r))
     }
 
     fn error(&self, msg: &str, node: &dyn Node) -> Error {
@@ -136,8 +141,13 @@ impl<'a> Checker<'a> {
     }
 
     /// Get a declared type.
-    pub fn get_type(&self, name: &Token) -> Option<TypeId> {
+    fn get_type(&self, name: &Token) -> Option<TypeId> {
         self.type_decls.get(&name.to_string()).copied()
+    }
+
+    /// Collect a list of type ids for each field in the slice.
+    fn collect_field_types(&mut self, fields: &[Field]) -> Result<Vec<TypeId>, Error> {
+        fields.iter().map(|f| self.eval(&f.typ)).collect()
     }
 }
 
@@ -145,27 +155,15 @@ type EvalResult = Result<TypeId, Error>;
 
 impl<'a> Visitor<EvalResult> for Checker<'a> {
     fn visit_func(&mut self, node: &FuncNode) -> EvalResult {
-        let mut ret_type = self.ctx.void();
-
         // Evaluate return type if any
-        if let Some(t) = &node.ret_type {
-            match self.eval(t) {
-                Ok(id) => ret_type = id,
-                Err(err) => return Err(err),
-            };
-            assert_ne!(ret_type, no_type(), "must be valid type or error");
-        }
+        let ret_type = self.eval_optional(&node.ret_type)?;
 
-        // Evaluate parameter types
-        let mut params = Vec::new();
-        if let Some(pms) = &node.params {
-            for p in pms {
-                match self.eval(&p.typ) {
-                    Ok(id) => params.push((&p.name, id)),
-                    Err(err) => return Err(err),
-                }
-            }
-        }
+        // Get parameter types
+        let params = &node
+            .params
+            .iter()
+            .map(|f| self.eval(&f.typ).map(|id| (&f.name, id)))
+            .collect::<Result<Vec<_>, _>>()?;
 
         // If this is the main function we do additional checks
         if node.name.to_string() == "main" {
@@ -202,8 +200,6 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             return Err(self.error_token("already declared", &node.name));
         }
 
-        self.ctx.intern_node(node, func_id);
-
         // Set up function body
         self.sym.push_scope();
         self.rtype = ret_type;
@@ -228,14 +224,12 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             ));
         }
 
-        Ok(no_type())
+        Ok(func_id)
     }
 
     fn visit_block(&mut self, node: &BlockNode) -> EvalResult {
         for stmt in &node.stmts {
-            if let Err(err) = self.eval(stmt) {
-                return Err(err);
-            }
+            self.eval(stmt)?;
         }
         Ok(no_type())
     }
@@ -246,25 +240,21 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         // If there is a return expression
         // Evaluate it and compare with current scopes return type
         if let Some(expr) = &node.expr {
-            let ty = match self.eval(expr) {
-                Ok(ty) => ty,
-                Err(err) => return Err(err),
-            };
+            let ty = self.eval(expr)?;
 
-            if ty != self.rtype {
+            return if ty != self.rtype {
                 Err(self.error_expected_got("incorrect return type", self.rtype, ty, expr))
             } else {
                 Ok(ty)
-            }
+            };
+        }
 
         // If there is no return expression
         // Check if current scope has no return type
+        if self.rtype != self.ctx.void() {
+            Err(self.error_expected_token("incorrect return type", self.rtype, &node.kw))
         } else {
-            if self.rtype != self.ctx.void() {
-                Err(self.error_expected_token("incorrect return type", self.rtype, &node.kw))
-            } else {
-                Ok(self.ctx.void())
-            }
+            Ok(self.ctx.void())
         }
     }
 
@@ -272,6 +262,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         match &node.kind {
             TokenKind::IntLit(_) => Ok(self.ctx.primitive(PrimitiveType::I64)),
             TokenKind::FloatLit(_) => Ok(self.ctx.primitive(PrimitiveType::F64)),
+            TokenKind::StringLit(_) => Ok(self.ctx.primitive(PrimitiveType::String)),
             TokenKind::True | TokenKind::False => Ok(self.ctx.primitive(PrimitiveType::Bool)),
             TokenKind::IdentLit(name) => self
                 .sym
@@ -303,8 +294,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
 
         if let TypeKind::Function(params, ret_id) = &callee_kind {
             // Check if number of arguments matches
-            let n_params = params.len();
-            let n_args = node.args.len();
+            let (n_params, n_args) = (params.len(), node.args.len());
             if n_params != n_args {
                 let msg = format!("function takes {} arguments, got {}", n_params, n_args,);
                 return Err(self.error_from_to(&msg, node.callee.pos(), &node.rparen.pos));
@@ -333,6 +323,18 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
     fn visit_group(&mut self, node: &GroupExpr) -> EvalResult {
         node.inner.accept(self)
     }
+
+    fn visit_extern(&mut self, node: &crate::ast::FuncDeclNode) -> EvalResult {
+        let ret = self.eval_optional(&node.ret_type)?;
+        let params = self.collect_field_types(&node.params)?;
+        let id = self.ctx.get_or_intern(TypeKind::Function(params, ret));
+
+        if !self.sym.bind(&node.name, id) {
+            return Err(self.error_token("already declared", &node.name));
+        }
+
+        Ok(id)
+    }
 }
 
 fn token_to_primitive_type(tok: &Token) -> PrimitiveType {
@@ -343,6 +345,8 @@ fn token_to_primitive_type(tok: &Token) -> PrimitiveType {
         // Builtin 'aliases'
         TokenKind::IntType => PrimitiveType::I64,
         TokenKind::FloatType => PrimitiveType::F64,
+
+        TokenKind::StringType => PrimitiveType::String,
 
         _ => panic!("unknown TypeNode::Primitive kind: {}", tok.kind),
     }

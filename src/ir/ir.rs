@@ -24,7 +24,21 @@ pub enum Ins {
     Store(ConstId, Type, Value),
     Return(Type, Value),
     Func(FuncInst),
+    Extern(ExternFuncInst),
     Call(CallIns),
+    StringData(StringDataIns),
+}
+
+pub struct StringDataIns {
+    pub name: String,
+    pub length: usize,
+    pub value: String,
+}
+
+pub struct ExternFuncInst {
+    pub name: String,
+    pub params: Vec<Type>,
+    pub ret: Type,
 }
 
 pub struct FuncInst {
@@ -38,18 +52,25 @@ pub struct FuncInst {
 pub struct CallIns {
     pub callee: Value,
     pub ty: Type,
-    pub args: Vec<Value>,
+    pub args: Vec<(Type, Value)>,
     pub result: ConstId,
 }
 
 pub enum Value {
     Void,
-    Str(String),
     Float(f64),
     Int(i64),
     Const(ConstId),
     Param(usize),
     Function(String),
+    Data(String),
+}
+
+#[derive(Debug)]
+pub enum Type {
+    Primitive(Primitive),
+    Ptr(Box<Type>),
+    Object(String, Vec<Type>, usize), // List of fields and total size (not aligned)
 }
 
 #[derive(Debug)]
@@ -65,12 +86,14 @@ pub enum Primitive {
     I16,
     I32,
     I64,
-    Uintptr(Box<Type>),
+    Str,
 }
 
 pub trait IRVisitor<T> {
     fn visit_func(&mut self, f: &FuncInst) -> T;
+    fn visit_extern(&mut self, f: &ExternFuncInst) -> T;
     fn visit_call(&mut self, c: &CallIns) -> T;
+    fn visit_static_string(&mut self, d: &StringDataIns) -> T;
     fn visit_ret(&mut self, ty: &Type, v: &Value) -> T;
     fn visit_store(&mut self, id: ConstId, ty: &Type, v: &Value) -> T;
 }
@@ -81,15 +104,11 @@ impl Ins {
             Ins::Store(id, ty, value) => v.visit_store(*id, ty, value),
             Ins::Return(ty, value) => v.visit_ret(ty, value),
             Ins::Func(func) => v.visit_func(func),
+            Ins::Extern(func) => v.visit_extern(func),
             Ins::Call(call) => v.visit_call(call),
+            Ins::StringData(data) => v.visit_static_string(data),
         }
     }
-}
-
-#[derive(Debug)]
-pub enum Type {
-    Primitive(Primitive),
-    Object(String, Vec<Type>, usize), // List of fields and total size (not aligned)
 }
 
 impl Type {
@@ -101,9 +120,10 @@ impl Type {
                 Primitive::U8 | Primitive::I8 => 1,
                 Primitive::U16 | Primitive::I16 => 2,
                 Primitive::F32 | Primitive::I32 | Primitive::U32 => 4,
-                Primitive::F64 | Primitive::U64 | Primitive::I64 | Primitive::Uintptr(_) => 8,
+                Primitive::F64 | Primitive::U64 | Primitive::I64 | Primitive::Str => 8,
             },
             Type::Object(_, _, size) => *size,
+            Type::Ptr(_) => 8,
         }
     }
 }
@@ -113,6 +133,19 @@ impl fmt::Display for Ins {
         match self {
             Ins::Store(var, ty, value) => write!(f, "${} {} = {}", var, ty, value),
             Ins::Return(ty, value) => write!(f, "ret {} {}", ty, value),
+            Ins::Extern(func) => {
+                write!(
+                    f,
+                    "extern func {}({}) {}\n",
+                    func.name,
+                    func.params
+                        .iter()
+                        .map(Type::to_string)
+                        .collect::<Vec<String>>()
+                        .join(", "),
+                    func.ret,
+                )
+            }
             Ins::Func(func) => {
                 write!(
                     f,
@@ -135,11 +168,12 @@ impl fmt::Display for Ins {
                     call.callee,
                     call.args
                         .iter()
-                        .map(|a| a.to_string())
+                        .map(|a| format!("{} {}", a.0, a.1))
                         .collect::<Vec<String>>()
                         .join(", "),
                 )
             }
+            Ins::StringData(data) => write!(f, "string .{} = \"{}\"", data.name, data.value),
         }
     }
 }
@@ -149,6 +183,7 @@ impl fmt::Display for Type {
         match self {
             Type::Primitive(p) => write!(f, "{}", format!("{:?}", p).to_lowercase()),
             Type::Object(name, _, _) => write!(f, "{}", name),
+            Type::Ptr(t) => write!(f, "ptr<{}>", t),
         }
     }
 }
@@ -157,12 +192,12 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Void => Ok(()),
-            Value::Str(s) => write!(f, "{}", s),
             Value::Int(s) => write!(f, "{}", s),
             Value::Float(s) => write!(f, "{}", s),
             Value::Const(s) => write!(f, "${}", s),
             Value::Param(s) => write!(f, "%{}", s),
             Value::Function(s) => write!(f, "{}", s),
+            Value::Data(s) => write!(f, ".{}", s),
         }
     }
 }

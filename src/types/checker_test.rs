@@ -155,3 +155,36 @@ fn test_function_call_fail() {
         "function takes 2 arguments, got 1",
     );
 }
+
+#[test]
+fn test_string_literal() {
+    assert_pass(
+        r#"
+        func f(s string) string {
+            return s
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_extern() {
+    assert_pass(
+        r#"
+        extern func foo()
+
+        func f() {
+            foo()
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        extern func write(fd int, s string, len int) int
+
+        func f() {
+            write(1, "Hello", 5) 
+        }
+    "#,
+    );
+}

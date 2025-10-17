@@ -37,6 +37,7 @@ pub enum PrimitiveType {
     F64,
     Bool,
     Byte,
+    String,
 }
 
 pub type TypeId = usize; // Unique identifier

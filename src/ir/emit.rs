@@ -4,12 +4,12 @@ use tracing::info;
 
 use crate::{
     ast::{
-        BlockNode, CallExpr, Decl, Expr, FuncNode, GroupExpr, ReturnNode, TypeNode, Visitable,
-        Visitor,
+        BlockNode, CallExpr, Decl, Expr, FuncNode, GroupExpr, Node, ReturnNode, TypeNode,
+        Visitable, Visitor,
     },
     config::Config,
     error::{Error, ErrorSet, Res},
-    ir::{FuncInst, IRUnit, Ins, SymTracker, Type, Value, ir},
+    ir::{ExternFuncInst, FuncInst, IRUnit, Ins, StringDataIns, SymTracker, Type, Value, ir},
     token::{Token, TokenKind},
     types::{self, Package, TypeContext, TypeId, TypeKind},
 };
@@ -29,6 +29,7 @@ struct Emitter<'a> {
 
     // Track if void functions have returned or not to add explicit return
     has_returned: bool,
+    curstr: usize,
 }
 
 // TODO: dead code elimination (warning)
@@ -43,6 +44,7 @@ impl<'a> Emitter<'a> {
             sym: SymTracker::new(),
             has_returned: false,
             ins: vec![Vec::new()],
+            curstr: 0,
         }
     }
 
@@ -87,13 +89,14 @@ impl<'a> Emitter<'a> {
     fn push(&mut self, ins: Ins) {
         self.ins.last_mut().expect("scope list is empty").push(ins);
     }
-}
 
-impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
-    fn visit_func(&mut self, node: &FuncNode) -> Result<Value, Error> {
-        self.sym.new_function_context();
+    fn next_string_name(&mut self) -> String {
+        self.curstr += 1;
+        format!("S{}", self.curstr)
+    }
 
-        let name = node.name.to_string();
+    /// Get the function signature as IR types. Returns a tuple of param types and return type.
+    fn get_function_signature(&mut self, node: &dyn Node) -> Result<(Vec<Type>, Type), Error> {
         let func_type = self.ctx.lookup(self.ctx.get_node(node));
 
         let TypeKind::Function(ref param_ids, ret_id) = func_type.kind else {
@@ -108,11 +111,20 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
             .map(|ty| self.semtype_to_irtype(*ty))
             .collect();
 
+        Ok((params, ret))
+    }
+}
+
+impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
+    fn visit_func(&mut self, node: &FuncNode) -> Result<Value, Error> {
+        self.sym.new_function_context();
+
+        let name = node.name.to_string();
+        let (params, ret) = self.get_function_signature(node)?;
+
         // Declare param indecies
-        if let Some(params) = &node.params {
-            for p in params {
-                self.sym.set_param(p.name.to_string());
-            }
+        for p in &node.params {
+            self.sym.set_param(p.name.to_string());
         }
 
         // Generate function body IR
@@ -164,9 +176,19 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
             TokenKind::False => Value::Int(0),
             TokenKind::IntLit(n) => Value::Int(*n),
             TokenKind::FloatLit(n) => Value::Float(*n),
-            TokenKind::StringLit(n) => Value::Str(n.clone()),
             TokenKind::CharLit(n) => Value::Int((*n).into()),
             TokenKind::IdentLit(name) => self.sym.get(name),
+            TokenKind::StringLit(n) => {
+                let name = self.next_string_name();
+
+                self.push(Ins::StringData(StringDataIns {
+                    name: name.to_owned(),
+                    length: n.len(),
+                    value: n.to_owned(),
+                }));
+
+                Value::Data(name.to_owned())
+            }
             _ => panic!("unhandled token kind in evaluate: {:?}", token.kind),
         })
     }
@@ -183,7 +205,11 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         let args = call
             .args
             .iter()
-            .map(|arg| arg.accept(self))
+            .map(|arg| {
+                let value = arg.accept(self)?;
+                let ty = self.semtype_to_irtype(self.ctx.get_node(arg));
+                Ok((ty, value))
+            })
             .collect::<Result<Vec<_>, _>>()?;
 
         let ty = self.semtype_to_irtype(self.ctx.get_node(call));
@@ -197,6 +223,13 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         }));
 
         Ok(Value::Const(result))
+    }
+
+    fn visit_extern(&mut self, node: &crate::ast::FuncDeclNode) -> Result<Value, Error> {
+        let name = node.name.to_string();
+        let (params, ret) = self.get_function_signature(node)?;
+        self.push(Ins::Extern(ExternFuncInst { name, params, ret }));
+        Ok(Value::Void)
     }
 
     fn visit_group(&mut self, group: &GroupExpr) -> Result<Value, Error> {
@@ -231,5 +264,6 @@ fn type_primitive_to_ir_primitive(p: &types::PrimitiveType) -> ir::Primitive {
         types::PrimitiveType::U64 => ir::Primitive::U64,
         types::PrimitiveType::F32 => ir::Primitive::F32,
         types::PrimitiveType::F64 => ir::Primitive::F64,
+        types::PrimitiveType::String => ir::Primitive::Str,
     }
 }

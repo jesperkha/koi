@@ -29,6 +29,7 @@ pub trait Visitable {
 
 pub trait Visitor<R> {
     fn visit_func(&mut self, node: &FuncNode) -> R;
+    fn visit_extern(&mut self, node: &FuncDeclNode) -> R;
     fn visit_block(&mut self, node: &BlockNode) -> R;
     fn visit_return(&mut self, node: &ReturnNode) -> R;
     fn visit_literal(&mut self, node: &Token) -> R;
@@ -93,6 +94,7 @@ impl fmt::Display for File {
 pub enum Decl {
     Package(Token),
     Func(FuncNode),
+    Extern(FuncDeclNode),
 }
 
 /// Statements are found inside blocks. They have side effects and do
@@ -142,11 +144,20 @@ pub struct ReturnNode {
 }
 
 #[derive(Debug)]
+pub struct FuncDeclNode {
+    pub name: Token,
+    pub lparen: Token,
+    pub params: Vec<Field>,
+    pub rparen: Token,
+    pub ret_type: Option<TypeNode>,
+}
+
+#[derive(Debug)]
 pub struct FuncNode {
     pub public: bool,
     pub name: Token,
     pub lparen: Token,
-    pub params: Option<Vec<Field>>,
+    pub params: Vec<Field>,
     pub rparen: Token,
     pub ret_type: Option<TypeNode>,
     pub body: BlockNode,
@@ -195,6 +206,7 @@ impl Node for Decl {
     fn pos(&self) -> &Pos {
         match self {
             Decl::Func(node) => node.pos(),
+            Decl::Extern(node) => node.pos(),
             Decl::Package(name) => &name.pos,
         }
     }
@@ -202,6 +214,7 @@ impl Node for Decl {
     fn end(&self) -> &Pos {
         match self {
             Decl::Func(node) => node.end(),
+            Decl::Extern(node) => node.end(),
             Decl::Package(name) => &name.end_pos,
         }
     }
@@ -209,6 +222,7 @@ impl Node for Decl {
     fn id(&self) -> usize {
         match self {
             Decl::Func(node) => node.id(),
+            Decl::Extern(node) => node.id(),
             Decl::Package(name) => name.id,
         }
     }
@@ -228,11 +242,26 @@ impl Node for FuncNode {
     }
 }
 
+impl Node for FuncDeclNode {
+    fn pos(&self) -> &Pos {
+        &self.name.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.name.end_pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.name.id
+    }
+}
+
 impl Visitable for Decl {
     fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
         match self {
             Decl::Func(node) => visitor.visit_func(node),
             Decl::Package(name) => visitor.visit_package(name),
+            Decl::Extern(node) => visitor.visit_extern(node),
         }
     }
 }

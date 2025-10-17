@@ -51,15 +51,13 @@ impl Visitor<()> for Printer {
         self.token(&node.name);
         self.s.push('(');
 
-        if node.params.is_some() {
-            for (i, param) in node.params.as_ref().unwrap().iter().enumerate() {
-                if i > 0 {
-                    self.s.push_str(", ");
-                }
-                self.token(&param.name);
-                self.s.push(' ');
-                param.typ.accept(self);
+        for (i, param) in node.params.iter().enumerate() {
+            if i > 0 {
+                self.s.push_str(", ");
             }
+            self.token(&param.name);
+            self.s.push(' ');
+            param.typ.accept(self);
         }
 
         self.s.push(')');
@@ -119,5 +117,28 @@ impl Visitor<()> for Printer {
         self.s.push('(');
         node.inner.accept(self);
         self.s.push(')');
+    }
+
+    fn visit_extern(&mut self, node: &super::FuncDeclNode) -> () {
+        self.s.push_str("extern func ");
+        self.token(&node.name);
+        self.s.push('(');
+
+        for (i, param) in node.params.iter().enumerate() {
+            if i > 0 {
+                self.s.push_str(", ");
+            }
+            self.token(&param.name);
+            self.s.push(' ');
+            param.typ.accept(self);
+        }
+
+        self.s.push(')');
+        self.s.push(' ');
+
+        node.ret_type.as_ref().map(|t| {
+            t.accept(self);
+            self.s.push(' ');
+        });
     }
 }

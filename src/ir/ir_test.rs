@@ -125,7 +125,7 @@ fn test_function_call_with_params() {
             ret i64 %0
 
         func g(i64, u8) i64
-            $0 i64 = call f(%0, %1)
+            $0 i64 = call f(i64 %0, u8 %1)
             ret i64 $0
         "#,
     );
@@ -148,9 +148,9 @@ fn test_multiple_function_calls() {
             ret i64 %0
 
         func g(i64) i64
-            $0 i64 = call f(%0)
-            $1 i64 = call f($0)
-            $2 i64 = call f($1)
+            $0 i64 = call f(i64 %0)
+            $1 i64 = call f(i64 $0)
+            $2 i64 = call f(i64 $1)
             ret i64 $2
         "#,
     );
@@ -162,11 +162,23 @@ fn test_multiple_function_calls() {
     "#,
         r#"
         func f(i64, i64) i64
-            $0 i64 = call f(2, %0)
-            $1 i64 = call f(3, %0)
-            $2 i64 = call f($0, $1)
-            $3 i64 = call f(1, $2)
+            $0 i64 = call f(i64 2, i64 %0)
+            $1 i64 = call f(i64 3, i64 %0)
+            $2 i64 = call f(i64 $0, i64 $1)
+            $3 i64 = call f(i64 1, i64 $2)
             ret i64 $3
+        "#,
+    );
+}
+
+#[test]
+fn test_extern() {
+    expect_equal(
+        r#"
+        extern func write(fd int, s string, len int) int
+    "#,
+        r#"
+        extern func write(i64, str, i64) i64
         "#,
     );
 }
