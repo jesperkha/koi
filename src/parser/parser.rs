@@ -116,6 +116,7 @@ impl<'a> Parser<'a> {
                         .map(|t| Decl::Package(t))
                 }
             }
+            // TODO: public extern (re-export)
             TokenKind::Extern => {
                 self.consume(); // extern
                 Ok(Decl::Extern(self.parse_function_def()?))
@@ -130,6 +131,7 @@ impl<'a> Parser<'a> {
         let name = self.expect_identifier("function name")?;
         let lparen = self.expect(TokenKind::LParen)?;
 
+        // TODO: check for duplicate param names
         // If the next token is not a right paren we parse parameters.
         let mut params = Vec::new();
         if !self.matches(TokenKind::RParen) {
