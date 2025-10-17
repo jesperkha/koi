@@ -6,6 +6,12 @@
 .section .text
 .globl _start
 
+.globl write
+write:
+	mov eax, 1
+	syscall
+	ret
+
 _start:
 	call main
 	mov r12, rax

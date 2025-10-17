@@ -4,12 +4,12 @@ use tracing::info;
 
 use crate::{
     ast::{
-        BlockNode, CallExpr, Decl, Expr, FuncNode, GroupExpr, ReturnNode, TypeNode, Visitable,
-        Visitor,
+        BlockNode, CallExpr, Decl, Expr, FuncNode, GroupExpr, Node, ReturnNode, TypeNode,
+        Visitable, Visitor,
     },
     config::Config,
     error::{Error, ErrorSet, Res},
-    ir::{FuncInst, IRUnit, Ins, StringDataIns, SymTracker, Type, Value, ir},
+    ir::{ExternFuncInst, FuncInst, IRUnit, Ins, StringDataIns, SymTracker, Type, Value, ir},
     token::{Token, TokenKind},
     types::{self, Package, TypeContext, TypeId, TypeKind},
 };
@@ -94,13 +94,9 @@ impl<'a> Emitter<'a> {
         self.curstr += 1;
         format!("S{}", self.curstr)
     }
-}
 
-impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
-    fn visit_func(&mut self, node: &FuncNode) -> Result<Value, Error> {
-        self.sym.new_function_context();
-
-        let name = node.name.to_string();
+    /// Get the function signature as IR types. Returns a tuple of param types and return type.
+    fn get_function_signature(&mut self, node: &dyn Node) -> Result<(Vec<Type>, Type), Error> {
         let func_type = self.ctx.lookup(self.ctx.get_node(node));
 
         let TypeKind::Function(ref param_ids, ret_id) = func_type.kind else {
@@ -114,6 +110,17 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
             .iter()
             .map(|ty| self.semtype_to_irtype(*ty))
             .collect();
+
+        Ok((params, ret))
+    }
+}
+
+impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
+    fn visit_func(&mut self, node: &FuncNode) -> Result<Value, Error> {
+        self.sym.new_function_context();
+
+        let name = node.name.to_string();
+        let (params, ret) = self.get_function_signature(node)?;
 
         // Declare param indecies
         for p in &node.params {
@@ -218,6 +225,13 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         Ok(Value::Const(result))
     }
 
+    fn visit_extern(&mut self, node: &crate::ast::FuncDeclNode) -> Result<Value, Error> {
+        let name = node.name.to_string();
+        let (params, ret) = self.get_function_signature(node)?;
+        self.push(Ins::Extern(ExternFuncInst { name, params, ret }));
+        Ok(Value::Void)
+    }
+
     fn visit_group(&mut self, group: &GroupExpr) -> Result<Value, Error> {
         group.inner.accept(self)
     }
@@ -232,10 +246,6 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
 
     fn visit_package(&mut self, _: &Token) -> Result<Value, Error> {
         panic!("unused method")
-    }
-
-    fn visit_extern(&mut self, node: &crate::ast::FuncDeclNode) -> Result<Value, Error> {
-        todo!()
     }
 }
 

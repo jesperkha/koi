@@ -24,6 +24,7 @@ pub enum Ins {
     Store(ConstId, Type, Value),
     Return(Type, Value),
     Func(FuncInst),
+    Extern(ExternFuncInst),
     Call(CallIns),
     StringData(StringDataIns),
 }
@@ -32,6 +33,12 @@ pub struct StringDataIns {
     pub name: String,
     pub length: usize,
     pub value: String,
+}
+
+pub struct ExternFuncInst {
+    pub name: String,
+    pub params: Vec<Type>,
+    pub ret: Type,
 }
 
 pub struct FuncInst {
@@ -84,6 +91,7 @@ pub enum Primitive {
 
 pub trait IRVisitor<T> {
     fn visit_func(&mut self, f: &FuncInst) -> T;
+    fn visit_extern(&mut self, f: &ExternFuncInst) -> T;
     fn visit_call(&mut self, c: &CallIns) -> T;
     fn visit_static_string(&mut self, d: &StringDataIns) -> T;
     fn visit_ret(&mut self, ty: &Type, v: &Value) -> T;
@@ -96,6 +104,7 @@ impl Ins {
             Ins::Store(id, ty, value) => v.visit_store(*id, ty, value),
             Ins::Return(ty, value) => v.visit_ret(ty, value),
             Ins::Func(func) => v.visit_func(func),
+            Ins::Extern(func) => v.visit_extern(func),
             Ins::Call(call) => v.visit_call(call),
             Ins::StringData(data) => v.visit_static_string(data),
         }
@@ -124,6 +133,19 @@ impl fmt::Display for Ins {
         match self {
             Ins::Store(var, ty, value) => write!(f, "${} {} = {}", var, ty, value),
             Ins::Return(ty, value) => write!(f, "ret {} {}", ty, value),
+            Ins::Extern(func) => {
+                write!(
+                    f,
+                    "extern func {}({}) {}\n",
+                    func.name,
+                    func.params
+                        .iter()
+                        .map(Type::to_string)
+                        .collect::<Vec<String>>()
+                        .join(", "),
+                    func.ret,
+                )
+            }
             Ins::Func(func) => {
                 write!(
                     f,

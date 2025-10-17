@@ -170,3 +170,15 @@ fn test_multiple_function_calls() {
         "#,
     );
 }
+
+#[test]
+fn test_extern() {
+    expect_equal(
+        r#"
+        extern func write(fd int, s string, len int) int
+    "#,
+        r#"
+        extern func write(i64, str, i64) i64
+        "#,
+    );
+}
