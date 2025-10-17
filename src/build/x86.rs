@@ -8,29 +8,36 @@ use crate::{
 
 pub struct X86Builder<'a> {
     _config: &'a Config,
-    indent: usize,
     regmap: HashMap<ConstId, String>,
     parammap: HashMap<ConstId, String>,
     alloc: RegAllocator,
     stacksize: usize,
 
-    data_section: String,
-    text_section: String,
+    head: Writer,
+    text: Writer,
+    data: Writer,
 }
 
-impl<'a> X86Builder<'a> {
+struct Writer {
+    indent: usize,
+    content: String,
+}
+
+impl Writer {
+    fn new() -> Self {
+        Self {
+            indent: 0,
+            content: String::new(),
+        }
+    }
+
     fn write(&mut self, s: &str) {
-        self.text_section
+        self.content
             .push_str(&format!("{}{}", "    ".repeat(self.indent), s));
     }
 
     fn writeln(&mut self, s: &str) {
         self.write(&format!("{}\n", s));
-    }
-
-    fn writeln_data(&mut self, s: &str) {
-        self.data_section
-            .push_str(&format!("{}{}\n", "    ".repeat(self.indent), s));
     }
 
     fn push(&mut self) {
@@ -39,6 +46,21 @@ impl<'a> X86Builder<'a> {
 
     fn pop(&mut self) {
         self.indent -= 1;
+    }
+
+    fn append(&mut self, other: &Writer) {
+        self.content.push_str(&other.content);
+        self.content.push_str("\n");
+    }
+}
+
+impl<'a> X86Builder<'a> {
+    fn push(&mut self) {
+        self.text.push();
+    }
+
+    fn pop(&mut self) {
+        self.text.pop();
     }
 
     fn bind(&mut self, id: ConstId, reg: &str) {
@@ -70,7 +92,7 @@ impl<'a> X86Builder<'a> {
     }
 
     fn mov_str(&mut self, dest: &str, value: &str, _ty: &Type) {
-        self.writeln(&format!("mov {}, {}", dest, value));
+        self.text.writeln(&format!("mov {}, {}", dest, value));
     }
 
     fn mov(&mut self, dest: &str, value: &Value, _ty: &Type) {
@@ -78,7 +100,8 @@ impl<'a> X86Builder<'a> {
             Value::Data(_) => "lea",
             _ => "mov",
         };
-        self.writeln(&format!("{} {}, {}", kw, dest, self.value(value)));
+        self.text
+            .writeln(&format!("{} {}, {}", kw, dest, self.value(value)));
     }
 
     /// Increases stack size and returns location for requested size.
@@ -100,10 +123,10 @@ impl<'a> Builder<'a> for X86Builder<'a> {
         Self {
             _config: config,
 
-            text_section: String::new(),
-            data_section: String::new(),
+            head: Writer::new(),
+            text: Writer::new(),
+            data: Writer::new(),
 
-            indent: 0,
             regmap: HashMap::new(),
             parammap: HashMap::new(),
             alloc: RegAllocator::new(),
@@ -112,22 +135,25 @@ impl<'a> Builder<'a> for X86Builder<'a> {
     }
 
     fn assemble(mut self, unit: IRUnit) -> Result<TransUnit, String> {
+        self.head.writeln(".intel_syntax noprefix");
+        self.data.push();
+
         for ins in &unit.ins {
             ins.accept(&mut self);
         }
 
-        let mut src = String::new();
-        src.push_str(".intel_syntax noprefix\n\n");
+        let mut src = Writer::new();
+        src.append(&self.head);
 
-        src.push_str(".section .data\n");
-        src.push_str(&self.data_section);
-        src.push_str("\n");
+        src.writeln(".section .data\n");
+        src.append(&self.data);
 
-        src.push_str(".section .text\n");
-        src.push_str(&self.text_section);
-        src.push_str("\n");
+        src.writeln(".section .text\n");
+        src.append(&self.text);
 
-        Ok(TransUnit { source: src })
+        Ok(TransUnit {
+            source: src.content,
+        })
     }
 }
 
@@ -135,14 +161,14 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
     // TODO: sub rsp with aligned stack size
     fn visit_func(&mut self, f: &crate::ir::FuncInst) {
         if f.public {
-            self.writeln(&format!(".globl {}", f.name));
+            self.text.writeln(&format!(".globl {}", f.name));
         }
 
-        self.writeln(&format!("{}:", f.name));
+        self.text.writeln(&format!("{}:", f.name));
         self.push();
 
-        self.writeln("push rbp");
-        self.writeln("mov rbp, rsp");
+        self.text.writeln("push rbp");
+        self.text.writeln("mov rbp, rsp");
 
         self.alloc.reset_params();
         for (i, ty) in f.params.iter().enumerate() {
@@ -165,8 +191,8 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
         if ty.size() != 0 {
             self.mov(&self.alloc.return_reg(ty), v, ty);
         }
-        self.writeln("leave");
-        self.writeln("ret\n");
+        self.text.writeln("leave");
+        self.text.writeln("ret\n");
     }
 
     fn visit_store(
@@ -186,7 +212,7 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
                     let dest = self.alloc.next_param_reg(&arg.0);
                     self.mov(&dest, &arg.1, &arg.0);
                 }
-                self.writeln(&format!("call {}", name));
+                self.text.writeln(&format!("call {}", name));
                 self.bind(c.result, &self.alloc.return_reg(&c.ty));
             }
             _ => panic!("invalid call callee"),
@@ -194,10 +220,11 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
     }
 
     fn visit_static_string(&mut self, d: &crate::ir::StringDataIns) -> () {
-        self.writeln_data(&format!(".{}: .asciz \"{}\"", d.name, d.value));
+        self.data
+            .writeln(&format!(".{}: .asciz \"{}\"", d.name, d.value));
     }
 
     fn visit_extern(&mut self, f: &crate::ir::ExternFuncInst) -> () {
-        self.writeln(&format!(".extern {}", f.name));
+        self.head.writeln(&format!(".extern {}", f.name));
     }
 }
