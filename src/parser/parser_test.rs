@@ -138,20 +138,6 @@ fn test_package_decl() {
     "#,
         "expected package name",
     );
-    // expect_error(
-    //     r#"
-    //     package a
-    //     package b
-    // "#,
-    //     "package can only be declared once",
-    // );
-    // expect_error(
-    //     r#"
-    //     func f() {}
-    //     package p
-    // "#,
-    //     "expected package declaration first",
-    // );
 }
 
 #[test]
