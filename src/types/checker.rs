@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use tracing::{debug, info, trace};
+use tracing::info;
 
 use crate::{
     ast::{
@@ -74,14 +74,14 @@ impl<'a> Checker<'a> {
         }
     }
 
+    /// Iterates over each node in the file and type checks. Populates
+    /// TypeContext with files types. Collects errors.
     fn check(mut self) -> ErrorSet {
         let mut errs = ErrorSet::new();
         info!("file '{}', pkg '{}'", self.file.src.name, self.file.pkgname);
 
-        for node in &self.file.nodes {
-            if let Err(err) = self.eval(node) {
-                errs.add(err);
-            }
+        for n in &self.file.nodes {
+            let _ = self.eval(n).map_err(|e| errs.add(e));
         }
 
         if errs.len() > 0 {
@@ -94,8 +94,8 @@ impl<'a> Checker<'a> {
     fn eval<N: Visitable + Node>(&mut self, node: &N) -> EvalResult {
         node.accept(self).map(|ty| {
             if ty != no_type() {
-                // Has to be internalized here since Node methods are
-                // not impemented for node types, just their overarching
+                // Has to be internalized here since Node methods are not
+                // impemented for all node types, just their overarching
                 // kind (stmt, decl etc).
                 self.ctx.intern_node(node, ty);
             }
@@ -147,15 +147,7 @@ impl<'a> Checker<'a> {
 
     /// Collect a list of type ids for each field in the slice.
     fn collect_field_types(&mut self, fields: &[Field]) -> Result<Vec<TypeId>, Error> {
-        let mut list = Vec::new();
-        for p in fields {
-            match self.eval(&p.typ) {
-                Ok(id) => list.push(id),
-                Err(err) => return Err(err),
-            }
-        }
-
-        Ok(list)
+        fields.iter().map(|f| self.eval(&f.typ)).collect()
     }
 }
 
@@ -167,13 +159,11 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         let ret_type = self.eval_optional(&node.ret_type)?;
 
         // Get parameter types
-        let mut params = Vec::new();
-        for p in &node.params {
-            match self.eval(&p.typ) {
-                Ok(id) => params.push((&p.name, id)),
-                Err(err) => return Err(err),
-            }
-        }
+        let params = &node
+            .params
+            .iter()
+            .map(|f| self.eval(&f.typ).map(|id| (&f.name, id)))
+            .collect::<Result<Vec<_>, _>>()?;
 
         // If this is the main function we do additional checks
         if node.name.to_string() == "main" {
@@ -239,9 +229,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
 
     fn visit_block(&mut self, node: &BlockNode) -> EvalResult {
         for stmt in &node.stmts {
-            if let Err(err) = self.eval(stmt) {
-                return Err(err);
-            }
+            self.eval(stmt)?;
         }
         Ok(no_type())
     }
@@ -252,25 +240,21 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         // If there is a return expression
         // Evaluate it and compare with current scopes return type
         if let Some(expr) = &node.expr {
-            let ty = match self.eval(expr) {
-                Ok(ty) => ty,
-                Err(err) => return Err(err),
-            };
+            let ty = self.eval(expr)?;
 
-            if ty != self.rtype {
+            return if ty != self.rtype {
                 Err(self.error_expected_got("incorrect return type", self.rtype, ty, expr))
             } else {
                 Ok(ty)
-            }
+            };
+        }
 
         // If there is no return expression
         // Check if current scope has no return type
+        if self.rtype != self.ctx.void() {
+            Err(self.error_expected_token("incorrect return type", self.rtype, &node.kw))
         } else {
-            if self.rtype != self.ctx.void() {
-                Err(self.error_expected_token("incorrect return type", self.rtype, &node.kw))
-            } else {
-                Ok(self.ctx.void())
-            }
+            Ok(self.ctx.void())
         }
     }
 
@@ -310,8 +294,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
 
         if let TypeKind::Function(params, ret_id) = &callee_kind {
             // Check if number of arguments matches
-            let n_params = params.len();
-            let n_args = node.args.len();
+            let (n_params, n_args) = (params.len(), node.args.len());
             if n_params != n_args {
                 let msg = format!("function takes {} arguments, got {}", n_params, n_args,);
                 return Err(self.error_from_to(&msg, node.callee.pos(), &node.rparen.pos));
