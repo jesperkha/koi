@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use tracing::info;
+use tracing::{debug, info, trace};
 
 use crate::{
     ast::{
-        BlockNode, CallExpr, File, FuncNode, GroupExpr, Node, ReturnNode, TypeNode, Visitable,
-        Visitor,
+        BlockNode, CallExpr, Field, File, FuncNode, GroupExpr, Node, ReturnNode, TypeNode,
+        Visitable, Visitor,
     },
     config::Config,
     error::{Error, ErrorSet, Res},
@@ -103,6 +103,11 @@ impl<'a> Checker<'a> {
         })
     }
 
+    /// Evaluate an option of a node. Defaults to void type if not present.
+    fn eval_optional<V: Visitable + Node>(&mut self, v: &Option<V>) -> Result<TypeId, Error> {
+        v.as_ref().map_or(Ok(self.ctx.void()), |r| self.eval(r))
+    }
+
     fn error(&self, msg: &str, node: &dyn Node) -> Error {
         Error::range(msg, node.pos(), node.end(), &self.file.src)
     }
@@ -136,8 +141,21 @@ impl<'a> Checker<'a> {
     }
 
     /// Get a declared type.
-    pub fn get_type(&self, name: &Token) -> Option<TypeId> {
+    fn get_type(&self, name: &Token) -> Option<TypeId> {
         self.type_decls.get(&name.to_string()).copied()
+    }
+
+    /// Collect a list of type ids for each field in the slice.
+    fn collect_field_types(&mut self, fields: &[Field]) -> Result<Vec<TypeId>, Error> {
+        let mut list = Vec::new();
+        for p in fields {
+            match self.eval(&p.typ) {
+                Ok(id) => list.push(id),
+                Err(err) => return Err(err),
+            }
+        }
+
+        Ok(list)
     }
 }
 
@@ -145,18 +163,10 @@ type EvalResult = Result<TypeId, Error>;
 
 impl<'a> Visitor<EvalResult> for Checker<'a> {
     fn visit_func(&mut self, node: &FuncNode) -> EvalResult {
-        let mut ret_type = self.ctx.void();
-
         // Evaluate return type if any
-        if let Some(t) = &node.ret_type {
-            match self.eval(t) {
-                Ok(id) => ret_type = id,
-                Err(err) => return Err(err),
-            };
-            assert_ne!(ret_type, no_type(), "must be valid type or error");
-        }
+        let ret_type = self.eval_optional(&node.ret_type)?;
 
-        // Evaluate parameter types
+        // Get parameter types
         let mut params = Vec::new();
         for p in &node.params {
             match self.eval(&p.typ) {
@@ -200,8 +210,6 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             return Err(self.error_token("already declared", &node.name));
         }
 
-        self.ctx.intern_node(node, func_id);
-
         // Set up function body
         self.sym.push_scope();
         self.rtype = ret_type;
@@ -226,7 +234,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             ));
         }
 
-        Ok(no_type())
+        Ok(func_id)
     }
 
     fn visit_block(&mut self, node: &BlockNode) -> EvalResult {
@@ -334,7 +342,15 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
     }
 
     fn visit_extern(&mut self, node: &crate::ast::FuncDeclNode) -> EvalResult {
-        todo!()
+        let ret = self.eval_optional(&node.ret_type)?;
+        let params = self.collect_field_types(&node.params)?;
+        let id = self.ctx.get_or_intern(TypeKind::Function(params, ret));
+
+        if !self.sym.bind(&node.name, id) {
+            return Err(self.error_token("already declared", &node.name));
+        }
+
+        Ok(id)
     }
 }
 

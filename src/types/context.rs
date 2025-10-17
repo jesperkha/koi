@@ -90,7 +90,11 @@ impl TypeContext {
 
     /// Internalize a node and its evaluated type.
     pub fn intern_node(&mut self, node: &dyn Node, ty: TypeId) {
-        assert!(!self.nodes.contains_key(&node.id()), "duplicate node id");
+        assert!(
+            !self.nodes.contains_key(&node.id()),
+            "duplicate node id for type: {}",
+            self.to_string(ty)
+        );
         self.nodes.insert(node.id(), ty);
     }
 

@@ -166,3 +166,25 @@ fn test_string_literal() {
     "#,
     );
 }
+
+#[test]
+fn test_extern() {
+    assert_pass(
+        r#"
+        extern func foo()
+
+        func f() {
+            foo()
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        extern func write(fd int, s string, len int) int
+
+        func f() {
+            write(1, "Hello", 5) 
+        }
+    "#,
+    );
+}
