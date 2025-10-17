@@ -116,10 +116,8 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
             .collect();
 
         // Declare param indecies
-        if let Some(params) = &node.params {
-            for p in params {
-                self.sym.set_param(p.name.to_string());
-            }
+        for p in &node.params {
+            self.sym.set_param(p.name.to_string());
         }
 
         // Generate function body IR
@@ -234,6 +232,10 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
 
     fn visit_package(&mut self, _: &Token) -> Result<Value, Error> {
         panic!("unused method")
+    }
+
+    fn visit_extern(&mut self, node: &crate::ast::FuncDeclNode) -> Result<Value, Error> {
+        todo!()
     }
 }
 

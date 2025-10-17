@@ -204,3 +204,12 @@ fn test_complex_function_call() {
     "#,
     );
 }
+
+#[test]
+fn test_extern() {
+    compare_string(
+        r#"
+        extern func write(fd int, s string, len int) int
+    "#,
+    );
+}

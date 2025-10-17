@@ -158,12 +158,10 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
 
         // Evaluate parameter types
         let mut params = Vec::new();
-        if let Some(pms) = &node.params {
-            for p in pms {
-                match self.eval(&p.typ) {
-                    Ok(id) => params.push((&p.name, id)),
-                    Err(err) => return Err(err),
-                }
+        for p in &node.params {
+            match self.eval(&p.typ) {
+                Ok(id) => params.push((&p.name, id)),
+                Err(err) => return Err(err),
             }
         }
 
@@ -333,6 +331,10 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
 
     fn visit_group(&mut self, node: &GroupExpr) -> EvalResult {
         node.inner.accept(self)
+    }
+
+    fn visit_extern(&mut self, node: &crate::ast::FuncDeclNode) -> EvalResult {
+        todo!()
     }
 }
 

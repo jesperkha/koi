@@ -2,8 +2,8 @@ use tracing::info;
 
 use crate::{
     ast::{
-        BlockNode, CallExpr, Decl, Expr, Field, File, FuncNode, GroupExpr, ReturnNode, Stmt,
-        TypeNode,
+        BlockNode, CallExpr, Decl, Expr, Field, File, FuncDeclNode, FuncNode, GroupExpr,
+        ReturnNode, Stmt, TypeNode,
     },
     config::Config,
     error::{Error, ErrorSet, Res},
@@ -116,35 +116,26 @@ impl<'a> Parser<'a> {
                         .map(|t| Decl::Package(t))
                 }
             }
+            TokenKind::Extern => {
+                self.consume(); // extern
+                Ok(Decl::Extern(self.parse_function_def()?))
+            }
             _ => Err(self.error_token("expected declaration")),
         }
     }
 
-    fn parse_function(&mut self, kw: Token) -> Result<FuncNode, Error> {
-        let mut public = kw.kind == TokenKind::Pub;
-        if public {
-            self.consume(); // Consume the 'pub' token
-        }
-
+    fn parse_function_def(&mut self) -> Result<FuncDeclNode, Error> {
         self.consume(); // Consume the 'func' token
 
         let name = self.expect_identifier("function name")?;
         let lparen = self.expect(TokenKind::LParen)?;
 
-        // Automatically set main as public for convenience
-        if name.to_string() == "main" {
-            public = true;
-        }
-
         // If the next token is not a right paren we parse parameters.
-        let params = if self.matches(TokenKind::RParen) {
-            None
-        } else {
-            let mut fields = Vec::new();
-
+        let mut params = Vec::new();
+        if !self.matches(TokenKind::RParen) {
             while !self.eof_or_panic() {
                 let field = self.parse_field("parameter name")?;
-                fields.push(field);
+                params.push(field);
 
                 // Done?
                 if self.matches(TokenKind::RParen) {
@@ -156,8 +147,7 @@ impl<'a> Parser<'a> {
             }
 
             // Bug if empty
-            assert!(!fields.is_empty(), "function parameters cannot be empty");
-            Some(fields)
+            assert!(!params.is_empty(), "function parameters cannot be empty");
         };
 
         // Closing parenthesis
@@ -170,19 +160,39 @@ impl<'a> Parser<'a> {
             Some(self.parse_type()?)
         };
 
+        Ok(FuncDeclNode {
+            name,
+            lparen,
+            params,
+            rparen,
+            ret_type,
+        })
+    }
+
+    fn parse_function(&mut self, kw: Token) -> Result<FuncNode, Error> {
+        let mut public = kw.kind == TokenKind::Pub;
+        if public {
+            self.consume(); // Consume the 'pub' token
+        }
+
+        let decl = self.parse_function_def()?;
+
+        // Automatically set main as public for convenience
+        if decl.name.to_string() == "main" {
+            public = true;
+        }
+
         let body = self.parse_block()?;
 
-        let func = FuncNode {
+        Ok(FuncNode {
             public,
-            name: name.clone(),
-            lparen: lparen.clone(),
-            params,
-            rparen: rparen.clone(),
-            ret_type,
+            name: decl.name,
+            lparen: decl.lparen,
+            params: decl.params,
+            rparen: decl.rparen,
+            ret_type: decl.ret_type,
             body,
-        };
-
-        Ok(func)
+        })
     }
 
     fn parse_field(&mut self, field_name: &str) -> Result<Field, Error> {
