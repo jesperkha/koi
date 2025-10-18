@@ -182,3 +182,34 @@ fn test_extern() {
         "#,
     );
 }
+
+#[test]
+fn test_variable_decl() {
+    expect_equal(
+        r#"
+        func f() {
+            a := 0
+        }
+    "#,
+        r#"
+        func f() void
+            $0 i64 = 0
+            ret void
+        "#,
+    );
+    expect_equal(
+        r#"
+        func f() int {
+            a := 0
+            b :: a
+            return b
+        }
+    "#,
+        r#"
+        func f() i64
+            $0 i64 = 0
+            $1 i64 = $0
+            ret i64 $1
+        "#,
+    );
+}
