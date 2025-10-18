@@ -145,6 +145,15 @@ impl<'a> Checker<'a> {
         self.type_decls.get(&name.to_string()).copied()
     }
 
+    /// Bind a name (token) to a type. Returns same type id or error if already defined.
+    fn bind(&mut self, name: &Token, id: TypeId) -> Result<TypeId, Error> {
+        if !self.sym.bind(name, id) {
+            Err(self.error_token("already declared", name))
+        } else {
+            Ok(id)
+        }
+    }
+
     /// Collect a list of type ids for each field in the slice.
     fn collect_field_types(&mut self, fields: &[Field]) -> Result<Vec<TypeId>, Error> {
         fields.iter().map(|f| self.eval(&f.typ)).collect()
@@ -196,9 +205,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             params.iter().map(|v| v.1).collect(),
             ret_type,
         ));
-        if !self.sym.bind(&node.name, func_id) {
-            return Err(self.error_token("already declared", &node.name));
-        }
+        self.bind(&node.name, func_id)?;
 
         // Set up function body
         self.sym.push_scope();
@@ -328,16 +335,12 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         let ret = self.eval_optional(&node.ret_type)?;
         let params = self.collect_field_types(&node.params)?;
         let id = self.ctx.get_or_intern(TypeKind::Function(params, ret));
-
-        if !self.sym.bind(&node.name, id) {
-            return Err(self.error_token("already declared", &node.name));
-        }
-
-        Ok(id)
+        self.bind(&node.name, id)
     }
 
     fn visit_vardecl(&mut self, node: &crate::ast::VarDeclNode) -> EvalResult {
-        todo!()
+        let id = self.eval(&node.expr)?;
+        self.bind(&node.name, id)
     }
 }
 

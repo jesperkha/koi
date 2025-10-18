@@ -188,3 +188,52 @@ fn test_extern() {
     "#,
     );
 }
+
+#[test]
+fn test_variable_decl() {
+    assert_pass(
+        r#"
+        func f() {
+            a := 0
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            a := 0
+            b :: a
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() bool {
+            a := true
+            return a
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(n int) int {
+            a := f(n)
+            f(a)
+            return f(a)
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_variable_decl_error() {
+    assert_error(
+        r#"
+        func f() int {
+            a := true
+            return a
+        }
+    "#,
+        "incorrect return type: expected 'i64', got 'bool'",
+    );
+}
