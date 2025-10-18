@@ -92,7 +92,8 @@ impl<'a> X86Builder<'a> {
         self.parammap.get(&id).expect("unknown const id")
     }
 
-    fn value(&self, v: &Value) -> RVal {
+    /// Convert IR Value to RVal
+    fn rval(&self, v: &Value) -> RVal {
         match v {
             Value::Void => panic!("cannot get value of void type"),
             Value::Int(n) => RVal::Imm(n.to_string()),
@@ -104,10 +105,8 @@ impl<'a> X86Builder<'a> {
         }
     }
 
-    fn mov_str(&mut self, dest: &str, value: &str, _ty: &Type) {
-        self.text.writeln(&format!("mov {}, {}", dest, value));
-    }
-
+    /// Checks L and R val to use correct mov instruction (mov, lea).
+    /// Prints intermeditate steps if necessary (eg, dest and value are stack).
     fn mov(&mut self, dest: LVal, value: RVal, ty: &Type) {
         let fmt = match dest {
             LVal::Reg(reg) => match &value {
@@ -198,7 +197,7 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
             let reg = self.alloc.next_param_reg(ty);
 
             self.bind_param(i, &dest);
-            self.mov_str(&dest, &reg, ty);
+            self.mov(LVal::Stack(dest), RVal::Reg(reg), ty);
         }
 
         for ins in &f.body {
@@ -211,7 +210,7 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
     fn visit_ret(&mut self, ty: &crate::ir::Type, v: &crate::ir::Value) {
         // If not void
         if ty.size() != 0 {
-            self.mov(LVal::Reg(self.alloc.return_reg(ty)), self.value(v), ty);
+            self.mov(LVal::Reg(self.alloc.return_reg(ty)), self.rval(v), ty);
         }
         self.text.writeln("leave");
         self.text.writeln("ret\n");
@@ -220,7 +219,7 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
     fn visit_store(&mut self, id: crate::ir::ConstId, ty: &crate::ir::Type, v: &crate::ir::Value) {
         let loc = self.stack_alloc(ty.size());
         self.bind(id, &loc);
-        self.mov(LVal::Stack(loc), self.value(v), ty);
+        self.mov(LVal::Stack(loc), self.rval(v), ty);
     }
 
     fn visit_call(&mut self, c: &crate::ir::CallIns) -> () {
@@ -229,7 +228,7 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
             Value::Function(name) => {
                 for arg in &c.args {
                     let dest = self.alloc.next_param_reg(&arg.0);
-                    self.mov(LVal::Reg(dest), self.value(&arg.1), &arg.0);
+                    self.mov(LVal::Reg(dest), self.rval(&arg.1), &arg.0);
                 }
                 self.text.writeln(&format!("call {}", name));
                 self.bind(c.result, &self.alloc.return_reg(&c.ty));
