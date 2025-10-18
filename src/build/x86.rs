@@ -23,6 +23,19 @@ struct Writer {
     content: String,
 }
 
+enum LVal {
+    Reg(String),
+    Stack(String),
+}
+
+#[derive(Clone)]
+enum RVal {
+    Imm(String),
+    Reg(String),
+    Data(String),
+    Stack(String),
+}
+
 impl Writer {
     fn new() -> Self {
         Self {
@@ -79,15 +92,15 @@ impl<'a> X86Builder<'a> {
         self.parammap.get(&id).expect("unknown const id")
     }
 
-    fn value(&self, v: &Value) -> String {
+    fn value(&self, v: &Value) -> RVal {
         match v {
             Value::Void => panic!("cannot get value of void type"),
-            Value::Int(n) => n.to_string(),
-            Value::Const(id) => self.get(*id).to_string(),
-            Value::Param(id) => self.get_param(*id).to_string(),
+            Value::Int(n) => RVal::Imm(n.to_string()),
+            Value::Const(id) => RVal::Stack(self.get(*id).to_string()),
+            Value::Param(id) => RVal::Stack(self.get_param(*id).to_string()),
             Value::Float(_) => todo!(),
             Value::Function(_) => todo!(),
-            Value::Data(name) => format!("[rip + .{}]", name),
+            Value::Data(name) => RVal::Data(format!("[rip + .{}]", name)),
         }
     }
 
@@ -95,13 +108,22 @@ impl<'a> X86Builder<'a> {
         self.text.writeln(&format!("mov {}, {}", dest, value));
     }
 
-    fn mov(&mut self, dest: &str, value: &Value, _ty: &Type) {
-        let kw = match value {
-            Value::Data(_) => "lea",
-            _ => "mov",
+    fn mov(&mut self, dest: LVal, value: RVal, ty: &Type) {
+        let fmt = match dest {
+            LVal::Reg(reg) => match &value {
+                RVal::Imm(s) | RVal::Reg(s) | RVal::Stack(s) => format!("mov {}, {}", reg, s),
+                RVal::Data(s) => format!("lea {}, {}", reg, s),
+            },
+            LVal::Stack(dest) => match &value {
+                RVal::Imm(s) | RVal::Reg(s) => format!("mov {}, {}", dest, s),
+                RVal::Data(_) | RVal::Stack(_) => {
+                    self.mov(LVal::Reg("rax".to_string()), value.clone(), &ty);
+                    format!("mov {}, rax", dest)
+                }
+            },
         };
-        self.text
-            .writeln(&format!("{} {}, {}", kw, dest, self.value(value)));
+
+        self.text.writeln(&fmt);
     }
 
     /// Increases stack size and returns location for requested size.
@@ -189,19 +211,16 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
     fn visit_ret(&mut self, ty: &crate::ir::Type, v: &crate::ir::Value) {
         // If not void
         if ty.size() != 0 {
-            self.mov(&self.alloc.return_reg(ty), v, ty);
+            self.mov(LVal::Reg(self.alloc.return_reg(ty)), self.value(v), ty);
         }
         self.text.writeln("leave");
         self.text.writeln("ret\n");
     }
 
-    fn visit_store(
-        &mut self,
-        _id: crate::ir::ConstId,
-        _ty: &crate::ir::Type,
-        _v: &crate::ir::Value,
-    ) {
-        todo!()
+    fn visit_store(&mut self, id: crate::ir::ConstId, ty: &crate::ir::Type, v: &crate::ir::Value) {
+        let loc = self.stack_alloc(ty.size());
+        self.bind(id, &loc);
+        self.mov(LVal::Stack(loc), self.value(v), ty);
     }
 
     fn visit_call(&mut self, c: &crate::ir::CallIns) -> () {
@@ -210,7 +229,7 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
             Value::Function(name) => {
                 for arg in &c.args {
                     let dest = self.alloc.next_param_reg(&arg.0);
-                    self.mov(&dest, &arg.1, &arg.0);
+                    self.mov(LVal::Reg(dest), self.value(&arg.1), &arg.0);
                 }
                 self.text.writeln(&format!("call {}", name));
                 self.bind(c.result, &self.alloc.return_reg(&c.ty));
