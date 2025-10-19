@@ -246,7 +246,7 @@ impl fmt::Display for TokenKind {
             TokenKind::IdentLit(ident) => &ident,
             TokenKind::IntLit(n) => &n.to_string(),
             TokenKind::FloatLit(f) => &f.to_string(),
-            TokenKind::StringLit(s) => s,
+            TokenKind::StringLit(s) => &format!("\"{}\"", s),
             TokenKind::CharLit(c) => &c.to_string(),
 
             k => token_to_str(k.clone()).expect("kind was not found in RESERVED map"),

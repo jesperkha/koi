@@ -271,15 +271,16 @@ impl<'a> Parser<'a> {
         let expr = self.parse_expr()?;
 
         if let Expr::Literal(name) = lval {
-            Ok(Stmt::VarDecl(VarNode {
-                name,
-                symbol,
-                expr,
-                constant: false,
-            }))
-        } else {
-            panic!("unhandled l-value in assignment")
+            if matches!(name.kind, TokenKind::IdentLit(_)) {
+                return Ok(Stmt::VarAssign(VarNode {
+                    name,
+                    symbol,
+                    expr,
+                    constant: false,
+                }));
+            }
         }
+        panic!("unhandled l-value in assignment")
     }
 
     fn parse_var_decl(&mut self, lval: Expr, constant: bool) -> Result<Stmt, Error> {
@@ -287,14 +288,19 @@ impl<'a> Parser<'a> {
         let expr = self.parse_expr()?;
 
         // To not use lval after move
-        let name = self.expr_is_identifier(lval, "illegal l-value in declaration")?;
+        let err = self.error_node("invalid left hand value in declaration", &lval);
+        if let Expr::Literal(name) = lval {
+            if matches!(name.kind, TokenKind::IdentLit(_)) {
+                return Ok(Stmt::VarDecl(VarNode {
+                    name,
+                    symbol,
+                    expr,
+                    constant,
+                }));
+            }
+        }
 
-        return Ok(Stmt::VarDecl(VarNode {
-            name,
-            symbol,
-            expr,
-            constant,
-        }));
+        Err(err)
     }
 
     fn parse_return(&mut self) -> Result<ReturnNode, Error> {
@@ -476,19 +482,6 @@ impl<'a> Parser<'a> {
     /// Expects the current token to be an identifier with any content.
     fn expect_identifier(&mut self, message: &str) -> Result<Token, Error> {
         self.expect_pred(message, |t| matches!(t.kind, TokenKind::IdentLit(_)))
-    }
-
-    /// Check if expr is identifier and return token. Return error marking
-    /// expr node with msg otherwise.
-    fn expr_is_identifier(&mut self, expr: Expr, msg: &str) -> Result<Token, Error> {
-        let err = self.error_node(msg, &expr);
-        if let Expr::Literal(name) = expr {
-            if matches!(name.kind, TokenKind::IdentLit(_)) {
-                return Ok(name);
-            }
-        }
-
-        Err(err)
     }
 
     fn matches(&self, kind: TokenKind) -> bool {

@@ -140,6 +140,8 @@ impl Visitor<()> for Printer {
             t.accept(self);
             self.s.push(' ');
         });
+        self.s.push('\n');
+        self.s.push('\n');
     }
 
     fn visit_var_decl(&mut self, node: &super::VarNode) -> () {

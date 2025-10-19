@@ -259,7 +259,7 @@ fn test_variable_decl_error() {
             1 := 1
         }
     "#,
-        "illegal l-value in declaration",
+        "invalid left hand value in declaration",
     );
     expect_error(
         r#"
@@ -267,7 +267,7 @@ fn test_variable_decl_error() {
             f() := 1
         }
     "#,
-        "illegal l-value in declaration",
+        "invalid left hand value in declaration",
     );
 }
 
