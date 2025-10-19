@@ -20,13 +20,31 @@ impl fmt::Display for IRUnit {
 
 pub type ConstId = usize;
 
+pub enum LValue {
+    Const(ConstId),
+    Param(usize),
+}
+
 pub enum Ins {
-    Store(ConstId, Type, Value),
+    Store(StoreIns),
+    Assign(AssignIns),
     Return(Type, Value),
     Func(FuncInst),
     Extern(ExternFuncInst),
     Call(CallIns),
     StringData(StringDataIns),
+}
+
+pub struct StoreIns {
+    pub id: ConstId,
+    pub ty: Type,
+    pub value: Value,
+}
+
+pub struct AssignIns {
+    pub lval: LValue,
+    pub ty: Type,
+    pub value: Value,
 }
 
 pub struct StringDataIns {
@@ -95,18 +113,20 @@ pub trait IRVisitor<T> {
     fn visit_call(&mut self, c: &CallIns) -> T;
     fn visit_static_string(&mut self, d: &StringDataIns) -> T;
     fn visit_ret(&mut self, ty: &Type, v: &Value) -> T;
-    fn visit_store(&mut self, id: ConstId, ty: &Type, v: &Value) -> T;
+    fn visit_store(&mut self, ins: &StoreIns) -> T;
+    fn visit_assign(&mut self, ins: &AssignIns) -> T;
 }
 
 impl Ins {
     pub fn accept<T>(&self, v: &mut dyn IRVisitor<T>) -> T {
         match self {
-            Ins::Store(id, ty, value) => v.visit_store(*id, ty, value),
+            Ins::Store(ins) => v.visit_store(ins),
             Ins::Return(ty, value) => v.visit_ret(ty, value),
             Ins::Func(func) => v.visit_func(func),
             Ins::Extern(func) => v.visit_extern(func),
             Ins::Call(call) => v.visit_call(call),
             Ins::StringData(data) => v.visit_static_string(data),
+            Ins::Assign(ins) => v.visit_assign(ins),
         }
     }
 }
@@ -131,7 +151,8 @@ impl Type {
 impl fmt::Display for Ins {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Ins::Store(var, ty, value) => write!(f, "${} {} = {}", var, ty, value),
+            Ins::Store(ins) => write!(f, "${} {} = {}", ins.id, ins.ty, ins.value),
+            Ins::Assign(ins) => write!(f, "{} {} = {}", ins.lval, ins.ty, ins.value),
             Ins::Return(ty, value) => write!(f, "ret {} {}", ty, value),
             Ins::Extern(func) => {
                 write!(
@@ -198,6 +219,15 @@ impl fmt::Display for Value {
             Value::Param(s) => write!(f, "%{}", s),
             Value::Function(s) => write!(f, "{}", s),
             Value::Data(s) => write!(f, ".{}", s),
+        }
+    }
+}
+
+impl fmt::Display for LValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LValue::Const(s) => write!(f, "${}", s),
+            LValue::Param(s) => write!(f, "%{}", s),
         }
     }
 }

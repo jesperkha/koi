@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     build::{Builder, RegAllocator, TransUnit},
     config::Config,
-    ir::{ConstId, IRUnit, IRVisitor, Type, Value},
+    ir::{AssignIns, ConstId, IRUnit, IRVisitor, LValue, StoreIns, Type, Value},
 };
 
 pub struct X86Builder<'a> {
@@ -102,6 +102,14 @@ impl<'a> X86Builder<'a> {
             Value::Float(_) => todo!(),
             Value::Function(_) => todo!(),
             Value::Data(name) => RVal::Data(format!("[rip + .{}]", name)),
+        }
+    }
+
+    /// Convert IR Value to LVal
+    fn lval(&self, v: &LValue) -> LVal {
+        match v {
+            LValue::Const(id) => LVal::Stack(self.get(*id).to_string()),
+            LValue::Param(id) => LVal::Stack(self.get_param(*id).to_string()),
         }
     }
 
@@ -216,10 +224,14 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
         self.text.writeln("ret\n");
     }
 
-    fn visit_store(&mut self, id: crate::ir::ConstId, ty: &crate::ir::Type, v: &crate::ir::Value) {
-        let loc = self.stack_alloc(ty.size());
-        self.bind(id, &loc);
-        self.mov(LVal::Stack(loc), self.rval(v), ty);
+    fn visit_store(&mut self, ins: &StoreIns) {
+        let loc = self.stack_alloc(ins.ty.size());
+        self.bind(ins.id, &loc);
+        self.mov(LVal::Stack(loc), self.rval(&ins.value), &ins.ty);
+    }
+
+    fn visit_assign(&mut self, ins: &AssignIns) -> () {
+        self.mov(self.lval(&ins.lval), self.rval(&ins.value), &ins.ty);
     }
 
     fn visit_call(&mut self, c: &crate::ir::CallIns) -> () {

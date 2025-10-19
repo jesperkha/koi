@@ -1,3 +1,4 @@
+use core::panic;
 use std::mem;
 
 use tracing::info;
@@ -9,7 +10,10 @@ use crate::{
     },
     config::Config,
     error::{Error, ErrorSet, Res},
-    ir::{ExternFuncInst, FuncInst, IRUnit, Ins, StringDataIns, SymTracker, Type, Value, ir},
+    ir::{
+        AssignIns, ExternFuncInst, FuncInst, IRUnit, Ins, LValue, StoreIns, StringDataIns,
+        SymTracker, Type, Value, ir,
+    },
     token::{Token, TokenKind},
     types::{self, Package, TypeContext, TypeId, TypeKind},
 };
@@ -233,10 +237,24 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
     }
 
     fn visit_var_decl(&mut self, node: &crate::ast::VarDeclNode) -> Result<Value, Error> {
+        let value = node.expr.accept(self)?;
+        let ty = self.semtype_to_irtype(self.ctx.get_node(&node.expr));
         let id = self.sym.set(node.name.to_string());
-        let val = node.expr.accept(self)?;
-        let ty = self.semtype_to_irtype(self.ctx.get_node(node));
-        self.push(Ins::Store(id, ty, val));
+        self.push(Ins::Store(StoreIns { id, ty, value }));
+        Ok(Value::Void)
+    }
+
+    fn visit_var_assign(&mut self, node: &crate::ast::VarAssignNode) -> Result<Value, Error> {
+        let lval = match node.lval.accept(self)? {
+            Value::Const(id) => LValue::Const(id),
+            Value::Param(id) => LValue::Param(id),
+            _ => panic!("illeagl lvalue"),
+        };
+
+        let value = node.expr.accept(self)?;
+        let ty = self.semtype_to_irtype(self.ctx.get_node(&node.expr));
+
+        self.push(Ins::Assign(AssignIns { lval, ty, value }));
         Ok(Value::Void)
     }
 
@@ -254,10 +272,6 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
 
     fn visit_package(&mut self, _: &Token) -> Result<Value, Error> {
         panic!("unused method")
-    }
-
-    fn visit_var_assign(&mut self, node: &crate::ast::VarAssignNode) -> Result<Value, Error> {
-        todo!()
     }
 }
 
