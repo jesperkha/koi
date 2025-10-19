@@ -78,8 +78,9 @@ impl Error {
         }
     }
 
-    pub fn add_info(&mut self, info: &str) {
+    pub fn with_info(mut self, info: &str) -> Self {
         self.info = info.to_string();
+        self
     }
 }
 

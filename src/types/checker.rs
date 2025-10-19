@@ -304,9 +304,9 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             let (n_params, n_args) = (params.len(), node.args.len());
             if n_params != n_args {
                 let msg = format!("function takes {} arguments, got {}", n_params, n_args,);
-                let mut err = self.error_from_to(&msg, node.callee.pos(), &node.rparen.pos);
-                err.add_info(&format!("definition: {}", self.ctx.to_string(callee_id)));
-                return Err(err);
+                return Err(self
+                    .error_from_to(&msg, node.callee.pos(), &node.rparen.pos)
+                    .with_info(&format!("definition: {}", self.ctx.to_string(callee_id))));
             }
 
             // Check if each argument type matches the param type
