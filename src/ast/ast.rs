@@ -37,8 +37,8 @@ pub trait Visitor<R> {
     fn visit_package(&mut self, node: &Token) -> R;
     fn visit_call(&mut self, node: &CallExpr) -> R;
     fn visit_group(&mut self, node: &GroupExpr) -> R;
-    fn visit_var_decl(&mut self, node: &VarNode) -> R;
-    fn visit_var_assign(&mut self, node: &VarNode) -> R;
+    fn visit_var_decl(&mut self, node: &VarDeclNode) -> R;
+    fn visit_var_assign(&mut self, node: &VarAssignNode) -> R;
 }
 
 #[derive(Debug)]
@@ -106,8 +106,8 @@ pub enum Stmt {
     ExprStmt(Expr),
     Return(ReturnNode),
     Block(BlockNode),
-    VarDecl(VarNode),
-    VarAssign(VarNode),
+    VarDecl(VarDeclNode),
+    VarAssign(VarAssignNode),
 }
 
 /// Expressions are evaluated to produce a value. They can be used
@@ -135,10 +135,17 @@ pub struct CallExpr {
 }
 
 #[derive(Debug, Clone)]
-pub struct VarNode {
+pub struct VarDeclNode {
     pub constant: bool,
     pub name: Token,
     pub symbol: Token,
+    pub expr: Expr,
+}
+
+#[derive(Debug, Clone)]
+pub struct VarAssignNode {
+    pub lval: Expr,
+    pub equal: Token,
     pub expr: Expr,
 }
 
@@ -284,7 +291,8 @@ impl Node for Stmt {
             Stmt::ExprStmt(node) => node.pos(),
             Stmt::Return(node) => node.pos(),
             Stmt::Block(node) => node.pos(),
-            Stmt::VarDecl(node) | Stmt::VarAssign(node) => node.pos(),
+            Stmt::VarDecl(node) => node.pos(),
+            Stmt::VarAssign(node) => node.pos(),
         }
     }
 
@@ -293,7 +301,8 @@ impl Node for Stmt {
             Stmt::ExprStmt(node) => node.end(),
             Stmt::Return(node) => node.end(),
             Stmt::Block(node) => node.end(),
-            Stmt::VarDecl(node) | Stmt::VarAssign(node) => node.end(),
+            Stmt::VarDecl(node) => node.end(),
+            Stmt::VarAssign(node) => node.end(),
         }
     }
 
@@ -302,12 +311,13 @@ impl Node for Stmt {
             Stmt::ExprStmt(node) => node.id(),
             Stmt::Return(node) => node.id(),
             Stmt::Block(node) => node.id(),
-            Stmt::VarDecl(node) | Stmt::VarAssign(node) => node.id(),
+            Stmt::VarDecl(node) => node.id(),
+            Stmt::VarAssign(node) => node.id(),
         }
     }
 }
 
-impl Node for VarNode {
+impl Node for VarDeclNode {
     fn pos(&self) -> &Pos {
         &self.name.pos
     }
@@ -318,6 +328,20 @@ impl Node for VarNode {
 
     fn id(&self) -> NodeId {
         self.name.id
+    }
+}
+
+impl Node for VarAssignNode {
+    fn pos(&self) -> &Pos {
+        self.lval.pos()
+    }
+
+    fn end(&self) -> &Pos {
+        self.expr.end()
+    }
+
+    fn id(&self) -> NodeId {
+        self.equal.id
     }
 }
 

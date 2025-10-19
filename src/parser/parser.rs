@@ -5,7 +5,7 @@ use tracing::info;
 use crate::{
     ast::{
         BlockNode, CallExpr, Decl, Expr, Field, File, FuncDeclNode, FuncNode, GroupExpr, Node,
-        ReturnNode, Stmt, TypeNode, VarNode,
+        ReturnNode, Stmt, TypeNode, VarAssignNode, VarDeclNode,
     },
     config::Config,
     error::{Error, ErrorSet, Res},
@@ -267,20 +267,16 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_var_assign(&mut self, lval: Expr) -> Result<Stmt, Error> {
-        let symbol = self.expect(TokenKind::Eq)?;
+        let equal = self.expect(TokenKind::Eq)?;
         let expr = self.parse_expr()?;
 
-        if let Expr::Literal(name) = lval {
-            if matches!(name.kind, TokenKind::IdentLit(_)) {
-                return Ok(Stmt::VarAssign(VarNode {
-                    name,
-                    symbol,
-                    expr,
-                    constant: false,
-                }));
+        if let Expr::Literal(name) = &lval {
+            if matches!(&name.kind, TokenKind::IdentLit(_)) {
+                return Ok(Stmt::VarAssign(VarAssignNode { lval, equal, expr }));
             }
         }
-        panic!("unhandled l-value in assignment")
+
+        Err(self.error_node("invalid left hand value in assignment", &lval))
     }
 
     fn parse_var_decl(&mut self, lval: Expr, constant: bool) -> Result<Stmt, Error> {
@@ -291,7 +287,7 @@ impl<'a> Parser<'a> {
         let err = self.error_node("invalid left hand value in declaration", &lval);
         if let Expr::Literal(name) = lval {
             if matches!(name.kind, TokenKind::IdentLit(_)) {
-                return Ok(Stmt::VarDecl(VarNode {
+                return Ok(Stmt::VarDecl(VarDeclNode {
                     name,
                     symbol,
                     expr,
