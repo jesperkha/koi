@@ -142,8 +142,12 @@ impl Visitor<()> for Printer {
         });
     }
 
-    fn visit_vardecl(&mut self, node: &super::VarDeclNode) -> () {
+    fn visit_var_decl(&mut self, node: &super::VarNode) -> () {
         self.s.push_str(&format!("{} {} ", node.name, node.symbol));
         node.expr.accept(self);
+    }
+
+    fn visit_var_assign(&mut self, node: &super::VarNode) -> () {
+        self.visit_var_decl(node)
     }
 }

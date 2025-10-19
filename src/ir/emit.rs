@@ -232,7 +232,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         Ok(Value::Void)
     }
 
-    fn visit_vardecl(&mut self, node: &crate::ast::VarDeclNode) -> Result<Value, Error> {
+    fn visit_var_decl(&mut self, node: &crate::ast::VarNode) -> Result<Value, Error> {
         let id = self.sym.set(node.name.to_string());
         let val = node.expr.accept(self)?;
         let ty = self.semtype_to_irtype(self.ctx.get_node(node));
@@ -254,6 +254,10 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
 
     fn visit_package(&mut self, _: &Token) -> Result<Value, Error> {
         panic!("unused method")
+    }
+
+    fn visit_var_assign(&mut self, node: &crate::ast::VarNode) -> Result<Value, Error> {
+        todo!()
     }
 }
 

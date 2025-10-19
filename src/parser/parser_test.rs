@@ -253,4 +253,33 @@ fn test_variable_decl_error() {
     "#,
         "expected expression",
     );
+    expect_error(
+        r#"
+        func f() {
+            1 := 1
+        }
+    "#,
+        "illegal l-value in declaration",
+    );
+    expect_error(
+        r#"
+        func f() {
+            f() := 1
+        }
+    "#,
+        "illegal l-value in declaration",
+    );
+}
+
+#[test]
+fn test_variable_assign() {
+    compare_string(
+        r#"
+        func f() {
+            a = 0
+            b = true
+            c = b
+        }
+    "#,
+    );
 }

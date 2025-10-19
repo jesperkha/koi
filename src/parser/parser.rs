@@ -4,8 +4,8 @@ use tracing::info;
 
 use crate::{
     ast::{
-        BlockNode, CallExpr, Decl, Expr, Field, File, FuncDeclNode, FuncNode, GroupExpr,
-        ReturnNode, Stmt, TypeNode, VarDeclNode,
+        BlockNode, CallExpr, Decl, Expr, Field, File, FuncDeclNode, FuncNode, GroupExpr, Node,
+        ReturnNode, Stmt, TypeNode, VarNode,
     },
     config::Config,
     error::{Error, ErrorSet, Res},
@@ -249,44 +249,55 @@ impl<'a> Parser<'a> {
         let token = self.cur().unwrap();
 
         match token.kind {
-            TokenKind::Return => {
-                let ret = self.parse_return()?;
-                Ok(Stmt::Return(ret))
-            }
-            TokenKind::IdentLit(_) => {
-                // Check if next token is := or ::
-                if self.pos + 1 < self.tokens.len()
-                    && matches!(
-                        self.tokens[self.pos + 1].kind,
-                        TokenKind::ColonEq | TokenKind::ColonColon
-                    )
-                {
-                    // Variable declaration
-                    let name = self.must_consume()?; // identifier
-                    let symbol = self.must_consume()?; // := or ::
-                    let expr = self.parse_expr()?;
-                    let constant = matches!(symbol.kind, TokenKind::ColonColon);
-                    Ok(Stmt::VarDecl(VarDeclNode {
-                        name,
-                        symbol,
-                        expr,
-                        constant,
-                    }))
-                } else {
-                    // Otherwise parse expression
-                    let expr = self.parse_expr()?;
-                    Ok(Stmt::ExprStmt(expr))
-                }
-            }
+            TokenKind::Return => Ok(Stmt::Return(self.parse_return()?)),
             _ => {
                 let expr = self.parse_expr()?;
-                Ok(Stmt::ExprStmt(expr))
+
+                match self.cur_or_last().kind {
+                    // Check for variable declaration or assignment
+                    TokenKind::ColonColon => self.parse_var_decl(expr, true),
+                    TokenKind::ColonEq => self.parse_var_decl(expr, false),
+                    TokenKind::Eq => self.parse_var_assign(expr),
+
+                    // Otherwise just expression
+                    _ => Ok(Stmt::ExprStmt(expr)),
+                }
             }
         }
     }
 
+    fn parse_var_assign(&mut self, lval: Expr) -> Result<Stmt, Error> {
+        let symbol = self.expect(TokenKind::Eq)?;
+        let expr = self.parse_expr()?;
+
+        if let Expr::Literal(name) = lval {
+            Ok(Stmt::VarDecl(VarNode {
+                name,
+                symbol,
+                expr,
+                constant: false,
+            }))
+        } else {
+            panic!("unhandled l-value in assignment")
+        }
+    }
+
+    fn parse_var_decl(&mut self, lval: Expr, constant: bool) -> Result<Stmt, Error> {
+        let symbol = self.must_consume()?;
+        let expr = self.parse_expr()?;
+
+        // To not use lval after move
+        let name = self.expr_is_identifier(lval, "illegal l-value in declaration")?;
+
+        return Ok(Stmt::VarDecl(VarNode {
+            name,
+            symbol,
+            expr,
+            constant,
+        }));
+    }
+
     fn parse_return(&mut self) -> Result<ReturnNode, Error> {
-        // Assert and consume the 'return' token
         assert!(self.matches(TokenKind::Return));
         let kw = self.consume().unwrap();
 
@@ -402,6 +413,10 @@ impl<'a> Parser<'a> {
         Error::new(message, from, to, &self.file.src)
     }
 
+    fn error_node(&self, message: &str, node: &dyn Node) -> Error {
+        Error::range(message, node.pos(), node.end(), &self.file.src)
+    }
+
     fn cur(&self) -> Option<Token> {
         self.tokens.get(self.pos).cloned()
     }
@@ -461,6 +476,19 @@ impl<'a> Parser<'a> {
     /// Expects the current token to be an identifier with any content.
     fn expect_identifier(&mut self, message: &str) -> Result<Token, Error> {
         self.expect_pred(message, |t| matches!(t.kind, TokenKind::IdentLit(_)))
+    }
+
+    /// Check if expr is identifier and return token. Return error marking
+    /// expr node with msg otherwise.
+    fn expr_is_identifier(&mut self, expr: Expr, msg: &str) -> Result<Token, Error> {
+        let err = self.error_node(msg, &expr);
+        if let Expr::Literal(name) = expr {
+            if matches!(name.kind, TokenKind::IdentLit(_)) {
+                return Ok(name);
+            }
+        }
+
+        Err(err)
     }
 
     fn matches(&self, kind: TokenKind) -> bool {

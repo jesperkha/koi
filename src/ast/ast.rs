@@ -37,7 +37,8 @@ pub trait Visitor<R> {
     fn visit_package(&mut self, node: &Token) -> R;
     fn visit_call(&mut self, node: &CallExpr) -> R;
     fn visit_group(&mut self, node: &GroupExpr) -> R;
-    fn visit_vardecl(&mut self, node: &VarDeclNode) -> R;
+    fn visit_var_decl(&mut self, node: &VarNode) -> R;
+    fn visit_var_assign(&mut self, node: &VarNode) -> R;
 }
 
 #[derive(Debug)]
@@ -105,7 +106,8 @@ pub enum Stmt {
     ExprStmt(Expr),
     Return(ReturnNode),
     Block(BlockNode),
-    VarDecl(VarDeclNode),
+    VarDecl(VarNode),
+    VarAssign(VarNode),
 }
 
 /// Expressions are evaluated to produce a value. They can be used
@@ -133,7 +135,7 @@ pub struct CallExpr {
 }
 
 #[derive(Debug, Clone)]
-pub struct VarDeclNode {
+pub struct VarNode {
     pub constant: bool,
     pub name: Token,
     pub symbol: Token,
@@ -282,7 +284,7 @@ impl Node for Stmt {
             Stmt::ExprStmt(node) => node.pos(),
             Stmt::Return(node) => node.pos(),
             Stmt::Block(node) => node.pos(),
-            Stmt::VarDecl(node) => node.pos(),
+            Stmt::VarDecl(node) | Stmt::VarAssign(node) => node.pos(),
         }
     }
 
@@ -291,7 +293,7 @@ impl Node for Stmt {
             Stmt::ExprStmt(node) => node.end(),
             Stmt::Return(node) => node.end(),
             Stmt::Block(node) => node.end(),
-            Stmt::VarDecl(node) => node.end(),
+            Stmt::VarDecl(node) | Stmt::VarAssign(node) => node.end(),
         }
     }
 
@@ -300,12 +302,12 @@ impl Node for Stmt {
             Stmt::ExprStmt(node) => node.id(),
             Stmt::Return(node) => node.id(),
             Stmt::Block(node) => node.id(),
-            Stmt::VarDecl(node) => node.id(),
+            Stmt::VarDecl(node) | Stmt::VarAssign(node) => node.id(),
         }
     }
 }
 
-impl Node for VarDeclNode {
+impl Node for VarNode {
     fn pos(&self) -> &Pos {
         &self.name.pos
     }
@@ -353,7 +355,8 @@ impl Visitable for Stmt {
             Stmt::ExprStmt(node) => node.accept(visitor),
             Stmt::Return(node) => visitor.visit_return(node),
             Stmt::Block(node) => visitor.visit_block(node),
-            Stmt::VarDecl(node) => visitor.visit_vardecl(node),
+            Stmt::VarDecl(node) => visitor.visit_var_decl(node),
+            Stmt::VarAssign(node) => visitor.visit_var_assign(node),
         }
     }
 }

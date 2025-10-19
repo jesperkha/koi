@@ -338,9 +338,13 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         self.bind(&node.name, id)
     }
 
-    fn visit_vardecl(&mut self, node: &crate::ast::VarDeclNode) -> EvalResult {
+    fn visit_var_decl(&mut self, node: &crate::ast::VarNode) -> EvalResult {
         let id = self.eval(&node.expr)?;
         self.bind(&node.name, id)
+    }
+
+    fn visit_var_assign(&mut self, node: &crate::ast::VarNode) -> EvalResult {
+        todo!()
     }
 }
 
