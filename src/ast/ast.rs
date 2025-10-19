@@ -413,7 +413,7 @@ impl Node for Expr {
 
 impl Node for CallExpr {
     fn pos(&self) -> &Pos {
-        &self.lparen.pos
+        self.callee.pos()
     }
 
     fn end(&self) -> &Pos {
