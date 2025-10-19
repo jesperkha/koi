@@ -16,7 +16,7 @@ fn main() {
         .init();
 
     debug_print_all_steps(&read_to_string("_test/main.koi").unwrap());
-    compile();
+    //compile();
 }
 
 fn compile() {
