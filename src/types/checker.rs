@@ -4,7 +4,7 @@ use tracing::info;
 
 use crate::{
     ast::{
-        BlockNode, CallExpr, Field, File, FuncNode, GroupExpr, Node, ReturnNode, TypeNode,
+        BlockNode, CallExpr, Expr, Field, File, FuncNode, GroupExpr, Node, ReturnNode, TypeNode,
         Visitable, Visitor,
     },
     config::Config,
@@ -44,9 +44,14 @@ pub fn check(files: Vec<File>, config: &Config) -> Res<Package> {
     ))
 }
 
+struct Value {
+    ty: TypeId,
+    constant: bool,
+}
+
 struct Checker<'a> {
     ctx: &'a mut TypeContext,
-    sym: SymTable<TypeId>,
+    sym: SymTable<Value>,
     file: &'a File,
     _config: &'a Config,
 
@@ -146,8 +151,8 @@ impl<'a> Checker<'a> {
     }
 
     /// Bind a name (token) to a type. Returns same type id or error if already defined.
-    fn bind(&mut self, name: &Token, id: TypeId) -> Result<TypeId, Error> {
-        if !self.sym.bind(name, id) {
+    fn bind(&mut self, name: &Token, id: TypeId, constant: bool) -> Result<TypeId, Error> {
+        if !self.sym.bind(name, Value { ty: id, constant }) {
             Err(self.error_token("already declared", name))
         } else {
             Ok(id)
@@ -157,6 +162,19 @@ impl<'a> Checker<'a> {
     /// Collect a list of type ids for each field in the slice.
     fn collect_field_types(&mut self, fields: &[Field]) -> Result<Vec<TypeId>, Error> {
         fields.iter().map(|f| self.eval(&f.typ)).collect()
+    }
+
+    /// Report whether the given l-value is constant or not.
+    fn is_constant(&self, lval: &Expr) -> bool {
+        match lval {
+            Expr::Literal(token) => match &token.kind {
+                TokenKind::IdentLit(name) => {
+                    self.sym.get_symbol(name).map_or(false, |sym| sym.constant)
+                }
+                _ => false,
+            },
+            Expr::Group(_) | Expr::Call(_) => true,
+        }
     }
 }
 
@@ -205,7 +223,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             params.iter().map(|v| v.1).collect(),
             ret_type,
         ));
-        self.bind(&node.name, func_id)?;
+        self.bind(&node.name, func_id, true)?;
 
         // Set up function body
         self.sym.push_scope();
@@ -214,7 +232,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
 
         // Declare params in function body
         for p in params {
-            self.sym.bind(p.0, p.1);
+            self.bind(p.0, p.1, false)?;
         }
 
         if let Err(err) = self.visit_block(&node.body) {
@@ -274,7 +292,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             TokenKind::IdentLit(name) => self
                 .sym
                 .get_symbol(name)
-                .map_or(Err(self.error_token("not declared", node)), |t| Ok(*t)),
+                .map_or(Err(self.error_token("not declared", node)), |t| Ok(t.ty)),
             _ => todo!(),
         }
     }
@@ -337,16 +355,34 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         let ret = self.eval_optional(&node.ret_type)?;
         let params = self.collect_field_types(&node.params)?;
         let id = self.ctx.get_or_intern(TypeKind::Function(params, ret));
-        self.bind(&node.name, id)
+        self.bind(&node.name, id, true)
     }
 
     fn visit_var_decl(&mut self, node: &crate::ast::VarDeclNode) -> EvalResult {
         let id = self.eval(&node.expr)?;
-        self.bind(&node.name, id)
+        self.bind(&node.name, id, node.constant)
     }
 
     fn visit_var_assign(&mut self, node: &crate::ast::VarAssignNode) -> EvalResult {
-        todo!()
+        let lval_id = self.eval(&node.lval)?;
+        let rval_id = self.eval(&node.expr)?;
+
+        if lval_id != rval_id {
+            return Err(self.error(
+                &format!(
+                    "mismatched types in assignment. expected '{}', got '{}'",
+                    self.ctx.to_string(lval_id),
+                    self.ctx.to_string(rval_id)
+                ),
+                &node.expr,
+            ));
+        }
+
+        if self.is_constant(&node.lval) {
+            return Err(self.error("cannot assign new value to a constant", &node.lval));
+        }
+
+        Ok(no_type())
     }
 }
 

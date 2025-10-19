@@ -14,6 +14,7 @@ pub struct Error {
     line: usize,
     line_str: String,
     length: usize,
+    from: usize,
 
     info: String,
 }
@@ -27,12 +28,14 @@ pub type Res<T> = Result<T, ErrorSet>;
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let pad = self.line_str.len() - self.line_str.trim_start().len();
         let err = format!(
-            "{}\nerror: {}\n    |\n{:<3} |    {}\n    |    {}\n{}",
+            "{}\nerror: {}\n    |\n{:<3} |    {}\n    |    {}{}\n{}",
             self.filename,
             self.message,
             self.line,
             self.line_str.trim(),
+            " ".repeat(self.from - pad),
             "^".repeat(self.length.max(1)),
             if !self.info.is_empty() {
                 &format!("    |\n    | {}\n", self.info)
@@ -53,6 +56,7 @@ impl Error {
             length: to.end_pos.col - from.pos.col,
             filename: file.name.clone(),
             info: String::new(),
+            from: from.pos.col,
         }
     }
 
@@ -64,6 +68,7 @@ impl Error {
             length: to.col - from.col,
             filename: file.name.clone(),
             info: String::new(),
+            from: from.col,
         }
     }
 
@@ -75,6 +80,7 @@ impl Error {
             length: length,
             filename: file.name.clone(),
             info: String::new(),
+            from: from.col,
         }
     }
 
