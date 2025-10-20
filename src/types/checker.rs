@@ -13,6 +13,8 @@ use crate::{
     types::{Package, PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
 };
 
+// TODO: declare top level types and names before type checking
+
 pub fn check(files: Vec<File>, config: &Config) -> Res<Package> {
     let mut ctx = TypeContext::new();
     let mut errs = ErrorSet::new();
