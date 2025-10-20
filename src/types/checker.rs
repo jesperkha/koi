@@ -196,6 +196,12 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         if node.name.to_string() == "main" {
             let int_id = self.ctx.primitive(PrimitiveType::I64);
 
+            // Must be package main
+            if !self.file.pkgname.is_empty() && self.file.pkgname != "main" {
+                info!("package name expected to be main, is {}", self.file.pkgname);
+                return Err(self.error("main function can only be declared in main package", node));
+            }
+
             // If return type is not int
             if !self.ctx.equivalent(ret_type, int_id) {
                 let msg = "main function must return 'i64'";
@@ -210,11 +216,6 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             // No parameters allowed
             if params.len() > 0 {
                 return Err(self.error("main function must not take any arguments", node));
-            }
-
-            // Must be package main
-            if self.file.pkgname != "main" {
-                return Err(self.error("main function can only be declared in main package", node));
             }
         }
 

@@ -213,3 +213,27 @@ fn test_variable_decl() {
         "#,
     );
 }
+
+#[test]
+fn test_variable_assign() {
+    expect_equal(
+        r#"
+        func f() {
+            a := 0
+            a = 1
+            a = 2
+            b := 3
+            a = b
+        }
+    "#,
+        r#"
+        func f() void
+            $0 i64 = 0
+            $0 i64 = 1
+            $0 i64 = 2
+            $1 i64 = 3
+            $0 i64 = $1
+            ret void
+        "#,
+    );
+}

@@ -57,6 +57,13 @@ fn test_return_type() {
     "#,
         "incorrect return type: expected 'bool', got 'i64'",
     );
+    assert_error(
+        r#"
+        func foo() bar {
+        }
+    "#,
+        "not a type",
+    );
 }
 
 #[test]
@@ -154,6 +161,14 @@ fn test_function_call_fail() {
     "#,
         "function takes 2 arguments, got 1",
     );
+    assert_error(
+        r#"
+        func f(a int) {
+            f(true)
+        }
+    "#,
+        "mismatched types in function call. expected 'i64', got 'bool'",
+    );
 }
 
 #[test]
@@ -235,5 +250,95 @@ fn test_variable_decl_error() {
         }
     "#,
         "incorrect return type: expected 'i64', got 'bool'",
+    );
+    assert_error(
+        r#"
+        func f() {
+            a := true
+            a := true
+        }
+    "#,
+        "already declared",
+    );
+}
+
+#[test]
+fn test_variable_assignment() {
+    assert_pass(
+        r#"
+        func f() {
+            a := 0
+            a = 1
+            a = 2
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() int {
+            a := 0
+            a = f()
+            return a
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            a :: 0
+            b := a
+            b = 1
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_variable_assignment_fail() {
+    assert_error(
+        r#"
+        func f() {
+            a := 0
+            a = true
+        }
+    "#,
+        "mismatched types in assignment. expected 'i64', got 'bool'",
+    );
+    assert_error(
+        r#"
+        func f() {
+            a = 1
+        }
+    "#,
+        "not declared",
+    );
+    assert_error(
+        r#"
+        func f() {
+            a :: 0
+            a = 1
+        }
+    "#,
+        "cannot assign new value to a constant",
+    );
+}
+
+#[test]
+fn test_main_function_rules() {
+    assert_error(
+        r#"
+        func main() {
+            return
+        }
+    "#,
+        "main function must return 'i64'",
+    );
+    assert_error(
+        r#"
+        func main(a int) int {
+            return 0
+        }
+    "#,
+        "main function must not take any arguments",
     );
 }

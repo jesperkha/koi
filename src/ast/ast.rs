@@ -60,7 +60,7 @@ impl File {
         File {
             nodes: Vec::new(),
             package: None,
-            pkgname: "unnamed".to_string(),
+            pkgname: "".to_string(),
             src,
         }
     }
