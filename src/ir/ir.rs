@@ -65,6 +65,7 @@ pub struct FuncInst {
     pub params: Vec<Type>,
     pub ret: Type,
     pub body: Vec<Ins>,
+    pub stacksize: usize,
 }
 
 pub struct CallIns {

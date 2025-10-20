@@ -187,7 +187,6 @@ impl<'a> Builder<'a> for X86Builder<'a> {
 }
 
 impl<'a> IRVisitor<()> for X86Builder<'a> {
-    // TODO: sub rsp with aligned stack size
     fn visit_func(&mut self, f: &crate::ir::FuncInst) {
         if f.public {
             self.text.writeln(&format!(".globl {}", f.name));
@@ -196,8 +195,13 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
         self.text.writeln(&format!("{}:", f.name));
         self.push();
 
+        self.stacksize = 0;
+
         self.text.writeln("push rbp");
         self.text.writeln("mov rbp, rsp");
+
+        self.text
+            .writeln(&format!("sub rsp, {}", round_up_to_mult_of_16(f.stacksize)));
 
         self.alloc.reset_params();
         for (i, ty) in f.params.iter().enumerate() {
@@ -257,4 +261,8 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
     fn visit_extern(&mut self, f: &crate::ir::ExternFuncInst) -> () {
         self.head.writeln(&format!(".extern {}", f.name));
     }
+}
+
+pub fn round_up_to_mult_of_16(n: usize) -> usize {
+    (n + 15) & !15
 }

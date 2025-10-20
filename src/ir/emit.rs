@@ -34,6 +34,8 @@ struct Emitter<'a> {
     // Track if void functions have returned or not to add explicit return
     has_returned: bool,
     curstr: usize,
+
+    stack_size: usize, // Cumulative stack size from declarations
 }
 
 // TODO: dead code elimination (warning)
@@ -49,6 +51,7 @@ impl<'a> Emitter<'a> {
             has_returned: false,
             ins: vec![Vec::new()],
             curstr: 0,
+            stack_size: 0,
         }
     }
 
@@ -83,11 +86,15 @@ impl<'a> Emitter<'a> {
     }
 
     fn push_scope(&mut self) {
+        self.stack_size = 0;
         self.ins.push(Vec::new());
     }
 
-    fn pop_scope(&mut self) -> Vec<Ins> {
-        self.ins.pop().expect("scope list is empty")
+    fn pop_scope(&mut self) -> (Vec<Ins>, usize) {
+        (
+            self.ins.pop().expect("scope list is empty"),
+            self.stack_size,
+        )
     }
 
     fn push(&mut self, ins: Ins) {
@@ -139,7 +146,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
             stmt.accept(self)?;
         }
 
-        let mut body = self.pop_scope();
+        let (mut body, stacksize) = self.pop_scope();
 
         // Add explicit void return for non-returing functions
         if !self.has_returned {
@@ -155,6 +162,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
             params,
             ret,
             body,
+            stacksize,
         }));
 
         Ok(Value::Void)
@@ -240,6 +248,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         let value = node.expr.accept(self)?;
         let ty = self.semtype_to_irtype(self.ctx.get_node(&node.expr));
         let id = self.sym.set(node.name.to_string());
+        self.stack_size += ty.size();
         self.push(Ins::Store(StoreIns { id, ty, value }));
         Ok(Value::Void)
     }
