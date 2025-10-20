@@ -4,8 +4,8 @@ use tracing::info;
 
 use crate::{
     ast::{
-        BlockNode, CallExpr, Decl, Expr, Field, File, FuncDeclNode, FuncNode, GroupExpr,
-        ReturnNode, Stmt, TypeNode,
+        BlockNode, CallExpr, Decl, Expr, Field, File, FuncDeclNode, FuncNode, GroupExpr, Node,
+        ReturnNode, Stmt, TypeNode, VarAssignNode, VarDeclNode,
     },
     config::Config,
     error::{Error, ErrorSet, Res},
@@ -249,19 +249,57 @@ impl<'a> Parser<'a> {
         let token = self.cur().unwrap();
 
         match token.kind {
-            TokenKind::Return => {
-                let ret = self.parse_return()?;
-                Ok(Stmt::Return(ret))
-            }
+            TokenKind::Return => Ok(Stmt::Return(self.parse_return()?)),
             _ => {
                 let expr = self.parse_expr()?;
-                Ok(Stmt::ExprStmt(expr))
+
+                match self.cur_or_last().kind {
+                    // Check for variable declaration or assignment
+                    TokenKind::ColonColon => self.parse_var_decl(expr, true),
+                    TokenKind::ColonEq => self.parse_var_decl(expr, false),
+                    TokenKind::Eq => self.parse_var_assign(expr),
+
+                    // Otherwise just expression
+                    _ => Ok(Stmt::ExprStmt(expr)),
+                }
             }
         }
     }
 
+    fn parse_var_assign(&mut self, lval: Expr) -> Result<Stmt, Error> {
+        let equal = self.expect(TokenKind::Eq)?;
+        let expr = self.parse_expr()?;
+
+        if let Expr::Literal(name) = &lval {
+            if matches!(&name.kind, TokenKind::IdentLit(_)) {
+                return Ok(Stmt::VarAssign(VarAssignNode { lval, equal, expr }));
+            }
+        }
+
+        Err(self.error_node("invalid left hand value in assignment", &lval))
+    }
+
+    fn parse_var_decl(&mut self, lval: Expr, constant: bool) -> Result<Stmt, Error> {
+        let symbol = self.must_consume()?;
+        let expr = self.parse_expr()?;
+
+        // To not use lval after move
+        let err = self.error_node("invalid left hand value in declaration", &lval);
+        if let Expr::Literal(name) = lval {
+            if matches!(name.kind, TokenKind::IdentLit(_)) {
+                return Ok(Stmt::VarDecl(VarDeclNode {
+                    name,
+                    symbol,
+                    expr,
+                    constant,
+                }));
+            }
+        }
+
+        Err(err)
+    }
+
     fn parse_return(&mut self) -> Result<ReturnNode, Error> {
-        // Assert and consume the 'return' token
         assert!(self.matches(TokenKind::Return));
         let kw = self.consume().unwrap();
 
@@ -375,6 +413,10 @@ impl<'a> Parser<'a> {
     /// Create error marking the given token range.
     fn error_from_to(&self, message: &str, from: &Token, to: &Token) -> Error {
         Error::new(message, from, to, &self.file.src)
+    }
+
+    fn error_node(&self, message: &str, node: &dyn Node) -> Error {
+        Error::range(message, node.pos(), node.end(), &self.file.src)
     }
 
     fn cur(&self) -> Option<Token> {

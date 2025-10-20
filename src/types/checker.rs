@@ -4,7 +4,7 @@ use tracing::info;
 
 use crate::{
     ast::{
-        BlockNode, CallExpr, Field, File, FuncNode, GroupExpr, Node, ReturnNode, TypeNode,
+        BlockNode, CallExpr, Expr, Field, File, FuncNode, GroupExpr, Node, ReturnNode, TypeNode,
         Visitable, Visitor,
     },
     config::Config,
@@ -12,6 +12,8 @@ use crate::{
     token::{Pos, Token, TokenKind},
     types::{Package, PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
 };
+
+// TODO: declare top level types and names before type checking
 
 pub fn check(files: Vec<File>, config: &Config) -> Res<Package> {
     let mut ctx = TypeContext::new();
@@ -44,9 +46,14 @@ pub fn check(files: Vec<File>, config: &Config) -> Res<Package> {
     ))
 }
 
+struct Value {
+    ty: TypeId,
+    constant: bool,
+}
+
 struct Checker<'a> {
     ctx: &'a mut TypeContext,
-    sym: SymTable<TypeId>,
+    sym: SymTable<Value>,
     file: &'a File,
     _config: &'a Config,
 
@@ -145,9 +152,31 @@ impl<'a> Checker<'a> {
         self.type_decls.get(&name.to_string()).copied()
     }
 
+    /// Bind a name (token) to a type. Returns same type id or error if already defined.
+    fn bind(&mut self, name: &Token, id: TypeId, constant: bool) -> Result<TypeId, Error> {
+        if !self.sym.bind(name, Value { ty: id, constant }) {
+            Err(self.error_token("already declared", name))
+        } else {
+            Ok(id)
+        }
+    }
+
     /// Collect a list of type ids for each field in the slice.
     fn collect_field_types(&mut self, fields: &[Field]) -> Result<Vec<TypeId>, Error> {
         fields.iter().map(|f| self.eval(&f.typ)).collect()
+    }
+
+    /// Report whether the given l-value is constant or not.
+    fn is_constant(&self, lval: &Expr) -> bool {
+        match lval {
+            Expr::Literal(token) => match &token.kind {
+                TokenKind::IdentLit(name) => {
+                    self.sym.get_symbol(name).map_or(false, |sym| sym.constant)
+                }
+                _ => false,
+            },
+            Expr::Group(_) | Expr::Call(_) => true,
+        }
     }
 }
 
@@ -169,6 +198,12 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         if node.name.to_string() == "main" {
             let int_id = self.ctx.primitive(PrimitiveType::I64);
 
+            // Must be package main
+            if !self.file.pkgname.is_empty() && self.file.pkgname != "main" {
+                info!("package name expected to be main, is {}", self.file.pkgname);
+                return Err(self.error("main function can only be declared in main package", node));
+            }
+
             // If return type is not int
             if !self.ctx.equivalent(ret_type, int_id) {
                 let msg = "main function must return 'i64'";
@@ -184,11 +219,6 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             if params.len() > 0 {
                 return Err(self.error("main function must not take any arguments", node));
             }
-
-            // Must be package main
-            if self.file.pkgname != "main" {
-                return Err(self.error("main function can only be declared in main package", node));
-            }
         }
 
         // Declare function while still in global scope
@@ -196,9 +226,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             params.iter().map(|v| v.1).collect(),
             ret_type,
         ));
-        if !self.sym.bind(&node.name, func_id) {
-            return Err(self.error_token("already declared", &node.name));
-        }
+        self.bind(&node.name, func_id, true)?;
 
         // Set up function body
         self.sym.push_scope();
@@ -207,7 +235,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
 
         // Declare params in function body
         for p in params {
-            self.sym.bind(p.0, p.1);
+            self.bind(p.0, p.1, false)?;
         }
 
         if let Err(err) = self.visit_block(&node.body) {
@@ -267,7 +295,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             TokenKind::IdentLit(name) => self
                 .sym
                 .get_symbol(name)
-                .map_or(Err(self.error_token("not declared", node)), |t| Ok(*t)),
+                .map_or(Err(self.error_token("not declared", node)), |t| Ok(t.ty)),
             _ => todo!(),
         }
     }
@@ -297,7 +325,9 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             let (n_params, n_args) = (params.len(), node.args.len());
             if n_params != n_args {
                 let msg = format!("function takes {} arguments, got {}", n_params, n_args,);
-                return Err(self.error_from_to(&msg, node.callee.pos(), &node.rparen.pos));
+                return Err(self
+                    .error_from_to(&msg, node.callee.pos(), &node.rparen.pos)
+                    .with_info(&format!("definition: {}", self.ctx.to_string(callee_id))));
             }
 
             // Check if each argument type matches the param type
@@ -328,12 +358,34 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         let ret = self.eval_optional(&node.ret_type)?;
         let params = self.collect_field_types(&node.params)?;
         let id = self.ctx.get_or_intern(TypeKind::Function(params, ret));
+        self.bind(&node.name, id, true)
+    }
 
-        if !self.sym.bind(&node.name, id) {
-            return Err(self.error_token("already declared", &node.name));
+    fn visit_var_decl(&mut self, node: &crate::ast::VarDeclNode) -> EvalResult {
+        let id = self.eval(&node.expr)?;
+        self.bind(&node.name, id, node.constant)
+    }
+
+    fn visit_var_assign(&mut self, node: &crate::ast::VarAssignNode) -> EvalResult {
+        let lval_id = self.eval(&node.lval)?;
+        let rval_id = self.eval(&node.expr)?;
+
+        if lval_id != rval_id {
+            return Err(self.error(
+                &format!(
+                    "mismatched types in assignment. expected '{}', got '{}'",
+                    self.ctx.to_string(lval_id),
+                    self.ctx.to_string(rval_id)
+                ),
+                &node.expr,
+            ));
         }
 
-        Ok(id)
+        if self.is_constant(&node.lval) {
+            return Err(self.error("cannot assign new value to a constant", &node.lval));
+        }
+
+        Ok(no_type())
     }
 }
 

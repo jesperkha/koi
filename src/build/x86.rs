@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     build::{Builder, RegAllocator, TransUnit},
     config::Config,
-    ir::{ConstId, IRUnit, IRVisitor, Type, Value},
+    ir::{AssignIns, ConstId, IRUnit, IRVisitor, LValue, StoreIns, Type, Value},
 };
 
 pub struct X86Builder<'a> {
@@ -21,6 +21,19 @@ pub struct X86Builder<'a> {
 struct Writer {
     indent: usize,
     content: String,
+}
+
+enum LVal {
+    Reg(String),
+    Stack(String),
+}
+
+#[derive(Clone)]
+enum RVal {
+    Imm(String),
+    Reg(String),
+    Data(String),
+    Stack(String),
 }
 
 impl Writer {
@@ -79,29 +92,45 @@ impl<'a> X86Builder<'a> {
         self.parammap.get(&id).expect("unknown const id")
     }
 
-    fn value(&self, v: &Value) -> String {
+    /// Convert IR Value to RVal
+    fn rval(&self, v: &Value) -> RVal {
         match v {
             Value::Void => panic!("cannot get value of void type"),
-            Value::Int(n) => n.to_string(),
-            Value::Const(id) => self.get(*id).to_string(),
-            Value::Param(id) => self.get_param(*id).to_string(),
+            Value::Int(n) => RVal::Imm(n.to_string()),
+            Value::Const(id) => RVal::Stack(self.get(*id).to_string()),
+            Value::Param(id) => RVal::Stack(self.get_param(*id).to_string()),
             Value::Float(_) => todo!(),
             Value::Function(_) => todo!(),
-            Value::Data(name) => format!("[rip + .{}]", name),
+            Value::Data(name) => RVal::Data(format!("[rip + .{}]", name)),
         }
     }
 
-    fn mov_str(&mut self, dest: &str, value: &str, _ty: &Type) {
-        self.text.writeln(&format!("mov {}, {}", dest, value));
+    /// Convert IR Value to LVal
+    fn lval(&self, v: &LValue) -> LVal {
+        match v {
+            LValue::Const(id) => LVal::Stack(self.get(*id).to_string()),
+            LValue::Param(id) => LVal::Stack(self.get_param(*id).to_string()),
+        }
     }
 
-    fn mov(&mut self, dest: &str, value: &Value, _ty: &Type) {
-        let kw = match value {
-            Value::Data(_) => "lea",
-            _ => "mov",
+    /// Checks L and R val to use correct mov instruction (mov, lea).
+    /// Prints intermeditate steps if necessary (eg, dest and value are stack).
+    fn mov(&mut self, dest: LVal, value: RVal, ty: &Type) {
+        let fmt = match dest {
+            LVal::Reg(reg) => match &value {
+                RVal::Imm(s) | RVal::Reg(s) | RVal::Stack(s) => format!("mov {}, {}", reg, s),
+                RVal::Data(s) => format!("lea {}, {}", reg, s),
+            },
+            LVal::Stack(dest) => match &value {
+                RVal::Imm(s) | RVal::Reg(s) => format!("mov {}, {}", dest, s),
+                RVal::Data(_) | RVal::Stack(_) => {
+                    self.mov(LVal::Reg("rax".to_string()), value.clone(), &ty);
+                    format!("mov {}, rax", dest)
+                }
+            },
         };
-        self.text
-            .writeln(&format!("{} {}, {}", kw, dest, self.value(value)));
+
+        self.text.writeln(&fmt);
     }
 
     /// Increases stack size and returns location for requested size.
@@ -158,7 +187,6 @@ impl<'a> Builder<'a> for X86Builder<'a> {
 }
 
 impl<'a> IRVisitor<()> for X86Builder<'a> {
-    // TODO: sub rsp with aligned stack size
     fn visit_func(&mut self, f: &crate::ir::FuncInst) {
         if f.public {
             self.text.writeln(&format!(".globl {}", f.name));
@@ -167,8 +195,13 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
         self.text.writeln(&format!("{}:", f.name));
         self.push();
 
+        self.stacksize = 0;
+
         self.text.writeln("push rbp");
         self.text.writeln("mov rbp, rsp");
+
+        self.text
+            .writeln(&format!("sub rsp, {}", round_up_to_mult_of_16(f.stacksize)));
 
         self.alloc.reset_params();
         for (i, ty) in f.params.iter().enumerate() {
@@ -176,7 +209,7 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
             let reg = self.alloc.next_param_reg(ty);
 
             self.bind_param(i, &dest);
-            self.mov_str(&dest, &reg, ty);
+            self.mov(LVal::Stack(dest), RVal::Reg(reg), ty);
         }
 
         for ins in &f.body {
@@ -189,19 +222,20 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
     fn visit_ret(&mut self, ty: &crate::ir::Type, v: &crate::ir::Value) {
         // If not void
         if ty.size() != 0 {
-            self.mov(&self.alloc.return_reg(ty), v, ty);
+            self.mov(LVal::Reg(self.alloc.return_reg(ty)), self.rval(v), ty);
         }
         self.text.writeln("leave");
         self.text.writeln("ret\n");
     }
 
-    fn visit_store(
-        &mut self,
-        _id: crate::ir::ConstId,
-        _ty: &crate::ir::Type,
-        _v: &crate::ir::Value,
-    ) {
-        todo!()
+    fn visit_store(&mut self, ins: &StoreIns) {
+        let loc = self.stack_alloc(ins.ty.size());
+        self.bind(ins.id, &loc);
+        self.mov(LVal::Stack(loc), self.rval(&ins.value), &ins.ty);
+    }
+
+    fn visit_assign(&mut self, ins: &AssignIns) -> () {
+        self.mov(self.lval(&ins.lval), self.rval(&ins.value), &ins.ty);
     }
 
     fn visit_call(&mut self, c: &crate::ir::CallIns) -> () {
@@ -210,7 +244,7 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
             Value::Function(name) => {
                 for arg in &c.args {
                     let dest = self.alloc.next_param_reg(&arg.0);
-                    self.mov(&dest, &arg.1, &arg.0);
+                    self.mov(LVal::Reg(dest), self.rval(&arg.1), &arg.0);
                 }
                 self.text.writeln(&format!("call {}", name));
                 self.bind(c.result, &self.alloc.return_reg(&c.ty));
@@ -227,4 +261,8 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
     fn visit_extern(&mut self, f: &crate::ir::ExternFuncInst) -> () {
         self.head.writeln(&format!(".extern {}", f.name));
     }
+}
+
+pub fn round_up_to_mult_of_16(n: usize) -> usize {
+    (n + 15) & !15
 }

@@ -74,7 +74,7 @@ impl TypeContext {
                     .join(", ");
 
                 let ret_str = self.to_string(*ret);
-                format!("func({}) {}", params_str, ret_str)
+                format!("func ({}) {}", params_str, ret_str)
             }
         }
     }

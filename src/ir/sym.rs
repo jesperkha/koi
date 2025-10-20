@@ -44,7 +44,7 @@ impl SymTracker {
     }
 
     /// Look up a name in the current context
-    pub fn get(&self, s: &String) -> Value {
+    pub fn get(&self, s: &str) -> Value {
         if let Some(v) = self.tbl.get(s).map(|t| *t) {
             Value::Const(v)
         } else {

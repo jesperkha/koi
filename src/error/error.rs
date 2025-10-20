@@ -2,6 +2,8 @@ use core::fmt;
 
 use crate::token::{Pos, Source, Token};
 
+// TODO: compact errors based on config
+
 #[derive(Debug, Clone)]
 pub struct Error {
     /// Raw error message without formatting
@@ -11,8 +13,10 @@ pub struct Error {
 
     line: usize,
     line_str: String,
-    from: usize,
     length: usize,
+    from: usize,
+
+    info: String,
 }
 
 #[derive(Debug)]
@@ -24,14 +28,20 @@ pub type Res<T> = Result<T, ErrorSet>;
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let pad = self.line_str.len() - self.line_str.trim_start().len();
         let err = format!(
-            "{}\nerror: {}\n    |\n{:<3} | {}\n    | {}{}\n",
+            "{}\nerror: {}\n    |\n{:<3} |    {}\n    |    {}{}\n{}",
             self.filename,
             self.message,
             self.line,
-            self.line_str,
-            " ".repeat(self.from),
+            self.line_str.trim(),
+            " ".repeat(self.from - pad),
             "^".repeat(self.length.max(1)),
+            if !self.info.is_empty() {
+                &format!("    |\n    | {}\n", self.info)
+            } else {
+                ""
+            }
         );
         write!(f, "{}", err)
     }
@@ -43,9 +53,10 @@ impl Error {
             message: msg.to_string(),
             line: from.pos.row + 1,
             line_str: file.line(from.pos.row).to_owned(),
-            from: from.pos.col,
             length: to.end_pos.col - from.pos.col,
             filename: file.name.clone(),
+            info: String::new(),
+            from: from.pos.col,
         }
     }
 
@@ -54,9 +65,10 @@ impl Error {
             message: msg.to_string(),
             line: from.row + 1,
             line_str: file.line(from.row).to_owned(),
-            from: from.col,
             length: to.col - from.col,
             filename: file.name.clone(),
+            info: String::new(),
+            from: from.col,
         }
     }
 
@@ -65,10 +77,16 @@ impl Error {
             message: msg.to_string(),
             line: from.row + 1,
             line_str: file.line(from.row).to_owned(),
-            from: from.col,
             length: length,
             filename: file.name.clone(),
+            info: String::new(),
+            from: from.col,
         }
+    }
+
+    pub fn with_info(mut self, info: &str) -> Self {
+        self.info = info.to_string();
+        self
     }
 }
 

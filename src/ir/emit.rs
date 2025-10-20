@@ -1,3 +1,4 @@
+use core::panic;
 use std::mem;
 
 use tracing::info;
@@ -9,7 +10,10 @@ use crate::{
     },
     config::Config,
     error::{Error, ErrorSet, Res},
-    ir::{ExternFuncInst, FuncInst, IRUnit, Ins, StringDataIns, SymTracker, Type, Value, ir},
+    ir::{
+        AssignIns, ExternFuncInst, FuncInst, IRUnit, Ins, LValue, StoreIns, StringDataIns,
+        SymTracker, Type, Value, ir,
+    },
     token::{Token, TokenKind},
     types::{self, Package, TypeContext, TypeId, TypeKind},
 };
@@ -30,6 +34,8 @@ struct Emitter<'a> {
     // Track if void functions have returned or not to add explicit return
     has_returned: bool,
     curstr: usize,
+
+    stack_size: usize, // Cumulative stack size from declarations
 }
 
 // TODO: dead code elimination (warning)
@@ -45,6 +51,7 @@ impl<'a> Emitter<'a> {
             has_returned: false,
             ins: vec![Vec::new()],
             curstr: 0,
+            stack_size: 0,
         }
     }
 
@@ -79,11 +86,15 @@ impl<'a> Emitter<'a> {
     }
 
     fn push_scope(&mut self) {
+        self.stack_size = 0;
         self.ins.push(Vec::new());
     }
 
-    fn pop_scope(&mut self) -> Vec<Ins> {
-        self.ins.pop().expect("scope list is empty")
+    fn pop_scope(&mut self) -> (Vec<Ins>, usize) {
+        (
+            self.ins.pop().expect("scope list is empty"),
+            self.stack_size,
+        )
     }
 
     fn push(&mut self, ins: Ins) {
@@ -135,7 +146,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
             stmt.accept(self)?;
         }
 
-        let mut body = self.pop_scope();
+        let (mut body, stacksize) = self.pop_scope();
 
         // Add explicit void return for non-returing functions
         if !self.has_returned {
@@ -151,6 +162,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
             params,
             ret,
             body,
+            stacksize,
         }));
 
         Ok(Value::Void)
@@ -229,6 +241,29 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         let name = node.name.to_string();
         let (params, ret) = self.get_function_signature(node)?;
         self.push(Ins::Extern(ExternFuncInst { name, params, ret }));
+        Ok(Value::Void)
+    }
+
+    fn visit_var_decl(&mut self, node: &crate::ast::VarDeclNode) -> Result<Value, Error> {
+        let value = node.expr.accept(self)?;
+        let ty = self.semtype_to_irtype(self.ctx.get_node(&node.expr));
+        let id = self.sym.set(node.name.to_string());
+        self.stack_size += ty.size();
+        self.push(Ins::Store(StoreIns { id, ty, value }));
+        Ok(Value::Void)
+    }
+
+    fn visit_var_assign(&mut self, node: &crate::ast::VarAssignNode) -> Result<Value, Error> {
+        let lval = match node.lval.accept(self)? {
+            Value::Const(id) => LValue::Const(id),
+            Value::Param(id) => LValue::Param(id),
+            _ => panic!("illeagl lvalue"),
+        };
+
+        let value = node.expr.accept(self)?;
+        let ty = self.semtype_to_irtype(self.ctx.get_node(&node.expr));
+
+        self.push(Ins::Assign(AssignIns { lval, ty, value }));
         Ok(Value::Void)
     }
 
