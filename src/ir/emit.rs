@@ -282,6 +282,10 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
     fn visit_package(&mut self, _: &Token) -> Result<Value, Error> {
         panic!("unused method")
     }
+
+    fn visit_import(&mut self, node: &crate::ast::ImportNode) -> Result<Value, Error> {
+        todo!()
+    }
 }
 
 fn type_primitive_to_ir_primitive(p: &types::PrimitiveType) -> ir::Primitive {

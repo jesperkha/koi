@@ -39,6 +39,7 @@ pub trait Visitor<R> {
     fn visit_group(&mut self, node: &GroupExpr) -> R;
     fn visit_var_decl(&mut self, node: &VarDeclNode) -> R;
     fn visit_var_assign(&mut self, node: &VarAssignNode) -> R;
+    fn visit_import(&mut self, node: &ImportNode) -> R;
 }
 
 #[derive(Debug)]
@@ -97,6 +98,7 @@ pub enum Decl {
     Package(Token),
     Func(FuncNode),
     Extern(FuncDeclNode),
+    Import(ImportNode),
 }
 
 /// Statements are found inside blocks. They have side effects and do
@@ -140,6 +142,20 @@ pub struct VarDeclNode {
     pub name: Token,
     pub symbol: Token,
     pub expr: Expr,
+}
+
+#[derive(Debug, Clone)]
+pub struct ImportNode {
+    pub kw: Token,
+    /// Names separated by period.
+    pub names: Vec<Token>,
+    /// Named items to import inside curly braces.
+    pub imports: Vec<Token>,
+    /// Alias name. Can only be present if len(imports) is 0.
+    pub alias: Option<Token>,
+    /// Final token in statement. This may differ depending
+    /// on what type of import statement is used.
+    pub end_tok: Token,
 }
 
 #[derive(Debug, Clone)]
@@ -227,6 +243,7 @@ impl Node for Decl {
             Decl::Func(node) => node.pos(),
             Decl::Extern(node) => node.pos(),
             Decl::Package(name) => &name.pos,
+            Decl::Import(node) => node.pos(),
         }
     }
 
@@ -235,6 +252,7 @@ impl Node for Decl {
             Decl::Func(node) => node.end(),
             Decl::Extern(node) => node.end(),
             Decl::Package(name) => &name.end_pos,
+            Decl::Import(node) => node.end(),
         }
     }
 
@@ -243,7 +261,22 @@ impl Node for Decl {
             Decl::Func(node) => node.id(),
             Decl::Extern(node) => node.id(),
             Decl::Package(name) => name.id,
+            Decl::Import(node) => node.id(),
         }
+    }
+}
+
+impl Node for ImportNode {
+    fn pos(&self) -> &Pos {
+        &self.kw.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.end_tok.end_pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.kw.id
     }
 }
 
@@ -281,6 +314,7 @@ impl Visitable for Decl {
             Decl::Func(node) => visitor.visit_func(node),
             Decl::Package(name) => visitor.visit_package(name),
             Decl::Extern(node) => visitor.visit_extern(node),
+            Decl::Import(node) => visitor.visit_import(node),
         }
     }
 }

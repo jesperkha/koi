@@ -7,6 +7,10 @@ fn compare_string(src: &str) {
     compare_string_lines_or_panic(pstr, src.to_string());
 }
 
+fn assert_pass(src: &str) {
+    let _ = must(parse_string(src));
+}
+
 fn expect_error(src: &str, error: &str) {
     if let Err(e) = parse_string(src) {
         assert_eq!(e.len(), 1);
@@ -280,6 +284,58 @@ fn test_variable_assign() {
             b = true
             c = b
         }
+    "#,
+    );
+}
+
+#[test]
+fn test_imports() {
+    compare_string(
+        r#"
+        import foo
+    "#,
+    );
+    compare_string(
+        r#"
+        import foo.bar.faz
+    "#,
+    );
+    compare_string(
+        r#"
+        import foo as bar
+    "#,
+    );
+    compare_string(
+        r#"
+        import foo.bar as bar
+    "#,
+    );
+    compare_string(
+        r#"
+        import foo {
+            Foo,
+            Bar
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        import foo.bar {
+            Foo,
+            Bar
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        import foo.bar{
+            Foo,
+            Bar, }
+    "#,
+    );
+    assert_pass(
+        r#"
+        import foo { Foo, Bar }
     "#,
     );
 }

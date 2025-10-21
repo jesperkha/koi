@@ -4,8 +4,8 @@ use tracing::info;
 
 use crate::{
     ast::{
-        BlockNode, CallExpr, Decl, Expr, Field, File, FuncDeclNode, FuncNode, GroupExpr, Node,
-        ReturnNode, Stmt, TypeNode, VarAssignNode, VarDeclNode,
+        BlockNode, CallExpr, Decl, Expr, Field, File, FuncDeclNode, FuncNode, GroupExpr,
+        ImportNode, Node, ReturnNode, Stmt, TypeNode, VarAssignNode, VarDeclNode,
     },
     config::Config,
     error::{Error, ErrorSet, Res},
@@ -66,7 +66,12 @@ impl<'a> Parser<'a> {
                     self.errs.add(err);
 
                     // Consume until next 'safe' token to recover.
-                    while !self.matches_any(&[TokenKind::Func, TokenKind::Extern, TokenKind::Package]) && !self.eof() {
+                    while !self.matches_any(&[
+                        TokenKind::Func,
+                        TokenKind::Extern,
+                        TokenKind::Package,
+                    ]) && !self.eof()
+                    {
                         self.consume();
                     }
 
@@ -93,6 +98,19 @@ impl<'a> Parser<'a> {
         !self.eof()
     }
 
+    // TODO: make parsing sequential, move package, import and extern stuff here
+    fn parse_package_decl(&mut self) -> Result<Decl, Error> {
+        todo!()
+    }
+
+    fn parse_imports(&mut self) -> Result<Vec<Decl>, Error> {
+        todo!()
+    }
+
+    fn parse_extern(&mut self) -> Result<Vec<Decl>, Error> {
+        todo!()
+    }
+
     fn parse_decl(&mut self) -> Result<Decl, Error> {
         // Not having checked for eof is a bug in the caller.
         assert!(!self.eof(), "parse_decl called without checking eof");
@@ -108,7 +126,8 @@ impl<'a> Parser<'a> {
         }
 
         match token.kind {
-            TokenKind::Func | TokenKind::Pub => Ok(Decl::Func(self.parse_function(token)?)),
+            TokenKind::Func | TokenKind::Pub => self.parse_function(token),
+            TokenKind::Import => self.parse_import(),
             TokenKind::Package => {
                 if !self.config.anon_packages {
                     Err(self.error_token("only declare package once, and as the first statement"))
@@ -125,6 +144,59 @@ impl<'a> Parser<'a> {
             }
             _ => Err(self.error_token("expected declaration")),
         }
+    }
+
+    fn parse_import(&mut self) -> Result<Decl, Error> {
+        let kw = self.expect(TokenKind::Import)?;
+
+        let mut names = vec![self.expect_identifier("package name")?];
+        while self.matches(TokenKind::Dot) {
+            self.consume(); // dot
+            names.push(self.expect_identifier("package name")?);
+        }
+
+        let mut alias = None;
+        let mut imports = Vec::new();
+
+        let end_tok = match self.cur().map_or(TokenKind::Newline, |t| t.kind) {
+            TokenKind::As => {
+                self.consume(); // as
+                let name = self.expect_identifier("import alias name")?;
+                alias = Some(name.clone());
+                name
+            }
+            TokenKind::LBrace => {
+                self.consume(); // lbrace
+                self.skip_whitespace_and_not_eof();
+                imports.push(self.expect_identifier("import item")?);
+
+                while self.matches(TokenKind::Comma) {
+                    self.consume(); // comma
+                    self.skip_whitespace_and_not_eof();
+
+                    if self.matches(TokenKind::RBrace) {
+                        break;
+                    }
+
+                    imports.push(self.expect_identifier("import item")?);
+                }
+
+                self.skip_whitespace_and_not_eof();
+                self.expect(TokenKind::RBrace)?
+            }
+            _ => names
+                .last()
+                .expect("empty name vector should be handled")
+                .clone(),
+        };
+
+        Ok(Decl::Import(ImportNode {
+            kw,
+            names,
+            imports,
+            alias,
+            end_tok,
+        }))
     }
 
     fn parse_function_def(&mut self) -> Result<FuncDeclNode, Error> {
@@ -183,7 +255,7 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_function(&mut self, kw: Token) -> Result<FuncNode, Error> {
+    fn parse_function(&mut self, kw: Token) -> Result<Decl, Error> {
         let mut public = kw.kind == TokenKind::Pub;
         if public {
             self.consume(); // Consume the 'pub' token
@@ -198,7 +270,7 @@ impl<'a> Parser<'a> {
 
         let body = self.parse_block()?;
 
-        Ok(FuncNode {
+        Ok(Decl::Func(FuncNode {
             public,
             name: decl.name,
             lparen: decl.lparen,
@@ -206,7 +278,7 @@ impl<'a> Parser<'a> {
             rparen: decl.rparen,
             ret_type: decl.ret_type,
             body,
-        })
+        }))
     }
 
     fn parse_field(&mut self, field_name: &str) -> Result<Field, Error> {

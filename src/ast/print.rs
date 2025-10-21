@@ -154,4 +154,29 @@ impl Visitor<()> for Printer {
         self.s.push_str(" = ");
         node.expr.accept(self);
     }
+
+    fn visit_import(&mut self, node: &super::ImportNode) -> () {
+        self.s.push_str(&format!(
+            "import {} {}\n\n",
+            node.names
+                .iter()
+                .map(|t| t.to_string())
+                .collect::<Vec<_>>()
+                .join("."),
+            if let Some(alias) = &node.alias {
+                format!("as {}", alias)
+            } else if node.imports.len() > 0 {
+                format!(
+                    "{{\n    {}\n}}",
+                    node.imports
+                        .iter()
+                        .map(|t| t.to_string())
+                        .collect::<Vec<_>>()
+                        .join(",\n    ")
+                )
+            } else {
+                "".to_string()
+            }
+        ));
+    }
 }

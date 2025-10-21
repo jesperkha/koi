@@ -152,6 +152,7 @@ impl<'a> Checker<'a> {
         self.type_decls.get(&name.to_string()).copied()
     }
 
+    // TODO: remove constants (maybe)
     /// Bind a name (token) to a type. Returns same type id or error if already defined.
     fn bind(&mut self, name: &Token, id: TypeId, constant: bool) -> Result<TypeId, Error> {
         if !self.sym.bind(name, Value { ty: id, constant }) {
@@ -386,6 +387,10 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         }
 
         Ok(no_type())
+    }
+
+    fn visit_import(&mut self, node: &crate::ast::ImportNode) -> EvalResult {
+        todo!()
     }
 }
 
