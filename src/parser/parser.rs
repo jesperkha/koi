@@ -147,8 +147,17 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_import(&mut self) -> Result<Decl, Error> {
+        // Import statements have three variations:
+        //
+        // 1. import foo.bar
+        // 2. import foo as bar
+        // 3. import foo { bar, faz }
+        //
+        // Variants 2 and 3 cannot be used together.
+
         let kw = self.expect(TokenKind::Import)?;
 
+        // Collect the imported package names (foo.bar etc)
         let mut names = vec![self.expect_identifier("package name")?];
         while self.matches(TokenKind::Dot) {
             self.consume(); // dot
@@ -159,31 +168,27 @@ impl<'a> Parser<'a> {
         let mut imports = Vec::new();
 
         let end_tok = match self.cur().map_or(TokenKind::Newline, |t| t.kind) {
+            // If the next token is 'as', this is variation 2
             TokenKind::As => {
                 self.consume(); // as
                 let name = self.expect_identifier("import alias name")?;
                 alias = Some(name.clone());
                 name
             }
+            // If it is '{', this is variation 3
             TokenKind::LBrace => {
                 self.consume(); // lbrace
-                self.skip_whitespace_and_not_eof();
-                imports.push(self.expect_identifier("import item")?);
+                imports = self.collect_item_names("imported item name")?;
+                let rbrace = self.expect(TokenKind::RBrace)?;
 
-                while self.matches(TokenKind::Comma) {
-                    self.consume(); // comma
-                    self.skip_whitespace_and_not_eof();
-
-                    if self.matches(TokenKind::RBrace) {
-                        break;
-                    }
-
-                    imports.push(self.expect_identifier("import item")?);
+                // Breaking the rule of not combining variants 2 and 3
+                if self.matches(TokenKind::As) {
+                    return Err(self.error_token("alias is not allowed after named imports"));
                 }
 
-                self.skip_whitespace_and_not_eof();
-                self.expect(TokenKind::RBrace)?
+                rbrace
             }
+            // Otherwise its variation 1
             _ => names
                 .last()
                 .expect("empty name vector should be handled")
@@ -197,6 +202,29 @@ impl<'a> Parser<'a> {
             alias,
             end_tok,
         }))
+    }
+
+    /// Parse a list of items separated by comma and an arbitrary amount of newlines.
+    /// On parse error, an expect-error is returned with the given item_name.
+    fn collect_item_names(&mut self, item_name: &str) -> Result<Vec<Token>, Error> {
+        let mut items = Vec::new();
+
+        self.skip_whitespace_and_not_eof();
+        items.push(self.expect_identifier("import item")?);
+
+        while self.matches(TokenKind::Comma) {
+            self.consume(); // comma
+            self.skip_whitespace_and_not_eof();
+
+            if self.matches(TokenKind::RBrace) {
+                break;
+            }
+
+            items.push(self.expect_identifier(item_name)?);
+        }
+
+        self.skip_whitespace_and_not_eof();
+        Ok(items)
     }
 
     fn parse_function_def(&mut self) -> Result<FuncDeclNode, Error> {

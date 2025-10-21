@@ -339,3 +339,13 @@ fn test_imports() {
     "#,
     );
 }
+
+#[test]
+fn test_import_error() {
+    expect_error(
+        r#"
+        import foo { bar } as faz
+    "#,
+        "alias is not allowed after named imports",
+    );
+}
