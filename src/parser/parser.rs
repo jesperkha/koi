@@ -66,7 +66,7 @@ impl<'a> Parser<'a> {
                     self.errs.add(err);
 
                     // Consume until next 'safe' token to recover.
-                    while !self.matches_any(&[TokenKind::Func]) && !self.eof() {
+                    while !self.matches_any(&[TokenKind::Func, TokenKind::Extern, TokenKind::Package]) && !self.eof() {
                         self.consume();
                     }
 
