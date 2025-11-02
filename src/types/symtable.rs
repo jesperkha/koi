@@ -39,7 +39,7 @@ impl<T> SymTable<T> {
     }
 
     /// Look up a name starting from the innermost scope outward.
-    pub fn get_symbol(&self, name: &String) -> Option<&T> {
+    pub fn get(&self, name: &String) -> Option<&T> {
         for scope in self.scopes.iter().rev() {
             if let Some(t) = scope.get(name) {
                 return Some(t);

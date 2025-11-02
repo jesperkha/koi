@@ -53,12 +53,9 @@ struct Value {
 
 struct Checker<'a> {
     ctx: &'a mut TypeContext,
-    sym: SymTable<Value>,
+    vars: SymTable<Value>,
     file: &'a File,
     _config: &'a Config,
-
-    /// Map of global type declarations.
-    type_decls: HashMap<String, TypeId>,
 
     /// Return type in current scope
     rtype: TypeId,
@@ -74,10 +71,9 @@ impl<'a> Checker<'a> {
             _config: config,
             file,
             ctx,
-            sym: SymTable::new(),
+            vars: SymTable::new(),
             rtype: no_type(),
             has_returned: false,
-            type_decls: HashMap::new(),
         }
     }
 
@@ -147,15 +143,10 @@ impl<'a> Checker<'a> {
         )
     }
 
-    /// Get a declared type.
-    fn get_type(&self, name: &Token) -> Option<TypeId> {
-        self.type_decls.get(&name.to_string()).copied()
-    }
-
     // TODO: remove constants (maybe)
     /// Bind a name (token) to a type. Returns same type id or error if already defined.
     fn bind(&mut self, name: &Token, id: TypeId, constant: bool) -> Result<TypeId, Error> {
-        if !self.sym.bind(name, Value { ty: id, constant }) {
+        if !self.vars.bind(name, Value { ty: id, constant }) {
             Err(self.error_token("already declared", name))
         } else {
             Ok(id)
@@ -171,9 +162,7 @@ impl<'a> Checker<'a> {
     fn is_constant(&self, lval: &Expr) -> bool {
         match lval {
             Expr::Literal(token) => match &token.kind {
-                TokenKind::IdentLit(name) => {
-                    self.sym.get_symbol(name).map_or(false, |sym| sym.constant)
-                }
+                TokenKind::IdentLit(name) => self.vars.get(name).map_or(false, |sym| sym.constant),
                 _ => false,
             },
             Expr::Group(_) | Expr::Call(_) => true,
@@ -230,7 +219,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
         self.bind(&node.name, func_id, true)?;
 
         // Set up function body
-        self.sym.push_scope();
+        self.vars.push_scope();
         self.rtype = ret_type;
         self.has_returned = false;
 
@@ -243,7 +232,7 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             return Err(err);
         }
 
-        self.sym.pop_scope();
+        self.vars.pop_scope();
 
         // There was no return when there should have been
         if !self.has_returned && ret_type != self.ctx.void() {
@@ -294,8 +283,8 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             TokenKind::StringLit(_) => Ok(self.ctx.primitive(PrimitiveType::String)),
             TokenKind::True | TokenKind::False => Ok(self.ctx.primitive(PrimitiveType::Bool)),
             TokenKind::IdentLit(name) => self
-                .sym
-                .get_symbol(name)
+                .vars
+                .get(name)
                 .map_or(Err(self.error_token("not declared", node)), |t| Ok(t.ty)),
             _ => todo!(),
         }
@@ -308,7 +297,8 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
                 Ok(self.ctx.primitive(prim))
             }
             TypeNode::Ident(token) => self
-                .get_type(token)
+                .ctx
+                .get_symbol(token.to_string())
                 .map_or(Err(self.error_token("not a type", token)), |ty| Ok(ty)),
         }
     }

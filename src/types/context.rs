@@ -20,6 +20,13 @@ pub struct TypeContext {
     cache: HashMap<TypeKind, TypeId>,
     /// Map AST nodes to their evaluated type.
     nodes: HashMap<NodeId, TypeId>,
+    /// Top level symbol mappings.
+    symbols: HashMap<String, Symbol>,
+}
+
+pub struct Symbol {
+    pub ty: TypeId,
+    pub exported: bool,
 }
 
 impl TypeContext {
@@ -31,6 +38,7 @@ impl TypeContext {
             types: Vec::new(),
             cache: HashMap::new(),
             nodes: HashMap::new(),
+            symbols: HashMap::new(),
         };
 
         for t in PrimitiveType::iter() {
@@ -168,5 +176,17 @@ impl TypeContext {
     /// Shorthand for getting void type
     pub fn void(&mut self) -> TypeId {
         self.primitive(PrimitiveType::Void)
+    }
+
+    /// Set top level named type
+    pub fn set_symbol(&mut self, name: String, ty: TypeId, exported: bool) {
+        self.symbols.insert(name, Symbol { ty, exported });
+    }
+
+    /// Get top level named type
+    pub fn get_symbol(&mut self, name: String) -> Result<TypeId, String> {
+        self.symbols
+            .get(&name)
+            .map_or(Err("not declared".to_string()), |s| Ok(s.ty))
     }
 }
