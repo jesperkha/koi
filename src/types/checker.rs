@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use tracing::info;
 
 use crate::{
@@ -13,7 +11,16 @@ use crate::{
     types::{Package, PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
 };
 
-// TODO: declare top level types and names before type checking
+// TODO: Complete imports
+// 1. Scan each file in package and collect all exported items into Exports
+// 2. Create a map of all exports in the project, including std and external imports
+// 3. Type check each package using this import map
+// 4. Checker now only accepts a list of Decl, typecontext
+
+/*
+    exports, ctx = collect_exports(file)
+    pkg = check(export, ctx, file)
+*/
 
 pub fn check(files: Vec<File>, config: &Config) -> Res<Package> {
     let mut ctx = TypeContext::new();

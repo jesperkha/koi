@@ -1,9 +1,9 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str};
 use strum::IntoEnumIterator;
 
 use crate::{
     ast::{Node, NodeId, no_type},
-    types::{PrimitiveType, Type, TypeId, TypeKind},
+    types::{Namespace, PrimitiveType, Type, TypeId, TypeKind},
 };
 
 // TODO: context dump with all bindings and types
@@ -22,6 +22,8 @@ pub struct TypeContext {
     nodes: HashMap<NodeId, TypeId>,
     /// Top level symbol mappings.
     symbols: HashMap<String, Symbol>,
+    /// Map of namespaces imported into this context
+    namespaces: HashMap<String, Namespace>,
 }
 
 pub struct Symbol {
@@ -39,6 +41,7 @@ impl TypeContext {
             cache: HashMap::new(),
             nodes: HashMap::new(),
             symbols: HashMap::new(),
+            namespaces: HashMap::new(),
         };
 
         for t in PrimitiveType::iter() {
@@ -50,6 +53,15 @@ impl TypeContext {
 
     pub fn pkg_name(&self) -> &str {
         &self.pkg_name
+    }
+
+    /// Add new namespace to this context. Returns error if namespace with that name already exists.
+    pub fn add_namespace(&mut self, namespace: Namespace) -> Result<(), String> {
+        self.namespaces
+            .insert(namespace.name.clone(), namespace)
+            .map_or(Ok(()), |n| {
+                Err(format!("namespace '{}' already imported", n.name))
+            })
     }
 
     /// Tries to set package name. Returns error if name was already set to something else.
