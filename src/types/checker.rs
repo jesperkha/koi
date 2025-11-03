@@ -6,59 +6,17 @@ use crate::{
         Visitable, Visitor,
     },
     config::Config,
-    error::{Error, ErrorSet, Res},
+    error::{Error, ErrorSet},
     token::{Pos, Token, TokenKind},
-    types::{Package, PrimitiveType, SymTable, TypeContext, TypeId, TypeKind, no_type},
+    types::{PrimitiveType, TypeContext, TypeId, TypeKind, no_type, symtable::SymTable},
 };
-
-// TODO: Complete imports
-// 1. Scan each file in package and collect all exported items into Exports
-// 2. Create a map of all exports in the project, including std and external imports
-// 3. Type check each package using this import map
-// 4. Checker now only accepts a list of Decl, typecontext
-
-/*
-    exports, ctx = collect_exports(file)
-    pkg = check(export, ctx, file)
-*/
-
-pub fn check(files: Vec<File>, config: &Config) -> Res<Package> {
-    let mut ctx = TypeContext::new();
-    let mut errs = ErrorSet::new();
-
-    info!("checking {} files", files.len());
-
-    // TODO: remove this check and handle empty packages properly
-    assert!(files.len() > 0, "no files to type check");
-
-    for file in &files {
-        let checker = Checker::new(&file, &mut ctx, config);
-        errs.join(checker.check());
-    }
-
-    if errs.len() > 0 {
-        info!("fail, finished all with {} errors", errs.len());
-        return Err(errs);
-    }
-
-    // TODO: assert all pkg names equal
-
-    info!("success, all files");
-    Ok(Package::new(
-        files[0].pkgname.clone(),
-        // TODO: filepath in packages, copy from file
-        "".to_string(),
-        files,
-        ctx,
-    ))
-}
 
 struct Value {
     ty: TypeId,
     constant: bool,
 }
 
-struct Checker<'a> {
+pub struct Checker<'a> {
     ctx: &'a mut TypeContext,
     vars: SymTable<Value>,
     file: &'a File,
@@ -73,7 +31,7 @@ struct Checker<'a> {
 }
 
 impl<'a> Checker<'a> {
-    fn new(file: &'a File, ctx: &'a mut TypeContext, config: &'a Config) -> Self {
+    pub fn new(file: &'a File, ctx: &'a mut TypeContext, config: &'a Config) -> Self {
         Self {
             _config: config,
             file,
@@ -86,7 +44,7 @@ impl<'a> Checker<'a> {
 
     /// Iterates over each node in the file and type checks. Populates
     /// TypeContext with files types. Collects errors.
-    fn check(mut self) -> ErrorSet {
+    pub fn check(mut self) -> ErrorSet {
         let mut errs = ErrorSet::new();
         info!("file '{}', pkg '{}'", self.file.src.name, self.file.pkgname);
 

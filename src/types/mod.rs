@@ -1,3 +1,4 @@
+mod check;
 mod checker;
 mod context;
 mod exports;
@@ -6,7 +7,8 @@ mod pkg;
 mod symtable;
 mod types;
 
-pub use checker::check;
+pub use check::check;
+pub use checker::Checker;
 pub use context::TypeContext;
 pub use exports::Exports;
 pub use namespace::Namespace;
