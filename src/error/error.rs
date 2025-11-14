@@ -76,9 +76,10 @@ impl fmt::Display for Error {
             " ".repeat(point_start),
             "^".repeat(self.length.max(1)),
             if !self.info.is_empty() {
-                &format!("    |\n    | {}\n", self.info)
+                let info = &self.info;
+                format!("    |\n    | {}\n", info)
             } else {
-                ""
+                "".to_string()
             }
         );
         write!(f, "{}", err)
