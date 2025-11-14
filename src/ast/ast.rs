@@ -7,6 +7,16 @@ use crate::{
 
 pub type NodeId = usize;
 
+#[derive(Debug)]
+pub struct Ast {
+    pub package: PackageNode,
+    pub imports: Vec<ImportNode>,
+    // Declarations are the only top level statements in koi. They contain
+    // all other statements and expressions. Eg. a function has a block
+    // statement, which consists of multiple ifs and calls.
+    pub decls: Vec<Decl>,
+}
+
 /// A node is any part of the AST, including statements, expressions, and
 /// declarations. Visitors can traverse these nodes to perform operations
 /// like linting, analysis, or transformations.
@@ -15,7 +25,6 @@ pub trait Node {
     fn pos(&self) -> &Pos;
     /// Position of last token in node segment.
     fn end(&self) -> &Pos;
-
     /// Unique id of the node. Is the offset of the node pos, which is
     /// guaranteed unique for all nodes in the same file.
     fn id(&self) -> NodeId;
@@ -42,44 +51,48 @@ pub trait Visitor<R> {
     fn visit_import(&mut self, node: &ImportNode) -> R;
 }
 
+/// Unique package idenfitifer (hash of package path).
+pub type PackageID = usize;
+
+/// A FileSet is a collection of ASTs (Files). The imports vector is a list of
+/// all imports across all source files in the set. These must be type checked
+/// before this fileset can be processed further.
+pub struct FileSet {
+    pub package_id: PackageID,
+    pub files: Vec<File>,
+    pub imports: Vec<ImportedPackage>,
+}
+
+pub struct ImportedPackage {
+    /// Full package import name joined with '.'
+    /// Eg. "app.utils.json"
+    pub name: String,
+    pub package_id: PackageID,
+}
+
 #[derive(Debug)]
 pub struct File {
-    /// Package name token at beginning of file
-    pub package: Option<Token>,
     /// Package name as string, or 'unnamed' if not specified (test files)
-    pub pkgname: String,
-    // Declarations are the only top level statements in koi. They contain
-    // all other statements and expressions. Eg. a function has a block
-    // statement, which consists of multiple ifs and calls.
-    pub nodes: Vec<Decl>,
-
+    pub package_name: String,
+    pub ast: Ast,
+    /// The files raw source code
     pub src: Source,
 }
 
 impl File {
-    pub fn new(src: Source) -> Self {
+    pub fn new(src: Source, ast: Ast) -> Self {
         File {
-            nodes: Vec::new(),
-            package: None,
-            pkgname: "".to_string(),
+            ast,
+            package_name: "".to_string(),
             src,
         }
     }
 
     /// Walks the AST and applites the visitor to each node.
     pub fn walk<R>(&self, visitor: &mut dyn Visitor<R>) {
-        for node in &self.nodes {
+        for node in &self.ast.decls {
             node.accept(visitor);
         }
-    }
-
-    pub fn add_node(&mut self, node: Decl) {
-        self.nodes.push(node);
-    }
-
-    pub fn set_package(&mut self, t: Token) {
-        self.pkgname = t.to_string();
-        self.package = Some(t);
     }
 }
 
@@ -95,7 +108,6 @@ impl fmt::Display for File {
 /// but does include constant declarations.
 #[derive(Debug)]
 pub enum Decl {
-    Package(Token),
     Func(FuncNode),
     Extern(FuncDeclNode),
     Import(ImportNode),
@@ -163,6 +175,12 @@ pub struct VarAssignNode {
     pub lval: Expr,
     pub equal: Token,
     pub expr: Expr,
+}
+
+#[derive(Debug, Clone)]
+pub struct PackageNode {
+    pub kw: Token,
+    pub name: Token,
 }
 
 #[derive(Debug, Clone)]
@@ -242,7 +260,6 @@ impl Node for Decl {
         match self {
             Decl::Func(node) => node.pos(),
             Decl::Extern(node) => node.pos(),
-            Decl::Package(name) => &name.pos,
             Decl::Import(node) => node.pos(),
         }
     }
@@ -251,7 +268,6 @@ impl Node for Decl {
         match self {
             Decl::Func(node) => node.end(),
             Decl::Extern(node) => node.end(),
-            Decl::Package(name) => &name.end_pos,
             Decl::Import(node) => node.end(),
         }
     }
@@ -260,9 +276,22 @@ impl Node for Decl {
         match self {
             Decl::Func(node) => node.id(),
             Decl::Extern(node) => node.id(),
-            Decl::Package(name) => name.id,
             Decl::Import(node) => node.id(),
         }
+    }
+}
+
+impl Node for PackageNode {
+    fn pos(&self) -> &Pos {
+        &self.kw.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.name.end_pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.kw.id
     }
 }
 
@@ -312,7 +341,6 @@ impl Visitable for Decl {
     fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
         match self {
             Decl::Func(node) => visitor.visit_func(node),
-            Decl::Package(name) => visitor.visit_package(name),
             Decl::Extern(node) => visitor.visit_extern(node),
             Decl::Import(node) => visitor.visit_import(node),
         }

@@ -135,16 +135,6 @@ fn test_function_with_error() {
 }
 
 #[test]
-fn test_package_decl() {
-    expect_error(
-        r#"
-        package
-    "#,
-        "expected package name",
-    );
-}
-
-#[test]
 fn test_function_call() {
     compare_string(
         r#"

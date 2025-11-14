@@ -19,34 +19,6 @@ pub struct Error {
     info: String,
 }
 
-#[derive(Debug)]
-pub struct ErrorSet {
-    errs: Vec<Error>,
-}
-
-pub type Res<T> = Result<T, ErrorSet>;
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let pad = self.line_str.len() - self.line_str.trim_start().len();
-        let err = format!(
-            "{}\nerror: {}\n    |\n{:<3} |    {}\n    |    {}{}\n{}",
-            self.filename,
-            self.message,
-            self.line,
-            self.line_str.trim(),
-            " ".repeat(self.from - pad),
-            "^".repeat(self.length.max(1)),
-            if !self.info.is_empty() {
-                &format!("    |\n    | {}\n", self.info)
-            } else {
-                ""
-            }
-        );
-        write!(f, "{}", err)
-    }
-}
-
 impl Error {
     pub fn new(msg: &str, from: &Token, to: &Token, file: &Source) -> Error {
         Error {
@@ -90,18 +62,43 @@ impl Error {
     }
 }
 
-impl fmt::Display for ErrorSet {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (i, err) in self.errs.iter().enumerate() {
-            write!(f, "{}{}", err, if i == self.len() - 1 { "" } else { "\n" })?;
-        }
-        Ok(())
+        let pad = self.line_str.len() - self.line_str.trim_start().len();
+        let point_start = if self.from < pad { 1 } else { self.from - pad };
+
+        let err = format!(
+            "{}\nerror: {}\n    |\n{:<3} |    {}\n    |    {}{}\n{}",
+            self.filename,
+            self.message,
+            self.line,
+            self.line_str.trim(),
+            " ".repeat(point_start),
+            "^".repeat(self.length.max(1)),
+            if !self.info.is_empty() {
+                &format!("    |\n    | {}\n", self.info)
+            } else {
+                ""
+            }
+        );
+        write!(f, "{}", err)
     }
+}
+
+#[derive(Debug)]
+pub struct ErrorSet {
+    errs: Vec<Error>,
 }
 
 impl ErrorSet {
     pub fn new() -> Self {
         Self { errs: Vec::new() }
+    }
+
+    pub fn new_from(err: Error) -> Self {
+        let mut s = Self::new();
+        s.add(err);
+        s
     }
 
     pub fn add(&mut self, err: Error) {
@@ -118,5 +115,16 @@ impl ErrorSet {
 
     pub fn join(&mut self, other: ErrorSet) {
         self.errs.extend_from_slice(&other.errs);
+    }
+}
+
+pub type Res<T> = Result<T, ErrorSet>;
+
+impl fmt::Display for ErrorSet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (i, err) in self.errs.iter().enumerate() {
+            write!(f, "{}{}", err, if i == self.len() - 1 { "" } else { "\n" })?;
+        }
+        Ok(())
     }
 }

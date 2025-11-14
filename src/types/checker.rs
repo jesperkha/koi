@@ -46,9 +46,12 @@ impl<'a> Checker<'a> {
     /// TypeContext with files types. Collects errors.
     pub fn check(mut self) -> ErrorSet {
         let mut errs = ErrorSet::new();
-        info!("file '{}', pkg '{}'", self.file.src.name, self.file.pkgname);
+        info!(
+            "file '{}', pkg '{}'",
+            self.file.src.name, self.file.package_name
+        );
 
-        for n in &self.file.nodes {
+        for n in &self.file.ast.decls {
             let _ = self.eval(n).map_err(|e| errs.add(e));
         }
 
@@ -154,8 +157,11 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             let int_id = self.ctx.primitive(PrimitiveType::I64);
 
             // Must be package main
-            if !self.file.pkgname.is_empty() && self.file.pkgname != "main" {
-                info!("package name expected to be main, is {}", self.file.pkgname);
+            if !self.file.package_name.is_empty() && self.file.package_name != "main" {
+                info!(
+                    "package name expected to be main, is {}",
+                    self.file.package_name
+                );
                 return Err(self.error("main function can only be declared in main package", node));
             }
 

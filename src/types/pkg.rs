@@ -18,7 +18,7 @@ impl Package {
         // Join ASTs
         let nodes = files
             .iter_mut()
-            .map(|f| std::mem::take(&mut f.nodes))
+            .map(|f| std::mem::take(&mut f.ast.decls))
             .flatten()
             .collect::<Vec<_>>();
 

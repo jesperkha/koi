@@ -15,13 +15,17 @@ impl Printer {
     }
 
     /// Convert AST to printable format
-    pub fn to_string(ast: &File) -> String {
+    pub fn to_string(file: &File) -> String {
         let mut s = Self {
             s: String::new(),
             indent: 0,
         };
 
-        for node in &ast.nodes {
+        for node in &file.ast.imports {
+            s.visit_import(node);
+        }
+
+        for node in &file.ast.decls {
             node.accept(&mut s);
         }
 

@@ -4,8 +4,8 @@ use tracing::info;
 
 use crate::{
     ast::{
-        BlockNode, CallExpr, Decl, Expr, Field, File, FuncDeclNode, FuncNode, GroupExpr,
-        ImportNode, Node, ReturnNode, Stmt, TypeNode, VarAssignNode, VarDeclNode,
+        Ast, BlockNode, CallExpr, Decl, Expr, Field, File, FuncDeclNode, FuncNode, GroupExpr,
+        ImportNode, Node, PackageNode, ReturnNode, Stmt, TypeNode, VarAssignNode, VarDeclNode,
     },
     config::Config,
     error::{Error, ErrorSet, Res},
@@ -21,8 +21,8 @@ struct Parser<'a> {
     errs: ErrorSet,
     tokens: Vec<Token>,
     pos: usize,
-    file: File,
     config: &'a Config,
+    src: Source,
 
     // Panic mode occurs when the parser encounters an unknown token sequence
     // and needs to synchronize to a 'clean' state. When panic mode starts,
@@ -32,8 +32,6 @@ struct Parser<'a> {
     // Functions which parse statements should have a check at the top for
     // panicMode, and return early with an invalid statement if set.
     panic_mode: bool,
-
-    pkg_declared: bool, // Package name declared yet?
 }
 
 impl<'a> Parser<'a> {
@@ -41,41 +39,55 @@ impl<'a> Parser<'a> {
         Self {
             errs: ErrorSet::new(),
             tokens,
-            file: File::new(src),
             pos: 0,
             panic_mode: false,
-            pkg_declared: false,
             config,
+            src,
         }
     }
 
     fn parse(mut self) -> Res<File> {
-        info!("file '{}'", self.file.src.name);
+        info!("file '{}'", self.src.name);
+
+        // Parse package declaration as it must come first
+        let package = if !self.config.anon_packages {
+            self.skip_whitespace_and_not_eof();
+            self.parse_package_decl()
+                .map_err(|err| ErrorSet::new_from(err))?
+        } else {
+            // Bogus token, never used if package is anon
+            PackageNode {
+                kw: self.cur_or_last(),
+                name: self.cur_or_last(),
+            }
+        };
+
+        let package_name = if !self.config.anon_packages {
+            package.name.to_string()
+        } else {
+            // Anon packages are only used in tests and scripting, so the
+            // package should have all the benefits of the main package.
+            String::from("main")
+        };
+
+        // Then parse all imports as they must come before the main code
+        self.skip_whitespace_and_not_eof();
+        let imports = self
+            .parse_imports()
+            .map_err(|err| ErrorSet::new_from(err))?;
 
         if self.config.anon_packages {
             info!("ignoring package");
         }
 
+        let mut decls = Vec::new();
+
         while self.skip_whitespace_and_not_eof() {
             match self.parse_decl() {
-                Ok(decl) => match decl {
-                    Decl::Package(name) => self.file.set_package(name),
-                    _ => self.file.add_node(decl),
-                },
+                Ok(decl) => decls.push(decl),
                 Err(err) => {
                     self.errs.add(err);
-
-                    // Consume until next 'safe' token to recover.
-                    while !self.matches_any(&[
-                        TokenKind::Func,
-                        TokenKind::Extern,
-                        TokenKind::Package,
-                    ]) && !self.eof()
-                    {
-                        self.consume();
-                    }
-
-                    self.panic_mode = false;
+                    self.recover_from_error();
                 }
             }
         }
@@ -85,8 +97,19 @@ impl<'a> Parser<'a> {
             return Err(self.errs);
         }
 
-        info!("success, part of package '{}'", self.file.pkgname);
-        Ok(self.file)
+        info!("success, part of package '{}'", package_name);
+
+        let ast = Ast {
+            package,
+            imports,
+            decls,
+        };
+
+        Ok(File {
+            package_name,
+            src: self.src,
+            ast,
+        })
     }
 
     /// Consume newlines until first non-newline token or eof.
@@ -98,55 +121,32 @@ impl<'a> Parser<'a> {
         !self.eof()
     }
 
-    // TODO: make parsing sequential, move package, import and extern stuff here
-    fn parse_package_decl(&mut self) -> Result<Decl, Error> {
-        todo!()
-    }
-
-    fn parse_imports(&mut self) -> Result<Vec<Decl>, Error> {
-        todo!()
-    }
-
-    fn parse_extern(&mut self) -> Result<Vec<Decl>, Error> {
-        todo!()
-    }
-
-    fn parse_decl(&mut self) -> Result<Decl, Error> {
-        // Not having checked for eof is a bug in the caller.
-        assert!(!self.eof(), "parse_decl called without checking eof");
-        let token = self.cur().unwrap();
-
-        // Check that package declaration comes first
-        if !self.pkg_declared && !self.config.anon_packages {
-            self.pkg_declared = true;
-            self.expect_msg(TokenKind::Package, "package declaration")?;
-            return self
-                .expect_identifier("package name")
-                .map(|tok| Decl::Package(tok));
+    // Consume until next 'safe' token to recover. Sets panic_mode to false.
+    fn recover_from_error(&mut self) {
+        while !self.eof() && !self.matches_any(&[TokenKind::Func, TokenKind::Extern]) {
+            self.consume();
         }
 
-        match token.kind {
-            TokenKind::Func | TokenKind::Pub => self.parse_function(token),
-            TokenKind::Import => self.parse_import(),
-            TokenKind::Package => {
-                if !self.config.anon_packages {
-                    Err(self.error_token("only declare package once, and as the first statement"))
-                } else {
-                    self.consume(); // kw
-                    self.expect_identifier("package name")
-                        .map(|t| Decl::Package(t))
-                }
-            }
-            // TODO: public extern (re-export)
-            TokenKind::Extern => {
-                self.consume(); // extern
-                Ok(Decl::Extern(self.parse_function_def()?))
-            }
-            _ => Err(self.error_token("expected declaration")),
-        }
+        self.panic_mode = false;
     }
 
-    fn parse_import(&mut self) -> Result<Decl, Error> {
+    fn parse_package_decl(&mut self) -> Result<PackageNode, Error> {
+        let kw = self.expect(TokenKind::Package)?;
+        let name = self.expect_identifier("package name")?;
+        Ok(PackageNode { kw, name })
+    }
+
+    fn parse_imports(&mut self) -> Result<Vec<ImportNode>, Error> {
+        let mut imports = Vec::new();
+
+        while self.matches(TokenKind::Import) {
+            imports.push(self.parse_import()?);
+        }
+
+        Ok(imports)
+    }
+
+    fn parse_import(&mut self) -> Result<ImportNode, Error> {
         // Import statements have three variations:
         //
         // 1. import foo.bar
@@ -195,13 +195,13 @@ impl<'a> Parser<'a> {
                 .clone(),
         };
 
-        Ok(Decl::Import(ImportNode {
+        Ok(ImportNode {
             kw,
             names,
             imports,
             alias,
             end_tok,
-        }))
+        })
     }
 
     /// Parse a list of items separated by comma and an arbitrary amount of newlines.
@@ -225,6 +225,23 @@ impl<'a> Parser<'a> {
 
         self.skip_whitespace_and_not_eof();
         Ok(items)
+    }
+
+    fn parse_decl(&mut self) -> Result<Decl, Error> {
+        // Not having checked for eof is a bug in the caller.
+        assert!(!self.eof(), "parse_decl called without checking eof");
+        let token = self.cur().unwrap();
+
+        match token.kind {
+            TokenKind::Func | TokenKind::Pub => self.parse_function(token),
+            // TODO: public extern (re-export)
+            TokenKind::Extern => {
+                self.consume(); // extern
+                Ok(Decl::Extern(self.parse_function_def()?))
+            }
+            //TokenKind::Package => Err(self.error_token("package can only be declared once")),
+            _ => Err(self.error_token("expected declaration")),
+        }
     }
 
     fn parse_function_def(&mut self) -> Result<FuncDeclNode, Error> {
@@ -512,11 +529,11 @@ impl<'a> Parser<'a> {
 
     /// Create error marking the given token range.
     fn error_from_to(&self, message: &str, from: &Token, to: &Token) -> Error {
-        Error::new(message, from, to, &self.file.src)
+        Error::new(message, from, to, &self.src)
     }
 
     fn error_node(&self, message: &str, node: &dyn Node) -> Error {
-        Error::range(message, node.pos(), node.end(), &self.file.src)
+        Error::range(message, node.pos(), node.end(), &self.src)
     }
 
     fn cur(&self) -> Option<Token> {

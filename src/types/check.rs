@@ -40,7 +40,7 @@ pub fn check(files: Vec<File>, config: &Config) -> Res<Package> {
 
     info!("success, all files");
     Ok(Package::new(
-        files[0].pkgname.clone(),
+        files[0].package_name.clone(),
         // TODO: filepath in packages, copy from file
         "".to_string(),
         files,
