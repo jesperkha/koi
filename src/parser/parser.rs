@@ -141,6 +141,7 @@ impl<'a> Parser<'a> {
 
         while self.matches(TokenKind::Import) {
             imports.push(self.parse_import()?);
+            self.skip_whitespace_and_not_eof();
         }
 
         Ok(imports)

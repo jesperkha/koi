@@ -1,4 +1,5 @@
 use core::fmt;
+use std::collections::HashSet;
 
 use crate::{
     ast::Printer,
@@ -51,23 +52,17 @@ pub trait Visitor<R> {
     fn visit_import(&mut self, node: &ImportNode) -> R;
 }
 
-/// Unique package idenfitifer (hash of package path).
-pub type PackageID = usize;
+/// Unique package identifier (full import name, eg. app.server.util)
+#[derive(Hash, Eq, Clone, PartialEq, Debug)]
+pub struct PackageID(pub String);
 
 /// A FileSet is a collection of ASTs (Files). The imports vector is a list of
 /// all imports across all source files in the set. These must be type checked
 /// before this fileset can be processed further.
 pub struct FileSet {
     pub package_id: PackageID,
+    pub imports: HashSet<PackageID>,
     pub files: Vec<File>,
-    pub imports: Vec<ImportedPackage>,
-}
-
-pub struct ImportedPackage {
-    /// Full package import name joined with '.'
-    /// Eg. "app.utils.json"
-    pub name: String,
-    pub package_id: PackageID,
 }
 
 #[derive(Debug)]

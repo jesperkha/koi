@@ -13,7 +13,7 @@ use crate::{
     config::Config,
     error::ErrorSet,
     ir::{IRUnit, emit_ir},
-    parser::parse,
+    parser::{new_fileset, parse},
     scanner::scan,
     token::Source,
     types::{Package, check},
@@ -53,44 +53,48 @@ impl<'a> Driver<'a> {
         }
 
         let source_dirs = list_source_directories(&config.srcdir)?;
-        let mut asm_files = Vec::new();
+        //let mut asm_files = Vec::new();
 
         for dir in &source_dirs {
             let sources = collect_files_in_directory(dir)?;
-            let file = self.parse_files(sources)?;
-            let pkg = self.type_check_and_create_package(file)?;
-            let ir_unit = self.emit_package_ir(&pkg)?;
-            let asm = self.assemble_ir_unit(ir_unit, &config.target)?;
+            let files = self.parse_files(sources)?;
 
-            let outfile = write_output_file(&config.bindir, &pkg.name, &asm.source)?;
-            info!("output assembly file: {}", outfile.display());
-            asm_files.push(outfile);
+            let fileset = new_fileset(files)?;
+            println!("{:?}: {:?}", fileset.package_id, fileset.imports);
+
+            // let pkg = self.type_check_and_create_package(file)?;
+            // let ir_unit = self.emit_package_ir(&pkg)?;
+            // let asm = self.assemble_ir_unit(ir_unit, &config.target)?;
+
+            // let outfile = write_output_file(&config.bindir, &pkg.name, &asm.source)?;
+            // info!("output assembly file: {}", outfile.display());
+            // asm_files.push(outfile);
         }
 
-        for file in &asm_files {
-            info!("assembling: {}", file.display());
-            let src = file.to_string_lossy();
-            let out = file.with_extension("o");
-            cmd("as", &["-o", &out.to_string_lossy(), &src])?;
-        }
+        // for file in &asm_files {
+        //     info!("assembling: {}", file.display());
+        //     let src = file.to_string_lossy();
+        //     let out = file.with_extension("o");
+        //     cmd("as", &["-o", &out.to_string_lossy(), &src])?;
+        // }
 
-        let entry_o = format!("{}/entry.o", config.bindir);
-        cmd("as", &["-o", &entry_o, "lib/compile/entry.s"])?;
+        // let entry_o = format!("{}/entry.o", config.bindir);
+        // cmd("as", &["-o", &entry_o, "lib/compile/entry.s"])?;
 
-        let mut objectfiles = vec![entry_o];
-        for file in asm_files {
-            objectfiles.push(file.with_extension("o").to_string_lossy().to_string());
-        }
+        // let mut objectfiles = vec![entry_o];
+        // for file in asm_files {
+        //     objectfiles.push(file.with_extension("o").to_string_lossy().to_string());
+        // }
 
-        let mut args = vec!["-o", &config.outfile, "-nostdlib"];
-        args.extend_from_slice(
-            &objectfiles
-                .iter()
-                .map(|f| f.as_str())
-                .collect::<Vec<&str>>(),
-        );
+        // let mut args = vec!["-o", &config.outfile, "-nostdlib"];
+        // args.extend_from_slice(
+        //     &objectfiles
+        //         .iter()
+        //         .map(|f| f.as_str())
+        //         .collect::<Vec<&str>>(),
+        // );
 
-        cmd("ld", &args)?;
+        // cmd("ld", &args)?;
 
         Ok(())
     }

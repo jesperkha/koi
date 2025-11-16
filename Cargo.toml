@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+petgraph = "0.8.3"
 strum = "0.26"
 strum_macros = "0.26"
 tracing = "0.1"
