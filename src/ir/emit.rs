@@ -38,8 +38,6 @@ struct Emitter<'a> {
     stack_size: usize, // Cumulative stack size from declarations
 }
 
-// TODO: dead code elimination (warning)
-
 impl<'a> Emitter<'a> {
     fn new(pkg: &'a Package, config: &'a Config) -> Self {
         info!("package '{}' at {}", pkg.name, pkg.filepath);
@@ -146,7 +144,12 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
             stmt.accept(self)?;
         }
 
-        let (mut body, stacksize) = self.pop_scope();
+        let (mut body, mut stacksize) = self.pop_scope();
+
+        // Add param sizes to total stack size
+        for p in &params {
+            stacksize += p.size();
+        }
 
         // Add explicit void return for non-returing functions
         if !self.has_returned {

@@ -254,6 +254,7 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
     }
 
     fn visit_static_string(&mut self, d: &crate::ir::StringDataIns) -> () {
+        //self.data.writeln(&format!(".local .{}", d.name));
         self.data
             .writeln(&format!(".{}: .asciz \"{}\"", d.name, d.value));
     }
