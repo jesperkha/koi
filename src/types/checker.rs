@@ -325,6 +325,9 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
 
     fn visit_var_decl(&mut self, node: &crate::ast::VarDeclNode) -> EvalResult {
         let id = self.eval(&node.expr)?;
+        if id == self.ctx.void() {
+            return Err(self.error("cannot assign void type to variable", node));
+        }
         self.bind(&node.name, id, node.constant)
     }
 
