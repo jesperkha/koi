@@ -52,8 +52,11 @@ impl<'a> Driver<'a> {
         let mut filesets = Vec::new();
         for dir in &list_source_directories(&config.srcdir)? {
             let sources = collect_files_in_directory(dir)?;
-            let files = self.parse_files(sources)?;
+            if sources.len() == 0 {
+                continue;
+            }
 
+            let files = self.parse_files(sources)?;
             let fs = new_fileset(files)?;
             filesets.push(fs);
         }
