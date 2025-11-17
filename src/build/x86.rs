@@ -188,21 +188,24 @@ impl<'a> Builder<'a> for X86Builder<'a> {
 
 impl<'a> IRVisitor<()> for X86Builder<'a> {
     fn visit_func(&mut self, f: &crate::ir::FuncInst) {
+        // Function label
         if f.public {
             self.text.writeln(&format!(".globl {}", f.name));
         }
-
         self.text.writeln(&format!("{}:", f.name));
+
+        // Push new stack frame
         self.push();
-
         self.stacksize = 0;
-
         self.text.writeln("push rbp");
         self.text.writeln("mov rbp, rsp");
 
-        self.text
-            .writeln(&format!("sub rsp, {}", round_up_to_mult_of_16(f.stacksize)));
+        if f.stacksize > 0 {
+            let rounded_size = round_up_to_mult_of_16(f.stacksize);
+            self.text.writeln(&format!("sub rsp, {}", rounded_size));
+        }
 
+        // Put params on stack
         self.alloc.reset_params();
         for (i, ty) in f.params.iter().enumerate() {
             let dest = self.stack_alloc(ty.size());
