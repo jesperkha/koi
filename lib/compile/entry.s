@@ -81,3 +81,5 @@ _start:
 	mov rax, 60
 	mov rdi, r12
 	syscall
+
+.section .note.GNU-stack,"",@progbits

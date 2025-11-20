@@ -180,6 +180,8 @@ impl<'a> Builder<'a> for X86Builder<'a> {
         src.writeln(".section .text\n");
         src.append(&self.text);
 
+        src.writeln(".section .note.GNU-stack,\"\",@progbits\n");
+
         Ok(TransUnit {
             source: src.content,
         })
