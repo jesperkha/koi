@@ -11,36 +11,12 @@ use crate::{
     types::{Package, PrimitiveType, TypeContext, TypeId, TypeKind, no_type, symtable::SymTable},
 };
 
-/// Type check files in set. FileSet cannot be empty.
-pub fn check_fileset(fs: FileSet, config: &Config) -> Res<Package> {
-    info!("checking {} files", fs.files.len());
-    assert!(fs.files.len() > 0, "no files to type check");
-
-    let mut ctx = TypeContext::new();
-    let mut errs = ErrorSet::new();
-
-    for file in &fs.files {
-        let checker = Checker::new(&file, &mut ctx, config);
-        errs.join(checker.check());
-    }
-
-    if errs.len() > 0 {
-        info!("fail, finished all with {} errors", errs.len());
-        return Err(errs);
-    }
-
-    // TODO: assert all pkg names equal
-
-    info!("success, all files");
-    Ok(Package::new(fs.package_id.0.clone(), fs, ctx))
-}
-
 struct Value {
     ty: TypeId,
     constant: bool,
 }
 
-struct Checker<'a> {
+pub struct Checker<'a> {
     ctx: &'a mut TypeContext,
     vars: SymTable<Value>,
     file: &'a File,

@@ -16,7 +16,7 @@ use crate::{
     parser::{parse, sort_by_dependency_graph},
     token::Source,
     token::scan,
-    types::{Package, check_fileset},
+    types::{Package, type_check},
 };
 
 type Res<T> = Result<T, String>;
@@ -125,7 +125,7 @@ impl<'a> Driver<'a> {
     }
 
     fn type_check_and_create_package(&self, fs: FileSet) -> Res<Package> {
-        check_fileset(fs, self.config).map_err(|errs| errs.to_string())
+        type_check(fs, self.config).map_err(|errs| errs.to_string())
     }
 
     fn emit_package_ir(&self, pkg: &Package) -> Res<IRUnit> {
