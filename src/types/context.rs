@@ -2,8 +2,8 @@ use std::{collections::HashMap, str};
 use strum::IntoEnumIterator;
 
 use crate::{
-    ast::{Node, NodeId, no_type},
-    types::{Namespace, PrimitiveType, Type, TypeId, TypeKind},
+    ast::{Node, NodeId},
+    types::{Namespace, PrimitiveType, Type, TypeId, TypeKind, no_type},
 };
 
 // TODO: context dump with all bindings and types
