@@ -26,7 +26,7 @@ impl Error {
             line: from.pos.row + 1,
             line_str: file.line(from.pos.row).to_owned(),
             length: to.end_pos.col - from.pos.col,
-            filename: file.name.clone(),
+            filename: file.filepath.clone(),
             info: String::new(),
             from: from.pos.col,
         }
@@ -38,7 +38,7 @@ impl Error {
             line: from.row + 1,
             line_str: file.line(from.row).to_owned(),
             length: to.col - from.col,
-            filename: file.name.clone(),
+            filename: file.filepath.clone(),
             info: String::new(),
             from: from.col,
         }
@@ -50,7 +50,7 @@ impl Error {
             line: from.row + 1,
             line_str: file.line(from.row).to_owned(),
             length: length,
-            filename: file.name.clone(),
+            filename: file.filepath.clone(),
             info: String::new(),
             from: from.col,
         }

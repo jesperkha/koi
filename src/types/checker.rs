@@ -2,21 +2,45 @@ use tracing::info;
 
 use crate::{
     ast::{
-        BlockNode, CallExpr, Expr, Field, File, FuncNode, GroupExpr, Node, ReturnNode, TypeNode,
-        Visitable, Visitor,
+        BlockNode, CallExpr, Expr, Field, File, FileSet, FuncNode, GroupExpr, Node, ReturnNode,
+        TypeNode, Visitable, Visitor,
     },
     config::Config,
-    error::{Error, ErrorSet},
+    error::{Error, ErrorSet, Res},
     token::{Pos, Token, TokenKind},
-    types::{PrimitiveType, TypeContext, TypeId, TypeKind, no_type, symtable::SymTable},
+    types::{Package, PrimitiveType, TypeContext, TypeId, TypeKind, no_type, symtable::SymTable},
 };
+
+/// Type check files in set. FileSet cannot be empty.
+pub fn check_fileset(fs: FileSet, config: &Config) -> Res<Package> {
+    info!("checking {} files", fs.files.len());
+    assert!(fs.files.len() > 0, "no files to type check");
+
+    let mut ctx = TypeContext::new();
+    let mut errs = ErrorSet::new();
+
+    for file in &fs.files {
+        let checker = Checker::new(&file, &mut ctx, config);
+        errs.join(checker.check());
+    }
+
+    if errs.len() > 0 {
+        info!("fail, finished all with {} errors", errs.len());
+        return Err(errs);
+    }
+
+    // TODO: assert all pkg names equal
+
+    info!("success, all files");
+    Ok(Package::new(fs.package_id.0.clone(), fs, ctx))
+}
 
 struct Value {
     ty: TypeId,
     constant: bool,
 }
 
-pub struct Checker<'a> {
+struct Checker<'a> {
     ctx: &'a mut TypeContext,
     vars: SymTable<Value>,
     file: &'a File,
@@ -46,10 +70,7 @@ impl<'a> Checker<'a> {
     /// TypeContext with files types. Collects errors.
     pub fn check(mut self) -> ErrorSet {
         let mut errs = ErrorSet::new();
-        info!(
-            "file '{}', pkg '{}'",
-            self.file.src.name, self.file.package_name
-        );
+        info!("file '{}'", self.file.src.filepath);
 
         for n in &self.file.ast.decls {
             let _ = self.eval(n).map_err(|e| errs.add(e));
@@ -157,11 +178,8 @@ impl<'a> Visitor<EvalResult> for Checker<'a> {
             let int_id = self.ctx.primitive(PrimitiveType::I64);
 
             // Must be package main
-            if !self.file.package_name.is_empty() && self.file.package_name != "main" {
-                info!(
-                    "package name expected to be main, is {}",
-                    self.file.package_name
-                );
+            if !self.file.package.is_empty() && self.file.package != "main" {
+                info!("package name expected to be main, is {}", self.file.package);
                 return Err(self.error("main function can only be declared in main package", node));
             }
 

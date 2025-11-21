@@ -2,8 +2,7 @@ use std::fs::read_to_string;
 
 #[derive(Debug)]
 pub struct Source {
-    /// Name of file, including extension
-    pub name: String,
+    pub filepath: String,
     /// File contents
     pub src: Vec<u8>,
     /// File size in bytes
@@ -14,10 +13,10 @@ pub struct Source {
 
 impl Source {
     /// Create new file object using given source.
-    pub fn new(filename: String, src: Vec<u8>) -> Source {
+    pub fn new(filepath: String, src: Vec<u8>) -> Source {
         Source {
+            filepath,
             lines: Source::get_line_beginnings(src.as_slice()),
-            name: filename,
             size: src.len(),
             src: src,
         }

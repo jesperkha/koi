@@ -1,11 +1,11 @@
 use crate::{
-    ast::File,
+    ast::{File, FileSet},
     build::{Builder, X86Builder},
     config::Config,
     error::{ErrorSet, Res},
     ir::{IRUnit, emit_ir},
-    parser::{new_fileset, parse},
-    scanner::scan,
+    parser::parse,
+    token::scan,
     token::{Source, Token},
     types::{Package, check_fileset},
 };
@@ -44,7 +44,7 @@ pub fn parse_string(src: &str) -> Res<File> {
 
 pub fn check_string(src: &str) -> Res<Package> {
     let config = Config::test();
-    let fs = new_fileset(vec![parse_string(src)?]);
+    let fs = FileSet::new(vec![parse_string(src)?]);
     check_fileset(fs, &config)
 }
 
@@ -71,7 +71,7 @@ pub fn debug_print_all_steps(src: &str) {
             println!("SOURCE CODE");
             println!("===========\n");
             println!("{}", file);
-            check_fileset(new_fileset(vec![file]), &config)
+            check_fileset(FileSet::new(vec![file]), &config)
         })
         .and_then(|pkg| emit_ir(&pkg, &config))
         .map_err(|err| err.to_string())

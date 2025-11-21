@@ -40,11 +40,11 @@ struct Emitter<'a> {
 
 impl<'a> Emitter<'a> {
     fn new(pkg: &'a Package, config: &'a Config) -> Self {
-        info!("package '{}' at {}", pkg.name, pkg.filepath);
+        info!("package '{}'", pkg.name());
         Self {
             _config: config,
-            ctx: &pkg.ctx,
-            nodes: &pkg.nodes,
+            ctx: pkg.context(),
+            nodes: pkg.nodes(),
             sym: SymTracker::new(),
             has_returned: false,
             ins: vec![Vec::new()],

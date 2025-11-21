@@ -1,10 +1,4 @@
-use core::fmt;
-use std::collections::HashSet;
-
-use crate::{
-    ast::Printer,
-    token::{Pos, Source, Token},
-};
+use crate::token::{Pos, Token};
 
 pub type NodeId = usize;
 
@@ -50,51 +44,6 @@ pub trait Visitor<R> {
     fn visit_var_decl(&mut self, node: &VarDeclNode) -> R;
     fn visit_var_assign(&mut self, node: &VarAssignNode) -> R;
     fn visit_import(&mut self, node: &ImportNode) -> R;
-}
-
-/// Unique package identifier (full import name, eg. app.server.util)
-#[derive(Hash, Eq, Clone, PartialEq, Debug)]
-pub struct PackageID(pub String);
-
-/// A FileSet is a collection of ASTs (Files). The imports vector is a list of
-/// all imports across all source files in the set. These must be type checked
-/// before this fileset can be processed further.
-pub struct FileSet {
-    pub package_id: PackageID,
-    pub imports: HashSet<PackageID>,
-    pub files: Vec<File>,
-}
-
-#[derive(Debug)]
-pub struct File {
-    /// Package name as string, or 'unnamed' if not specified (test files)
-    pub package_name: String,
-    pub ast: Ast,
-    /// The files raw source code
-    pub src: Source,
-}
-
-impl File {
-    pub fn new(src: Source, ast: Ast) -> Self {
-        File {
-            ast,
-            package_name: "".to_string(),
-            src,
-        }
-    }
-
-    /// Walks the AST and applites the visitor to each node.
-    pub fn walk<R>(&self, visitor: &mut dyn Visitor<R>) {
-        for node in &self.ast.decls {
-            node.accept(visitor);
-        }
-    }
-}
-
-impl fmt::Display for File {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Printer::to_string(self))
-    }
 }
 
 /// Declarations are not considered statements for linting purposes.

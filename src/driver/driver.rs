@@ -13,9 +13,9 @@ use crate::{
     config::Config,
     error::ErrorSet,
     ir::{IRUnit, emit_ir},
-    parser::{new_fileset, parse, sort_by_dependency_graph},
-    scanner::scan,
+    parser::{parse, sort_by_dependency_graph},
     token::Source,
+    token::scan,
     types::{Package, check_fileset},
 };
 
@@ -57,7 +57,7 @@ impl<'a> Driver<'a> {
             }
 
             let files = self.parse_files(sources)?;
-            filesets.push(new_fileset(files));
+            filesets.push(FileSet::new(files));
         }
 
         // Create and sort dependency graph, returning a list of
@@ -71,7 +71,7 @@ impl<'a> Driver<'a> {
             let ir_unit = self.emit_package_ir(&pkg)?;
             let asm = self.assemble_ir_unit(ir_unit, &config.target)?;
 
-            let outfile = write_output_file(&config.bindir, &pkg.name, &asm.source)?;
+            let outfile = write_output_file(&config.bindir, pkg.name(), &asm.source)?;
             info!("output assembly file: {}", outfile.display());
             asm_files.push(outfile);
         }

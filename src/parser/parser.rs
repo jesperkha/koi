@@ -47,7 +47,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse(mut self) -> Res<File> {
-        info!("file '{}'", self.src.name);
+        info!("file '{}'", self.src.filepath);
 
         // Parse package declaration as it must come first
         let package = if !self.config.anon_packages {
@@ -105,11 +105,7 @@ impl<'a> Parser<'a> {
             decls,
         };
 
-        Ok(File {
-            package_name,
-            src: self.src,
-            ast,
-        })
+        Ok(File::new(package_name, self.src, ast))
     }
 
     /// Consume newlines until first non-newline token or eof.
