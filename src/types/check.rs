@@ -13,8 +13,12 @@ pub fn type_check(fs: FileSet, config: &Config) -> Res<Package> {
     let passes = vec![resolve_imports, global_pass, check_fileset];
 
     passes.iter().for_each(|p| {
-        p(&fs, &mut ctx, config).map_err(|e| errs.join(e));
+        let _ = p(&fs, &mut ctx, config).map_err(|e| errs.join(e));
     });
+
+    if errs.len() > 0 {
+        return Err(errs);
+    }
 
     Ok(Package::new(fs.package_id.to_string(), fs, ctx))
 }
@@ -37,7 +41,7 @@ fn check_fileset(fs: &FileSet, ctx: &mut TypeContext, config: &Config) -> Result
     let mut errs = ErrorSet::new();
 
     for file in &fs.files {
-        let checker = Checker::new(&file, ctx, config);
+        let checker = Checker::new(file, ctx, config);
         errs.join(checker.check());
     }
 
