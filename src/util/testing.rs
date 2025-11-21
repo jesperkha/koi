@@ -4,10 +4,10 @@ use crate::{
     config::Config,
     error::{ErrorSet, Res},
     ir::{IRUnit, emit_ir},
-    parser::parse,
+    parser::{new_fileset, parse},
     scanner::scan,
     token::{Source, Token},
-    types::{Package, check},
+    types::{Package, check_fileset},
 };
 
 pub fn compare_string_lines_or_panic(ina: String, inb: String) {
@@ -44,7 +44,8 @@ pub fn parse_string(src: &str) -> Res<File> {
 
 pub fn check_string(src: &str) -> Res<Package> {
     let config = Config::test();
-    check(vec![parse_string(src)?], &config)
+    let fs = new_fileset(vec![parse_string(src)?]);
+    check_fileset(fs, &config)
 }
 
 pub fn emit_string(src: &str) -> Res<IRUnit> {
@@ -70,7 +71,7 @@ pub fn debug_print_all_steps(src: &str) {
             println!("SOURCE CODE");
             println!("===========\n");
             println!("{}", file);
-            check(vec![file], &config)
+            check_fileset(new_fileset(vec![file]), &config)
         })
         .and_then(|pkg| emit_ir(&pkg, &config))
         .map_err(|err| err.to_string())

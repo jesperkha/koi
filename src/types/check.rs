@@ -1,5 +1,5 @@
 use crate::{
-    ast::File,
+    ast::{File, FileSet},
     config::Config,
     error::{ErrorSet, Res},
     types::{Checker, Package, TypeContext},
@@ -17,16 +17,16 @@ use tracing::info;
     pkg = check(export, ctx, file)
 */
 
-pub fn check(files: Vec<File>, config: &Config) -> Res<Package> {
+pub fn check_fileset(fs: FileSet, config: &Config) -> Res<Package> {
     let mut ctx = TypeContext::new();
     let mut errs = ErrorSet::new();
 
-    info!("checking {} files", files.len());
+    info!("checking {} files", fs.files.len());
 
     // TODO: remove this check and handle empty packages properly
-    assert!(files.len() > 0, "no files to type check");
+    assert!(fs.files.len() > 0, "no files to type check");
 
-    for file in &files {
+    for file in &fs.files {
         let checker = Checker::new(&file, &mut ctx, config);
         errs.join(checker.check());
     }
@@ -40,10 +40,10 @@ pub fn check(files: Vec<File>, config: &Config) -> Res<Package> {
 
     info!("success, all files");
     Ok(Package::new(
-        files[0].package_name.clone(),
+        fs.package_id.0.clone(),
         // TODO: filepath in packages, copy from file
         "".to_string(),
-        files,
+        fs.files,
         ctx,
     ))
 }

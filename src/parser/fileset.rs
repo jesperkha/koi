@@ -2,12 +2,13 @@ use std::collections::HashSet;
 
 use crate::ast::{File, FileSet, PackageID};
 
-pub fn new_fileset(files: Vec<File>) -> Result<FileSet, String> {
-    if files.len() == 0 {
-        return Err(format!("no input files"));
-    }
+pub fn new_fileset(files: Vec<File>) -> FileSet {
+    let package_id = if files.len() == 0 {
+        PackageID(files[0].package_name.clone())
+    } else {
+        PackageID(String::from(""))
+    };
 
-    let package_id = PackageID(files[0].package_name.clone());
     let mut imports = HashSet::new();
 
     for file in &files {
@@ -22,9 +23,9 @@ pub fn new_fileset(files: Vec<File>) -> Result<FileSet, String> {
         }
     }
 
-    Ok(FileSet {
+    FileSet {
         package_id,
         imports,
         files,
-    })
+    }
 }

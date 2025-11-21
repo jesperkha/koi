@@ -7,7 +7,7 @@ mod pkg;
 mod symtable;
 mod types;
 
-pub use check::check;
+pub use check::check_fileset;
 pub use checker::Checker;
 pub use context::TypeContext;
 pub use exports::Exports;

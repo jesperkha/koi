@@ -8,7 +8,7 @@ use tracing::info;
 use walkdir::WalkDir;
 
 use crate::{
-    ast::File,
+    ast::{File, FileSet},
     build::{TransUnit, X86Builder, assemble},
     config::Config,
     error::ErrorSet,
@@ -16,7 +16,7 @@ use crate::{
     parser::{new_fileset, parse, sort_by_dependency_graph},
     scanner::scan,
     token::Source,
-    types::{Package, check},
+    types::{Package, check_fileset},
 };
 
 type Res<T> = Result<T, String>;
@@ -57,8 +57,7 @@ impl<'a> Driver<'a> {
             }
 
             let files = self.parse_files(sources)?;
-            let fs = new_fileset(files)?;
-            filesets.push(fs);
+            filesets.push(new_fileset(files));
         }
 
         // Create and sort dependency graph, returning a list of
@@ -68,7 +67,7 @@ impl<'a> Driver<'a> {
         // Type check, convert to IR, and emit assembly
         let mut asm_files = Vec::new();
         for fs in sorted_filesets {
-            let pkg = self.type_check_and_create_package(fs.files)?;
+            let pkg = self.type_check_and_create_package(fs)?;
             let ir_unit = self.emit_package_ir(&pkg)?;
             let asm = self.assemble_ir_unit(ir_unit, &config.target)?;
 
@@ -125,8 +124,8 @@ impl<'a> Driver<'a> {
         }
     }
 
-    fn type_check_and_create_package(&self, files: Vec<File>) -> Res<Package> {
-        check(files, self.config).map_err(|errs| errs.to_string())
+    fn type_check_and_create_package(&self, fs: FileSet) -> Res<Package> {
+        check_fileset(fs, self.config).map_err(|errs| errs.to_string())
     }
 
     fn emit_package_ir(&self, pkg: &Package) -> Res<IRUnit> {
