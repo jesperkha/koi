@@ -1,3 +1,4 @@
+mod ast;
 mod check;
 mod checker;
 mod context;
@@ -7,6 +8,7 @@ mod package;
 mod symtable;
 mod types;
 
+pub use ast::*;
 pub use check::type_check;
 
 pub use checker::Checker;
