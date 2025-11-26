@@ -1,7 +1,7 @@
 use crate::{
-    ast::FileSet,
+    ast::{FileSet, Node},
     config::Config,
-    error::{ErrorSet, Res},
+    error::{Error, ErrorSet, Res},
     types::{Checker, Package, TypeContext, TypedAst},
 };
 use tracing::info;
@@ -11,12 +11,54 @@ pub fn type_check(fs: FileSet, config: &Config) -> Res<Package> {
     let pkgname = fs.package_id.0.clone();
 
     // Passes
+    check_package_names_equal(&fs, config)?;
+    check_one_file_in_main_package(&fs)?;
+
     resolve_imports(&fs, &mut ctx, config)?;
     global_pass(&fs, &mut ctx, config)?;
 
-    // Final tree emition
     let tree = emit_typed_ast(fs, ctx, config)?;
     Ok(Package::new(pkgname, tree))
+}
+
+fn check_one_file_in_main_package(fs: &FileSet) -> Result<(), ErrorSet> {
+    if &fs.package_id.0 == "main" && fs.files.len() > 1 {
+        let f = &fs.files[0];
+        Err(ErrorSet::new_from(Error::range(
+            &format!(
+                "at most one file can be part of package 'main', found {}",
+                fs.files.len()
+            ),
+            f.ast.package.pos(),
+            f.ast.package.end(),
+            &f.src,
+        )))
+    } else {
+        Ok(())
+    }
+}
+
+/// Assert that all package names in the file set are the same.
+fn check_package_names_equal(fs: &FileSet, config: &Config) -> Result<(), ErrorSet> {
+    if config.anon_packages {
+        return Ok(());
+    }
+
+    let name = &fs.package_id.0;
+    let mut errs = ErrorSet::new();
+
+    for file in &fs.files {
+        if &file.package != name {
+            errs.add(Error::range(
+                &format!("expected package name '{}'", name),
+                file.ast.package.pos(),
+                file.ast.package.end(),
+                &file.src,
+            ));
+        }
+    }
+
+    if errs.len() > 0 { Err(errs) } else { Ok(()) }
 }
 
 /// Resolve all imported types and symbols.
@@ -29,6 +71,7 @@ fn global_pass(fs: &FileSet, ctx: &mut TypeContext, config: &Config) -> Result<(
     Ok(())
 }
 
+/// Emit combined typed AST for all files in set.
 fn emit_typed_ast(
     fs: FileSet,
     mut ctx: TypeContext,
@@ -53,6 +96,5 @@ fn emit_typed_ast(
         return Err(errs);
     }
 
-    // TODO: assert all pkg names equal
     Ok(TypedAst { ctx, decls })
 }
