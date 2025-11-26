@@ -1,6 +1,6 @@
 use crate::{
     ast::{Node, NodeId},
-    token::{Pos, TokenKind},
+    token::Pos,
     types::{Type, TypeContext, TypeId, TypeKind},
 };
 
