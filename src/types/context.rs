@@ -133,6 +133,15 @@ impl TypeContext {
             .clone()
     }
 
+    pub fn primitive_type(&mut self, kind: PrimitiveType) -> &Type {
+        let id = self
+            .cache
+            .get(&TypeKind::Primitive(kind))
+            .expect("all primitive types must be assigned at init");
+
+        self.lookup(*id)
+    }
+
     fn intern(&mut self, kind: TypeKind) -> TypeId {
         let id = self.types.len();
         let typ = Type {
@@ -188,6 +197,13 @@ impl TypeContext {
     /// Shorthand for getting void type
     pub fn void(&mut self) -> TypeId {
         self.primitive(PrimitiveType::Void)
+    }
+
+    pub fn void_type(&mut self) -> Type {
+        Type {
+            kind: TypeKind::Primitive(PrimitiveType::Void),
+            id: self.primitive(PrimitiveType::Void),
+        }
     }
 
     /// Set top level named type

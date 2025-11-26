@@ -2,13 +2,16 @@ use tracing::info;
 
 use crate::{
     ast::{
-        BlockNode, CallExpr, Expr, Field, File, FileSet, FuncNode, GroupExpr, Node, ReturnNode,
+        self, BlockNode, CallExpr, Expr, Field, File, FuncNode, GroupExpr, Node, ReturnNode,
         TypeNode, Visitable, Visitor,
     },
     config::Config,
-    error::{Error, ErrorSet, Res},
+    error::{Error, ErrorSet},
     token::{Pos, Token, TokenKind},
-    types::{Package, PrimitiveType, TypeContext, TypeId, TypeKind, no_type, symtable::SymTable},
+    types::{
+        self, NodeMeta, PrimitiveType, Type, TypeContext, TypeId, TypeKind, TypedNode,
+        ast_node_to_meta, no_type, symtable::SymTable,
+    },
 };
 
 struct Value {
@@ -132,6 +135,320 @@ impl<'a> Checker<'a> {
             },
             Expr::Group(_) | Expr::Call(_) => true,
         }
+    }
+
+    // ---------------------------- Generate AST ---------------------------- //
+
+    fn emit_ast(&mut self, decls: Vec<ast::Decl>) -> Result<Vec<types::Decl>, ErrorSet> {
+        let mut errs = ErrorSet::new();
+        info!("file '{}'", self.file.src.filepath);
+
+        let mut typed_decls = Vec::new();
+        for n in decls {
+            match self.emit_decl(n) {
+                Ok(d) => typed_decls.push(d),
+                Err(e) => errs.add(e),
+            };
+        }
+
+        if errs.len() > 0 {
+            info!("fail, finished with {} errors", errs.len());
+            Err(errs)
+        } else {
+            Ok(typed_decls)
+        }
+    }
+
+    fn emit_decl(&mut self, decl: ast::Decl) -> Result<types::Decl, Error> {
+        match decl {
+            ast::Decl::Func(node) => self.emit_func(node),
+            ast::Decl::Extern(node) => self.emit_extern(node),
+            ast::Decl::Import(_) => panic!("import statements should not be emitted"),
+        }
+    }
+
+    fn emit_stmt(&mut self, stmt: ast::Stmt) -> Result<types::Stmt, Error> {
+        match stmt {
+            ast::Stmt::ExprStmt(node) => Ok(types::Stmt::ExprStmt(self.emit_expr(node)?)),
+            ast::Stmt::Return(node) => self.emit_return(node),
+            ast::Stmt::VarDecl(node) => self.emit_var_decl(node),
+            ast::Stmt::VarAssign(node) => self.emit_var_assign(node),
+            ast::Stmt::Block(_) => panic!("block should be handled manually as list of stmt"),
+        }
+    }
+
+    fn emit_expr(&mut self, expr: ast::Expr) -> Result<types::Expr, Error> {
+        match expr {
+            Expr::Literal(tok) => self.emit_literal(tok),
+            Expr::Group(node) => self.emit_expr(*node.inner),
+            Expr::Call(node) => self.emit_call(node),
+        }
+    }
+
+    fn emit_func(&mut self, node: ast::FuncNode) -> Result<types::Decl, Error> {
+        let meta = ast_node_to_meta(&node);
+
+        // Evaluate return type if any
+        let ret_id = self.eval_optional(&node.ret_type)?;
+
+        // Get parameter types
+        let param_ids = &node
+            .params
+            .iter()
+            .map(|f| self.eval(&f.typ).map(|id| (&f.name, id)))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // If this is the main function we do additional checks
+        if node.name.to_string() == "main" {
+            let int_id = self.ctx.primitive(PrimitiveType::I64);
+
+            // Must be package main
+            if !self.file.package.is_empty() && self.file.package != "main" {
+                info!("package name expected to be main, is {}", self.file.package);
+                return Err(self.error("main function can only be declared in main package", &node));
+            }
+
+            // If return type is not int
+            if !self.ctx.equivalent(ret_id, int_id) {
+                let msg = "main function must return 'i64'";
+                return Err(node
+                    .ret_type
+                    .as_ref()
+                    .map_or(self.error_token(msg, &node.rparen), |ty_node| {
+                        self.error(msg, ty_node)
+                    }));
+            }
+
+            // No parameters allowed
+            if param_ids.len() > 0 {
+                return Err(self.error("main function must not take any arguments", &node));
+            }
+        }
+
+        // Declare function while still in global scope
+        let func_id = self.ctx.get_or_intern(TypeKind::Function(
+            param_ids.iter().map(|v| v.1).collect(),
+            ret_id,
+        ));
+        self.bind(&node.name, func_id, true)?;
+
+        // Set up function body
+        self.vars.push_scope();
+        self.rtype = ret_id;
+        self.has_returned = false;
+
+        // Declare params in function body
+        for p in param_ids {
+            self.bind(p.0, p.1, false)?;
+        }
+
+        let body = node
+            .body
+            .stmts
+            .into_iter()
+            .map(|s| self.emit_stmt(s))
+            .collect::<Result<Vec<types::Stmt>, Error>>()?;
+
+        self.vars.pop_scope();
+
+        // There was no return when there should have been
+        if !self.has_returned && ret_id != self.ctx.void() {
+            return Err(self.error_token(
+                format!("missing return in function '{}'", node.name.kind).as_str(),
+                &node.body.rbrace,
+            ));
+        }
+
+        Ok(types::Decl::Func(types::FuncNode {
+            meta,
+            name: node.name.to_string(),
+            public: node.public,
+            ty: self.ctx.lookup(func_id).clone(),
+            body,
+        }))
+    }
+
+    fn emit_extern(&mut self, node: ast::FuncDeclNode) -> Result<types::Decl, Error> {
+        let meta = ast_node_to_meta(&node);
+
+        let ret_id = self.eval_optional(&node.ret_type)?;
+        let params = self.collect_field_types(&node.params)?;
+        let kind = TypeKind::Function(params, ret_id);
+        let id = self.ctx.get_or_intern(kind.clone());
+        self.bind(&node.name, id, true)?;
+
+        Ok(types::Decl::Extern(types::ExternNode {
+            meta,
+            ty: Type { kind, id },
+            name: node.name.to_string(),
+        }))
+    }
+
+    fn emit_var_assign(&mut self, node: ast::VarAssignNode) -> Result<types::Stmt, Error> {
+        let meta = ast_node_to_meta(&node);
+
+        if self.is_constant(&node.lval) {
+            return Err(self.error("cannot assign new value to a constant", &node.lval));
+        }
+
+        let lval = self.emit_expr(node.lval)?;
+        let rval = self.emit_expr(node.expr)?;
+
+        if lval.type_id() != rval.type_id() {
+            return Err(self.error(
+                &format!(
+                    "mismatched types in assignment. expected '{}', got '{}'",
+                    self.ctx.to_string(lval.type_id()),
+                    self.ctx.to_string(rval.type_id())
+                ),
+                &rval,
+            ));
+        }
+
+        Ok(types::Stmt::VarAssign(types::VarAssignNode {
+            meta,
+            ty: self.ctx.void_type(),
+            lval,
+            rval,
+        }))
+    }
+
+    fn emit_var_decl(&mut self, node: ast::VarDeclNode) -> Result<types::Stmt, Error> {
+        let meta = ast_node_to_meta(&node);
+        let typed_expr = self.emit_expr(node.expr)?;
+
+        if typed_expr.type_id() == self.ctx.void() {
+            return Err(self.error("cannot assign void type to variable", &typed_expr));
+        }
+
+        let id = self.bind(&node.name, typed_expr.id(), node.constant)?;
+        Ok(types::Stmt::VarDecl(types::VarDeclNode {
+            meta,
+            ty: self.ctx.lookup(id).clone(),
+            name: node.name.to_string(),
+            value: typed_expr,
+        }))
+    }
+
+    fn emit_return(&mut self, node: ast::ReturnNode) -> Result<types::Stmt, Error> {
+        self.has_returned = true;
+        let meta = ast_node_to_meta(&node);
+
+        // If there is a return expression
+        // Evaluate it and compare with current scopes return type
+        if let Some(expr) = node.expr {
+            let typed_expr = self.emit_expr(expr)?;
+
+            return if typed_expr.type_id() != self.rtype {
+                Err(self.error_expected_got(
+                    "incorrect return type",
+                    self.rtype,
+                    typed_expr.type_id(),
+                    &typed_expr,
+                ))
+            } else {
+                Ok(types::Stmt::Return(types::ReturnNode {
+                    meta,
+                    ty: Type {
+                        kind: typed_expr.kind().clone(),
+                        id: typed_expr.id(),
+                    },
+                    expr: Some(typed_expr),
+                }))
+            };
+        }
+
+        // If there is no return expression
+        // Check if current scope has no return type
+        if self.rtype != self.ctx.void() {
+            Err(self.error_expected_token("incorrect return type", self.rtype, &node.kw))
+        } else {
+            Ok(types::Stmt::Return(types::ReturnNode {
+                meta,
+                expr: None,
+                ty: self.ctx.void_type(),
+            }))
+        }
+    }
+
+    fn emit_literal(&mut self, tok: Token) -> Result<types::Expr, Error> {
+        let ty = match &tok.kind {
+            TokenKind::IntLit(_) => self.ctx.primitive_type(PrimitiveType::I64),
+            TokenKind::FloatLit(_) => self.ctx.primitive_type(PrimitiveType::F64),
+            TokenKind::StringLit(_) => self.ctx.primitive_type(PrimitiveType::String),
+            TokenKind::True | TokenKind::False => self.ctx.primitive_type(PrimitiveType::Bool),
+            // TokenKind::IdentLit(name) => self
+            //     .vars
+            //     .get(name)
+            //     .map_or(Err(self.error_token("not declared", tok)), |t| Ok(t.ty)),
+            _ => todo!(),
+        };
+
+        Ok(types::Expr::Literal(types::LiteralNode {
+            meta: NodeMeta {
+                id: tok.id,
+                pos: tok.pos,
+                end: tok.end_pos,
+            },
+            ty: ty.clone(),
+            tok: tok.kind,
+        }))
+    }
+
+    fn emit_call(&mut self, node: ast::CallExpr) -> Result<types::Expr, Error> {
+        let meta = ast_node_to_meta(&node);
+        let callee = self.emit_expr(*node.callee)?;
+
+        if let TypeKind::Function(params, ret_id) = callee.kind() {
+            // Check if number of arguments matches
+            if params.len() != node.args.len() {
+                let msg = format!(
+                    "function takes {} arguments, got {}",
+                    params.len(),
+                    node.args.len(),
+                );
+                return Err(self
+                    .error_from_to(&msg, callee.pos(), &node.rparen.pos)
+                    .with_info(&format!(
+                        "definition: {}",
+                        self.ctx.to_string(callee.type_id())
+                    )));
+            }
+
+            assert_eq!(
+                params.len(),
+                node.args.len(),
+                "sanity check: args and params are same size"
+            );
+
+            let mut args = Vec::new();
+            for (i, arg) in node.args.into_iter().enumerate() {
+                let typed_arg = self.emit_expr(arg)?;
+
+                // Check if each argument type matches the param type
+                let (arg_id, param_id) = (typed_arg.type_id(), params[i]);
+                if arg_id != param_id {
+                    let msg = format!(
+                        "mismatched types in function call. expected '{}', got '{}'",
+                        self.ctx.to_string(param_id),
+                        self.ctx.to_string(arg_id)
+                    );
+                    return Err(self.error(&msg, &typed_arg));
+                }
+
+                args.push(typed_arg);
+            }
+
+            return Ok(types::Expr::Call(types::CallNode {
+                meta,
+                ty: self.ctx.lookup(*ret_id).clone(),
+                callee: Box::new(callee),
+                args,
+            }));
+        }
+
+        info!("callee type is actually: {:?}", callee.kind());
+        Err(self.error("not a function", &callee))
     }
 }
 
