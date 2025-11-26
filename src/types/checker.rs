@@ -6,7 +6,7 @@ use crate::{
     error::{Error, ErrorSet},
     token::{Pos, Source, Token, TokenKind},
     types::{
-        self, NodeMeta, PrimitiveType, Type, TypeContext, TypeId, TypeKind, TypedNode,
+        self, LiteralKind, NodeMeta, PrimitiveType, Type, TypeContext, TypeId, TypeKind, TypedNode,
         ast_node_to_meta, no_type, symtable::SymTable,
     },
 };
@@ -428,7 +428,7 @@ impl<'a> Checker<'a> {
                 end: tok.end_pos,
             },
             ty: ty.clone(),
-            tok: tok.kind,
+            kind: token_kind_to_type_literal_kind(tok.kind),
         }))
     }
 
@@ -501,5 +501,19 @@ fn token_to_primitive_type(tok: &Token) -> PrimitiveType {
         TokenKind::StringType => PrimitiveType::String,
 
         _ => panic!("unknown TypeNode::Primitive kind: {}", tok.kind),
+    }
+}
+
+fn token_kind_to_type_literal_kind(kind: TokenKind) -> LiteralKind {
+    match kind {
+        TokenKind::IdentLit(name) => LiteralKind::Ident(name),
+        TokenKind::IntLit(n) => LiteralKind::Int(n),
+        TokenKind::FloatLit(n) => LiteralKind::Float(n),
+        TokenKind::StringLit(s) => LiteralKind::String(s),
+        TokenKind::CharLit(c) => LiteralKind::Char(c),
+        TokenKind::True => LiteralKind::Bool(true),
+        TokenKind::False => LiteralKind::Bool(false),
+        TokenKind::Null => todo!(),
+        _ => panic!("unhandled token kind in conversion, {:?}", kind),
     }
 }

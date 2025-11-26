@@ -10,9 +10,9 @@ use crate::{
         AssignIns, ExternFuncInst, FuncInst, IRType, IRUnit, Ins, LValue, StoreIns, StringDataIns,
         SymTracker, Value, ir,
     },
-    token::TokenKind,
     types::{
-        self, Decl, Expr, Package, TypeContext, TypeId, TypeKind, TypedNode, Visitable, Visitor,
+        self, Decl, Expr, LiteralKind, Package, TypeContext, TypeId, TypeKind, TypedNode,
+        Visitable, Visitor,
     },
 };
 
@@ -196,25 +196,22 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
     }
 
     fn visit_literal(&mut self, node: &types::LiteralNode) -> Result<Value, Error> {
-        Ok(match &node.tok {
-            TokenKind::True => Value::Int(1),
-            TokenKind::False => Value::Int(0),
-            TokenKind::IntLit(n) => Value::Int(*n),
-            TokenKind::FloatLit(n) => Value::Float(*n),
-            TokenKind::CharLit(n) => Value::Int((*n).into()),
-            TokenKind::IdentLit(name) => self.sym.get(name),
-            TokenKind::StringLit(n) => {
+        Ok(match &node.kind {
+            LiteralKind::Ident(name) => self.sym.get(name),
+            LiteralKind::String(s) => {
                 let name = self.next_string_name();
-
                 self.push(Ins::StringData(StringDataIns {
                     name: name.to_owned(),
-                    length: n.len(),
-                    value: n.to_owned(),
+                    length: s.len(),
+                    value: s.clone(),
                 }));
-
                 Value::Data(name.to_owned())
             }
-            _ => panic!("unhandled token kind in evaluate: {:?}", node.tok),
+            LiteralKind::Int(n) => Value::Int(*n),
+            LiteralKind::Uint(n) => Value::Int(*n as i64),
+            LiteralKind::Float(f) => Value::Float(*f),
+            LiteralKind::Bool(b) => Value::Int(if *b { 1 } else { 0 }),
+            LiteralKind::Char(c) => Value::Int((*c).into()),
         })
     }
 
@@ -233,8 +230,8 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
 
     fn visit_call(&mut self, node: &types::CallNode) -> Result<Value, Error> {
         let callee = match &*node.callee {
-            Expr::Literal(t) => match &t.tok {
-                TokenKind::IdentLit(name) => Value::Function(name.clone()),
+            Expr::Literal(t) => match &t.kind {
+                LiteralKind::Ident(name) => Value::Function(name.clone()),
                 _ => panic!("unchecked invalid function call"),
             },
             e => e.accept(self)?,

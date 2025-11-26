@@ -86,7 +86,17 @@ pub struct ReturnNode {
 pub struct LiteralNode {
     pub ty: Type,
     pub meta: NodeMeta,
-    pub tok: TokenKind,
+    pub kind: LiteralKind,
+}
+
+pub enum LiteralKind {
+    Ident(String),
+    String(String),
+    Int(i64),
+    Uint(u64),
+    Float(f64),
+    Bool(bool),
+    Char(u8),
 }
 
 pub struct VarDeclNode {
