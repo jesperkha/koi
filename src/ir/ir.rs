@@ -90,6 +90,7 @@ pub enum IRType {
     Primitive(Primitive),
     Ptr(Box<IRType>),
     Object(String, Vec<IRType>, usize), // List of fields and total size (not aligned)
+    Function(Vec<IRType>, Box<IRType>),
 }
 
 #[derive(Debug)]
@@ -144,7 +145,7 @@ impl IRType {
                 Primitive::F64 | Primitive::U64 | Primitive::I64 | Primitive::Str => 8,
             },
             IRType::Object(_, _, size) => *size,
-            IRType::Ptr(_) => 8,
+            IRType::Ptr(_) | IRType::Function(_, _) => 8,
         }
     }
 }
@@ -205,7 +206,17 @@ impl fmt::Display for IRType {
         match self {
             IRType::Primitive(p) => write!(f, "{}", format!("{:?}", p).to_lowercase()),
             IRType::Object(name, _, _) => write!(f, "{}", name),
-            IRType::Ptr(t) => write!(f, "ptr<{}>", t),
+            IRType::Ptr(t) => write!(f, "ptr({})", t),
+            IRType::Function(params, ret) => write!(
+                f,
+                "func({})->{}",
+                params
+                    .iter()
+                    .map(|p| p.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                ret
+            ),
         }
     }
 }

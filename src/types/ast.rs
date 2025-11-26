@@ -66,6 +66,7 @@ pub struct FuncNode {
     pub ty: Type,
     pub meta: NodeMeta,
     pub name: String,
+    pub params: Vec<String>,
     pub public: bool,
     pub body: Vec<Stmt>,
 }

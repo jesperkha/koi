@@ -298,6 +298,7 @@ impl<'a> Checker<'a> {
             name: node.name.to_string(),
             public: node.public,
             ty: self.ctx.lookup(func_id).clone(),
+            params: node.params.iter().map(|p| p.name.to_string()).collect(),
             body,
         }))
     }
@@ -385,7 +386,7 @@ impl<'a> Checker<'a> {
                     meta,
                     ty: Type {
                         kind: typed_expr.kind().clone(),
-                        id: typed_expr.id(),
+                        id: typed_expr.type_id(),
                     },
                     expr: Some(typed_expr),
                 }))

@@ -6,8 +6,14 @@ use tracing::info;
 use crate::{
     config::Config,
     error::{Error, ErrorSet, Res},
-    ir::{IRType, IRUnit, Ins, SymTracker, ir},
-    types::{self, Decl, Package, Type, TypeContext, TypeId, TypeKind, Visitable, Visitor},
+    ir::{
+        AssignIns, ExternFuncInst, FuncInst, IRType, IRUnit, Ins, LValue, StoreIns, StringDataIns,
+        SymTracker, Value, ir,
+    },
+    token::TokenKind,
+    types::{
+        self, Decl, Expr, Package, TypeContext, TypeId, TypeKind, TypedNode, Visitable, Visitor,
+    },
 };
 
 pub fn emit_ir(pkg: &Package, config: &Config) -> Res<IRUnit> {
@@ -64,13 +70,21 @@ impl<'a> Emitter<'a> {
         }
     }
 
+    fn node_to_ir_type(&self, node: &dyn TypedNode) -> IRType {
+        self.to_ir_type(node.type_id())
+    }
+
     /// Convert semantic type to IR type, lowering to primitive or union type.
-    fn semtype_to_irtype(&self, id: TypeId) -> IRType {
+    fn to_ir_type(&self, id: TypeId) -> IRType {
         let id = self.ctx.deep_resolve(id);
         let ty = self.ctx.lookup(id);
 
         match &ty.kind {
             TypeKind::Primitive(p) => IRType::Primitive(type_primitive_to_ir_primitive(&p)),
+            TypeKind::Function(params, ret) => IRType::Function(
+                params.iter().map(|p| self.to_ir_type(*p)).collect(),
+                Box::new(self.to_ir_type(*ret)),
+            ),
             _ => panic!("unhandled kind {:?}", ty.kind),
         }
     }
@@ -95,218 +109,158 @@ impl<'a> Emitter<'a> {
         self.curstr += 1;
         format!("S{}", self.curstr)
     }
-
-    // /// Get the function signature as IR types. Returns a tuple of param types and return type.
-    // fn get_function_signature(&mut self, node: &dyn TypedNode) -> Result<(Vec<Type>, Type), Error> {
-    //     let TypeKind::Function(param_ids, ret_id) = node.kind() else {
-    //         // Not implemented correctly if not function type
-    //         panic!("function type was not TypeKind::Function")
-    //     };
-
-    //     // Collect return and param types
-    //     let ret = self.semtype_to_irtype(*ret_id);
-    //     let params = param_ids
-    //         .iter()
-    //         .map(|ty| self.semtype_to_irtype(*ty))
-    //         .collect();
-
-    //     Ok((params, ret))
-    // }
 }
 
-// impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
-//     fn visit_func(&mut self, node: &FuncNode) -> Result<Value, Error> {
-//         self.sym.new_function_context();
+impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
+    fn visit_func(&mut self, node: &types::FuncNode) -> Result<Value, Error> {
+        let IRType::Function(params, ret) = self.to_ir_type(node.ty.id) else {
+            panic!("expected func to be function type, was {:?}", &node.ty);
+        };
 
-//         let (params, ret) = self.get_function_signature(&node.ty)?;
+        self.sym.new_function_context();
 
-//         // Declare param indecies
-//         for p in &node.params {
-//             self.sym.set_param(p.name.to_string());
-//         }
+        // Declare param indecies
+        for p in &node.params {
+            self.sym.set_param(p.clone());
+        }
 
-//         // Generate function body IR
-//         self.has_returned = false;
-//         self.push_scope();
+        // Generate function body IR
+        self.has_returned = false;
+        self.push_scope();
 
-//         for stmt in &node.body.stmts {
-//             stmt.accept(self)?;
-//         }
+        for stmt in &node.body {
+            stmt.accept(self)?;
+        }
 
-//         let (mut body, mut stacksize) = self.pop_scope();
+        let (mut body, mut stacksize) = self.pop_scope();
 
-//         // Add param sizes to total stack size
-//         for p in &params {
-//             stacksize += p.size();
-//         }
+        // Add param sizes to total stack size
+        for p in &params {
+            stacksize += p.size();
+        }
 
-//         // Add explicit void return for non-returing functions
-//         if !self.has_returned {
-//             body.push(Ins::Return(
-//                 IRType::Primitive(ir::Primitive::Void),
-//                 Value::Void,
-//             ));
-//         }
+        // Add explicit void return for non-returing functions
+        if !self.has_returned {
+            body.push(Ins::Return(
+                IRType::Primitive(ir::Primitive::Void),
+                Value::Void,
+            ));
+        }
 
-//         self.push(Ins::Func(FuncInst {
-//             name,
-//             public: node.public,
-//             params,
-//             ret,
-//             body,
-//             stacksize,
-//         }));
+        self.push(Ins::Func(FuncInst {
+            name: node.name.clone(),
+            public: node.public,
+            params,
+            ret: *ret,
+            body,
+            stacksize,
+        }));
 
-//         Ok(Value::Void)
-//     }
-
-//     fn visit_return(&mut self, node: &ReturnNode) -> Result<Value, Error> {
-//         let id = self.ctx.get_node(node);
-//         let ty = self.semtype_to_irtype(id);
-//         let val = node
-//             .expr
-//             .as_ref()
-//             .map_or(Ok(Value::Void), |expr| expr.accept(self))?;
-
-//         self.has_returned = true;
-//         self.push(Ins::Return(ty, val));
-
-//         Ok(Value::Void)
-//     }
-
-//     fn visit_literal(&mut self, token: &Token) -> Result<Value, Error> {
-//         Ok(match &token.kind {
-//             TokenKind::True => Value::Int(1),
-//             TokenKind::False => Value::Int(0),
-//             TokenKind::IntLit(n) => Value::Int(*n),
-//             TokenKind::FloatLit(n) => Value::Float(*n),
-//             TokenKind::CharLit(n) => Value::Int((*n).into()),
-//             TokenKind::IdentLit(name) => self.sym.get(name),
-//             TokenKind::StringLit(n) => {
-//                 let name = self.next_string_name();
-
-//                 self.push(Ins::StringData(StringDataIns {
-//                     name: name.to_owned(),
-//                     length: n.len(),
-//                     value: n.to_owned(),
-//                 }));
-
-//                 Value::Data(name.to_owned())
-//             }
-//             _ => panic!("unhandled token kind in evaluate: {:?}", token.kind),
-//         })
-//     }
-
-//     fn visit_call(&mut self, call: &CallExpr) -> Result<Value, Error> {
-//         let callee = match &*call.callee {
-//             Expr::Literal(t) => match &t.kind {
-//                 TokenKind::IdentLit(name) => Value::Function(name.clone()),
-//                 _ => panic!("unchecked invalid function call"),
-//             },
-//             e => e.accept(self)?,
-//         };
-
-//         let args = call
-//             .args
-//             .iter()
-//             .map(|arg| {
-//                 let value = arg.accept(self)?;
-//                 let ty = self.semtype_to_irtype(self.ctx.get_node(arg));
-//                 Ok((ty, value))
-//             })
-//             .collect::<Result<Vec<_>, _>>()?;
-
-//         let ty = self.semtype_to_irtype(self.ctx.get_node(call));
-//         let result = self.sym.next(); // declare after evaluating args to avoid incorrect id order
-
-//         self.push(Ins::Call(ir::CallIns {
-//             callee,
-//             ty,
-//             args,
-//             result,
-//         }));
-
-//         Ok(Value::Const(result))
-//     }
-
-//     fn visit_extern(&mut self, node: &crate::ast::FuncDeclNode) -> Result<Value, Error> {
-//         let name = node.name.to_string();
-//         let (params, ret) = self.get_function_signature(node)?;
-//         self.push(Ins::Extern(ExternFuncInst { name, params, ret }));
-//         Ok(Value::Void)
-//     }
-
-//     fn visit_var_decl(&mut self, node: &crate::ast::VarDeclNode) -> Result<Value, Error> {
-//         let value = node.expr.accept(self)?;
-//         let ty = self.semtype_to_irtype(self.ctx.get_node(&node.expr));
-//         let id = self.sym.set(node.name.to_string());
-//         self.stack_size += ty.size();
-//         self.push(Ins::Store(StoreIns { id, ty, value }));
-//         Ok(Value::Void)
-//     }
-
-//     fn visit_var_assign(&mut self, node: &crate::ast::VarAssignNode) -> Result<Value, Error> {
-//         let lval = match node.lval.accept(self)? {
-//             Value::Const(id) => LValue::Const(id),
-//             Value::Param(id) => LValue::Param(id),
-//             _ => panic!("illeagl lvalue"),
-//         };
-
-//         let value = node.expr.accept(self)?;
-//         let ty = self.semtype_to_irtype(self.ctx.get_node(&node.expr));
-
-//         self.push(Ins::Assign(AssignIns { lval, ty, value }));
-//         Ok(Value::Void)
-//     }
-
-//     fn visit_group(&mut self, group: &GroupExpr) -> Result<Value, Error> {
-//         group.inner.accept(self)
-//     }
-
-//     fn visit_block(&mut self, _: &BlockNode) -> Result<Value, Error> {
-//         panic!("unused method")
-//     }
-
-//     fn visit_type(&mut self, _: &TypeNode) -> Result<Value, Error> {
-//         panic!("unused method")
-//     }
-
-//     fn visit_package(&mut self, _: &Token) -> Result<Value, Error> {
-//         panic!("unused method")
-//     }
-
-//     fn visit_import(&mut self, node: &crate::ast::ImportNode) -> Result<Value, Error> {
-//         todo!()
-//     }
-// }
-
-impl<'a> Visitor<Result<Ins, Error>> for Emitter<'a> {
-    fn visit_func(&mut self, node: &types::FuncNode) -> Result<Ins, Error> {
-        todo!()
+        Ok(Value::Void)
     }
 
-    fn visit_return(&mut self, node: &types::ReturnNode) -> Result<Ins, Error> {
-        todo!()
+    fn visit_return(&mut self, node: &types::ReturnNode) -> Result<Value, Error> {
+        let ty = self.to_ir_type(node.ty.id);
+        let val = node
+            .expr
+            .as_ref()
+            .map_or(Ok(Value::Void), |expr| expr.accept(self))?;
+
+        self.has_returned = true;
+        self.push(Ins::Return(ty, val));
+
+        Ok(Value::Void)
     }
 
-    fn visit_var_assign(&mut self, node: &types::VarAssignNode) -> Result<Ins, Error> {
-        todo!()
+    fn visit_var_assign(&mut self, node: &types::VarAssignNode) -> Result<Value, Error> {
+        let lval = match node.lval.accept(self)? {
+            Value::Const(id) => LValue::Const(id),
+            Value::Param(id) => LValue::Param(id),
+            _ => panic!("illegal lvalue"),
+        };
+
+        let value = node.rval.accept(self)?;
+        let ty = self.node_to_ir_type(&node.rval);
+
+        self.push(Ins::Assign(AssignIns { lval, ty, value }));
+        Ok(Value::Void)
     }
 
-    fn visit_var_decl(&mut self, node: &types::VarDeclNode) -> Result<Ins, Error> {
-        todo!()
+    fn visit_var_decl(&mut self, node: &types::VarDeclNode) -> Result<Value, Error> {
+        let value = node.value.accept(self)?;
+        let ty = self.node_to_ir_type(&node.value);
+        let id = self.sym.set(node.name.to_string());
+        self.stack_size += ty.size();
+        self.push(Ins::Store(StoreIns { id, ty, value }));
+        Ok(Value::Void)
     }
 
-    fn visit_literal(&mut self, node: &types::LiteralNode) -> Result<Ins, Error> {
-        todo!()
+    fn visit_literal(&mut self, node: &types::LiteralNode) -> Result<Value, Error> {
+        Ok(match &node.tok {
+            TokenKind::True => Value::Int(1),
+            TokenKind::False => Value::Int(0),
+            TokenKind::IntLit(n) => Value::Int(*n),
+            TokenKind::FloatLit(n) => Value::Float(*n),
+            TokenKind::CharLit(n) => Value::Int((*n).into()),
+            TokenKind::IdentLit(name) => self.sym.get(name),
+            TokenKind::StringLit(n) => {
+                let name = self.next_string_name();
+
+                self.push(Ins::StringData(StringDataIns {
+                    name: name.to_owned(),
+                    length: n.len(),
+                    value: n.to_owned(),
+                }));
+
+                Value::Data(name.to_owned())
+            }
+            _ => panic!("unhandled token kind in evaluate: {:?}", node.tok),
+        })
     }
 
-    fn visit_extern(&mut self, node: &types::ExternNode) -> Result<Ins, Error> {
-        todo!()
+    fn visit_extern(&mut self, node: &types::ExternNode) -> Result<Value, Error> {
+        let IRType::Function(params, ret) = self.to_ir_type(node.ty.id) else {
+            panic!("expected func to be function type, was {:?}", &node.ty);
+        };
+
+        self.push(Ins::Extern(ExternFuncInst {
+            name: node.name.clone(),
+            ret: *ret,
+            params,
+        }));
+        Ok(Value::Void)
     }
 
-    fn visit_call(&mut self, node: &types::CallNode) -> Result<Ins, Error> {
-        todo!()
+    fn visit_call(&mut self, node: &types::CallNode) -> Result<Value, Error> {
+        let callee = match &*node.callee {
+            Expr::Literal(t) => match &t.tok {
+                TokenKind::IdentLit(name) => Value::Function(name.clone()),
+                _ => panic!("unchecked invalid function call"),
+            },
+            e => e.accept(self)?,
+        };
+
+        let args = node
+            .args
+            .iter()
+            .map(|arg| {
+                let value = arg.accept(self)?;
+                let ty = self.node_to_ir_type(arg);
+                Ok((ty, value))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let ty = self.to_ir_type(node.ty.id);
+        let result = self.sym.next(); // declare after evaluating args to avoid incorrect id order
+
+        self.push(Ins::Call(ir::CallIns {
+            callee,
+            ty,
+            args,
+            result,
+        }));
+
+        Ok(Value::Const(result))
     }
 }
 
