@@ -2,25 +2,21 @@ use crate::{
     ast::FileSet,
     config::Config,
     error::{ErrorSet, Res},
-    types::{Checker, Package, TypeContext},
+    types::{Checker, Package, TypeContext, TypedAst},
 };
 use tracing::info;
 
 pub fn type_check(fs: FileSet, config: &Config) -> Res<Package> {
     let mut ctx = TypeContext::new();
-    let mut errs = ErrorSet::new();
+    let pkgname = fs.package_id.0.clone();
 
-    let passes = vec![resolve_imports, global_pass, check_fileset];
+    // Passes
+    resolve_imports(&fs, &mut ctx, config)?;
+    global_pass(&fs, &mut ctx, config)?;
 
-    passes.iter().for_each(|p| {
-        let _ = p(&fs, &mut ctx, config).map_err(|e| errs.join(e));
-    });
-
-    if errs.len() > 0 {
-        return Err(errs);
-    }
-
-    Ok(Package::new(fs.package_id.to_string(), fs, ctx))
+    // Final tree emition
+    let tree = emit_typed_ast(fs, ctx, config)?;
+    Ok(Package::new(pkgname, tree))
 }
 
 /// Resolve all imported types and symbols.
@@ -33,16 +29,23 @@ fn global_pass(fs: &FileSet, ctx: &mut TypeContext, config: &Config) -> Result<(
     Ok(())
 }
 
-/// Type check files.
-fn check_fileset(fs: &FileSet, ctx: &mut TypeContext, config: &Config) -> Result<(), ErrorSet> {
+fn emit_typed_ast(
+    fs: FileSet,
+    mut ctx: TypeContext,
+    config: &Config,
+) -> Result<TypedAst, ErrorSet> {
     info!("checking {} files", fs.files.len());
     assert!(fs.files.len() > 0, "no files to type check");
 
     let mut errs = ErrorSet::new();
+    let mut decls = Vec::new();
 
-    for file in &fs.files {
-        let checker = Checker::new(file, ctx, config);
-        errs.join(checker.check());
+    for file in fs.files {
+        let mut checker = Checker::new(&file.src, fs.package_id.clone(), &mut ctx, config);
+        match checker.emit_ast(file.ast.decls) {
+            Ok(d) => decls.extend(d),
+            Err(e) => errs.join(e),
+        };
     }
 
     if errs.len() > 0 {
@@ -51,5 +54,5 @@ fn check_fileset(fs: &FileSet, ctx: &mut TypeContext, config: &Config) -> Result
     }
 
     // TODO: assert all pkg names equal
-    Ok(())
+    Ok(TypedAst { ctx, decls })
 }

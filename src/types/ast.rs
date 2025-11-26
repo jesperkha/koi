@@ -9,6 +9,9 @@ pub trait TypedNode<'a> {
     fn kind(&'a self) -> &'a TypeKind;
     /// Get the unique TypeId for this node, only to be used within the same package.
     fn type_id(&self) -> TypeId;
+}
+
+pub trait Visitable {
     /// Accept visitor to inspect this node.
     fn accept<T>(&self, v: &mut dyn Visitor<T>) -> T;
 }
@@ -24,7 +27,6 @@ pub trait Visitor<T> {
 }
 
 pub struct TypedAst {
-    pub package_name: String,
     pub ctx: TypeContext,
     pub decls: Vec<Decl>,
 }
@@ -108,13 +110,6 @@ pub struct CallNode {
 }
 
 impl<'a> TypedNode<'a> for Decl {
-    fn accept<T>(&self, v: &mut dyn Visitor<T>) -> T {
-        match self {
-            Decl::Func(node) => v.visit_func(node),
-            Decl::Extern(node) => v.visit_extern(node),
-        }
-    }
-
     fn type_id(&self) -> TypeId {
         match self {
             Decl::Func(node) => node.ty.id,
@@ -130,16 +125,16 @@ impl<'a> TypedNode<'a> for Decl {
     }
 }
 
-impl<'a> TypedNode<'a> for Stmt {
+impl Visitable for Decl {
     fn accept<T>(&self, v: &mut dyn Visitor<T>) -> T {
         match self {
-            Stmt::Return(node) => v.visit_return(node),
-            Stmt::VarDecl(node) => v.visit_var_decl(node),
-            Stmt::VarAssign(node) => v.visit_var_assign(node),
-            Stmt::ExprStmt(node) => node.accept(v),
+            Decl::Func(node) => v.visit_func(node),
+            Decl::Extern(node) => v.visit_extern(node),
         }
     }
+}
 
+impl<'a> TypedNode<'a> for Stmt {
     fn type_id(&self) -> TypeId {
         match self {
             Stmt::Return(node) => node.ty.id,
@@ -159,14 +154,18 @@ impl<'a> TypedNode<'a> for Stmt {
     }
 }
 
-impl<'a> TypedNode<'a> for Expr {
+impl Visitable for Stmt {
     fn accept<T>(&self, v: &mut dyn Visitor<T>) -> T {
         match self {
-            Expr::Literal(node) => v.visit_literal(node),
-            Expr::Call(node) => v.visit_call(node),
+            Stmt::Return(node) => v.visit_return(node),
+            Stmt::VarDecl(node) => v.visit_var_decl(node),
+            Stmt::VarAssign(node) => v.visit_var_assign(node),
+            Stmt::ExprStmt(node) => node.accept(v),
         }
     }
+}
 
+impl<'a> TypedNode<'a> for Expr {
     fn type_id(&self) -> TypeId {
         match self {
             Expr::Literal(node) => node.ty.id,
@@ -178,6 +177,15 @@ impl<'a> TypedNode<'a> for Expr {
         match self {
             Expr::Literal(node) => &node.ty.kind,
             Expr::Call(node) => &node.ty.kind,
+        }
+    }
+}
+
+impl Visitable for Expr {
+    fn accept<T>(&self, v: &mut dyn Visitor<T>) -> T {
+        match self {
+            Expr::Literal(node) => v.visit_literal(node),
+            Expr::Call(node) => v.visit_call(node),
         }
     }
 }

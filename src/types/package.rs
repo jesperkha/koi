@@ -1,47 +1,29 @@
-use crate::{
-    ast::{Decl, FileSet},
-    types::TypeContext,
-};
+use crate::types::{Decl, TypeContext, TypedAst};
 
 pub struct Package {
     name: String,
-    ctx: TypeContext,
-    nodes: Vec<Decl>,
-    fs: FileSet,
+    tree: TypedAst,
 }
 
 impl Package {
-    pub fn new(name: String, mut fs: FileSet, ctx: TypeContext) -> Self {
-        // Join ASTs
-        let nodes = fs
-            .files
-            .iter_mut()
-            .map(|f| std::mem::take(&mut f.ast.decls))
-            .flatten()
-            .collect::<Vec<_>>();
-
-        Self {
-            nodes,
-            name,
-            ctx,
-            fs,
-        }
+    pub fn new(name: String, tree: TypedAst) -> Self {
+        Self { name, tree }
     }
 
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    pub fn path(&self) -> &str {
-        &self.fs.path
-    }
+    // pub fn path(&self) -> &str {
+    //     &self.fs.path
+    // }
 
     pub fn context(&self) -> &TypeContext {
-        &self.ctx
+        &self.tree.ctx
     }
 
     pub fn nodes(&self) -> &[Decl] {
-        &self.nodes
+        &self.tree.decls
     }
 
     pub fn name_as(&self, path: &str, extention: &str) -> String {

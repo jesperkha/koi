@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     build::{Builder, RegAllocator, TransUnit},
     config::Config,
-    ir::{AssignIns, ConstId, IRUnit, IRVisitor, LValue, StoreIns, Type, Value},
+    ir::{AssignIns, ConstId, IRUnit, IRVisitor, LValue, StoreIns, IRType, Value},
 };
 
 pub struct X86Builder<'a> {
@@ -115,7 +115,7 @@ impl<'a> X86Builder<'a> {
 
     /// Checks L and R val to use correct mov instruction (mov, lea).
     /// Prints intermeditate steps if necessary (eg, dest and value are stack).
-    fn mov(&mut self, dest: LVal, value: RVal, ty: &Type) {
+    fn mov(&mut self, dest: LVal, value: RVal, ty: &IRType) {
         let fmt = match dest {
             LVal::Reg(reg) => match &value {
                 RVal::Imm(s) | RVal::Reg(s) | RVal::Stack(s) => format!("mov {}, {}", reg, s),
@@ -224,7 +224,7 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
         self.pop();
     }
 
-    fn visit_ret(&mut self, ty: &crate::ir::Type, v: &crate::ir::Value) {
+    fn visit_ret(&mut self, ty: &crate::ir::IRType, v: &crate::ir::Value) {
         // If not void
         if ty.size() != 0 {
             self.mov(LVal::Reg(self.alloc.return_reg(ty)), self.rval(v), ty);

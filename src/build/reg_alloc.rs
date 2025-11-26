@@ -1,4 +1,4 @@
-use crate::ir::{Primitive, Type};
+use crate::ir::{Primitive, IRType};
 
 #[derive(Debug)]
 pub struct RegAllocator {
@@ -29,17 +29,17 @@ impl RegAllocator {
         }
     }
 
-    fn is_float(ty: &Type) -> bool {
+    fn is_float(ty: &IRType) -> bool {
         matches!(
             ty,
-            Type::Primitive(Primitive::F32) | Type::Primitive(Primitive::F64)
+            IRType::Primitive(Primitive::F32) | IRType::Primitive(Primitive::F64)
         )
     }
 
-    fn is_intlike(ty: &Type) -> bool {
+    fn is_intlike(ty: &IRType) -> bool {
         matches!(
             ty,
-            Type::Primitive(
+            IRType::Primitive(
                 Primitive::U8
                     | Primitive::U16
                     | Primitive::U32
@@ -54,7 +54,7 @@ impl RegAllocator {
     }
 
     /// Get next available register suitable for given type
-    pub fn next_reg(&mut self, ty: &Type) -> String {
+    pub fn next_reg(&mut self, ty: &IRType) -> String {
         if Self::is_float(ty) {
             assert!(self.next_float < self.float_regs.len());
             let reg = self.float_regs[self.next_float];
@@ -71,7 +71,7 @@ impl RegAllocator {
     }
 
     /// Get return register for given type
-    pub fn return_reg(&self, ty: &Type) -> String {
+    pub fn return_reg(&self, ty: &IRType) -> String {
         if Self::is_float(ty) {
             self.float_ret.to_string()
         } else if Self::is_intlike(ty) {
@@ -82,7 +82,7 @@ impl RegAllocator {
     }
 
     /// Get next available parameter register for given type
-    pub fn next_param_reg(&mut self, ty: &Type) -> String {
+    pub fn next_param_reg(&mut self, ty: &IRType) -> String {
         if Self::is_float(ty) {
             assert!(self.param_float < self.float_regs.len());
             let reg = self.float_regs[self.param_float];
