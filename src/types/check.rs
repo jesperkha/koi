@@ -1,5 +1,5 @@
 use crate::{
-    ast::{FileSet, Node},
+    ast::{self, FileSet, Node},
     config::Config,
     error::{Error, ErrorSet, Res},
     types::{Checker, Package, TypeContext, TypedAst},
@@ -58,7 +58,7 @@ fn check_package_names_equal(fs: &FileSet, config: &Config) -> Result<(), ErrorS
         }
     }
 
-    if errs.len() > 0 { Err(errs) } else { Ok(()) }
+    errs.err_or(())
 }
 
 /// Resolve all imported types and symbols.
@@ -68,7 +68,14 @@ fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, config: &Config) -> Resu
 
 /// Add all global declarations to context.
 fn global_pass(fs: &FileSet, ctx: &mut TypeContext, config: &Config) -> Result<(), ErrorSet> {
-    Ok(())
+    let mut errs = ErrorSet::new();
+    for file in &fs.files {
+        let _ = Checker::new(&file.src, fs.package_id.clone(), ctx, config)
+            .global_pass(&file.ast.decls)
+            .map_err(|e| errs.join(e));
+    }
+
+    errs.err_or(())
 }
 
 /// Emit combined typed AST for all files in set.
@@ -91,10 +98,5 @@ fn emit_typed_ast(
         };
     }
 
-    if errs.len() > 0 {
-        info!("fail, finished all with {} errors", errs.len());
-        return Err(errs);
-    }
-
-    Ok(TypedAst { ctx, decls })
+    errs.err_or(TypedAst { ctx, decls })
 }

@@ -24,6 +24,9 @@ pub struct TypeContext {
     symbols: HashMap<String, Symbol>,
     /// Map of namespaces imported into this context
     namespaces: HashMap<String, Namespace>,
+
+    type_symbols: HashMap<String, TypeId>,
+    func_symbols: HashMap<String, TypeId>,
 }
 
 pub struct Symbol {
@@ -42,6 +45,8 @@ impl TypeContext {
             nodes: HashMap::new(),
             symbols: HashMap::new(),
             namespaces: HashMap::new(),
+            type_symbols: HashMap::new(),
+            func_symbols: HashMap::new(),
         };
 
         for t in PrimitiveType::iter() {
@@ -126,7 +131,7 @@ impl TypeContext {
     }
 
     /// Shorthand for getting a primitive type id.
-    pub fn primitive(&mut self, kind: PrimitiveType) -> TypeId {
+    pub fn primitive(&self, kind: PrimitiveType) -> TypeId {
         self.cache
             .get(&TypeKind::Primitive(kind))
             .expect("all primitive types must be assigned at init")
@@ -212,9 +217,23 @@ impl TypeContext {
     }
 
     /// Get top level named type
-    pub fn get_symbol(&mut self, name: String) -> Result<TypeId, String> {
+    pub fn get_symbol(&mut self, name: &str) -> Result<TypeId, String> {
         self.symbols
-            .get(&name)
+            .get(name)
             .map_or(Err("not declared".to_string()), |s| Ok(s.ty))
     }
+
+    //     /// Declare new function symbol. Returns error "already declared" if the name already exists.
+    //     pub fn declare_function(&mut self, name: String, id: TypeId) -> Result<(), String> {
+    //         self.func_symbols
+    //             .insert(name, id)
+    //             .map_or_else(|| Ok(()), |_| Err(format!("already declared")))
+    //     }
+
+    //     /// Get declared function. Returns "not declared" error if not found.
+    //     pub fn get_function(&self, name: &str) -> Result<TypeId, String> {
+    //         self.func_symbols
+    //             .get(name)
+    //             .map_or(Err(String::from("not declared")), |v| Ok(*v))
+    //     }
 }

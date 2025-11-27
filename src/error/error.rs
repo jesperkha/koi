@@ -102,6 +102,11 @@ impl ErrorSet {
         s
     }
 
+    /// Return this as Err value if more than one error is contained, else Ok(v).
+    pub fn err_or<T>(self, v: T) -> Result<T, Self> {
+        if self.len() > 0 { Err(self) } else { Ok(v) }
+    }
+
     pub fn add(&mut self, err: Error) {
         self.errs.push(err);
     }

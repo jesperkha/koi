@@ -19,9 +19,12 @@ struct Value {
 pub struct Checker<'a> {
     pkg: PackageID,
     ctx: &'a mut TypeContext,
-    vars: SymTable<Value>,
     src: &'a Source,
     _config: &'a Config,
+
+    /// Locally declared variables. Package private and global
+    /// symbols are part of the TypeContext.
+    vars: SymTable<Value>,
 
     /// Return type in current scope
     rtype: TypeId,
@@ -32,17 +35,6 @@ pub struct Checker<'a> {
 }
 
 impl<'a> Checker<'a> {
-    // pub fn new(file: &'a File, ctx: &'a mut TypeContext, config: &'a Config) -> Self {
-    //     Self {
-    //         _config: config,
-    //         file,
-    //         ctx,
-    //         vars: SymTable::new(),
-    //         rtype: no_type(),
-    //         has_returned: false,
-    //     }
-    // }
-
     pub fn new(
         src: &'a Source,
         pkg: PackageID,
@@ -59,40 +51,6 @@ impl<'a> Checker<'a> {
             has_returned: false,
         }
     }
-
-    // /// Iterates over each node in the file and type checks. Populates
-    // /// TypeContext with files types. Collects errors.
-    // pub fn check(mut self) -> ErrorSet {
-    //     let mut errs = ErrorSet::new();
-    //     info!("file '{}'", self.file.src.filepath);
-
-    //     for n in &self.file.ast.decls {
-    //         let _ = self.eval(n).map_err(|e| errs.add(e));
-    //     }
-
-    //     if errs.len() > 0 {
-    //         info!("fail, finished with {} errors", errs.len());
-    //     }
-    //     errs
-    // }
-
-    // /// Type check a Node. If it evaluates to a type it is internalized.
-    // fn eval<N: Visitable + Node>(&mut self, node: &N) -> EvalResult {
-    //     node.accept(self).map(|ty| {
-    //         if ty != no_type() {
-    //             // Has to be internalized here since Node methods are not
-    //             // impemented for all node types, just their overarching
-    //             // kind (stmt, decl etc).
-    //             self.ctx.intern_node(node, ty);
-    //         }
-    //         ty
-    //     })
-    // }
-
-    // /// Evaluate an option of a node. Defaults to void type if not present.
-    // fn eval_optional<V: Visitable + Node>(&mut self, v: &Option<V>) -> Result<TypeId, Error> {
-    //     v.as_ref().map_or(Ok(self.ctx.void()), |r| self.eval(r))
-    // }
 
     fn error(&self, msg: &str, node: &dyn Node) -> Error {
         Error::range(msg, node.pos(), node.end(), &self.src)
@@ -136,6 +94,23 @@ impl<'a> Checker<'a> {
         }
     }
 
+    /// Get a declared symbol by a token identifier. Returns "not declared" error if not found.
+    fn get(&mut self, name: &Token) -> Result<TypeId, Error> {
+        let name_str = name.to_string();
+        self.vars.get(&name_str).map_or(
+            self.ctx
+                .get_symbol(&name_str)
+                .map_or(Err(self.error_token("not declared", name)), |ty| Ok(ty)),
+            |v| Ok(v.ty),
+        )
+    }
+
+    /// Get the type of a declared symbol
+    fn get_symbol_type(&mut self, name: &Token) -> Result<&Type, Error> {
+        let id = self.get(name)?;
+        Ok(self.ctx.lookup(id))
+    }
+
     /// Collect a list of type ids for each field in the slice.
     fn collect_field_types(&mut self, fields: &[Field]) -> Result<Vec<TypeId>, Error> {
         fields.iter().map(|f| self.eval_type(&f.typ)).collect()
@@ -152,6 +127,7 @@ impl<'a> Checker<'a> {
         }
     }
 
+    /// Evaluate an AST type node to its semantic type id.
     fn eval_type(&mut self, node: &TypeNode) -> Result<TypeId, Error> {
         match node {
             TypeNode::Primitive(token) => {
@@ -159,8 +135,7 @@ impl<'a> Checker<'a> {
                 Ok(self.ctx.primitive(prim))
             }
             TypeNode::Ident(token) => self
-                .ctx
-                .get_symbol(token.to_string())
+                .get(token)
                 .map_or(Err(self.error_token("not a type", token)), |ty| Ok(ty)),
         }
     }
@@ -169,6 +144,62 @@ impl<'a> Checker<'a> {
     fn eval_optional_type(&mut self, v: &Option<TypeNode>) -> Result<TypeId, Error> {
         v.as_ref()
             .map_or(Ok(self.ctx.void()), |r| self.eval_type(r))
+    }
+
+    // ---------------------------- Global first pass ---------------------------- //
+
+    pub fn global_pass(&mut self, decls: &Vec<ast::Decl>) -> Result<(), ErrorSet> {
+        let mut errs = ErrorSet::new();
+        for decl in decls {
+            let _ = match decl {
+                ast::Decl::Func(node) => self.declare_function(node),
+                ast::Decl::Extern(node) => self.declare_extern(node),
+                _ => Ok(()),
+            }
+            .map_err(|e| errs.add(e));
+        }
+
+        errs.err_or(())
+    }
+
+    fn declare_function(&mut self, node: &ast::FuncNode) -> Result<(), Error> {
+        // Evaluate return type if any
+        let ret_id = self.eval_optional_type(&node.ret_type)?;
+
+        // Get parameter types
+        let param_ids = &node
+            .params
+            .iter()
+            .map(|f| self.eval_type(&f.typ).map(|id| (&f.name, id)))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Declare function in context
+        let kind = TypeKind::Function(param_ids.iter().map(|v| v.1).collect(), ret_id);
+        let func_id = self.ctx.get_or_intern(kind);
+        let name = node.name.to_string();
+        self.ctx.set_symbol(name, func_id, node.public);
+
+        Ok(())
+    }
+
+    fn declare_extern(&mut self, node: &ast::FuncDeclNode) -> Result<(), Error> {
+        // Evaluate return type if any
+        let ret_id = self.eval_optional_type(&node.ret_type)?;
+
+        // Get parameter types
+        let param_ids = &node
+            .params
+            .iter()
+            .map(|f| self.eval_type(&f.typ).map(|id| (&f.name, id)))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Declare function in context
+        let kind = TypeKind::Function(param_ids.iter().map(|v| v.1).collect(), ret_id);
+        let func_id = self.ctx.get_or_intern(kind);
+        let name = node.name.to_string();
+        self.ctx.set_symbol(name, func_id, false);
+
+        Ok(())
     }
 
     // ---------------------------- Generate AST ---------------------------- //
@@ -187,10 +218,9 @@ impl<'a> Checker<'a> {
 
         if errs.len() > 0 {
             info!("fail, finished with {} errors", errs.len());
-            Err(errs)
-        } else {
-            Ok(typed_decls)
         }
+
+        errs.err_or(typed_decls)
     }
 
     fn emit_decl(&mut self, decl: ast::Decl) -> Result<types::Decl, Error> {
@@ -222,15 +252,11 @@ impl<'a> Checker<'a> {
     fn emit_func(&mut self, node: ast::FuncNode) -> Result<types::Decl, Error> {
         let meta = ast_node_to_meta(&node);
 
-        // Evaluate return type if any
-        let ret_id = self.eval_optional_type(&node.ret_type)?;
-
-        // Get parameter types
-        let param_ids = &node
-            .params
-            .iter()
-            .map(|f| self.eval_type(&f.typ).map(|id| (&f.name, id)))
-            .collect::<Result<Vec<_>, _>>()?;
+        // Get declared function
+        let func_type = self.get_symbol_type(&node.name)?.clone(); // moved later
+        let TypeKind::Function(param_ids, ret_id) = &func_type.kind else {
+            panic!("function was not declared properly");
+        };
 
         // If this is the main function we do additional checks
         if node.name.to_string() == "main" {
@@ -243,7 +269,7 @@ impl<'a> Checker<'a> {
             }
 
             // If return type is not int
-            if !self.ctx.equivalent(ret_id, int_id) {
+            if !self.ctx.equivalent(*ret_id, int_id) {
                 let msg = "main function must return 'i64'";
                 return Err(node
                     .ret_type
@@ -259,21 +285,15 @@ impl<'a> Checker<'a> {
             }
         }
 
-        // Declare function while still in global scope
-        let func_id = self.ctx.get_or_intern(TypeKind::Function(
-            param_ids.iter().map(|v| v.1).collect(),
-            ret_id,
-        ));
-        self.bind(&node.name, func_id, true)?;
-
         // Set up function body
         self.vars.push_scope();
-        self.rtype = ret_id;
+        self.rtype = *ret_id;
         self.has_returned = false;
 
         // Declare params in function body
-        for p in param_ids {
-            self.bind(p.0, p.1, false)?;
+        for (i, ty) in param_ids.iter().enumerate() {
+            let name = &node.params[i].name;
+            self.bind(name, *ty, false)?;
         }
 
         let body = node
@@ -286,7 +306,7 @@ impl<'a> Checker<'a> {
         self.vars.pop_scope();
 
         // There was no return when there should have been
-        if !self.has_returned && ret_id != self.ctx.void() {
+        if !self.has_returned && *ret_id != self.ctx.void() {
             return Err(self.error_token(
                 format!("missing return in function '{}'", node.name.kind).as_str(),
                 &node.body.rbrace,
@@ -297,7 +317,7 @@ impl<'a> Checker<'a> {
             meta,
             name: node.name.to_string(),
             public: node.public,
-            ty: self.ctx.lookup(func_id).clone(),
+            ty: func_type,
             params: node.params.iter().map(|p| p.name.to_string()).collect(),
             body,
         }))
@@ -412,12 +432,7 @@ impl<'a> Checker<'a> {
             TokenKind::FloatLit(_) => self.ctx.primitive_type(PrimitiveType::F64),
             TokenKind::StringLit(_) => self.ctx.primitive_type(PrimitiveType::String),
             TokenKind::True | TokenKind::False => self.ctx.primitive_type(PrimitiveType::Bool),
-            TokenKind::IdentLit(name) => self
-                .vars
-                .get(name)
-                .map_or(Err(self.error_token("not declared", &tok)), |t| {
-                    Ok(self.ctx.lookup(t.ty))
-                })?,
+            TokenKind::IdentLit(_) => self.get(&tok).map(|t| self.ctx.lookup(t))?,
             _ => todo!(),
         };
 
