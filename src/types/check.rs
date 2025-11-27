@@ -1,5 +1,5 @@
 use crate::{
-    ast::{self, FileSet, Node},
+    ast::{FileSet, Node},
     config::Config,
     error::{Error, ErrorSet, Res},
     types::{Checker, Package, TypeContext, TypedAst},
