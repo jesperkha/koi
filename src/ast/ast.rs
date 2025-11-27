@@ -142,6 +142,7 @@ pub struct ReturnNode {
 
 #[derive(Debug)]
 pub struct FuncDeclNode {
+    pub public: bool,
     pub name: Token,
     pub lparen: Token,
     pub params: Vec<Field>,

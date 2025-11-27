@@ -119,6 +119,7 @@ impl<'a> Parser<'a> {
 
     // Consume until next 'safe' token to recover. Sets panic_mode to false.
     fn recover_from_error(&mut self) {
+        self.consume(); // consume at least first token in case it is the one causing the panic
         while !self.eof() && !self.matches_any(&[TokenKind::Func, TokenKind::Extern]) {
             self.consume();
         }
@@ -230,18 +231,32 @@ impl<'a> Parser<'a> {
         let token = self.cur().unwrap();
 
         match token.kind {
-            TokenKind::Func | TokenKind::Pub => self.parse_function(token),
-            // TODO: public extern (re-export)
-            TokenKind::Extern => {
-                self.consume(); // extern
-                Ok(Decl::Extern(self.parse_function_def()?))
-            }
-            //TokenKind::Package => Err(self.error_token("package can only be declared once")),
+            TokenKind::Pub => self.parse_public_decl(),
+            TokenKind::Func => self.parse_function(false),
+            TokenKind::Extern => self.parse_extern(false),
             _ => Err(self.error_token("expected declaration")),
         }
     }
 
-    fn parse_function_def(&mut self) -> Result<FuncDeclNode, Error> {
+    fn parse_public_decl(&mut self) -> Result<Decl, Error> {
+        self.consume(); // pub
+        let Some(token) = self.cur() else {
+            return Err(self.error_token("unexpected eof"));
+        };
+
+        match token.kind {
+            TokenKind::Func => self.parse_function(true),
+            TokenKind::Extern => self.parse_extern(true),
+            _ => Err(self.error_token("illegal public declaration")),
+        }
+    }
+
+    fn parse_extern(&mut self, public: bool) -> Result<Decl, Error> {
+        self.consume(); // extern
+        self.parse_function_def(public).map(|def| Decl::Extern(def))
+    }
+
+    fn parse_function_def(&mut self, public: bool) -> Result<FuncDeclNode, Error> {
         self.expect(TokenKind::Func)?;
 
         let name = self.expect_identifier("function name")?;
@@ -289,6 +304,7 @@ impl<'a> Parser<'a> {
         };
 
         Ok(FuncDeclNode {
+            public,
             name,
             lparen,
             params,
@@ -297,13 +313,9 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_function(&mut self, kw: Token) -> Result<Decl, Error> {
-        let mut public = kw.kind == TokenKind::Pub;
-        if public {
-            self.consume(); // Consume the 'pub' token
-        }
-
-        let decl = self.parse_function_def()?;
+    fn parse_function(&mut self, public: bool) -> Result<Decl, Error> {
+        let mut public = public;
+        let decl = self.parse_function_def(public)?;
 
         // Automatically set main as public for convenience
         if decl.name.to_string() == "main" {

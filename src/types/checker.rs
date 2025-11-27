@@ -163,32 +163,24 @@ impl<'a> Checker<'a> {
     }
 
     fn declare_function(&mut self, node: &ast::FuncNode) -> Result<(), Error> {
-        // Evaluate return type if any
-        let ret_id = self.eval_optional_type(&node.ret_type)?;
-
-        // Get parameter types
-        let param_ids = &node
-            .params
-            .iter()
-            .map(|f| self.eval_type(&f.typ).map(|id| (&f.name, id)))
-            .collect::<Result<Vec<_>, _>>()?;
-
-        // Declare function in context
-        let kind = TypeKind::Function(param_ids.iter().map(|v| v.1).collect(), ret_id);
-        let func_id = self.ctx.get_or_intern(kind);
-        let name = node.name.to_string();
-        self.ctx.set_symbol(name, func_id, node.public);
-
-        Ok(())
+        self.declare_function_definition(&node.name, &node.params, &node.ret_type)
     }
 
     fn declare_extern(&mut self, node: &ast::FuncDeclNode) -> Result<(), Error> {
+        self.declare_function_definition(&node.name, &node.params, &node.ret_type)
+    }
+
+    fn declare_function_definition(
+        &mut self,
+        name: &Token,
+        params: &Vec<ast::Field>,
+        ret_type: &Option<ast::TypeNode>,
+    ) -> Result<(), Error> {
         // Evaluate return type if any
-        let ret_id = self.eval_optional_type(&node.ret_type)?;
+        let ret_id = self.eval_optional_type(ret_type)?;
 
         // Get parameter types
-        let param_ids = &node
-            .params
+        let param_ids = &params
             .iter()
             .map(|f| self.eval_type(&f.typ).map(|id| (&f.name, id)))
             .collect::<Result<Vec<_>, _>>()?;
@@ -196,7 +188,7 @@ impl<'a> Checker<'a> {
         // Declare function in context
         let kind = TypeKind::Function(param_ids.iter().map(|v| v.1).collect(), ret_id);
         let func_id = self.ctx.get_or_intern(kind);
-        let name = node.name.to_string();
+        let name = name.to_string();
         self.ctx.set_symbol(name, func_id, false);
 
         Ok(())
