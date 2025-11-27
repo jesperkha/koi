@@ -18,6 +18,11 @@ pub fn type_check(fs: FileSet, config: &Config) -> Res<Package> {
     global_pass(&fs, &mut ctx, config)?;
 
     let tree = emit_typed_ast(fs, ctx, config)?;
+
+    if config.dump_type_context {
+        tree.ctx.dump_context_string();
+    }
+
     Ok(Package::new(pkgname, tree))
 }
 

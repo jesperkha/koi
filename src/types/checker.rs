@@ -163,16 +163,17 @@ impl<'a> Checker<'a> {
     }
 
     fn declare_function(&mut self, node: &ast::FuncNode) -> Result<(), Error> {
-        self.declare_function_definition(&node.name, &node.params, &node.ret_type)
+        self.declare_function_definition(&node.name, node.public, &node.params, &node.ret_type)
     }
 
     fn declare_extern(&mut self, node: &ast::FuncDeclNode) -> Result<(), Error> {
-        self.declare_function_definition(&node.name, &node.params, &node.ret_type)
+        self.declare_function_definition(&node.name, node.public, &node.params, &node.ret_type)
     }
 
     fn declare_function_definition(
         &mut self,
         name: &Token,
+        public: bool,
         params: &Vec<ast::Field>,
         ret_type: &Option<ast::TypeNode>,
     ) -> Result<(), Error> {
@@ -189,7 +190,7 @@ impl<'a> Checker<'a> {
         let kind = TypeKind::Function(param_ids.iter().map(|v| v.1).collect(), ret_id);
         let func_id = self.ctx.get_or_intern(kind);
         let name = name.to_string();
-        self.ctx.set_symbol(name, func_id, false);
+        self.ctx.set_symbol(name, func_id, public);
 
         Ok(())
     }

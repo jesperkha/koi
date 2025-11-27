@@ -47,27 +47,6 @@ impl TypeContext {
             })
     }
 
-    /// Get the string representation of a type for errors or logging.
-    pub fn to_string(&self, id: TypeId) -> String {
-        match &self.lookup(id).kind {
-            TypeKind::Primitive(p) => format!("{p}"),
-            TypeKind::Array(inner) => format!("[]{}", self.to_string(*inner)),
-            TypeKind::Pointer(inner) => format!("*{}", self.to_string(*inner)),
-            TypeKind::Alias(id) => format!("Alias({})", self.to_string(*id)),
-            TypeKind::Unique(id) => format!("Unique({})", self.to_string(*id)),
-            TypeKind::Function(params, ret) => {
-                let params_str = params
-                    .iter()
-                    .map(|p| self.to_string(*p))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-
-                let ret_str = self.to_string(*ret);
-                format!("func ({}) {}", params_str, ret_str)
-            }
-        }
-    }
-
     /// Returns the unique type id for the given kind.
     /// Stores the type in context if not seen before.
     pub fn get_or_intern(&mut self, kind: TypeKind) -> TypeId {
@@ -166,5 +145,51 @@ impl TypeContext {
         self.symbols
             .get(name)
             .map_or(Err("not declared".to_string()), |s| Ok(s.ty))
+    }
+
+    /// Get the string representation of a type for errors or logging.
+    pub fn to_string(&self, id: TypeId) -> String {
+        match &self.lookup(id).kind {
+            TypeKind::Primitive(p) => format!("{p}"),
+            TypeKind::Array(inner) => format!("[]{}", self.to_string(*inner)),
+            TypeKind::Pointer(inner) => format!("*{}", self.to_string(*inner)),
+            TypeKind::Alias(id) => format!("Alias({})", self.to_string(*id)),
+            TypeKind::Unique(id) => format!("Unique({})", self.to_string(*id)),
+            TypeKind::Function(params, ret) => {
+                let params_str = params
+                    .iter()
+                    .map(|p| self.to_string(*p))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                let ret_str = self.to_string(*ret);
+                format!("func ({}) {}", params_str, ret_str)
+            }
+        }
+    }
+
+    /// Print a string dump of all type and symbol mappings.
+    pub fn dump_context_string(&self) {
+        let mut s = String::new();
+
+        s += "| TYPES\n";
+        s += "|-------------------------------\n";
+        for i in 0..self.types.len() {
+            s += &format!("| {:<3} {}\n", i, self.to_string(i));
+        }
+
+        s += "| \n";
+        s += "| SYMBOLS\n";
+        s += "|-------------------------------\n";
+        for sym in &self.symbols {
+            s += &format!(
+                "| {:<10} {:<3} {}\n",
+                sym.0,
+                (sym.1).ty,
+                if (sym.1).exported { "(public)" } else { "" }
+            );
+        }
+
+        println!("{}", s);
     }
 }

@@ -61,7 +61,7 @@ pub fn compile_string(src: &str) -> Result<String, String> {
 }
 
 pub fn debug_print_all_steps(src: &str) {
-    let config = Config::default();
+    let config = Config::debug();
     let source = Source::new_from_string(src);
 
     scan(&source, &config)
