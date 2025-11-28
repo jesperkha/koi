@@ -1,13 +1,18 @@
-use crate::types::{Decl, TypeContext, TypedAst};
+use crate::types::{Decl, Exports, TypeContext, TypedAst};
 
 pub struct Package {
     name: String,
     tree: TypedAst,
+    exports: Exports,
 }
 
 impl Package {
-    pub fn new(name: String, tree: TypedAst) -> Self {
-        Self { name, tree }
+    pub fn new(name: String, tree: TypedAst, exports: Exports) -> Self {
+        Self {
+            name,
+            tree,
+            exports,
+        }
     }
 
     pub fn name(&self) -> &str {

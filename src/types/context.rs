@@ -1,7 +1,7 @@
 use std::{collections::HashMap, str};
 use strum::IntoEnumIterator;
 
-use crate::types::{Namespace, PrimitiveType, Type, TypeId, TypeKind, no_type};
+use crate::types::{PrimitiveType, Type, TypeId, TypeKind, no_type};
 
 /// Context for type lookups.
 pub struct TypeContext {
@@ -12,10 +12,9 @@ pub struct TypeContext {
     cache: HashMap<TypeKind, TypeId>,
     /// Top level symbol mappings.
     symbols: HashMap<String, Symbol>,
-    /// Map of namespaces imported into this context
-    namespaces: HashMap<String, Namespace>,
 }
 
+#[derive(Clone)]
 pub struct Symbol {
     pub ty: TypeId,
     pub exported: bool,
@@ -28,7 +27,6 @@ impl TypeContext {
             types: Vec::new(),
             cache: HashMap::new(),
             symbols: HashMap::new(),
-            namespaces: HashMap::new(),
         };
 
         for t in PrimitiveType::iter() {
@@ -36,15 +34,6 @@ impl TypeContext {
         }
 
         s
-    }
-
-    /// Add new namespace to this context. Returns error if namespace with that name already exists.
-    pub fn add_namespace(&mut self, namespace: Namespace) -> Result<(), String> {
-        self.namespaces
-            .insert(namespace.name.clone(), namespace)
-            .map_or(Ok(()), |n| {
-                Err(format!("namespace '{}' already imported", n.name))
-            })
     }
 
     /// Returns the unique type id for the given kind.
@@ -145,6 +134,15 @@ impl TypeContext {
         self.symbols
             .get(name)
             .map_or(Err("not declared".to_string()), |s| Ok(s.ty))
+    }
+
+    /// Get an owned list of all exported symbols from this context.
+    pub fn exported_symbols(&self) -> Vec<(String, TypeKind)> {
+        self.symbols
+            .iter()
+            .filter(|s| (s.1).exported)
+            .map(|s| (s.0.clone(), self.lookup(s.1.ty).kind.clone()))
+            .collect::<Vec<_>>()
     }
 
     /// Get the string representation of a type for errors or logging.

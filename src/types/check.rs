@@ -2,7 +2,7 @@ use crate::{
     ast::{FileSet, Node},
     config::Config,
     error::{Error, ErrorSet, Res},
-    types::{Checker, Package, TypeContext, TypedAst},
+    types::{Checker, Exports, Package, TypeContext, TypedAst},
 };
 use tracing::info;
 
@@ -13,17 +13,17 @@ pub fn type_check(fs: FileSet, config: &Config) -> Res<Package> {
     // Passes
     check_package_names_equal(&fs, config)?;
     check_one_file_in_main_package(&fs)?;
-
     resolve_imports(&fs, &mut ctx, config)?;
     global_pass(&fs, &mut ctx, config)?;
 
+    let exports = collect_exports(&ctx);
     let tree = emit_typed_ast(fs, ctx, config)?;
 
     if config.dump_type_context {
         tree.ctx.dump_context_string();
     }
 
-    Ok(Package::new(pkgname, tree))
+    Ok(Package::new(pkgname, tree, exports))
 }
 
 fn check_one_file_in_main_package(fs: &FileSet) -> Result<(), ErrorSet> {
@@ -66,11 +66,6 @@ fn check_package_names_equal(fs: &FileSet, config: &Config) -> Result<(), ErrorS
     errs.err_or(())
 }
 
-/// Resolve all imported types and symbols.
-fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, config: &Config) -> Result<(), ErrorSet> {
-    Ok(())
-}
-
 /// Add all global declarations to context.
 fn global_pass(fs: &FileSet, ctx: &mut TypeContext, config: &Config) -> Result<(), ErrorSet> {
     let mut errs = ErrorSet::new();
@@ -81,6 +76,21 @@ fn global_pass(fs: &FileSet, ctx: &mut TypeContext, config: &Config) -> Result<(
     }
 
     errs.err_or(())
+}
+
+/// Collect all export from TypeContext into an Exports object.
+fn collect_exports(ctx: &TypeContext) -> Exports {
+    let mut exports = Exports::new();
+    ctx.exported_symbols()
+        .into_iter()
+        .for_each(|s| exports.add(s.0, s.1));
+
+    exports
+}
+
+/// Resolve all imported types and symbols.
+fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, config: &Config) -> Result<(), ErrorSet> {
+    Ok(())
 }
 
 /// Emit combined typed AST for all files in set.
