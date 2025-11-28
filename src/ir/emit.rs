@@ -113,7 +113,7 @@ impl<'a> Emitter<'a> {
 
 impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
     fn visit_func(&mut self, node: &types::FuncNode) -> Result<Value, Error> {
-        let IRType::Function(params, ret) = self.to_ir_type(node.ty.id) else {
+        let IRType::Function(params, ret) = self.node_to_ir_type(node) else {
             panic!("expected func to be function type, was {:?}", &node.ty);
         };
 
@@ -160,7 +160,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
     }
 
     fn visit_return(&mut self, node: &types::ReturnNode) -> Result<Value, Error> {
-        let ty = self.to_ir_type(node.ty.id);
+        let ty = self.node_to_ir_type(node);
         let val = node
             .expr
             .as_ref()
@@ -216,7 +216,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
     }
 
     fn visit_extern(&mut self, node: &types::ExternNode) -> Result<Value, Error> {
-        let IRType::Function(params, ret) = self.to_ir_type(node.ty.id) else {
+        let IRType::Function(params, ret) = self.node_to_ir_type(node) else {
             panic!("expected func to be function type, was {:?}", &node.ty);
         };
 
@@ -247,7 +247,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let ty = self.to_ir_type(node.ty.id);
+        let ty = self.node_to_ir_type(node);
         let result = self.sym.next(); // declare after evaluating args to avoid incorrect id order
 
         self.push(Ins::Call(ir::CallIns {

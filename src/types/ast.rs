@@ -120,47 +120,11 @@ pub struct CallNode {
     pub args: Vec<Expr>,
 }
 
-impl<'a> TypedNode<'a> for Decl {
-    fn type_id(&self) -> TypeId {
-        match self {
-            Decl::Func(node) => node.ty.id,
-            Decl::Extern(node) => node.ty.id,
-        }
-    }
-
-    fn kind(&'a self) -> &'a TypeKind {
-        match self {
-            Decl::Func(node) => &node.ty.kind,
-            Decl::Extern(node) => &node.ty.kind,
-        }
-    }
-}
-
 impl Visitable for Decl {
     fn accept<T>(&self, v: &mut dyn Visitor<T>) -> T {
         match self {
             Decl::Func(node) => v.visit_func(node),
             Decl::Extern(node) => v.visit_extern(node),
-        }
-    }
-}
-
-impl<'a> TypedNode<'a> for Stmt {
-    fn type_id(&self) -> TypeId {
-        match self {
-            Stmt::Return(node) => node.ty.id,
-            Stmt::VarDecl(node) => node.ty.id,
-            Stmt::VarAssign(node) => node.ty.id,
-            Stmt::ExprStmt(node) => node.type_id(),
-        }
-    }
-
-    fn kind(&'a self) -> &'a TypeKind {
-        match self {
-            Stmt::Return(node) => &node.ty.kind,
-            Stmt::VarAssign(node) => &node.ty.kind,
-            Stmt::VarDecl(node) => &node.ty.kind,
-            Stmt::ExprStmt(node) => node.kind(),
         }
     }
 }
@@ -172,22 +136,6 @@ impl Visitable for Stmt {
             Stmt::VarDecl(node) => v.visit_var_decl(node),
             Stmt::VarAssign(node) => v.visit_var_assign(node),
             Stmt::ExprStmt(node) => node.accept(v),
-        }
-    }
-}
-
-impl<'a> TypedNode<'a> for Expr {
-    fn type_id(&self) -> TypeId {
-        match self {
-            Expr::Literal(node) => node.ty.id,
-            Expr::Call(node) => node.ty.id,
-        }
-    }
-
-    fn kind(&'a self) -> &'a TypeKind {
-        match self {
-            Expr::Literal(node) => &node.ty.kind,
-            Expr::Call(node) => &node.ty.kind,
         }
     }
 }
@@ -275,3 +223,56 @@ impl Node for Expr {
         }
     }
 }
+
+macro_rules! impl_typed_node_enum {
+    ($enum:ty { $($variant:ident),* $(,)? }) => {
+        impl<'a> TypedNode<'a> for $enum {
+            fn type_id(&self) -> TypeId {
+                match self {
+                    $(Self::$variant(inner) => inner.type_id(),)*
+                }
+            }
+
+            fn kind(&'a self) -> &'a TypeKind {
+                match self {
+                    $(Self::$variant(inner) => inner.kind(),)*
+                }
+            }
+        }
+    };
+}
+
+impl_typed_node_enum!(Decl { Func, Extern });
+impl_typed_node_enum!(Stmt {
+    Return,
+    VarDecl,
+    VarAssign,
+    ExprStmt
+});
+impl_typed_node_enum!(Expr { Call, Literal });
+
+macro_rules! impl_typed_node {
+    ($($t:ty),* $(,)?) => {
+        $(
+            impl<'a> TypedNode<'a> for $t {
+                fn kind(&'a self) -> &'a TypeKind {
+                    &self.ty.kind
+                }
+
+                fn type_id(&self) -> TypeId {
+                    self.ty.id
+                }
+            }
+        )*
+    }
+}
+
+impl_typed_node!(
+    ExternNode,
+    FuncNode,
+    LiteralNode,
+    CallNode,
+    ReturnNode,
+    VarDeclNode,
+    VarAssignNode
+);
