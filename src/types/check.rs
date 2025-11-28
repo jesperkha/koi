@@ -27,20 +27,23 @@ pub fn type_check(fs: FileSet, config: &Config) -> Res<Package> {
 }
 
 fn check_one_file_in_main_package(fs: &FileSet) -> Result<(), ErrorSet> {
-    if &fs.package_id.0 == "main" && fs.files.len() > 1 {
-        let f = &fs.files[0];
-        Err(ErrorSet::new_from(Error::range(
-            &format!(
-                "at most one file can be part of package 'main', found {}",
-                fs.files.len()
-            ),
-            f.ast.package.pos(),
-            f.ast.package.end(),
-            &f.src,
-        )))
-    } else {
-        Ok(())
+    if !(&fs.package_id.0 == "main" && fs.files.len() > 1) {
+        return Ok(());
     }
+
+    let msg = &format!(
+        "at most one file can be part of package 'main', found {}",
+        fs.files.len()
+    );
+
+    let file = &fs.files[0];
+    let pkg = &file.ast.package;
+    Err(ErrorSet::new_from(Error::range(
+        msg,
+        pkg.pos(),
+        pkg.end(),
+        &file.src,
+    )))
 }
 
 /// Assert that all package names in the file set are the same.
@@ -52,16 +55,17 @@ fn check_package_names_equal(fs: &FileSet, config: &Config) -> Result<(), ErrorS
     let name = &fs.package_id.0;
     let mut errs = ErrorSet::new();
 
-    for file in &fs.files {
-        if &file.package != name {
+    fs.files
+        .iter()
+        .filter(|f| &f.package != name)
+        .for_each(|f| {
             errs.add(Error::range(
                 &format!("expected package name '{}'", name),
-                file.ast.package.pos(),
-                file.ast.package.end(),
-                &file.src,
+                f.ast.package.pos(),
+                f.ast.package.end(),
+                &f.src,
             ));
-        }
-    }
+        });
 
     errs.err_or(())
 }
@@ -70,9 +74,9 @@ fn check_package_names_equal(fs: &FileSet, config: &Config) -> Result<(), ErrorS
 fn global_pass(fs: &FileSet, ctx: &mut TypeContext, config: &Config) -> Result<(), ErrorSet> {
     let mut errs = ErrorSet::new();
     for file in &fs.files {
-        let _ = Checker::new(&file.src, fs.package_id.clone(), ctx, config)
+        Checker::new(&file.src, fs.package_id.clone(), ctx, config)
             .global_pass(&file.ast.decls)
-            .map_err(|e| errs.join(e));
+            .map_or_else(|e| errs.join(e), |_| {});
     }
 
     errs.err_or(())
@@ -106,11 +110,9 @@ fn emit_typed_ast(
     let mut decls = Vec::new();
 
     for file in fs.files {
-        let mut checker = Checker::new(&file.src, fs.package_id.clone(), &mut ctx, config);
-        match checker.emit_ast(file.ast.decls) {
-            Ok(d) => decls.extend(d),
-            Err(e) => errs.join(e),
-        };
+        Checker::new(&file.src, fs.package_id.clone(), &mut ctx, config)
+            .emit_ast(file.ast.decls)
+            .map_or_else(|e| errs.join(e), |d| decls.extend(d));
     }
 
     errs.err_or(TypedAst { ctx, decls })

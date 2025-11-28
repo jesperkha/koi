@@ -150,8 +150,8 @@ impl<'a> Checker<'a> {
 
     pub fn global_pass(&mut self, decls: &Vec<ast::Decl>) -> Result<(), ErrorSet> {
         let mut errs = ErrorSet::new();
-        for decl in decls {
-            let _ = match decl {
+        for d in decls {
+            let _ = match d {
                 ast::Decl::Func(node) => self.declare_function(node),
                 ast::Decl::Extern(node) => self.declare_extern(node),
                 _ => Ok(()),
@@ -201,13 +201,12 @@ impl<'a> Checker<'a> {
         let mut errs = ErrorSet::new();
         info!("file '{}'", self.src.filepath);
 
-        let mut typed_decls = Vec::new();
-        for n in decls {
-            match self.emit_decl(n) {
-                Ok(d) => typed_decls.push(d),
-                Err(e) => errs.add(e),
-            };
-        }
+        let typed_decls = decls
+            .into_iter()
+            .map(|d| self.emit_decl(d))
+            .map(|s| s.map_err(|e| errs.add(e)))
+            .filter_map(Result::ok)
+            .collect::<Vec<_>>();
 
         if errs.len() > 0 {
             info!("fail, finished with {} errors", errs.len());
