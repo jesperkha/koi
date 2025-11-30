@@ -6,33 +6,36 @@ use petgraph::{
 };
 use tracing::info;
 
-use crate::ast::{FileSet, PackageID};
+use crate::ast::FileSet;
 
-fn is_stdlib(id: &PackageID) -> bool {
-    vec![].contains(&id.0.as_str())
+fn is_stdlib(id: &str) -> bool {
+    vec![].contains(&id)
 }
 
+/// Sort list of FileSets based on their imports by creating a dependency graph.
+/// The first element in the returned list is the least depended on package
+/// and must be type checked first.
 pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, String> {
     let mut index = HashMap::new();
     let mut dag: DiGraphMap<usize, ()> = DiGraphMap::new();
 
     for fs in &sets {
         let id = index.len();
-        index.insert(fs.dependency_name.clone(), id);
+        index.insert(fs.import_path.clone(), id);
         dag.add_node(id);
     }
 
     for fs in &sets {
         for import in &fs.imports {
-            if is_stdlib(&import.name) {
+            if is_stdlib(&import.import_path) {
                 continue;
             }
 
-            let Some(a) = index.get(&import.name.0) else {
+            let Some(a) = index.get(&import.import_path) else {
                 continue; // Handled in import resolution
             };
 
-            let b = *index.get(&fs.dependency_name).expect("missing import {}");
+            let b = *index.get(&fs.import_path).expect("missing import {}");
 
             if has_path_connecting(&dag, b, *a, None) {
                 return Err(format!("import cycle detected"));
@@ -47,7 +50,7 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, Stri
 
     let mut id_to_fileset = HashMap::new();
     for fs in sets {
-        let id = index[&fs.dependency_name];
+        let id = index[&fs.import_path];
         id_to_fileset.insert(id, fs);
     }
 
@@ -60,7 +63,7 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, Stri
         "final check order: {}",
         sorted_sets
             .iter()
-            .map(|s| s.dependency_name.clone())
+            .map(|s| s.import_path.clone())
             .collect::<Vec<_>>()
             .join(", ")
     );

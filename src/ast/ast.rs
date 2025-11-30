@@ -12,6 +12,15 @@ pub struct Ast {
     pub decls: Vec<Decl>,
 }
 
+impl Ast {
+    /// Walks the AST and applies the visitor to each node.
+    pub fn walk<R>(&self, visitor: &mut dyn Visitor<R>) {
+        for node in &self.decls {
+            node.accept(visitor);
+        }
+    }
+}
+
 /// A node is any part of the AST, including statements, expressions, and
 /// declarations. Visitors can traverse these nodes to perform operations
 /// like linting, analysis, or transformations.

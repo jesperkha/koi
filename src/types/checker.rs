@@ -1,7 +1,7 @@
 use tracing::info;
 
 use crate::{
-    ast::{self, Expr, Field, Node, PackageID, TypeNode},
+    ast::{self, Expr, Field, Node, TypeNode},
     config::Config,
     error::{Error, ErrorSet},
     token::{Pos, Source, Token, TokenKind},
@@ -17,7 +17,7 @@ struct Value {
 }
 
 pub struct Checker<'a> {
-    pkg: PackageID,
+    pkg: String,
     ctx: &'a mut TypeContext,
     src: &'a Source,
     _config: &'a Config,
@@ -35,12 +35,7 @@ pub struct Checker<'a> {
 }
 
 impl<'a> Checker<'a> {
-    pub fn new(
-        src: &'a Source,
-        pkg: PackageID,
-        ctx: &'a mut TypeContext,
-        config: &'a Config,
-    ) -> Self {
+    pub fn new(src: &'a Source, pkg: String, ctx: &'a mut TypeContext, config: &'a Config) -> Self {
         Self {
             _config: config,
             src,
@@ -255,7 +250,7 @@ impl<'a> Checker<'a> {
             let int_id = self.ctx.primitive(PrimitiveType::I64);
 
             // Must be package main
-            if !self.pkg.0.is_empty() && self.pkg.0 != "main" {
+            if !self.pkg.is_empty() && self.pkg != "main" {
                 info!("package name expected to be main, is {}", self.pkg);
                 return Err(self.error("main function can only be declared in main package", &node));
             }

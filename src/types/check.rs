@@ -9,7 +9,7 @@ use tracing::info;
 
 pub fn type_check(fs: FileSet, deps: &mut Deps, config: &Config) -> Res<Package> {
     let mut ctx = TypeContext::new();
-    let pkgname = fs.package_id.0.clone();
+    let pkgname = fs.package_name.clone();
 
     // Passes
     check_package_names_equal(&fs, config)?;
@@ -18,7 +18,7 @@ pub fn type_check(fs: FileSet, deps: &mut Deps, config: &Config) -> Res<Package>
     global_pass(&fs, &mut ctx, config)?;
 
     let exports = collect_exports(&ctx);
-    deps.add(fs.dependency_name.clone(), Dependency::user(exports));
+    deps.add(fs.import_path.clone(), Dependency::user(exports));
 
     let tree = emit_typed_ast(fs, ctx, config)?;
 
@@ -30,7 +30,7 @@ pub fn type_check(fs: FileSet, deps: &mut Deps, config: &Config) -> Res<Package>
 }
 
 fn check_one_file_in_main_package(fs: &FileSet) -> Result<(), ErrorSet> {
-    if !(&fs.package_id.0 == "main" && fs.files.len() > 1) {
+    if !(&fs.package_name == "main" && fs.files.len() > 1) {
         return Ok(());
     }
 
@@ -55,12 +55,12 @@ fn check_package_names_equal(fs: &FileSet, config: &Config) -> Result<(), ErrorS
         return Ok(());
     }
 
-    let name = &fs.package_id.0;
+    let name = &fs.package_name;
     let mut errs = ErrorSet::new();
 
     fs.files
         .iter()
-        .filter(|f| &f.package != name)
+        .filter(|f| &f.package_name != name)
         .for_each(|f| {
             errs.add(Error::range(
                 &format!("expected package name '{}'", name),
@@ -77,7 +77,7 @@ fn check_package_names_equal(fs: &FileSet, config: &Config) -> Result<(), ErrorS
 fn global_pass(fs: &FileSet, ctx: &mut TypeContext, config: &Config) -> Result<(), ErrorSet> {
     let mut errs = ErrorSet::new();
     for file in &fs.files {
-        Checker::new(&file.src, fs.package_id.clone(), ctx, config)
+        Checker::new(&file.src, fs.package_name.clone(), ctx, config)
             .global_pass(&file.ast.decls)
             .map_or_else(|e| errs.join(e), |_| {});
     }
@@ -153,7 +153,7 @@ fn emit_typed_ast(
     let mut decls = Vec::new();
 
     for file in fs.files {
-        Checker::new(&file.src, fs.package_id.clone(), &mut ctx, config)
+        Checker::new(&file.src, fs.package_name.clone(), &mut ctx, config)
             .emit_ast(file.ast.decls)
             .map_or_else(|e| errs.join(e), |d| decls.extend(d));
     }

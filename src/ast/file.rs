@@ -2,19 +2,9 @@ use core::fmt;
 use std::{collections::HashSet, ffi::OsStr, path::PathBuf};
 
 use crate::{
-    ast::{Ast, Printer, Visitable, Visitor},
+    ast::{Ast, Printer},
     token::{Source, Token},
 };
-
-/// Unique package identifier (full import name, eg. app.server.util)
-#[derive(Hash, Eq, Clone, PartialEq, Debug)]
-pub struct PackageID(pub String);
-
-impl fmt::Display for PackageID {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
 
 #[derive(Debug)]
 pub struct FileMeta {
@@ -22,18 +12,21 @@ pub struct FileMeta {
     pub filepath: String,
 }
 
+/// A File represents a parsed source file, containing its AST, source code,
+/// declared package name, and other metadata about the file itself.
 #[derive(Debug)]
 pub struct File {
+    /// The declared package name in the file.
+    pub package_name: String,
     pub meta: FileMeta,
-    pub package: String,
     pub ast: Ast,
     pub src: Source,
 }
 
 impl File {
-    pub fn new(package: String, src: Source, ast: Ast) -> Self {
+    pub fn new(package_name: String, src: Source, ast: Ast) -> Self {
         File {
-            package,
+            package_name,
             meta: FileMeta {
                 filename: String::from(
                     PathBuf::from(&src.filepath)
@@ -47,13 +40,6 @@ impl File {
             src,
         }
     }
-
-    /// Walks the AST and applites the visitor to each node.
-    pub fn walk<R>(&self, visitor: &mut dyn Visitor<R>) {
-        for node in &self.ast.decls {
-            node.accept(visitor);
-        }
-    }
 }
 
 impl fmt::Display for File {
@@ -62,23 +48,26 @@ impl fmt::Display for File {
     }
 }
 
+/// An Import describes a import at the top of a file. It contains the import
+/// path, the symbols imported, and the alias it should be bound to.
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct Import {
-    pub name: PackageID,
+    pub import_path: String,
     pub symbols: Vec<String>,
     pub alias: Option<String>,
 }
 
-/// A FileSet is a collection of ASTs (Files). The imports vector is a list of
-/// all imports across all source files in the set. These must be type checked
-/// before this fileset can be processed further.
+/// A FileSet is a collection of Files part of the same package. The imports
+/// set is a list of all imports across all source files in the set. These
+/// must be type checked before this fileset can be processed further.
 pub struct FileSet {
     /// Path to this fileset from root.
     pub path: String,
     /// Full depenency name. Name of each parent directory from root joined by
     /// a period, e.g. "app.storage.db".
-    pub dependency_name: String,
-    pub package_id: PackageID,
+    pub import_path: String,
+    /// Declared package name, e.g. 'util'.
+    pub package_name: String,
     pub imports: HashSet<Import>,
     pub files: Vec<File>,
 }
@@ -92,28 +81,28 @@ impl FileSet {
 
         for file in &files {
             for imp in &file.ast.imports {
-                let pkg_id = PackageID(
-                    imp.names
-                        .iter()
-                        .map(|t| t.to_string())
-                        .collect::<Vec<String>>()
-                        .join("."),
-                );
+                let import_path = imp
+                    .names
+                    .iter()
+                    .map(|t| t.to_string())
+                    .collect::<Vec<String>>()
+                    .join(".");
+
                 imports.insert(Import {
-                    name: pkg_id,
+                    import_path,
                     symbols: imp.imports.iter().map(Token::to_string).collect(),
                     alias: imp.alias.as_ref().map(|t| t.to_string()),
                 });
             }
         }
 
-        let package_id = PackageID(files[0].package.clone());
+        let package_name = files[0].package_name.clone();
         let filepath = files[0].src.filepath.clone();
 
         Self {
             path: filepath,
-            dependency_name: depname,
-            package_id,
+            import_path: depname,
+            package_name,
             imports,
             files,
         }
