@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::types::TypeKind;
 
+/// Exports contains all exported symbols for a given FileSet.
 pub struct Exports {
     symbols: HashMap<String, TypeKind>,
 }
@@ -30,6 +31,8 @@ pub enum DependencyKind {
     ThirdParty,
 }
 
+/// A Dependency contains all exported symbols as well as other meta data
+/// about the nature of the dependency itself.
 pub struct Dependency {
     kind: DependencyKind,
     exports: Exports,
@@ -48,11 +51,12 @@ impl Dependency {
     }
 }
 
-pub struct Deps {
+/// Map of all loaded dependencies used for type checking.
+pub struct DepMap {
     dependencies: HashMap<String, Dependency>,
 }
 
-impl Deps {
+impl DepMap {
     pub fn empty() -> Self {
         Self {
             dependencies: HashMap::new(),

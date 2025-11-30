@@ -3,11 +3,11 @@ use crate::{
     config::Config,
     error::{Error, ErrorSet, Res},
     token::Token,
-    types::{Checker, Dependency, Exports, Package, TypeContext, TypedAst, deps::Deps},
+    types::{Checker, Dependency, Exports, Package, TypeContext, TypedAst, deps::DepMap},
 };
 use tracing::info;
 
-pub fn type_check(fs: FileSet, deps: &mut Deps, config: &Config) -> Res<Package> {
+pub fn type_check(fs: FileSet, deps: &mut DepMap, config: &Config) -> Res<Package> {
     let mut ctx = TypeContext::new();
     let pkgname = fs.package_name.clone();
 
@@ -96,7 +96,7 @@ fn collect_exports(ctx: &TypeContext) -> Exports {
 }
 
 /// Resolve all imported types and symbols.
-fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, deps: &Deps) -> Result<(), ErrorSet> {
+fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, deps: &DepMap) -> Result<(), ErrorSet> {
     let mut errs = ErrorSet::new();
 
     for file in &fs.files {

@@ -6,7 +6,7 @@ use crate::{
     ir::{IRUnit, emit_ir},
     parser::parse,
     token::{Source, Token, scan},
-    types::{Deps, Package, type_check},
+    types::{DepMap, Package, type_check},
 };
 
 pub fn compare_string_lines_or_panic(ina: String, inb: String) {
@@ -44,7 +44,7 @@ pub fn parse_string(src: &str) -> Res<File> {
 pub fn check_string(src: &str) -> Res<Package> {
     let config = Config::test();
     let fs = FileSet::new("main".to_string(), vec![parse_string(src)?]);
-    let mut deps = Deps::with_stdlib();
+    let mut deps = DepMap::with_stdlib();
     type_check(fs, &mut deps, &config)
 }
 
@@ -64,7 +64,7 @@ pub fn compile_string(src: &str) -> Result<String, String> {
 pub fn debug_print_all_steps(src: &str) {
     let config = Config::debug();
     let source = Source::new_from_string(src);
-    let mut deps = Deps::with_stdlib();
+    let mut deps = DepMap::with_stdlib();
 
     scan(&source, &config)
         .and_then(|toks| parse(source, toks, &config))

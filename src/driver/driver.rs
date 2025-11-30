@@ -15,7 +15,7 @@ use crate::{
     ir::{IRUnit, emit_ir},
     parser::{parse, sort_by_dependency_graph},
     token::{Source, scan},
-    types::{Deps, Package, type_check},
+    types::{DepMap, Package, type_check},
 };
 
 type Res<T> = Result<T, String>;
@@ -47,7 +47,7 @@ impl<'a> Driver<'a> {
     pub fn compile(&mut self, config: BuildConfig) -> Res<()> {
         create_dir_if_not_exist(&config.bindir)?;
 
-        let mut deps = Deps::with_stdlib();
+        let mut deps = DepMap::with_stdlib();
 
         // Parse all files and store as package filesets
         let mut filesets = Vec::new();
@@ -136,7 +136,7 @@ impl<'a> Driver<'a> {
         }
     }
 
-    fn type_check_and_create_package(&self, fs: FileSet, deps: &mut Deps) -> Res<Package> {
+    fn type_check_and_create_package(&self, fs: FileSet, deps: &mut DepMap) -> Res<Package> {
         type_check(fs, deps, self.config).map_err(|errs| errs.to_string())
     }
 
