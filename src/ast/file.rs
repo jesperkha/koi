@@ -73,7 +73,11 @@ pub struct Import {
 /// all imports across all source files in the set. These must be type checked
 /// before this fileset can be processed further.
 pub struct FileSet {
+    /// Path to this fileset from root.
     pub path: String,
+    /// Full depenency name. Name of each parent directory from root joined by
+    /// a period, e.g. "app.storage.db".
+    pub dependency_name: String,
     pub package_id: PackageID,
     pub imports: HashSet<Import>,
     pub files: Vec<File>,
@@ -81,7 +85,7 @@ pub struct FileSet {
 
 impl FileSet {
     /// Create new file set from File list. List must contain at least one file.
-    pub fn new(files: Vec<File>) -> Self {
+    pub fn new(depname: String, files: Vec<File>) -> Self {
         assert!(files.len() > 0, "files list must contain at least one file");
 
         let mut imports = HashSet::new();
@@ -108,6 +112,7 @@ impl FileSet {
 
         Self {
             path: filepath,
+            dependency_name: depname,
             package_id,
             imports,
             files,

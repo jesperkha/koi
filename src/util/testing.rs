@@ -43,7 +43,7 @@ pub fn parse_string(src: &str) -> Res<File> {
 
 pub fn check_string(src: &str) -> Res<Package> {
     let config = Config::test();
-    let fs = FileSet::new(vec![parse_string(src)?]);
+    let fs = FileSet::new("main".to_string(), vec![parse_string(src)?]);
     let mut deps = Deps::with_stdlib();
     type_check(fs, &mut deps, &config)
 }
@@ -72,7 +72,11 @@ pub fn debug_print_all_steps(src: &str) {
             println!("SOURCE CODE");
             println!("===========\n");
             println!("{}", file);
-            type_check(FileSet::new(vec![file]), &mut deps, &config)
+            type_check(
+                FileSet::new("main".to_string(), vec![file]),
+                &mut deps,
+                &config,
+            )
         })
         .and_then(|pkg| emit_ir(&pkg, &config))
         .map_err(|err| err.to_string())

@@ -58,7 +58,18 @@ impl<'a> Driver<'a> {
             }
 
             let files = self.parse_files(sources)?;
-            filesets.push(FileSet::new(files));
+            let mut depname = dir
+                .display()
+                .to_string()
+                .trim_start_matches(&config.srcdir)
+                .trim_start_matches("/")
+                .replace("/", ".");
+
+            if depname.is_empty() {
+                depname = "main".to_string();
+            }
+
+            filesets.push(FileSet::new(depname, files));
         }
 
         // Create and sort dependency graph, returning a list of

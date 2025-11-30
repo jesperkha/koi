@@ -18,9 +18,9 @@ pub fn type_check(fs: FileSet, deps: &mut Deps, config: &Config) -> Res<Package>
     global_pass(&fs, &mut ctx, config)?;
 
     let exports = collect_exports(&ctx);
-    let tree = emit_typed_ast(fs, ctx, config)?;
+    deps.add(fs.dependency_name.clone(), Dependency::user(exports));
 
-    deps.add(pkgname.clone(), Dependency::user(exports));
+    let tree = emit_typed_ast(fs, ctx, config)?;
 
     if config.dump_type_context {
         tree.ctx.dump_context_string();
