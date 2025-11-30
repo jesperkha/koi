@@ -4,11 +4,12 @@ use petgraph::{
     algo::{has_path_connecting, toposort},
     prelude::DiGraphMap,
 };
+use tracing::info;
 
 use crate::ast::{FileSet, PackageID};
 
 fn is_stdlib(id: &PackageID) -> bool {
-    vec!["io", "os", "http", "str"].contains(&id.0.as_str())
+    vec![].contains(&id.0.as_str())
 }
 
 pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, String> {
@@ -23,21 +24,21 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, Stri
 
     for fs in &sets {
         for import in &fs.imports {
-            if is_stdlib(import) {
+            if is_stdlib(&import.name) {
                 continue;
             }
 
-            let a = *index
-                .get(&import.0)
-                .expect(format!("missing import {}", &import.0).as_str());
+            let Some(a) = index.get(&import.name.0) else {
+                continue; // Handled in import resolution
+            };
 
             let b = *index.get(&fs.package_id.0).expect("missing import {}");
 
-            if has_path_connecting(&dag, b, a, None) {
+            if has_path_connecting(&dag, b, *a, None) {
                 return Err(format!("import cycle detected"));
             }
 
-            dag.add_edge(a, b, ());
+            dag.add_edge(*a, b, ());
         }
     }
 
@@ -50,10 +51,19 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, Stri
         id_to_fileset.insert(id, fs);
     }
 
-    let sorted_sets = sorted_ids
+    let sorted_sets: Vec<FileSet> = sorted_ids
         .into_iter()
         .map(|id| id_to_fileset.remove(&id).unwrap())
         .collect();
+
+    info!(
+        "final check order: {}",
+        sorted_sets
+            .iter()
+            .map(|s| s.package_id.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
 
     Ok(sorted_sets)
 }

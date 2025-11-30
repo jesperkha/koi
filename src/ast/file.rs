@@ -3,7 +3,7 @@ use std::{collections::HashSet, ffi::OsStr, path::PathBuf};
 
 use crate::{
     ast::{Ast, Printer, Visitable, Visitor},
-    token::Source,
+    token::{Source, Token},
 };
 
 /// Unique package identifier (full import name, eg. app.server.util)
@@ -62,13 +62,20 @@ impl fmt::Display for File {
     }
 }
 
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub struct Import {
+    pub name: PackageID,
+    pub symbols: Vec<String>,
+    pub alias: Option<String>,
+}
+
 /// A FileSet is a collection of ASTs (Files). The imports vector is a list of
 /// all imports across all source files in the set. These must be type checked
 /// before this fileset can be processed further.
 pub struct FileSet {
     pub path: String,
     pub package_id: PackageID,
-    pub imports: HashSet<PackageID>,
+    pub imports: HashSet<Import>,
     pub files: Vec<File>,
 }
 
@@ -78,15 +85,21 @@ impl FileSet {
         assert!(files.len() > 0, "files list must contain at least one file");
 
         let mut imports = HashSet::new();
+
         for file in &files {
             for imp in &file.ast.imports {
-                imports.insert(PackageID(
+                let pkg_id = PackageID(
                     imp.names
                         .iter()
                         .map(|t| t.to_string())
                         .collect::<Vec<String>>()
                         .join("."),
-                ));
+                );
+                imports.insert(Import {
+                    name: pkg_id,
+                    symbols: imp.imports.iter().map(Token::to_string).collect(),
+                    alias: imp.alias.as_ref().map(|t| t.to_string()),
+                });
             }
         }
 

@@ -6,7 +6,7 @@ use crate::{
     ir::{IRUnit, emit_ir},
     parser::parse,
     token::{Source, Token, scan},
-    types::{Package, type_check},
+    types::{Deps, Package, type_check},
 };
 
 pub fn compare_string_lines_or_panic(ina: String, inb: String) {
@@ -44,7 +44,8 @@ pub fn parse_string(src: &str) -> Res<File> {
 pub fn check_string(src: &str) -> Res<Package> {
     let config = Config::test();
     let fs = FileSet::new(vec![parse_string(src)?]);
-    type_check(fs, &config)
+    let mut deps = Deps::with_stdlib();
+    type_check(fs, &mut deps, &config)
 }
 
 pub fn emit_string(src: &str) -> Res<IRUnit> {
@@ -63,6 +64,7 @@ pub fn compile_string(src: &str) -> Result<String, String> {
 pub fn debug_print_all_steps(src: &str) {
     let config = Config::debug();
     let source = Source::new_from_string(src);
+    let mut deps = Deps::with_stdlib();
 
     scan(&source, &config)
         .and_then(|toks| parse(source, toks, &config))
@@ -70,7 +72,7 @@ pub fn debug_print_all_steps(src: &str) {
             println!("SOURCE CODE");
             println!("===========\n");
             println!("{}", file);
-            type_check(FileSet::new(vec![file]), &config)
+            type_check(FileSet::new(vec![file]), &mut deps, &config)
         })
         .and_then(|pkg| emit_ir(&pkg, &config))
         .map_err(|err| err.to_string())

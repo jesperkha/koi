@@ -14,9 +14,8 @@ use crate::{
     error::ErrorSet,
     ir::{IRUnit, emit_ir},
     parser::{parse, sort_by_dependency_graph},
-    token::Source,
-    token::scan,
-    types::{Package, type_check},
+    token::{Source, scan},
+    types::{Deps, Package, type_check},
 };
 
 type Res<T> = Result<T, String>;
@@ -48,6 +47,8 @@ impl<'a> Driver<'a> {
     pub fn compile(&mut self, config: BuildConfig) -> Res<()> {
         create_dir_if_not_exist(&config.bindir)?;
 
+        let mut deps = Deps::with_stdlib();
+
         // Parse all files and store as package filesets
         let mut filesets = Vec::new();
         for dir in &list_source_directories(&config.srcdir)? {
@@ -67,7 +68,7 @@ impl<'a> Driver<'a> {
         // Type check, convert to IR, and emit assembly
         let mut asm_files = Vec::new();
         for fs in sorted_filesets {
-            let pkg = self.type_check_and_create_package(fs)?;
+            let pkg = self.type_check_and_create_package(fs, &mut deps)?;
             let ir_unit = self.emit_package_ir(&pkg)?;
             let asm = self.assemble_ir_unit(ir_unit, &config.target)?;
 
@@ -124,8 +125,8 @@ impl<'a> Driver<'a> {
         }
     }
 
-    fn type_check_and_create_package(&self, fs: FileSet) -> Res<Package> {
-        type_check(fs, self.config).map_err(|errs| errs.to_string())
+    fn type_check_and_create_package(&self, fs: FileSet, deps: &mut Deps) -> Res<Package> {
+        type_check(fs, deps, self.config).map_err(|errs| errs.to_string())
     }
 
     fn emit_package_ir(&self, pkg: &Package) -> Res<IRUnit> {

@@ -2,28 +2,31 @@ use crate::{
     ast::{FileSet, Node},
     config::Config,
     error::{Error, ErrorSet, Res},
-    types::{Checker, Exports, Package, TypeContext, TypedAst},
+    token::Token,
+    types::{Checker, Dependency, Exports, Package, TypeContext, TypedAst, deps::Deps},
 };
 use tracing::info;
 
-pub fn type_check(fs: FileSet, config: &Config) -> Res<Package> {
+pub fn type_check(fs: FileSet, deps: &mut Deps, config: &Config) -> Res<Package> {
     let mut ctx = TypeContext::new();
     let pkgname = fs.package_id.0.clone();
 
     // Passes
     check_package_names_equal(&fs, config)?;
     check_one_file_in_main_package(&fs)?;
-    resolve_imports(&fs, &mut ctx, config)?;
+    resolve_imports(&fs, &mut ctx, deps)?;
     global_pass(&fs, &mut ctx, config)?;
 
     let exports = collect_exports(&ctx);
     let tree = emit_typed_ast(fs, ctx, config)?;
 
+    deps.add(pkgname.clone(), Dependency::user(exports));
+
     if config.dump_type_context {
         tree.ctx.dump_context_string();
     }
 
-    Ok(Package::new(pkgname, tree, exports))
+    Ok(Package::new(pkgname, tree))
 }
 
 fn check_one_file_in_main_package(fs: &FileSet) -> Result<(), ErrorSet> {
@@ -93,8 +96,48 @@ fn collect_exports(ctx: &TypeContext) -> Exports {
 }
 
 /// Resolve all imported types and symbols.
-fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, config: &Config) -> Result<(), ErrorSet> {
-    Ok(())
+fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, deps: &Deps) -> Result<(), ErrorSet> {
+    let mut errs = ErrorSet::new();
+
+    for file in &fs.files {
+        for import in &file.ast.imports {
+            let name = import
+                .names
+                .iter()
+                .map(Token::to_string)
+                .collect::<Vec<_>>()
+                .join(".");
+
+            let Some(dep) = deps.get(&name) else {
+                assert!(import.names.len() > 0, "unchecked missing import name");
+                errs.add(Error::range(
+                    "dependency not found",
+                    &import.names[0].pos,
+                    &import.names.last().unwrap().end_pos,
+                    &file.src,
+                ));
+                continue;
+            };
+
+            for tok in &import.imports {
+                let sym = tok.to_string();
+
+                if let Some(kind) = dep.exports().get(&sym) {
+                    let id = ctx.get_or_intern(kind.clone());
+                    ctx.set_symbol(sym.clone(), id, false);
+                } else {
+                    errs.add(Error::range(
+                        &format!("package '{}' has no export '{}'", name, sym),
+                        &tok.pos,
+                        &tok.end_pos,
+                        &file.src,
+                    ));
+                }
+            }
+        }
+    }
+
+    errs.err_or(())
 }
 
 /// Emit combined typed AST for all files in set.
