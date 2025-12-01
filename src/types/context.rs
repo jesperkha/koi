@@ -153,6 +153,7 @@ impl TypeContext {
             TypeKind::Pointer(inner) => format!("*{}", self.to_string(*inner)),
             TypeKind::Alias(id) => format!("Alias({})", self.to_string(*id)),
             TypeKind::Unique(id) => format!("Unique({})", self.to_string(*id)),
+            TypeKind::Namespace(ns) => format!("Namespace({})", ns.name),
             TypeKind::Function(params, ret) => {
                 let params_str = params
                     .iter()

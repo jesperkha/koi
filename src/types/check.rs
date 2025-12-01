@@ -3,7 +3,10 @@ use crate::{
     config::Config,
     error::{Error, ErrorSet, Res},
     token::Token,
-    types::{Checker, Dependency, Exports, Package, TypeContext, TypedAst, deps::DepMap},
+    types::{
+        Checker, Dependency, Exports, NamespaceType, Package, TypeContext, TypeKind, TypedAst,
+        deps::DepMap,
+    },
 };
 use tracing::info;
 
@@ -108,6 +111,7 @@ fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, deps: &DepMap) -> Result
                 .collect::<Vec<_>>()
                 .join(".");
 
+            // Get dependency
             let Some(dep) = deps.get(&name) else {
                 assert!(import.names.len() > 0, "unchecked missing import name");
                 errs.add(Error::range(
@@ -119,6 +123,12 @@ fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, deps: &DepMap) -> Result
                 continue;
             };
 
+            // Add namespace
+            let ns = NamespaceType::new(name.clone(), dep.exports(), ctx);
+            let id = ctx.get_or_intern(TypeKind::Namespace(ns));
+            ctx.set_symbol(name.clone(), id, false);
+
+            // Add symbols by name
             for tok in &import.imports {
                 let sym = tok.to_string();
 

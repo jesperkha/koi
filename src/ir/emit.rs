@@ -259,6 +259,10 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
 
         Ok(Value::Const(result))
     }
+
+    fn visit_member(&mut self, node: &types::MemberNode) -> Result<Value, Error> {
+        todo!()
+    }
 }
 
 fn type_primitive_to_ir_primitive(p: &types::PrimitiveType) -> ir::Primitive {

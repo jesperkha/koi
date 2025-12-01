@@ -24,6 +24,7 @@ pub trait Visitor<T> {
     fn visit_literal(&mut self, node: &LiteralNode) -> T;
     fn visit_extern(&mut self, node: &ExternNode) -> T;
     fn visit_call(&mut self, node: &CallNode) -> T;
+    fn visit_member(&mut self, node: &MemberNode) -> T;
 }
 
 pub struct TypedAst {
@@ -60,6 +61,7 @@ pub enum Stmt {
 pub enum Expr {
     Literal(LiteralNode),
     Call(CallNode),
+    Member(MemberNode),
 }
 
 pub struct FuncNode {
@@ -81,6 +83,13 @@ pub struct ReturnNode {
     pub ty: Type,
     pub meta: NodeMeta,
     pub expr: Option<Expr>,
+}
+
+pub struct MemberNode {
+    pub ty: Type,
+    pub meta: NodeMeta,
+    pub expr: Box<Expr>,
+    pub field: String,
 }
 
 pub struct LiteralNode {
@@ -145,6 +154,7 @@ impl Visitable for Expr {
         match self {
             Expr::Literal(node) => v.visit_literal(node),
             Expr::Call(node) => v.visit_call(node),
+            Expr::Member(node) => v.visit_member(node),
         }
     }
 }
@@ -206,6 +216,7 @@ impl Node for Expr {
         match self {
             Expr::Literal(node) => &node.meta.pos,
             Expr::Call(node) => &node.meta.pos,
+            Expr::Member(node) => &node.meta.pos,
         }
     }
 
@@ -213,6 +224,7 @@ impl Node for Expr {
         match self {
             Expr::Literal(node) => &node.meta.end,
             Expr::Call(node) => &node.meta.end,
+            Expr::Member(node) => &node.meta.end,
         }
     }
 
@@ -220,6 +232,7 @@ impl Node for Expr {
         match self {
             Expr::Literal(node) => node.meta.id,
             Expr::Call(node) => node.meta.id,
+            Expr::Member(node) => node.meta.id,
         }
     }
 }
@@ -249,7 +262,11 @@ impl_typed_node_enum!(Stmt {
     VarAssign,
     ExprStmt
 });
-impl_typed_node_enum!(Expr { Call, Literal });
+impl_typed_node_enum!(Expr {
+    Call,
+    Literal,
+    Member
+});
 
 macro_rules! impl_typed_node {
     ($($t:ty),* $(,)?) => {
@@ -274,5 +291,6 @@ impl_typed_node!(
     CallNode,
     ReturnNode,
     VarDeclNode,
-    VarAssignNode
+    VarAssignNode,
+    MemberNode,
 );

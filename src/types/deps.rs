@@ -23,6 +23,10 @@ impl Exports {
     pub fn get(&self, name: &str) -> Option<&TypeKind> {
         self.symbols.get(name)
     }
+
+    pub fn symbols(&self) -> &HashMap<String, TypeKind> {
+        &self.symbols
+    }
 }
 
 pub enum DependencyKind {

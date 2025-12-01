@@ -234,7 +234,7 @@ impl<'a> Checker<'a> {
             Expr::Literal(tok) => self.emit_literal(tok),
             Expr::Group(node) => self.emit_expr(*node.inner),
             Expr::Call(node) => self.emit_call(node),
-            Expr::Member(_) => todo!(),
+            Expr::Member(node) => self.emit_member(node),
         }
     }
 
@@ -490,6 +490,10 @@ impl<'a> Checker<'a> {
 
         info!("callee type is actually: {:?}", callee.kind());
         Err(self.error("not a function", &callee))
+    }
+
+    fn emit_member(&mut self, node: ast::MemberNode) -> Result<types::Expr, Error> {
+        todo!()
     }
 }
 
