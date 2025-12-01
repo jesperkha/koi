@@ -119,6 +119,7 @@ impl<'a> Checker<'a> {
                 _ => false,
             },
             Expr::Group(_) | Expr::Call(_) => true,
+            Expr::Member(_) => todo!(),
         }
     }
 
@@ -233,6 +234,7 @@ impl<'a> Checker<'a> {
             Expr::Literal(tok) => self.emit_literal(tok),
             Expr::Group(node) => self.emit_expr(*node.inner),
             Expr::Call(node) => self.emit_call(node),
+            Expr::Member(node) => todo!(),
         }
     }
 

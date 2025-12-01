@@ -339,3 +339,71 @@ fn test_import_error() {
         "alias is not allowed after named imports",
     );
 }
+
+#[test]
+fn test_member() {
+    assert_pass(
+        r#"
+        func f() {
+            obj.field
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            one.two.three.four
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            one().two.three()
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            one(two.three, four.five())
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_member_error() {
+    expect_error(
+        r#"
+        func f() {
+            one.
+        }
+    "#,
+        "expected field name",
+    );
+    expect_error(
+        r#"
+        func f() {
+            one.1
+        }
+    "#,
+        "expected field name",
+    );
+    expect_error(
+        r#"
+        func f() {
+            one.()
+        }
+    "#,
+        "expected field name",
+    );
+    expect_error(
+        r#"
+        func f() {
+            .one
+        }
+    "#,
+        "expected expression",
+    );
+}

@@ -53,6 +53,7 @@ pub trait Visitor<R> {
     fn visit_var_decl(&mut self, node: &VarDeclNode) -> R;
     fn visit_var_assign(&mut self, node: &VarAssignNode) -> R;
     fn visit_import(&mut self, node: &ImportNode) -> R;
+    fn visit_member(&mut self, node: &MemberNode) -> R;
 }
 
 /// Declarations are not considered statements for linting purposes.
@@ -84,6 +85,7 @@ pub enum Expr {
     Literal(Token),
     Group(GroupExpr),
     Call(CallExpr),
+    Member(MemberNode),
 }
 
 /// A TypeNode is the AST representation of a type, not the semantic meaning.
@@ -99,6 +101,13 @@ pub struct CallExpr {
     pub lparen: Token,
     pub args: Vec<Expr>,
     pub rparen: Token,
+}
+
+#[derive(Debug, Clone)]
+pub struct MemberNode {
+    pub expr: Box<Expr>,
+    pub dot: Token,
+    pub field: Token,
 }
 
 #[derive(Debug, Clone)]
@@ -407,6 +416,7 @@ impl Node for Expr {
             Expr::Literal(token) => &token.pos,
             Expr::Call(call) => call.pos(),
             Expr::Group(grp) => &grp.lparen.pos,
+            Expr::Member(node) => node.expr.pos(),
         }
     }
 
@@ -414,6 +424,7 @@ impl Node for Expr {
         match self {
             Expr::Literal(token) => &token.end_pos,
             Expr::Call(call) => call.end(),
+            Expr::Member(node) => &node.field.end_pos,
             Expr::Group(grp) => &grp.rparen.end_pos,
         }
     }
@@ -423,6 +434,7 @@ impl Node for Expr {
             Expr::Literal(token) => token.id,
             Expr::Call(call) => call.id(),
             Expr::Group(grp) => grp.rparen.id,
+            Expr::Member(node) => node.dot.id,
         }
     }
 }
@@ -447,6 +459,7 @@ impl Visitable for Expr {
             Expr::Literal(token) => visitor.visit_literal(token),
             Expr::Call(call) => visitor.visit_call(&call),
             Expr::Group(grp) => visitor.visit_group(&grp),
+            Expr::Member(node) => visitor.visit_member(&node),
         }
     }
 }

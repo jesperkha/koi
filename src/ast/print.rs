@@ -183,4 +183,10 @@ impl Visitor<()> for Printer {
             }
         ));
     }
+
+    fn visit_member(&mut self, node: &super::MemberNode) -> () {
+        node.expr.accept(self);
+        self.s.push('.');
+        self.s.push_str(&node.field.to_string());
+    }
 }
