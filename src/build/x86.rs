@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     build::{Builder, RegAllocator, TransUnit},
     config::Config,
-    ir::{AssignIns, ConstId, IRUnit, IRVisitor, LValue, StoreIns, Type, Value},
+    ir::{AssignIns, ConstId, IRUnit, IRVisitor, LValue, StoreIns, IRType, Value},
 };
 
 pub struct X86Builder<'a> {
@@ -115,7 +115,7 @@ impl<'a> X86Builder<'a> {
 
     /// Checks L and R val to use correct mov instruction (mov, lea).
     /// Prints intermeditate steps if necessary (eg, dest and value are stack).
-    fn mov(&mut self, dest: LVal, value: RVal, ty: &Type) {
+    fn mov(&mut self, dest: LVal, value: RVal, ty: &IRType) {
         let fmt = match dest {
             LVal::Reg(reg) => match &value {
                 RVal::Imm(s) | RVal::Reg(s) | RVal::Stack(s) => format!("mov {}, {}", reg, s),
@@ -180,6 +180,8 @@ impl<'a> Builder<'a> for X86Builder<'a> {
         src.writeln(".section .text\n");
         src.append(&self.text);
 
+        src.writeln(".section .note.GNU-stack,\"\",@progbits\n");
+
         Ok(TransUnit {
             source: src.content,
         })
@@ -188,21 +190,24 @@ impl<'a> Builder<'a> for X86Builder<'a> {
 
 impl<'a> IRVisitor<()> for X86Builder<'a> {
     fn visit_func(&mut self, f: &crate::ir::FuncInst) {
+        // Function label
         if f.public {
             self.text.writeln(&format!(".globl {}", f.name));
         }
-
         self.text.writeln(&format!("{}:", f.name));
+
+        // Push new stack frame
         self.push();
-
         self.stacksize = 0;
-
         self.text.writeln("push rbp");
         self.text.writeln("mov rbp, rsp");
 
-        self.text
-            .writeln(&format!("sub rsp, {}", round_up_to_mult_of_16(f.stacksize)));
+        if f.stacksize > 0 {
+            let rounded_size = round_up_to_mult_of_16(f.stacksize);
+            self.text.writeln(&format!("sub rsp, {}", rounded_size));
+        }
 
+        // Put params on stack
         self.alloc.reset_params();
         for (i, ty) in f.params.iter().enumerate() {
             let dest = self.stack_alloc(ty.size());
@@ -219,7 +224,7 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
         self.pop();
     }
 
-    fn visit_ret(&mut self, ty: &crate::ir::Type, v: &crate::ir::Value) {
+    fn visit_ret(&mut self, ty: &crate::ir::IRType, v: &crate::ir::Value) {
         // If not void
         if ty.size() != 0 {
             self.mov(LVal::Reg(self.alloc.return_reg(ty)), self.rval(v), ty);
@@ -254,6 +259,7 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
     }
 
     fn visit_static_string(&mut self, d: &crate::ir::StringDataIns) -> () {
+        //self.data.writeln(&format!(".local .{}", d.name));
         self.data
             .writeln(&format!(".{}: .asciz \"{}\"", d.name, d.value));
     }

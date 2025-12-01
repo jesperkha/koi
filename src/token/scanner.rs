@@ -35,7 +35,7 @@ impl<'a> Scanner<'a> {
     }
 
     fn scan(mut self) -> Res<Vec<Token>> {
-        info!("file '{}'", self.file.name);
+        info!("file '{}'", self.file.filepath);
 
         // No input
         if self.eof() {

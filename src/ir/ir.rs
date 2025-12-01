@@ -28,7 +28,7 @@ pub enum LValue {
 pub enum Ins {
     Store(StoreIns),
     Assign(AssignIns),
-    Return(Type, Value),
+    Return(IRType, Value),
     Func(FuncInst),
     Extern(ExternFuncInst),
     Call(CallIns),
@@ -37,13 +37,13 @@ pub enum Ins {
 
 pub struct StoreIns {
     pub id: ConstId,
-    pub ty: Type,
+    pub ty: IRType,
     pub value: Value,
 }
 
 pub struct AssignIns {
     pub lval: LValue,
-    pub ty: Type,
+    pub ty: IRType,
     pub value: Value,
 }
 
@@ -55,23 +55,23 @@ pub struct StringDataIns {
 
 pub struct ExternFuncInst {
     pub name: String,
-    pub params: Vec<Type>,
-    pub ret: Type,
+    pub params: Vec<IRType>,
+    pub ret: IRType,
 }
 
 pub struct FuncInst {
     pub name: String,
     pub public: bool,
-    pub params: Vec<Type>,
-    pub ret: Type,
+    pub params: Vec<IRType>,
+    pub ret: IRType,
     pub body: Vec<Ins>,
     pub stacksize: usize,
 }
 
 pub struct CallIns {
     pub callee: Value,
-    pub ty: Type,
-    pub args: Vec<(Type, Value)>,
+    pub ty: IRType,
+    pub args: Vec<(IRType, Value)>,
     pub result: ConstId,
 }
 
@@ -86,10 +86,11 @@ pub enum Value {
 }
 
 #[derive(Debug)]
-pub enum Type {
+pub enum IRType {
     Primitive(Primitive),
-    Ptr(Box<Type>),
-    Object(String, Vec<Type>, usize), // List of fields and total size (not aligned)
+    Ptr(Box<IRType>),
+    Object(String, Vec<IRType>, usize), // List of fields and total size (not aligned)
+    Function(Vec<IRType>, Box<IRType>),
 }
 
 #[derive(Debug)]
@@ -113,7 +114,7 @@ pub trait IRVisitor<T> {
     fn visit_extern(&mut self, f: &ExternFuncInst) -> T;
     fn visit_call(&mut self, c: &CallIns) -> T;
     fn visit_static_string(&mut self, d: &StringDataIns) -> T;
-    fn visit_ret(&mut self, ty: &Type, v: &Value) -> T;
+    fn visit_ret(&mut self, ty: &IRType, v: &Value) -> T;
     fn visit_store(&mut self, ins: &StoreIns) -> T;
     fn visit_assign(&mut self, ins: &AssignIns) -> T;
 }
@@ -132,19 +133,19 @@ impl Ins {
     }
 }
 
-impl Type {
+impl IRType {
     /// Get size of type in bytes
     pub fn size(&self) -> usize {
         match self {
-            Type::Primitive(primitive) => match primitive {
+            IRType::Primitive(primitive) => match primitive {
                 Primitive::Void => 0,
                 Primitive::U8 | Primitive::I8 => 1,
                 Primitive::U16 | Primitive::I16 => 2,
                 Primitive::F32 | Primitive::I32 | Primitive::U32 => 4,
                 Primitive::F64 | Primitive::U64 | Primitive::I64 | Primitive::Str => 8,
             },
-            Type::Object(_, _, size) => *size,
-            Type::Ptr(_) => 8,
+            IRType::Object(_, _, size) => *size,
+            IRType::Ptr(_) | IRType::Function(_, _) => 8,
         }
     }
 }
@@ -162,7 +163,7 @@ impl fmt::Display for Ins {
                     func.name,
                     func.params
                         .iter()
-                        .map(Type::to_string)
+                        .map(IRType::to_string)
                         .collect::<Vec<String>>()
                         .join(", "),
                     func.ret,
@@ -175,7 +176,7 @@ impl fmt::Display for Ins {
                     func.name,
                     func.params
                         .iter()
-                        .map(Type::to_string)
+                        .map(IRType::to_string)
                         .collect::<Vec<String>>()
                         .join(", "),
                     func.ret,
@@ -200,12 +201,22 @@ impl fmt::Display for Ins {
     }
 }
 
-impl fmt::Display for Type {
+impl fmt::Display for IRType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Type::Primitive(p) => write!(f, "{}", format!("{:?}", p).to_lowercase()),
-            Type::Object(name, _, _) => write!(f, "{}", name),
-            Type::Ptr(t) => write!(f, "ptr<{}>", t),
+            IRType::Primitive(p) => write!(f, "{}", format!("{:?}", p).to_lowercase()),
+            IRType::Object(name, _, _) => write!(f, "{}", name),
+            IRType::Ptr(t) => write!(f, "ptr({})", t),
+            IRType::Function(params, ret) => write!(
+                f,
+                "func({})->{}",
+                params
+                    .iter()
+                    .map(|p| p.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                ret
+            ),
         }
     }
 }

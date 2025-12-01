@@ -7,6 +7,10 @@ fn compare_string(src: &str) {
     compare_string_lines_or_panic(pstr, src.to_string());
 }
 
+fn assert_pass(src: &str) {
+    let _ = must(parse_string(src));
+}
+
 fn expect_error(src: &str, error: &str) {
     if let Err(e) = parse_string(src) {
         assert_eq!(e.len(), 1);
@@ -127,16 +131,6 @@ fn test_function_with_error() {
         func f(n int, n int) {}
     "#,
         "duplicate parameter name",
-    );
-}
-
-#[test]
-fn test_package_decl() {
-    expect_error(
-        r#"
-        package
-    "#,
-        "expected package name",
     );
 }
 
@@ -281,5 +275,135 @@ fn test_variable_assign() {
             c = b
         }
     "#,
+    );
+}
+
+#[test]
+fn test_imports() {
+    compare_string(
+        r#"
+        import foo
+    "#,
+    );
+    compare_string(
+        r#"
+        import foo.bar.faz
+    "#,
+    );
+    compare_string(
+        r#"
+        import foo as bar
+    "#,
+    );
+    compare_string(
+        r#"
+        import foo.bar as bar
+    "#,
+    );
+    compare_string(
+        r#"
+        import foo {
+            Foo,
+            Bar
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        import foo.bar {
+            Foo,
+            Bar
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        import foo.bar{
+            Foo,
+            Bar, }
+    "#,
+    );
+    assert_pass(
+        r#"
+        import foo { Foo, Bar }
+    "#,
+    );
+}
+
+#[test]
+fn test_import_error() {
+    expect_error(
+        r#"
+        import foo { bar } as faz
+    "#,
+        "alias is not allowed after named imports",
+    );
+}
+
+#[test]
+fn test_member() {
+    assert_pass(
+        r#"
+        func f() {
+            obj.field
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            one.two.three.four
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            one().two.three()
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            one(two.three, four.five())
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_member_error() {
+    expect_error(
+        r#"
+        func f() {
+            one.
+        }
+    "#,
+        "expected field name",
+    );
+    expect_error(
+        r#"
+        func f() {
+            one.1
+        }
+    "#,
+        "expected field name",
+    );
+    expect_error(
+        r#"
+        func f() {
+            one.()
+        }
+    "#,
+        "expected field name",
+    );
+    expect_error(
+        r#"
+        func f() {
+            .one
+        }
+    "#,
+        "expected expression",
     );
 }

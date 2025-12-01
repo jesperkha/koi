@@ -1,36 +1,32 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str};
 use strum::IntoEnumIterator;
 
-use crate::{
-    ast::{Node, NodeId, no_type},
-    types::{PrimitiveType, Type, TypeId, TypeKind},
-};
-
-// TODO: context dump with all bindings and types
+use crate::types::{PrimitiveType, Type, TypeId, TypeKind, no_type};
 
 /// Context for type lookups.
 pub struct TypeContext {
-    /// Name of package, 'unnamed' if anonymous package
-    pkg_name: String,
-    pkg_file: String, // File declared in for error
     /// List of type information. Each `TypeId` maps
     /// to a `Type` by indexing into this vector.
     types: Vec<Type>,
     /// Map type kinds to their unique type id.
     cache: HashMap<TypeKind, TypeId>,
-    /// Map AST nodes to their evaluated type.
-    nodes: HashMap<NodeId, TypeId>,
+    /// Top level symbol mappings.
+    symbols: HashMap<String, Symbol>,
+}
+
+#[derive(Clone)]
+pub struct Symbol {
+    pub ty: TypeId,
+    pub exported: bool,
 }
 
 impl TypeContext {
     // TODO: accept exported symbols and intern at init
     pub fn new() -> Self {
         let mut s = Self {
-            pkg_name: "unnamed".to_string(),
-            pkg_file: "unnamed".to_string(),
             types: Vec::new(),
             cache: HashMap::new(),
-            nodes: HashMap::new(),
+            symbols: HashMap::new(),
         };
 
         for t in PrimitiveType::iter() {
@@ -38,45 +34,6 @@ impl TypeContext {
         }
 
         s
-    }
-
-    pub fn pkg_name(&self) -> &str {
-        &self.pkg_name
-    }
-
-    /// Tries to set package name. Returns error if name was already set to something else.
-    pub fn set_pkg_name(&mut self, filename: &str, name: &str) -> Result<(), String> {
-        if self.pkg_name == "unnamed" || self.pkg_name == name {
-            self.pkg_name = name.to_string();
-            self.pkg_file = filename.to_string();
-            Ok(())
-        } else {
-            Err(format!(
-                "package name already declared as '{}' in {}",
-                self.pkg_name, self.pkg_file,
-            ))
-        }
-    }
-
-    /// Get the string representation of a type for errors or logging.
-    pub fn to_string(&self, id: TypeId) -> String {
-        match &self.lookup(id).kind {
-            TypeKind::Primitive(p) => format!("{p}"),
-            TypeKind::Array(inner) => format!("[]{}", self.to_string(*inner)),
-            TypeKind::Pointer(inner) => format!("*{}", self.to_string(*inner)),
-            TypeKind::Alias(id) => format!("Alias({})", self.to_string(*id)),
-            TypeKind::Unique(id) => format!("Unique({})", self.to_string(*id)),
-            TypeKind::Function(params, ret) => {
-                let params_str = params
-                    .iter()
-                    .map(|p| self.to_string(*p))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-
-                let ret_str = self.to_string(*ret);
-                format!("func ({}) {}", params_str, ret_str)
-            }
-        }
     }
 
     /// Returns the unique type id for the given kind.
@@ -88,29 +45,18 @@ impl TypeContext {
         self.intern(kind)
     }
 
-    /// Internalize a node and its evaluated type.
-    pub fn intern_node(&mut self, node: &dyn Node, ty: TypeId) {
-        assert!(
-            !self.nodes.contains_key(&node.id()),
-            "duplicate node id for type: {}",
-            self.to_string(ty)
-        );
-        self.nodes.insert(node.id(), ty);
-    }
-
-    pub fn get_node(&self, node: &dyn Node) -> TypeId {
-        self.nodes
-            .get(&node.id())
-            .expect(format!("node id {} not in map", node.id()).as_str())
-            .clone()
-    }
-
     /// Shorthand for getting a primitive type id.
-    pub fn primitive(&mut self, kind: PrimitiveType) -> TypeId {
+    pub fn primitive(&self, kind: PrimitiveType) -> TypeId {
         self.cache
             .get(&TypeKind::Primitive(kind))
             .expect("all primitive types must be assigned at init")
             .clone()
+    }
+
+    /// Shorthand for getting the Type of a primitive kind.
+    pub fn primitive_type(&mut self, kind: PrimitiveType) -> &Type {
+        let id = self.primitive(kind);
+        self.lookup(id)
     }
 
     fn intern(&mut self, kind: TypeKind) -> TypeId {
@@ -168,5 +114,81 @@ impl TypeContext {
     /// Shorthand for getting void type
     pub fn void(&mut self) -> TypeId {
         self.primitive(PrimitiveType::Void)
+    }
+
+    // Shorthand for getting the Type of void.
+    pub fn void_type(&mut self) -> Type {
+        Type {
+            kind: TypeKind::Primitive(PrimitiveType::Void),
+            id: self.primitive(PrimitiveType::Void),
+        }
+    }
+
+    /// Set top level named type
+    pub fn set_symbol(&mut self, name: String, ty: TypeId, exported: bool) {
+        self.symbols.insert(name, Symbol { ty, exported });
+    }
+
+    /// Get top level named type
+    pub fn get_symbol(&mut self, name: &str) -> Result<TypeId, String> {
+        self.symbols
+            .get(name)
+            .map_or(Err("not declared".to_string()), |s| Ok(s.ty))
+    }
+
+    /// Get an owned list of all exported symbols from this context.
+    pub fn exported_symbols(&self) -> Vec<(String, TypeKind)> {
+        self.symbols
+            .iter()
+            .filter(|s| (s.1).exported)
+            .map(|s| (s.0.clone(), self.lookup(s.1.ty).kind.clone()))
+            .collect::<Vec<_>>()
+    }
+
+    /// Get the string representation of a type for errors or logging.
+    pub fn to_string(&self, id: TypeId) -> String {
+        match &self.lookup(id).kind {
+            TypeKind::Primitive(p) => format!("{p}"),
+            TypeKind::Array(inner) => format!("[]{}", self.to_string(*inner)),
+            TypeKind::Pointer(inner) => format!("*{}", self.to_string(*inner)),
+            TypeKind::Alias(id) => format!("Alias({})", self.to_string(*id)),
+            TypeKind::Unique(id) => format!("Unique({})", self.to_string(*id)),
+            TypeKind::Namespace(ns) => format!("Namespace({})", ns.name),
+            TypeKind::Function(params, ret) => {
+                let params_str = params
+                    .iter()
+                    .map(|p| self.to_string(*p))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                let ret_str = self.to_string(*ret);
+                format!("func ({}) {}", params_str, ret_str)
+            }
+        }
+    }
+
+    /// Print a string dump of all type and symbol mappings.
+    pub fn dump_context_string(&self) {
+        let mut s = String::new();
+
+        s += "| TYPES\n";
+        s += "|-------------------------------\n";
+        for i in 0..self.types.len() {
+            s += &format!("| {:<3} {}\n", i, self.to_string(i));
+        }
+
+        s += "| \n";
+        s += "| SYMBOLS\n";
+        s += "|-------------------------------\n";
+        for sym in &self.symbols {
+            s += &format!(
+                "| {:<10} {:<3} {}\n",
+                sym.0,
+                (sym.1).ty,
+                if (sym.1).exported { "(public)" } else { "" }
+            );
+        }
+
+        println!("{}", s);
     }
 }

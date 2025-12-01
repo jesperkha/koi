@@ -1,13 +1,12 @@
 use crate::{
-    ast::File,
+    ast::{File, FileSet},
     build::{Builder, X86Builder},
     config::Config,
     error::{ErrorSet, Res},
     ir::{IRUnit, emit_ir},
     parser::parse,
-    scanner::scan,
-    token::{Source, Token},
-    types::{Package, check},
+    token::{Source, Token, scan},
+    types::{DepMap, Package, type_check},
 };
 
 pub fn compare_string_lines_or_panic(ina: String, inb: String) {
@@ -44,7 +43,9 @@ pub fn parse_string(src: &str) -> Res<File> {
 
 pub fn check_string(src: &str) -> Res<Package> {
     let config = Config::test();
-    check(vec![parse_string(src)?], &config)
+    let fs = FileSet::new("main".to_string(), vec![parse_string(src)?]);
+    let mut deps = DepMap::with_stdlib();
+    type_check(fs, &mut deps, &config)
 }
 
 pub fn emit_string(src: &str) -> Res<IRUnit> {
@@ -61,8 +62,9 @@ pub fn compile_string(src: &str) -> Result<String, String> {
 }
 
 pub fn debug_print_all_steps(src: &str) {
-    let config = Config::default();
+    let config = Config::debug();
     let source = Source::new_from_string(src);
+    let mut deps = DepMap::with_stdlib();
 
     scan(&source, &config)
         .and_then(|toks| parse(source, toks, &config))
@@ -70,7 +72,11 @@ pub fn debug_print_all_steps(src: &str) {
             println!("SOURCE CODE");
             println!("===========\n");
             println!("{}", file);
-            check(vec![file], &config)
+            type_check(
+                FileSet::new("main".to_string(), vec![file]),
+                &mut deps,
+                &config,
+            )
         })
         .and_then(|pkg| emit_ir(&pkg, &config))
         .map_err(|err| err.to_string())

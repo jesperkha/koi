@@ -260,6 +260,15 @@ fn test_variable_decl_error() {
     "#,
         "already declared",
     );
+    assert_error(
+        r#"
+        func g() {}
+        func f() {
+            a := g()
+        }
+    "#,
+        "cannot assign void type to variable",
+    );
 }
 
 #[test]

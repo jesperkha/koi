@@ -4,8 +4,9 @@ use tracing::info;
 
 use crate::{
     ast::{
-        BlockNode, CallExpr, Decl, Expr, Field, File, FuncDeclNode, FuncNode, GroupExpr, Node,
-        ReturnNode, Stmt, TypeNode, VarAssignNode, VarDeclNode,
+        Ast, BlockNode, CallExpr, Decl, Expr, Field, File, FuncDeclNode, FuncNode, GroupExpr,
+        ImportNode, MemberNode, Node, PackageNode, ReturnNode, Stmt, TypeNode, VarAssignNode,
+        VarDeclNode,
     },
     config::Config,
     error::{Error, ErrorSet, Res},
@@ -21,8 +22,8 @@ struct Parser<'a> {
     errs: ErrorSet,
     tokens: Vec<Token>,
     pos: usize,
-    file: File,
     config: &'a Config,
+    src: Source,
 
     // Panic mode occurs when the parser encounters an unknown token sequence
     // and needs to synchronize to a 'clean' state. When panic mode starts,
@@ -32,8 +33,6 @@ struct Parser<'a> {
     // Functions which parse statements should have a check at the top for
     // panicMode, and return early with an invalid statement if set.
     panic_mode: bool,
-
-    pkg_declared: bool, // Package name declared yet?
 }
 
 impl<'a> Parser<'a> {
@@ -41,36 +40,55 @@ impl<'a> Parser<'a> {
         Self {
             errs: ErrorSet::new(),
             tokens,
-            file: File::new(src),
             pos: 0,
             panic_mode: false,
-            pkg_declared: false,
             config,
+            src,
         }
     }
 
     fn parse(mut self) -> Res<File> {
-        info!("file '{}'", self.file.src.name);
+        info!("file '{}'", self.src.filepath);
+
+        // Parse package declaration as it must come first
+        let package = if !self.config.anon_packages {
+            self.skip_whitespace_and_not_eof();
+            self.parse_package_decl()
+                .map_err(|err| ErrorSet::new_from(err))?
+        } else {
+            // Bogus token, never used if package is anon
+            PackageNode {
+                kw: self.cur_or_last(),
+                name: self.cur_or_last(),
+            }
+        };
+
+        let package_name = if !self.config.anon_packages {
+            package.name.to_string()
+        } else {
+            // Anon packages are only used in tests and scripting, so the
+            // package should have all the benefits of the main package.
+            String::from("main")
+        };
+
+        // Then parse all imports as they must come before the main code
+        self.skip_whitespace_and_not_eof();
+        let imports = self
+            .parse_imports()
+            .map_err(|err| ErrorSet::new_from(err))?;
 
         if self.config.anon_packages {
             info!("ignoring package");
         }
 
+        let mut decls = Vec::new();
+
         while self.skip_whitespace_and_not_eof() {
             match self.parse_decl() {
-                Ok(decl) => match decl {
-                    Decl::Package(name) => self.file.set_package(name),
-                    _ => self.file.add_node(decl),
-                },
+                Ok(decl) => decls.push(decl),
                 Err(err) => {
                     self.errs.add(err);
-
-                    // Consume until next 'safe' token to recover.
-                    while !self.matches_any(&[TokenKind::Func]) && !self.eof() {
-                        self.consume();
-                    }
-
-                    self.panic_mode = false;
+                    self.recover_from_error();
                 }
             }
         }
@@ -80,8 +98,15 @@ impl<'a> Parser<'a> {
             return Err(self.errs);
         }
 
-        info!("success, part of package '{}'", self.file.pkgname);
-        Ok(self.file)
+        info!("success, part of package '{}'", package_name);
+
+        let ast = Ast {
+            package,
+            imports,
+            decls,
+        };
+
+        Ok(File::new(package_name, self.src, ast))
     }
 
     /// Consume newlines until first non-newline token or eof.
@@ -93,41 +118,146 @@ impl<'a> Parser<'a> {
         !self.eof()
     }
 
+    // Consume until next 'safe' token to recover. Sets panic_mode to false.
+    fn recover_from_error(&mut self) {
+        self.consume(); // consume at least first token in case it is the one causing the panic
+        while !self.eof() && !self.matches_any(&[TokenKind::Func, TokenKind::Extern]) {
+            self.consume();
+        }
+
+        self.panic_mode = false;
+    }
+
+    fn parse_package_decl(&mut self) -> Result<PackageNode, Error> {
+        let kw = self.expect(TokenKind::Package)?;
+        let name = self.expect_identifier("package name")?;
+        Ok(PackageNode { kw, name })
+    }
+
+    fn parse_imports(&mut self) -> Result<Vec<ImportNode>, Error> {
+        let mut imports = Vec::new();
+
+        while self.matches(TokenKind::Import) {
+            imports.push(self.parse_import()?);
+            self.skip_whitespace_and_not_eof();
+        }
+
+        Ok(imports)
+    }
+
+    fn parse_import(&mut self) -> Result<ImportNode, Error> {
+        // Import statements have three variations:
+        //
+        // 1. import foo.bar
+        // 2. import foo as bar
+        // 3. import foo { bar, faz }
+        //
+        // Variants 2 and 3 cannot be used together.
+
+        let kw = self.expect(TokenKind::Import)?;
+
+        // Collect the imported package names (foo.bar etc)
+        let mut names = vec![self.expect_identifier("package name")?];
+        while self.matches(TokenKind::Dot) {
+            self.consume(); // dot
+            names.push(self.expect_identifier("package name")?);
+        }
+
+        let mut alias = None;
+        let mut imports = Vec::new();
+
+        let end_tok = match self.cur().map_or(TokenKind::Newline, |t| t.kind) {
+            // If the next token is 'as', this is variation 2
+            TokenKind::As => {
+                self.consume(); // as
+                let name = self.expect_identifier("import alias name")?;
+                alias = Some(name.clone());
+                name
+            }
+            // If it is '{', this is variation 3
+            TokenKind::LBrace => {
+                self.consume(); // lbrace
+                imports = self.collect_item_names("imported item name")?;
+                let rbrace = self.expect(TokenKind::RBrace)?;
+
+                // Breaking the rule of not combining variants 2 and 3
+                if self.matches(TokenKind::As) {
+                    return Err(self.error_token("alias is not allowed after named imports"));
+                }
+
+                rbrace
+            }
+            // Otherwise its variation 1
+            _ => names
+                .last()
+                .expect("empty name vector should be handled")
+                .clone(),
+        };
+
+        Ok(ImportNode {
+            kw,
+            names,
+            imports,
+            alias,
+            end_tok,
+        })
+    }
+
+    /// Parse a list of items separated by comma and an arbitrary amount of newlines.
+    /// On parse error, an expect-error is returned with the given item_name.
+    fn collect_item_names(&mut self, item_name: &str) -> Result<Vec<Token>, Error> {
+        let mut items = Vec::new();
+
+        self.skip_whitespace_and_not_eof();
+        items.push(self.expect_identifier("import item")?);
+
+        while self.matches(TokenKind::Comma) {
+            self.consume(); // comma
+            self.skip_whitespace_and_not_eof();
+
+            if self.matches(TokenKind::RBrace) {
+                break;
+            }
+
+            items.push(self.expect_identifier(item_name)?);
+        }
+
+        self.skip_whitespace_and_not_eof();
+        Ok(items)
+    }
+
     fn parse_decl(&mut self) -> Result<Decl, Error> {
         // Not having checked for eof is a bug in the caller.
         assert!(!self.eof(), "parse_decl called without checking eof");
         let token = self.cur().unwrap();
 
-        // Check that package declaration comes first
-        if !self.pkg_declared && !self.config.anon_packages {
-            self.pkg_declared = true;
-            self.expect_msg(TokenKind::Package, "package declaration")?;
-            return self
-                .expect_identifier("package name")
-                .map(|tok| Decl::Package(tok));
-        }
-
         match token.kind {
-            TokenKind::Func | TokenKind::Pub => Ok(Decl::Func(self.parse_function(token)?)),
-            TokenKind::Package => {
-                if !self.config.anon_packages {
-                    Err(self.error_token("only declare package once, and as the first statement"))
-                } else {
-                    self.consume(); // kw
-                    self.expect_identifier("package name")
-                        .map(|t| Decl::Package(t))
-                }
-            }
-            // TODO: public extern (re-export)
-            TokenKind::Extern => {
-                self.consume(); // extern
-                Ok(Decl::Extern(self.parse_function_def()?))
-            }
+            TokenKind::Pub => self.parse_public_decl(),
+            TokenKind::Func => self.parse_function(false),
+            TokenKind::Extern => self.parse_extern(false),
             _ => Err(self.error_token("expected declaration")),
         }
     }
 
-    fn parse_function_def(&mut self) -> Result<FuncDeclNode, Error> {
+    fn parse_public_decl(&mut self) -> Result<Decl, Error> {
+        self.consume(); // pub
+        let Some(token) = self.cur() else {
+            return Err(self.error_token("unexpected eof"));
+        };
+
+        match token.kind {
+            TokenKind::Func => self.parse_function(true),
+            TokenKind::Extern => self.parse_extern(true),
+            _ => Err(self.error_token("illegal public declaration")),
+        }
+    }
+
+    fn parse_extern(&mut self, public: bool) -> Result<Decl, Error> {
+        self.consume(); // extern
+        self.parse_function_def(public).map(|def| Decl::Extern(def))
+    }
+
+    fn parse_function_def(&mut self, public: bool) -> Result<FuncDeclNode, Error> {
         self.expect(TokenKind::Func)?;
 
         let name = self.expect_identifier("function name")?;
@@ -175,6 +305,7 @@ impl<'a> Parser<'a> {
         };
 
         Ok(FuncDeclNode {
+            public,
             name,
             lparen,
             params,
@@ -183,13 +314,9 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_function(&mut self, kw: Token) -> Result<FuncNode, Error> {
-        let mut public = kw.kind == TokenKind::Pub;
-        if public {
-            self.consume(); // Consume the 'pub' token
-        }
-
-        let decl = self.parse_function_def()?;
+    fn parse_function(&mut self, public: bool) -> Result<Decl, Error> {
+        let mut public = public;
+        let decl = self.parse_function_def(public)?;
 
         // Automatically set main as public for convenience
         if decl.name.to_string() == "main" {
@@ -198,7 +325,7 @@ impl<'a> Parser<'a> {
 
         let body = self.parse_block()?;
 
-        Ok(FuncNode {
+        Ok(Decl::Func(FuncNode {
             public,
             name: decl.name,
             lparen: decl.lparen,
@@ -206,7 +333,7 @@ impl<'a> Parser<'a> {
             rparen: decl.rparen,
             ret_type: decl.ret_type,
             body,
-        })
+        }))
     }
 
     fn parse_field(&mut self, field_name: &str) -> Result<Field, Error> {
@@ -313,32 +440,50 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expr(&mut self) -> Result<Expr, Error> {
-        self.parse_call()
+        self.parse_call_and_member()
     }
 
-    fn parse_call(&mut self) -> Result<Expr, Error> {
+    fn parse_call_and_member(&mut self) -> Result<Expr, Error> {
         let mut expr = self.parse_group()?;
 
-        while self.matches(TokenKind::LParen) {
-            let lparen = self.must_consume()?;
-            let mut args = Vec::new();
+        loop {
+            // Call expression
+            if self.matches(TokenKind::LParen) {
+                let lparen = self.must_consume()?;
+                let mut args = Vec::new();
 
-            while !self.matches(TokenKind::RParen) {
-                args.push(self.parse_expr()?);
-                if self.matches(TokenKind::RParen) {
-                    break;
+                while !self.matches(TokenKind::RParen) {
+                    args.push(self.parse_expr()?);
+                    if self.matches(TokenKind::RParen) {
+                        break;
+                    }
+
+                    self.expect(TokenKind::Comma)?;
                 }
 
-                self.expect(TokenKind::Comma)?;
-            }
+                let rparen = self.expect(TokenKind::RParen)?;
+                expr = Expr::Call(CallExpr {
+                    callee: Box::new(expr),
+                    args,
+                    lparen,
+                    rparen,
+                })
 
-            let rparen = self.expect(TokenKind::RParen)?;
-            expr = Expr::Call(CallExpr {
-                callee: Box::new(expr),
-                args,
-                lparen,
-                rparen,
-            })
+            // Member expression
+            } else if self.matches(TokenKind::Dot) {
+                let dot = self.must_consume()?;
+                let field = self.expect_identifier("field name")?;
+
+                expr = Expr::Member(MemberNode {
+                    expr: Box::new(expr),
+                    dot,
+                    field,
+                });
+
+            // Done
+            } else {
+                break;
+            }
         }
 
         Ok(expr)
@@ -412,11 +557,11 @@ impl<'a> Parser<'a> {
 
     /// Create error marking the given token range.
     fn error_from_to(&self, message: &str, from: &Token, to: &Token) -> Error {
-        Error::new(message, from, to, &self.file.src)
+        Error::new(message, from, to, &self.src)
     }
 
     fn error_node(&self, message: &str, node: &dyn Node) -> Error {
-        Error::range(message, node.pos(), node.end(), &self.file.src)
+        Error::range(message, node.pos(), node.end(), &self.src)
     }
 
     fn cur(&self) -> Option<Token> {
@@ -454,7 +599,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Same as expect but with a message
-    fn expect_msg(&mut self, kind: TokenKind, msg: &str) -> Result<Token, Error> {
+    fn _expect_msg(&mut self, kind: TokenKind, msg: &str) -> Result<Token, Error> {
         self.expect_pred(msg, |t| t.kind == kind)
     }
 

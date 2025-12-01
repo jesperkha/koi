@@ -105,6 +105,7 @@ pub enum TokenKind {
     Pub,
     Error,
     Extern,
+    As,
 
     // Math
     Plus,
@@ -174,6 +175,7 @@ static RESERVED: &[(&str, TokenKind)] = &[
     ("pub", TokenKind::Pub),
     ("error", TokenKind::Error),
     ("extern", TokenKind::Extern),
+    ("as", TokenKind::As),
     // Math
     ("+", TokenKind::Plus),
     ("-", TokenKind::Minus),

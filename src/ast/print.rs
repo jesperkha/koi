@@ -15,13 +15,17 @@ impl Printer {
     }
 
     /// Convert AST to printable format
-    pub fn to_string(ast: &File) -> String {
+    pub fn to_string(file: &File) -> String {
         let mut s = Self {
             s: String::new(),
             indent: 0,
         };
 
-        for node in &ast.nodes {
+        for node in &file.ast.imports {
+            s.visit_import(node);
+        }
+
+        for node in &file.ast.decls {
             node.accept(&mut s);
         }
 
@@ -153,5 +157,36 @@ impl Visitor<()> for Printer {
         node.lval.accept(self);
         self.s.push_str(" = ");
         node.expr.accept(self);
+    }
+
+    fn visit_import(&mut self, node: &super::ImportNode) -> () {
+        self.s.push_str(&format!(
+            "import {} {}\n\n",
+            node.names
+                .iter()
+                .map(|t| t.to_string())
+                .collect::<Vec<_>>()
+                .join("."),
+            if let Some(alias) = &node.alias {
+                format!("as {}", alias)
+            } else if node.imports.len() > 0 {
+                format!(
+                    "{{\n    {}\n}}",
+                    node.imports
+                        .iter()
+                        .map(|t| t.to_string())
+                        .collect::<Vec<_>>()
+                        .join(",\n    ")
+                )
+            } else {
+                "".to_string()
+            }
+        ));
+    }
+
+    fn visit_member(&mut self, node: &super::MemberNode) -> () {
+        node.expr.accept(self);
+        self.s.push('.');
+        self.s.push_str(&node.field.to_string());
     }
 }

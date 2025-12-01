@@ -2,8 +2,7 @@ use std::fs::read_to_string;
 
 #[derive(Debug)]
 pub struct Source {
-    /// Name of file, including extension
-    pub name: String,
+    pub filepath: String,
     /// File contents
     pub src: Vec<u8>,
     /// File size in bytes
@@ -14,10 +13,10 @@ pub struct Source {
 
 impl Source {
     /// Create new file object using given source.
-    pub fn new(filename: String, src: Vec<u8>) -> Source {
+    pub fn new(filepath: String, src: Vec<u8>) -> Source {
         Source {
+            filepath,
             lines: Source::get_line_beginnings(src.as_slice()),
-            name: filename,
             size: src.len(),
             src: src,
         }
@@ -34,7 +33,7 @@ impl Source {
         Source::new("".to_string(), src.to_string().into_bytes())
     }
 
-    /// Gets a list of offsets for first character of each line.
+    /// Gets a list of offsets for the first character of each line.
     /// First item will always be 0.
     fn get_line_beginnings(src: &[u8]) -> Vec<usize> {
         let mut lines = Vec::new();
@@ -42,12 +41,19 @@ impl Source {
 
         while i < src.len() {
             lines.push(i);
-            i = Source::find_end_of_line(src, i);
-            i += 2;
+
+            // Find the end of the current line
+            let end = Self::find_end_of_line(src, i);
+
+            // Move to the start of the next line
+            i = end + 1;
+            if i < src.len() && src[i] == b'\n' {
+                i += 1;
+            }
         }
 
         // Guarantee at least one index
-        if lines.len() == 0 {
+        if lines.is_empty() {
             lines.push(0);
         }
 
@@ -77,23 +83,22 @@ impl Source {
         str::from_utf8(&self.src[from..to]).expect("invalid utf-8")
     }
 
-    /// Returns the position of the character before the newline,
-    /// or last character in source if none is found.
+    /// Returns the position of the character before the next newline,
+    /// or the last character in `src` if none is found.
     fn find_end_of_line(src: &[u8], offset: usize) -> usize {
-        if src[offset] == b'\n' {
-            return if offset == 0 { 0 } else { offset - 1 };
+        if offset >= src.len() {
+            return src.len().saturating_sub(1);
         }
 
-        src[offset..]
-            .iter()
-            .position(|&c| c == b'\n')
-            .and_then(|n| {
-                if n == 0 {
-                    Some(offset)
-                } else {
-                    Some(offset + n - 1)
-                }
-            })
-            .unwrap_or(src.len() - 1)
+        // If the current character is a newline, return previous character
+        if src[offset] == b'\n' {
+            return offset.saturating_sub(1);
+        }
+
+        // Search for the next newline after `offset`
+        match src[offset..].iter().position(|&c| c == b'\n') {
+            Some(pos) => offset + pos - 1,       // character before newline
+            None => src.len().saturating_sub(1), // no newline found
+        }
     }
 }

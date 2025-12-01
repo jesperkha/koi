@@ -8,15 +8,14 @@ use tracing::info;
 use walkdir::WalkDir;
 
 use crate::{
-    ast::File,
+    ast::{File, FileSet},
     build::{TransUnit, X86Builder, assemble},
     config::Config,
     error::ErrorSet,
     ir::{IRUnit, emit_ir},
-    parser::parse,
-    scanner::scan,
-    token::Source,
-    types::{Package, check},
+    parser::{parse, sort_by_dependency_graph},
+    token::{Source, scan},
+    types::{DepMap, Package, type_check},
 };
 
 type Res<T> = Result<T, String>;
@@ -46,27 +45,50 @@ impl<'a> Driver<'a> {
     }
 
     pub fn compile(&mut self, config: BuildConfig) -> Res<()> {
-        if !fs::exists(&config.bindir).unwrap_or(false) {
-            if let Err(_) = fs::create_dir(&config.bindir) {
-                return Err(format!("failed to create directory: {}", config.bindir));
+        create_dir_if_not_exist(&config.bindir)?;
+
+        let mut deps = DepMap::with_stdlib();
+
+        // Parse all files and store as package filesets
+        let mut filesets = Vec::new();
+        for dir in &list_source_directories(&config.srcdir)? {
+            let sources = collect_files_in_directory(dir)?;
+            if sources.len() == 0 {
+                continue;
             }
+
+            let files = self.parse_files(sources)?;
+            let mut depname = dir
+                .display()
+                .to_string()
+                .trim_start_matches(&config.srcdir)
+                .trim_start_matches("/")
+                .replace("/", ".");
+
+            if depname.is_empty() {
+                depname = "main".to_string();
+            }
+
+            filesets.push(FileSet::new(depname, files));
         }
 
-        let source_dirs = list_source_directories(&config.srcdir)?;
-        let mut asm_files = Vec::new();
+        // Create and sort dependency graph, returning a list of
+        // filesets in correct type checking order.
+        let sorted_filesets = sort_by_dependency_graph(filesets)?;
 
-        for dir in &source_dirs {
-            let sources = collect_files_in_directory(dir)?;
-            let file = self.parse_files(sources)?;
-            let pkg = self.type_check_and_create_package(file)?;
+        // Type check, convert to IR, and emit assembly
+        let mut asm_files = Vec::new();
+        for fs in sorted_filesets {
+            let pkg = self.type_check_and_create_package(fs, &mut deps)?;
             let ir_unit = self.emit_package_ir(&pkg)?;
             let asm = self.assemble_ir_unit(ir_unit, &config.target)?;
 
-            let outfile = write_output_file(&config.bindir, &pkg.name, &asm.source)?;
+            let outfile = write_output_file(&config.bindir, pkg.name(), &asm.source)?;
             info!("output assembly file: {}", outfile.display());
             asm_files.push(outfile);
         }
 
+        // Assemble all source files
         for file in &asm_files {
             info!("assembling: {}", file.display());
             let src = file.to_string_lossy();
@@ -74,15 +96,17 @@ impl<'a> Driver<'a> {
             cmd("as", &["-o", &out.to_string_lossy(), &src])?;
         }
 
-        let entry_o = format!("{}/entry.o", config.bindir);
-        cmd("as", &["-o", &entry_o, "lib/compile/entry.s"])?;
-
-        let mut objectfiles = vec![entry_o];
+        let mut objectfiles = vec![];
         for file in asm_files {
             objectfiles.push(file.with_extension("o").to_string_lossy().to_string());
         }
 
-        let mut args = vec!["-o", &config.outfile, "-nostdlib"];
+        // TODO: rewrite this mess
+
+        // let entry_o = format!("{}/entry.o", config.bindir);
+        // cmd("as", &["-o", &entry_o, "lib/compile/entry.s"])?;
+
+        let mut args = vec!["-o", &config.outfile];
         args.extend_from_slice(
             &objectfiles
                 .iter()
@@ -90,7 +114,7 @@ impl<'a> Driver<'a> {
                 .collect::<Vec<&str>>(),
         );
 
-        cmd("ld", &args)?;
+        cmd("gcc", &args)?;
 
         Ok(())
     }
@@ -112,8 +136,8 @@ impl<'a> Driver<'a> {
         }
     }
 
-    fn type_check_and_create_package(&self, files: Vec<File>) -> Res<Package> {
-        check(files, self.config).map_err(|errs| errs.to_string())
+    fn type_check_and_create_package(&self, fs: FileSet, deps: &mut DepMap) -> Res<Package> {
+        type_check(fs, deps, self.config).map_err(|errs| errs.to_string())
     }
 
     fn emit_package_ir(&self, pkg: &Package) -> Res<IRUnit> {
@@ -234,43 +258,11 @@ fn cmd(command: &str, args: &[&str]) -> Res<()> {
     }
 }
 
-// fn write_output(config: &Config, pkg: &Package, unit: TransUnit) -> Res<()> {
-//     if !fs::exists(&config.bindir).unwrap_or(false) {
-//         if let Err(_) = fs::create_dir(&config.bindir) {
-//             return Err(format!("failed to create directory: {}", config.bindir));
-//         }
-//     }
-
-//     if let Err(_) = fs::write(pkg.name_as(&config.bindir, "s"), unit.source) {
-//         return Err("failed to write output".to_string());
-//     };
-
-//     Ok(())
-// }
-
-// fn compile_and_link(packages: Vec<&Package>, config: &Config) -> Res<()> {
-//     for pkg in &packages {
-//         cmd(
-//             "as",
-//             &[
-//                 "-o",
-//                 &pkg.name_as(&config.bindir, "o"),
-//                 &pkg.name_as(&config.bindir, "s"),
-//             ],
-//         )?;
-//     }
-
-//     let entry_out = &format!("{}/{}", config.bindir, "_entry.o");
-//     cmd("as", &["-o", entry_out, "lib/entry.s"])?;
-
-//     let names = packages
-//         .iter()
-//         .map(|pkg| pkg.name_as(&config.bindir, "o"))
-//         .collect::<Vec<String>>();
-
-//     let name_refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
-
-//     let mut args = vec!["-o", &config.outfile, entry_out];
-//     args.extend_from_slice(&name_refs);
-//     cmd("ld", &args)
-// }
+fn create_dir_if_not_exist(dir: &str) -> Res<()> {
+    if !fs::exists(dir).unwrap_or(false) {
+        if let Err(_) = fs::create_dir(dir) {
+            return Err(format!("failed to create directory: {}", dir));
+        }
+    }
+    Ok(())
+}

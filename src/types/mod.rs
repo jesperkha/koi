@@ -1,14 +1,20 @@
+mod ast;
+mod check;
 mod checker;
 mod context;
-mod pkg;
+mod deps;
+mod package;
 mod symtable;
+mod tests;
 mod types;
 
-pub use checker::check;
-pub use context::TypeContext;
-pub use pkg::Package;
-pub use symtable::SymTable;
+pub use check::type_check;
+
+pub use ast::*;
+pub use deps::*;
 pub use types::*;
 
-#[cfg(test)]
-mod checker_test;
+pub use checker::Checker;
+pub use context::TypeContext;
+pub use package::Package;
+pub use symtable::SymTable;
