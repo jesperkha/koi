@@ -599,7 +599,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Same as expect but with a message
-    fn expect_msg(&mut self, kind: TokenKind, msg: &str) -> Result<Token, Error> {
+    fn _expect_msg(&mut self, kind: TokenKind, msg: &str) -> Result<Token, Error> {
         self.expect_pred(msg, |t| t.kind == kind)
     }
 

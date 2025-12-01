@@ -34,7 +34,7 @@ pub enum DependencyKind {
 /// A Dependency contains all exported symbols as well as other meta data
 /// about the nature of the dependency itself.
 pub struct Dependency {
-    kind: DependencyKind,
+    _kind: DependencyKind,
     exports: Exports,
 }
 
@@ -42,7 +42,7 @@ impl Dependency {
     pub fn user(exports: Exports) -> Self {
         Self {
             exports,
-            kind: DependencyKind::User,
+            _kind: DependencyKind::User,
         }
     }
 
