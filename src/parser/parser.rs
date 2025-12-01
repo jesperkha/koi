@@ -5,7 +5,8 @@ use tracing::info;
 use crate::{
     ast::{
         Ast, BlockNode, CallExpr, Decl, Expr, Field, File, FuncDeclNode, FuncNode, GroupExpr,
-        ImportNode, Node, PackageNode, ReturnNode, Stmt, TypeNode, VarAssignNode, VarDeclNode,
+        ImportNode, MemberNode, Node, PackageNode, ReturnNode, Stmt, TypeNode, VarAssignNode,
+        VarDeclNode,
     },
     config::Config,
     error::{Error, ErrorSet, Res},
@@ -439,32 +440,50 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expr(&mut self) -> Result<Expr, Error> {
-        self.parse_call()
+        self.parse_call_and_member()
     }
 
-    fn parse_call(&mut self) -> Result<Expr, Error> {
+    fn parse_call_and_member(&mut self) -> Result<Expr, Error> {
         let mut expr = self.parse_group()?;
 
-        while self.matches(TokenKind::LParen) {
-            let lparen = self.must_consume()?;
-            let mut args = Vec::new();
+        loop {
+            // Call expression
+            if self.matches(TokenKind::LParen) {
+                let lparen = self.must_consume()?;
+                let mut args = Vec::new();
 
-            while !self.matches(TokenKind::RParen) {
-                args.push(self.parse_expr()?);
-                if self.matches(TokenKind::RParen) {
-                    break;
+                while !self.matches(TokenKind::RParen) {
+                    args.push(self.parse_expr()?);
+                    if self.matches(TokenKind::RParen) {
+                        break;
+                    }
+
+                    self.expect(TokenKind::Comma)?;
                 }
 
-                self.expect(TokenKind::Comma)?;
-            }
+                let rparen = self.expect(TokenKind::RParen)?;
+                expr = Expr::Call(CallExpr {
+                    callee: Box::new(expr),
+                    args,
+                    lparen,
+                    rparen,
+                })
 
-            let rparen = self.expect(TokenKind::RParen)?;
-            expr = Expr::Call(CallExpr {
-                callee: Box::new(expr),
-                args,
-                lparen,
-                rparen,
-            })
+            // Member expression
+            } else if self.matches(TokenKind::Dot) {
+                let dot = self.must_consume()?;
+                let field = self.expect_identifier("field name")?;
+
+                expr = Expr::Member(MemberNode {
+                    expr: Box::new(expr),
+                    dot,
+                    field,
+                });
+
+            // Done
+            } else {
+                break;
+            }
         }
 
         Ok(expr)
