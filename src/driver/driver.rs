@@ -96,17 +96,17 @@ impl<'a> Driver<'a> {
             cmd("as", &["-o", &out.to_string_lossy(), &src])?;
         }
 
-        // TODO: rewrite this mess
-
-        let entry_o = format!("{}/entry.o", config.bindir);
-        cmd("as", &["-o", &entry_o, "lib/compile/entry.s"])?;
-
-        let mut objectfiles = vec![entry_o];
+        let mut objectfiles = vec![];
         for file in asm_files {
             objectfiles.push(file.with_extension("o").to_string_lossy().to_string());
         }
 
-        let mut args = vec!["-o", &config.outfile, "-nostdlib"];
+        // TODO: rewrite this mess
+
+        // let entry_o = format!("{}/entry.o", config.bindir);
+        // cmd("as", &["-o", &entry_o, "lib/compile/entry.s"])?;
+
+        let mut args = vec!["-o", &config.outfile];
         args.extend_from_slice(
             &objectfiles
                 .iter()
@@ -114,7 +114,7 @@ impl<'a> Driver<'a> {
                 .collect::<Vec<&str>>(),
         );
 
-        cmd("ld", &args)?;
+        cmd("gcc", &args)?;
 
         Ok(())
     }
