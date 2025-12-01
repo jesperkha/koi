@@ -1,7 +1,7 @@
 use tracing::info;
 
 use crate::{
-    ast::{self, Expr, Field, Node, TypeNode},
+    ast::{self, Field, Node, TypeNode},
     config::Config,
     error::{Error, ErrorSet},
     token::{Pos, Source, Token, TokenKind},
@@ -112,14 +112,14 @@ impl<'a> Checker<'a> {
     }
 
     /// Report whether the given l-value is constant or not.
-    fn is_constant(&self, lval: &Expr) -> bool {
+    fn is_constant(&self, lval: &ast::Expr) -> bool {
         match lval {
-            Expr::Literal(token) => match &token.kind {
+            ast::Expr::Literal(token) => match &token.kind {
                 TokenKind::IdentLit(name) => self.vars.get(name).map_or(false, |sym| sym.constant),
                 _ => false,
             },
-            Expr::Group(_) | Expr::Call(_) => true,
-            Expr::Member(_) => todo!(),
+            ast::Expr::Group(_) | ast::Expr::Call(_) => true,
+            ast::Expr::Member(_) => todo!(),
         }
     }
 
@@ -231,10 +231,10 @@ impl<'a> Checker<'a> {
 
     fn emit_expr(&mut self, expr: ast::Expr) -> Result<types::Expr, Error> {
         match expr {
-            Expr::Literal(tok) => self.emit_literal(tok),
-            Expr::Group(node) => self.emit_expr(*node.inner),
-            Expr::Call(node) => self.emit_call(node),
-            Expr::Member(node) => self.emit_member(node),
+            ast::Expr::Literal(tok) => self.emit_literal(tok),
+            ast::Expr::Group(node) => self.emit_expr(*node.inner),
+            ast::Expr::Call(node) => self.emit_call(node),
+            ast::Expr::Member(node) => self.emit_member(node),
         }
     }
 
@@ -493,7 +493,37 @@ impl<'a> Checker<'a> {
     }
 
     fn emit_member(&mut self, node: ast::MemberNode) -> Result<types::Expr, Error> {
-        todo!()
+        let meta = ast_node_to_meta(&node);
+        let expr = self.emit_expr(*node.expr)?;
+        let field = node.field.to_string();
+
+        let ty = match &self.ctx.lookup(expr.type_id()).kind {
+            TypeKind::Namespace(ns) => {
+                let Some(symbol) = ns.symbols.get(&field) else {
+                    return Err(self.error_token(
+                        &format!("namespace '{}' has no member '{}'", ns.name, &field),
+                        &node.field,
+                    ));
+                };
+                self.ctx.lookup(*symbol).clone()
+            }
+            _ => {
+                return Err(self.error(
+                    &format!(
+                        "type '{}' has no fields",
+                        self.ctx.to_string(expr.type_id())
+                    ),
+                    &expr,
+                ));
+            }
+        };
+
+        Ok(types::Expr::Member(types::MemberNode {
+            ty,
+            meta,
+            expr: Box::new(expr),
+            field,
+        }))
     }
 }
 
