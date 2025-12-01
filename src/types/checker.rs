@@ -378,6 +378,12 @@ impl<'a> Checker<'a> {
             return Err(self.error("cannot assign void type to variable", &typed_expr));
         }
 
+        if let Ok(ty) = self.get_symbol_type(&node.name) {
+            if matches!(ty.kind, TypeKind::Namespace(_)) {
+                return Err(self.error_token("shadowing a namespace is not allowed", &node.name));
+            }
+        }
+
         let id = self.bind(&node.name, typed_expr.type_id(), node.constant)?;
         Ok(types::Stmt::VarDecl(types::VarDeclNode {
             meta,
