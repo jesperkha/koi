@@ -263,6 +263,13 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
     fn visit_member(&mut self, node: &types::MemberNode) -> Result<Value, Error> {
         todo!()
     }
+
+    fn visit_namespace_member(
+        &mut self,
+        node: &types::NamespaceMemberNode,
+    ) -> Result<Value, Error> {
+        todo!()
+    }
 }
 
 fn type_primitive_to_ir_primitive(p: &types::PrimitiveType) -> ir::Primitive {

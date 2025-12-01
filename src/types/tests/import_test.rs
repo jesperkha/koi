@@ -187,25 +187,25 @@ fn test_many_imports() {
     ]);
 }
 
-// #[test]
-// fn test_namespace_import() {
-//     assert_pass(&vec![
-//         file(
-//             "foo",
-//             r#"
-//             pub func doFoo() {}
-//         "#,
-//         ),
-//         file(
-//             "main",
-//             r#"
-//             import foo
+#[test]
+fn test_namespace_import() {
+    assert_pass(&vec![
+        file(
+            "foo",
+            r#"
+            pub func doFoo() {}
+        "#,
+        ),
+        file(
+            "main",
+            r#"
+            import foo
 
-//             func main() int {
-//                 foo.doFoo()
-//                 return 0
-//             }
-//         "#,
-//         ),
-//     ]);
-// }
+            func main() int {
+                foo.doFoo()
+                return 0
+            }
+        "#,
+        ),
+    ]);
+}

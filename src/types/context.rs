@@ -130,7 +130,7 @@ impl TypeContext {
     }
 
     /// Get top level named type
-    pub fn get_symbol(&mut self, name: &str) -> Result<TypeId, String> {
+    pub fn get_symbol(&self, name: &str) -> Result<TypeId, String> {
         self.symbols
             .get(name)
             .map_or(Err("not declared".to_string()), |s| Ok(s.ty))

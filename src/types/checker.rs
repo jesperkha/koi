@@ -90,18 +90,19 @@ impl<'a> Checker<'a> {
     }
 
     /// Get a declared symbol by a token identifier. Returns "not declared" error if not found.
-    fn get(&mut self, name: &Token) -> Result<TypeId, Error> {
+    fn get(&self, name: &Token) -> Result<TypeId, Error> {
         let name_str = name.to_string();
-        self.vars.get(&name_str).map_or(
-            self.ctx
-                .get_symbol(&name_str)
-                .map_or(Err(self.error_token("not declared", name)), |ty| Ok(ty)),
-            |v| Ok(v.ty),
-        )
+        if let Some(var) = self.vars.get(&name_str) {
+            return Ok(var.ty);
+        }
+        if let Ok(sym) = self.ctx.get_symbol(&name_str) {
+            return Ok(sym);
+        }
+        Err(self.error_token("not declared", name))
     }
 
     /// Get the type of a declared symbol
-    fn get_symbol_type(&mut self, name: &Token) -> Result<&Type, Error> {
+    fn get_symbol_type(&self, name: &Token) -> Result<&Type, Error> {
         let id = self.get(name)?;
         Ok(self.ctx.lookup(id))
     }
@@ -119,7 +120,7 @@ impl<'a> Checker<'a> {
                 _ => false,
             },
             ast::Expr::Group(_) | ast::Expr::Call(_) => true,
-            ast::Expr::Member(_) => todo!(),
+            ast::Expr::Member(node) => self.is_constant(&node.expr),
         }
     }
 
@@ -140,6 +141,18 @@ impl<'a> Checker<'a> {
     fn eval_optional_type(&mut self, v: &Option<TypeNode>) -> Result<TypeId, Error> {
         v.as_ref()
             .map_or(Ok(self.ctx.void()), |r| self.eval_type(r))
+    }
+
+    /// Check if the expression is an identifier and return the corresponding type.
+    fn if_identifier_get_type(&self, expr: &ast::Expr) -> Option<&Type> {
+        if let ast::Expr::Literal(token) = expr {
+            if let TokenKind::IdentLit(name) = &token.kind {
+                if let Ok(id) = self.ctx.get_symbol(name) {
+                    return Some(self.ctx.lookup(id));
+                }
+            }
+        }
+        None
     }
 
     // ---------------------------- Global first pass ---------------------------- //
@@ -421,7 +434,14 @@ impl<'a> Checker<'a> {
             TokenKind::FloatLit(_) => self.ctx.primitive_type(PrimitiveType::F64),
             TokenKind::StringLit(_) => self.ctx.primitive_type(PrimitiveType::String),
             TokenKind::True | TokenKind::False => self.ctx.primitive_type(PrimitiveType::Bool),
-            TokenKind::IdentLit(_) => self.get(&tok).map(|t| self.ctx.lookup(t))?,
+            TokenKind::IdentLit(_) => {
+                let ty_id = self.get(&tok)?;
+                let t = self.ctx.lookup(ty_id);
+                if matches!(t.kind, TypeKind::Namespace(_)) {
+                    return Err(self.error_token("namespace cannot be used as a value", &tok));
+                }
+                t
+            }
             _ => todo!(),
         };
 
@@ -494,36 +514,40 @@ impl<'a> Checker<'a> {
 
     fn emit_member(&mut self, node: ast::MemberNode) -> Result<types::Expr, Error> {
         let meta = ast_node_to_meta(&node);
-        let expr = self.emit_expr(*node.expr)?;
         let field = node.field.to_string();
 
-        let ty = match &self.ctx.lookup(expr.type_id()).kind {
-            TypeKind::Namespace(ns) => {
+        // First check if the left hand value is a namespace
+        if let Some(ty) = self.if_identifier_get_type(&*node.expr) {
+            if let TypeKind::Namespace(ns) = &ty.kind {
+                // Get symbol from field
                 let Some(symbol) = ns.symbols.get(&field) else {
                     return Err(self.error_token(
-                        &format!("namespace '{}' has no member '{}'", ns.name, &field),
+                        &format!("namespace '{}' has no member '{}'", &ns.name, &field),
                         &node.field,
                     ));
                 };
-                self.ctx.lookup(*symbol).clone()
-            }
-            _ => {
-                return Err(self.error(
-                    &format!(
-                        "type '{}' has no fields",
-                        self.ctx.to_string(expr.type_id())
-                    ),
-                    &expr,
-                ));
-            }
-        };
 
-        Ok(types::Expr::Member(types::MemberNode {
-            ty,
-            meta,
-            expr: Box::new(expr),
-            field,
-        }))
+                return Ok(types::Expr::NamespaceMember(types::NamespaceMemberNode {
+                    ty: self.ctx.lookup(*symbol).clone(),
+                    namespace: ns.name.clone(),
+                    meta,
+                    field,
+                }));
+            }
+        }
+
+        // Otherwise this is a normal member getter and we treat lval as
+        // a normal expression.
+        let expr = self.emit_expr(*node.expr)?;
+
+        // TODO: implement struct fields here
+        return Err(self.error(
+            &format!(
+                "type '{}' has no fields",
+                self.ctx.to_string(expr.type_id())
+            ),
+            &expr,
+        ));
     }
 }
 
