@@ -5,6 +5,7 @@ mod context;
 mod deps;
 mod package;
 mod symtable;
+mod tests;
 mod types;
 
 pub use check::type_check;
@@ -17,6 +18,3 @@ pub use checker::Checker;
 pub use context::TypeContext;
 pub use package::Package;
 pub use symtable::SymTable;
-
-#[cfg(test)]
-mod checker_test;
