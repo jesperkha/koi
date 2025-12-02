@@ -81,9 +81,9 @@ impl<'a> Emitter<'a> {
 
         match &ty.kind {
             TypeKind::Primitive(p) => IRType::Primitive(type_primitive_to_ir_primitive(&p)),
-            TypeKind::Function(params, ret) => IRType::Function(
-                params.iter().map(|p| self.to_ir_type(*p)).collect(),
-                Box::new(self.to_ir_type(*ret)),
+            TypeKind::Function(f) => IRType::Function(
+                f.params.iter().map(|p| self.to_ir_type(*p)).collect(),
+                Box::new(self.to_ir_type(f.ret)),
             ),
             _ => panic!("unhandled kind {:?}", ty.kind),
         }
@@ -261,6 +261,13 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
     }
 
     fn visit_member(&mut self, node: &types::MemberNode) -> Result<Value, Error> {
+        todo!()
+    }
+
+    fn visit_namespace_member(
+        &mut self,
+        node: &types::NamespaceMemberNode,
+    ) -> Result<Value, Error> {
         todo!()
     }
 }

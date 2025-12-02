@@ -145,8 +145,14 @@ impl<'a> Scanner<'a> {
 
                 // Number
                 v if Scanner::is_number(v) => {
-                    let length = self.peek_while(Scanner::is_numeric);
-                    let lexeme = self.file.str_range(self.pos, self.pos + length);
+                    let mut length = self.peek_while(Scanner::is_numeric);
+                    let mut lexeme = self.file.str_range(self.pos, self.pos + length);
+
+                    // Ignore ending period for now, checked by Checker
+                    if lexeme.ends_with(".") {
+                        length -= 1;
+                        lexeme = lexeme.trim_end_matches(".");
+                    }
 
                     let kind = if lexeme.contains('.') {
                         match lexeme.parse() {

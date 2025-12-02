@@ -1,13 +1,13 @@
 use tracing::info;
 
 use crate::{
-    ast::{self, Expr, Field, Node, TypeNode},
+    ast::{self, Field, Node, TypeNode},
     config::Config,
     error::{Error, ErrorSet},
     token::{Pos, Source, Token, TokenKind},
     types::{
-        self, LiteralKind, NodeMeta, PrimitiveType, Type, TypeContext, TypeId, TypeKind, TypedNode,
-        ast_node_to_meta, no_type, symtable::SymTable,
+        self, FunctionOrigin, FunctionType, LiteralKind, NodeMeta, PrimitiveType, Type,
+        TypeContext, TypeId, TypeKind, TypedNode, ast_node_to_meta, no_type, symtable::SymTable,
     },
 };
 
@@ -90,18 +90,19 @@ impl<'a> Checker<'a> {
     }
 
     /// Get a declared symbol by a token identifier. Returns "not declared" error if not found.
-    fn get(&mut self, name: &Token) -> Result<TypeId, Error> {
+    fn get(&self, name: &Token) -> Result<TypeId, Error> {
         let name_str = name.to_string();
-        self.vars.get(&name_str).map_or(
-            self.ctx
-                .get_symbol(&name_str)
-                .map_or(Err(self.error_token("not declared", name)), |ty| Ok(ty)),
-            |v| Ok(v.ty),
-        )
+        if let Some(var) = self.vars.get(&name_str) {
+            return Ok(var.ty);
+        }
+        if let Ok(sym) = self.ctx.get_symbol(&name_str) {
+            return Ok(sym);
+        }
+        Err(self.error_token("not declared", name))
     }
 
     /// Get the type of a declared symbol
-    fn get_symbol_type(&mut self, name: &Token) -> Result<&Type, Error> {
+    fn get_symbol_type(&self, name: &Token) -> Result<&Type, Error> {
         let id = self.get(name)?;
         Ok(self.ctx.lookup(id))
     }
@@ -112,14 +113,14 @@ impl<'a> Checker<'a> {
     }
 
     /// Report whether the given l-value is constant or not.
-    fn is_constant(&self, lval: &Expr) -> bool {
+    fn is_constant(&self, lval: &ast::Expr) -> bool {
         match lval {
-            Expr::Literal(token) => match &token.kind {
+            ast::Expr::Literal(token) => match &token.kind {
                 TokenKind::IdentLit(name) => self.vars.get(name).map_or(false, |sym| sym.constant),
                 _ => false,
             },
-            Expr::Group(_) | Expr::Call(_) => true,
-            Expr::Member(_) => todo!(),
+            ast::Expr::Group(_) | ast::Expr::Call(_) => true,
+            ast::Expr::Member(node) => self.is_constant(&node.expr),
         }
     }
 
@@ -142,6 +143,18 @@ impl<'a> Checker<'a> {
             .map_or(Ok(self.ctx.void()), |r| self.eval_type(r))
     }
 
+    /// Check if the expression is an identifier and return the corresponding type.
+    fn if_identifier_get_type(&self, expr: &ast::Expr) -> Option<&Type> {
+        if let ast::Expr::Literal(token) = expr {
+            if let TokenKind::IdentLit(name) = &token.kind {
+                if let Ok(id) = self.ctx.get_symbol(name) {
+                    return Some(self.ctx.lookup(id));
+                }
+            }
+        }
+        None
+    }
+
     // ---------------------------- Global first pass ---------------------------- //
 
     pub fn global_pass(&mut self, decls: &Vec<ast::Decl>) -> Result<(), ErrorSet> {
@@ -159,11 +172,23 @@ impl<'a> Checker<'a> {
     }
 
     fn declare_function(&mut self, node: &ast::FuncNode) -> Result<(), Error> {
-        self.declare_function_definition(&node.name, node.public, &node.params, &node.ret_type)
+        self.declare_function_definition(
+            &node.name,
+            node.public,
+            &node.params,
+            &node.ret_type,
+            FunctionOrigin::Package(self.pkg.clone()),
+        )
     }
 
     fn declare_extern(&mut self, node: &ast::FuncDeclNode) -> Result<(), Error> {
-        self.declare_function_definition(&node.name, node.public, &node.params, &node.ret_type)
+        self.declare_function_definition(
+            &node.name,
+            node.public,
+            &node.params,
+            &node.ret_type,
+            FunctionOrigin::Extern,
+        )
     }
 
     fn declare_function_definition(
@@ -172,9 +197,10 @@ impl<'a> Checker<'a> {
         public: bool,
         params: &Vec<ast::Field>,
         ret_type: &Option<ast::TypeNode>,
+        origin: FunctionOrigin,
     ) -> Result<(), Error> {
         // Evaluate return type if any
-        let ret_id = self.eval_optional_type(ret_type)?;
+        let ret = self.eval_optional_type(ret_type)?;
 
         // Get parameter types
         let param_ids = &params
@@ -183,7 +209,12 @@ impl<'a> Checker<'a> {
             .collect::<Result<Vec<_>, _>>()?;
 
         // Declare function in context
-        let kind = TypeKind::Function(param_ids.iter().map(|v| v.1).collect(), ret_id);
+        let kind = TypeKind::Function(FunctionType {
+            params: param_ids.iter().map(|v| v.1).collect(),
+            ret,
+            origin,
+        });
+
         let func_id = self.ctx.get_or_intern(kind);
         let name = name.to_string();
         self.ctx.set_symbol(name, func_id, public);
@@ -231,10 +262,10 @@ impl<'a> Checker<'a> {
 
     fn emit_expr(&mut self, expr: ast::Expr) -> Result<types::Expr, Error> {
         match expr {
-            Expr::Literal(tok) => self.emit_literal(tok),
-            Expr::Group(node) => self.emit_expr(*node.inner),
-            Expr::Call(node) => self.emit_call(node),
-            Expr::Member(node) => self.emit_member(node),
+            ast::Expr::Literal(tok) => self.emit_literal(tok),
+            ast::Expr::Group(node) => self.emit_expr(*node.inner),
+            ast::Expr::Call(node) => self.emit_call(node),
+            ast::Expr::Member(node) => self.emit_member(node),
         }
     }
 
@@ -243,7 +274,7 @@ impl<'a> Checker<'a> {
 
         // Get declared function
         let func_type = self.get_symbol_type(&node.name)?.clone(); // moved later
-        let TypeKind::Function(param_ids, ret_id) = &func_type.kind else {
+        let TypeKind::Function(f) = &func_type.kind else {
             panic!("function was not declared properly");
         };
 
@@ -258,7 +289,7 @@ impl<'a> Checker<'a> {
             }
 
             // If return type is not int
-            if !self.ctx.equivalent(*ret_id, int_id) {
+            if !self.ctx.equivalent(f.ret, int_id) {
                 let msg = "main function must return 'i64'";
                 return Err(node
                     .ret_type
@@ -269,18 +300,18 @@ impl<'a> Checker<'a> {
             }
 
             // No parameters allowed
-            if param_ids.len() > 0 {
+            if f.params.len() > 0 {
                 return Err(self.error("main function must not take any arguments", &node));
             }
         }
 
         // Set up function body
         self.vars.push_scope();
-        self.rtype = *ret_id;
+        self.rtype = f.ret;
         self.has_returned = false;
 
         // Declare params in function body
-        for (i, ty) in param_ids.iter().enumerate() {
+        for (i, ty) in f.params.iter().enumerate() {
             let name = &node.params[i].name;
             self.bind(name, *ty, false)?;
         }
@@ -295,7 +326,7 @@ impl<'a> Checker<'a> {
         self.vars.pop_scope();
 
         // There was no return when there should have been
-        if !self.has_returned && *ret_id != self.ctx.void() {
+        if !self.has_returned && f.ret != self.ctx.void() {
             return Err(self.error_token(
                 format!("missing return in function '{}'", node.name.kind).as_str(),
                 &node.body.rbrace,
@@ -315,17 +346,20 @@ impl<'a> Checker<'a> {
     fn emit_extern(&mut self, node: ast::FuncDeclNode) -> Result<types::Decl, Error> {
         let meta = ast_node_to_meta(&node);
 
-        let ret_id = self.eval_optional_type(&node.ret_type)?;
-        let params = self.collect_field_types(&node.params)?;
-        let kind = TypeKind::Function(params, ret_id);
-        let id = self.ctx.get_or_intern(kind.clone());
-        self.bind(&node.name, id, true)?;
+        // let ret = self.eval_optional_type(&node.ret_type)?;
+        // let params = self.collect_field_types(&node.params)?;
+        // let kind = TypeKind::Function(FunctionType { params, ret, origin:  });
+        // let id = self.ctx.get_or_intern(kind.clone());
+        // self.bind(&node.name, id, true)?;
 
-        Ok(types::Decl::Extern(types::ExternNode {
-            meta,
-            ty: Type { kind, id },
-            name: node.name.to_string(),
-        }))
+        let name = node.name.to_string();
+        let id = self
+            .ctx
+            .get_symbol(&name)
+            .expect("should have been declared in global pass");
+
+        let ty = self.ctx.lookup(id).clone();
+        Ok(types::Decl::Extern(types::ExternNode { ty, meta, name }))
     }
 
     fn emit_var_assign(&mut self, node: ast::VarAssignNode) -> Result<types::Stmt, Error> {
@@ -363,6 +397,12 @@ impl<'a> Checker<'a> {
 
         if typed_expr.type_id() == self.ctx.void() {
             return Err(self.error("cannot assign void type to variable", &typed_expr));
+        }
+
+        if let Ok(ty) = self.get_symbol_type(&node.name) {
+            if matches!(ty.kind, TypeKind::Namespace(_)) {
+                return Err(self.error_token("shadowing a namespace is not allowed", &node.name));
+            }
         }
 
         let id = self.bind(&node.name, typed_expr.type_id(), node.constant)?;
@@ -421,7 +461,14 @@ impl<'a> Checker<'a> {
             TokenKind::FloatLit(_) => self.ctx.primitive_type(PrimitiveType::F64),
             TokenKind::StringLit(_) => self.ctx.primitive_type(PrimitiveType::String),
             TokenKind::True | TokenKind::False => self.ctx.primitive_type(PrimitiveType::Bool),
-            TokenKind::IdentLit(_) => self.get(&tok).map(|t| self.ctx.lookup(t))?,
+            TokenKind::IdentLit(_) => {
+                let ty_id = self.get(&tok)?;
+                let t = self.ctx.lookup(ty_id);
+                if matches!(t.kind, TypeKind::Namespace(_)) {
+                    return Err(self.error_token("namespace cannot be used as a value", &tok));
+                }
+                t
+            }
             _ => todo!(),
         };
 
@@ -440,12 +487,12 @@ impl<'a> Checker<'a> {
         let meta = ast_node_to_meta(&node);
         let callee = self.emit_expr(*node.callee)?;
 
-        if let TypeKind::Function(params, ret_id) = callee.kind() {
+        if let TypeKind::Function(f) = callee.kind() {
             // Check if number of arguments matches
-            if params.len() != node.args.len() {
+            if f.params.len() != node.args.len() {
                 let msg = format!(
                     "function takes {} arguments, got {}",
-                    params.len(),
+                    f.params.len(),
                     node.args.len(),
                 );
                 return Err(self
@@ -457,7 +504,7 @@ impl<'a> Checker<'a> {
             }
 
             assert_eq!(
-                params.len(),
+                f.params.len(),
                 node.args.len(),
                 "sanity check: args and params are same size"
             );
@@ -467,7 +514,7 @@ impl<'a> Checker<'a> {
                 let typed_arg = self.emit_expr(arg)?;
 
                 // Check if each argument type matches the param type
-                let (arg_id, param_id) = (typed_arg.type_id(), params[i]);
+                let (arg_id, param_id) = (typed_arg.type_id(), f.params[i]);
                 if arg_id != param_id {
                     let msg = format!(
                         "mismatched types in function call. expected '{}', got '{}'",
@@ -482,7 +529,7 @@ impl<'a> Checker<'a> {
 
             return Ok(types::Expr::Call(types::CallNode {
                 meta,
-                ty: self.ctx.lookup(*ret_id).clone(),
+                ty: self.ctx.lookup(f.ret).clone(),
                 callee: Box::new(callee),
                 args,
             }));
@@ -493,7 +540,41 @@ impl<'a> Checker<'a> {
     }
 
     fn emit_member(&mut self, node: ast::MemberNode) -> Result<types::Expr, Error> {
-        todo!()
+        let meta = ast_node_to_meta(&node);
+        let field = node.field.to_string();
+
+        // First check if the left hand value is a namespace
+        if let Some(ty) = self.if_identifier_get_type(&*node.expr) {
+            if let TypeKind::Namespace(ns) = &ty.kind {
+                // Get symbol from field
+                let Some(symbol) = ns.symbols.get(&field) else {
+                    return Err(self.error_token(
+                        &format!("namespace '{}' has no member '{}'", &ns.name, &field),
+                        &node.field,
+                    ));
+                };
+
+                return Ok(types::Expr::NamespaceMember(types::NamespaceMemberNode {
+                    ty: self.ctx.lookup(*symbol).clone(),
+                    namespace: ns.name.clone(),
+                    meta,
+                    field,
+                }));
+            }
+        }
+
+        // Otherwise this is a normal member getter and we treat lval as
+        // a normal expression.
+        let expr = self.emit_expr(*node.expr)?;
+
+        // TODO: implement struct fields here
+        return Err(self.error(
+            &format!(
+                "type '{}' has no fields",
+                self.ctx.to_string(expr.type_id())
+            ),
+            &expr,
+        ));
     }
 }
 

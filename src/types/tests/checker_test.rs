@@ -351,3 +351,28 @@ fn test_main_function_rules() {
         "main function must not take any arguments",
     );
 }
+
+#[test]
+fn test_member_error() {
+    assert_error(
+        r#"
+        func main() int {
+            123.foo
+            return 0
+        }
+    "#,
+        "type 'i64' has no fields",
+    );
+    assert_error(
+        r#"
+        func f() string {
+            return "foo"
+        }
+        func main() int {
+            f().bar
+            return 0
+        }
+    "#,
+        "type 'string' has no fields",
+    );
+}

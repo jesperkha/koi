@@ -453,6 +453,20 @@ impl Node for CallExpr {
     }
 }
 
+impl Node for MemberNode {
+    fn pos(&self) -> &Pos {
+        self.expr.pos()
+    }
+
+    fn end(&self) -> &Pos {
+        &self.field.end_pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.dot.id
+    }
+}
+
 impl Visitable for Expr {
     fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
         match self {

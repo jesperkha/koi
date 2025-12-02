@@ -187,25 +187,77 @@ fn test_many_imports() {
     ]);
 }
 
-// #[test]
-// fn test_namespace_import() {
-//     assert_pass(&vec![
-//         file(
-//             "foo",
-//             r#"
-//             pub func doFoo() {}
-//         "#,
-//         ),
-//         file(
-//             "main",
-//             r#"
-//             import foo
+#[test]
+fn test_namespace_import() {
+    assert_pass(&vec![
+        file(
+            "foo",
+            r#"
+            pub func doFoo() {}
+        "#,
+        ),
+        file(
+            "main",
+            r#"
+            import foo
 
-//             func main() int {
-//                 foo.doFoo()
-//                 return 0
-//             }
-//         "#,
-//         ),
-//     ]);
-// }
+            func main() int {
+                foo.doFoo()
+                return 0
+            }
+        "#,
+        ),
+    ]);
+}
+
+#[test]
+fn test_namespace_shadow_error() {
+    assert_error(
+        &vec![
+            file(
+                "foo",
+                r#"
+                pub func doFoo() {}
+            "#,
+            ),
+            file(
+                "main",
+                r#"
+                import foo
+
+                func main() int {
+                    foo := 1
+                    return 0
+                }
+            "#,
+            ),
+        ],
+        "shadowing a namespace is not allowed",
+    );
+}
+
+#[test]
+fn test_namespace_as_expression_error() {
+    assert_error(
+        &vec![
+            file(
+                "foo",
+                r#"
+                func f() {}
+            "#,
+            ),
+            file(
+                "main",
+                r#"
+                import foo
+
+                func main() int {
+                    a := foo
+                    return 0
+                }
+            "#,
+            ),
+        ],
+        "namespace cannot be used as a value",
+    );
+}

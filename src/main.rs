@@ -17,7 +17,7 @@ fn main() {
 }
 
 fn compile() {
-    let config = Config::default();
+    let config = Config::debug();
     let mut driver = Driver::new(&config);
     let _ = driver
         .compile(BuildConfig {
