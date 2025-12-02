@@ -6,8 +6,8 @@ use crate::{
     error::{Error, ErrorSet},
     token::{Pos, Source, Token, TokenKind},
     types::{
-        self, LiteralKind, NodeMeta, PrimitiveType, Type, TypeContext, TypeId, TypeKind, TypedNode,
-        ast_node_to_meta, no_type, symtable::SymTable,
+        self, FunctionOrigin, FunctionType, LiteralKind, NodeMeta, PrimitiveType, Type,
+        TypeContext, TypeId, TypeKind, TypedNode, ast_node_to_meta, no_type, symtable::SymTable,
     },
 };
 
@@ -172,11 +172,23 @@ impl<'a> Checker<'a> {
     }
 
     fn declare_function(&mut self, node: &ast::FuncNode) -> Result<(), Error> {
-        self.declare_function_definition(&node.name, node.public, &node.params, &node.ret_type)
+        self.declare_function_definition(
+            &node.name,
+            node.public,
+            &node.params,
+            &node.ret_type,
+            FunctionOrigin::Package(self.pkg.clone()),
+        )
     }
 
     fn declare_extern(&mut self, node: &ast::FuncDeclNode) -> Result<(), Error> {
-        self.declare_function_definition(&node.name, node.public, &node.params, &node.ret_type)
+        self.declare_function_definition(
+            &node.name,
+            node.public,
+            &node.params,
+            &node.ret_type,
+            FunctionOrigin::Extern,
+        )
     }
 
     fn declare_function_definition(
@@ -185,9 +197,10 @@ impl<'a> Checker<'a> {
         public: bool,
         params: &Vec<ast::Field>,
         ret_type: &Option<ast::TypeNode>,
+        origin: FunctionOrigin,
     ) -> Result<(), Error> {
         // Evaluate return type if any
-        let ret_id = self.eval_optional_type(ret_type)?;
+        let ret = self.eval_optional_type(ret_type)?;
 
         // Get parameter types
         let param_ids = &params
@@ -196,7 +209,12 @@ impl<'a> Checker<'a> {
             .collect::<Result<Vec<_>, _>>()?;
 
         // Declare function in context
-        let kind = TypeKind::Function(param_ids.iter().map(|v| v.1).collect(), ret_id);
+        let kind = TypeKind::Function(FunctionType {
+            params: param_ids.iter().map(|v| v.1).collect(),
+            ret,
+            origin,
+        });
+
         let func_id = self.ctx.get_or_intern(kind);
         let name = name.to_string();
         self.ctx.set_symbol(name, func_id, public);
@@ -256,7 +274,7 @@ impl<'a> Checker<'a> {
 
         // Get declared function
         let func_type = self.get_symbol_type(&node.name)?.clone(); // moved later
-        let TypeKind::Function(param_ids, ret_id) = &func_type.kind else {
+        let TypeKind::Function(f) = &func_type.kind else {
             panic!("function was not declared properly");
         };
 
@@ -271,7 +289,7 @@ impl<'a> Checker<'a> {
             }
 
             // If return type is not int
-            if !self.ctx.equivalent(*ret_id, int_id) {
+            if !self.ctx.equivalent(f.ret, int_id) {
                 let msg = "main function must return 'i64'";
                 return Err(node
                     .ret_type
@@ -282,18 +300,18 @@ impl<'a> Checker<'a> {
             }
 
             // No parameters allowed
-            if param_ids.len() > 0 {
+            if f.params.len() > 0 {
                 return Err(self.error("main function must not take any arguments", &node));
             }
         }
 
         // Set up function body
         self.vars.push_scope();
-        self.rtype = *ret_id;
+        self.rtype = f.ret;
         self.has_returned = false;
 
         // Declare params in function body
-        for (i, ty) in param_ids.iter().enumerate() {
+        for (i, ty) in f.params.iter().enumerate() {
             let name = &node.params[i].name;
             self.bind(name, *ty, false)?;
         }
@@ -308,7 +326,7 @@ impl<'a> Checker<'a> {
         self.vars.pop_scope();
 
         // There was no return when there should have been
-        if !self.has_returned && *ret_id != self.ctx.void() {
+        if !self.has_returned && f.ret != self.ctx.void() {
             return Err(self.error_token(
                 format!("missing return in function '{}'", node.name.kind).as_str(),
                 &node.body.rbrace,
@@ -328,17 +346,20 @@ impl<'a> Checker<'a> {
     fn emit_extern(&mut self, node: ast::FuncDeclNode) -> Result<types::Decl, Error> {
         let meta = ast_node_to_meta(&node);
 
-        let ret_id = self.eval_optional_type(&node.ret_type)?;
-        let params = self.collect_field_types(&node.params)?;
-        let kind = TypeKind::Function(params, ret_id);
-        let id = self.ctx.get_or_intern(kind.clone());
-        self.bind(&node.name, id, true)?;
+        // let ret = self.eval_optional_type(&node.ret_type)?;
+        // let params = self.collect_field_types(&node.params)?;
+        // let kind = TypeKind::Function(FunctionType { params, ret, origin:  });
+        // let id = self.ctx.get_or_intern(kind.clone());
+        // self.bind(&node.name, id, true)?;
 
-        Ok(types::Decl::Extern(types::ExternNode {
-            meta,
-            ty: Type { kind, id },
-            name: node.name.to_string(),
-        }))
+        let name = node.name.to_string();
+        let id = self
+            .ctx
+            .get_symbol(&name)
+            .expect("should have been declared in global pass");
+
+        let ty = self.ctx.lookup(id).clone();
+        Ok(types::Decl::Extern(types::ExternNode { ty, meta, name }))
     }
 
     fn emit_var_assign(&mut self, node: ast::VarAssignNode) -> Result<types::Stmt, Error> {
@@ -466,12 +487,12 @@ impl<'a> Checker<'a> {
         let meta = ast_node_to_meta(&node);
         let callee = self.emit_expr(*node.callee)?;
 
-        if let TypeKind::Function(params, ret_id) = callee.kind() {
+        if let TypeKind::Function(f) = callee.kind() {
             // Check if number of arguments matches
-            if params.len() != node.args.len() {
+            if f.params.len() != node.args.len() {
                 let msg = format!(
                     "function takes {} arguments, got {}",
-                    params.len(),
+                    f.params.len(),
                     node.args.len(),
                 );
                 return Err(self
@@ -483,7 +504,7 @@ impl<'a> Checker<'a> {
             }
 
             assert_eq!(
-                params.len(),
+                f.params.len(),
                 node.args.len(),
                 "sanity check: args and params are same size"
             );
@@ -493,7 +514,7 @@ impl<'a> Checker<'a> {
                 let typed_arg = self.emit_expr(arg)?;
 
                 // Check if each argument type matches the param type
-                let (arg_id, param_id) = (typed_arg.type_id(), params[i]);
+                let (arg_id, param_id) = (typed_arg.type_id(), f.params[i]);
                 if arg_id != param_id {
                     let msg = format!(
                         "mismatched types in function call. expected '{}', got '{}'",
@@ -508,7 +529,7 @@ impl<'a> Checker<'a> {
 
             return Ok(types::Expr::Call(types::CallNode {
                 meta,
-                ty: self.ctx.lookup(*ret_id).clone(),
+                ty: self.ctx.lookup(f.ret).clone(),
                 callee: Box::new(callee),
                 args,
             }));

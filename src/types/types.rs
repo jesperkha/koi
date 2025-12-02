@@ -13,7 +13,7 @@ pub enum TypeKind {
 
     /// List of parameter types and a return
     /// type (void for no return)
-    Function(Vec<TypeId>, TypeId),
+    Function(FunctionType),
 
     Namespace(NamespaceType),
 }
@@ -42,6 +42,33 @@ pub enum PrimitiveType {
     Bool,
     Byte,
     String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum FunctionOrigin {
+    /// Contains full package path
+    Package(String),
+    Extern,
+}
+
+impl fmt::Display for FunctionOrigin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                FunctionOrigin::Package(s) => &s,
+                FunctionOrigin::Extern => "extern",
+            }
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FunctionType {
+    pub params: Vec<TypeId>,
+    pub ret: TypeId,
+    pub origin: FunctionOrigin,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
