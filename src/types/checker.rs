@@ -151,11 +151,18 @@ impl<'a> Checker<'a> {
 
     /// Check if the expression is an identifier and return the corresponding type.
     fn if_identifier_get_type(&self, expr: &ast::Expr) -> Option<&Type> {
+        if let Some(name) = self.if_identifier_get_name(expr) {
+            if let Ok(id) = self.ctx.get_symbol(name) {
+                return Some(self.ctx.lookup(id));
+            }
+        }
+        None
+    }
+
+    fn if_identifier_get_name(&self, expr: &'a ast::Expr) -> Option<&'a str> {
         if let ast::Expr::Literal(token) = expr {
             if let TokenKind::IdentLit(name) = &token.kind {
-                if let Ok(id) = self.ctx.get_symbol(name) {
-                    return Some(self.ctx.lookup(id));
-                }
+                return Some(name);
             }
         }
         None
@@ -222,8 +229,13 @@ impl<'a> Checker<'a> {
         });
 
         let func_id = self.ctx.get_or_intern(kind);
-        let name = name.to_string();
-        self.ctx.set_symbol(name, func_id, public);
+        let name_str = name.to_string();
+        let _ = self
+            .ctx
+            .set_symbol(name_str, func_id, public)
+            .map_err(|err| {
+                return self.error_token(&err, name);
+            })?;
 
         Ok(())
     }
@@ -408,10 +420,8 @@ impl<'a> Checker<'a> {
             return Err(self.error("cannot assign void type to variable", &typed_expr));
         }
 
-        if let Ok(ty) = self.get_symbol_type(&node.name) {
-            if matches!(ty.kind, TypeKind::Namespace(_)) {
-                return Err(self.error_token("shadowing a namespace is not allowed", &node.name));
-            }
+        if let Ok(_) = self.ctx.get_namespace(&node.name.to_string()) {
+            return Err(self.error_token("shadowing a namespace is not allowed", &node.name));
         }
 
         let id = self.bind(&node.name, typed_expr.type_id(), node.constant)?;
@@ -470,12 +480,19 @@ impl<'a> Checker<'a> {
             TokenKind::FloatLit(_) => self.ctx.primitive_type(PrimitiveType::F64),
             TokenKind::StringLit(_) => self.ctx.primitive_type(PrimitiveType::String),
             TokenKind::True | TokenKind::False => self.ctx.primitive_type(PrimitiveType::Bool),
-            TokenKind::IdentLit(_) => {
-                let ty_id = self.get(&tok)?;
+            TokenKind::IdentLit(name) => {
+                let ty_id = match self.get(&tok) {
+                    Err(err) => {
+                        if let Ok(_) = self.ctx.get_namespace(name) {
+                            return Err(
+                                self.error_token("namespace cannot be used as a value", &tok)
+                            );
+                        }
+                        return Err(err);
+                    }
+                    Ok(id) => id,
+                };
                 let t = self.ctx.lookup(ty_id);
-                if matches!(t.kind, TypeKind::Namespace(_)) {
-                    return Err(self.error_token("namespace cannot be used as a value", &tok));
-                }
                 t
             }
             _ => todo!(),
@@ -553,19 +570,19 @@ impl<'a> Checker<'a> {
         let field = node.field.to_string();
 
         // First check if the left hand value is a namespace
-        if let Some(ty) = self.if_identifier_get_type(&*node.expr) {
-            if let TypeKind::Namespace(ns) = &ty.kind {
+        if let Some(name) = self.if_identifier_get_name(&*node.expr) {
+            if let Ok(ns) = self.ctx.get_namespace(name) {
                 // Get symbol from field
                 let Some(symbol) = ns.symbols.get(&field) else {
                     return Err(self.error_token(
-                        &format!("namespace '{}' has no member '{}'", &ns.name, &field),
+                        &format!("namespace '{}' has no member '{}'", &ns.name(), &field),
                         &node.field,
                     ));
                 };
 
                 return Ok(types::Expr::NamespaceMember(types::NamespaceMemberNode {
                     ty: self.ctx.lookup(*symbol).clone(),
-                    namespace: ns.name.clone(),
+                    modpath: ns.path().to_owned(),
                     meta,
                     field,
                 }));

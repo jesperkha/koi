@@ -109,6 +109,19 @@ fn test_undeclared_param() {
 }
 
 #[test]
+fn test_redefinition() {
+    assert_error(
+        r#"
+        func f() {
+        }
+        func f() {
+        }
+    "#,
+        "already declared",
+    );
+}
+
+#[test]
 fn test_function_call_pass() {
     assert_pass(
         r#"

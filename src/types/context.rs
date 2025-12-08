@@ -1,7 +1,7 @@
 use std::{collections::HashMap, str};
 use strum::IntoEnumIterator;
 
-use crate::types::{PrimitiveType, Type, TypeId, TypeKind, no_type};
+use crate::types::{Namespace, PrimitiveType, Type, TypeId, TypeKind, no_type};
 
 /// Context for type lookups.
 pub struct TypeContext {
@@ -12,6 +12,8 @@ pub struct TypeContext {
     cache: HashMap<TypeKind, TypeId>,
     /// Top level symbol mappings.
     symbols: HashMap<String, Symbol>,
+    /// Top level symbol mappings.
+    namespaces: HashMap<String, Namespace>,
 }
 
 #[derive(Clone)]
@@ -27,6 +29,7 @@ impl TypeContext {
             types: Vec::new(),
             cache: HashMap::new(),
             symbols: HashMap::new(),
+            namespaces: HashMap::new(),
         };
 
         for t in PrimitiveType::iter() {
@@ -125,8 +128,10 @@ impl TypeContext {
     }
 
     /// Set top level named type
-    pub fn set_symbol(&mut self, name: String, ty: TypeId, exported: bool) {
-        self.symbols.insert(name, Symbol { ty, exported });
+    pub fn set_symbol(&mut self, name: String, ty: TypeId, exported: bool) -> Result<(), String> {
+        self.symbols
+            .insert(name, Symbol { ty, exported })
+            .map_or(Ok(()), |_| Err(format!("already declared")))
     }
 
     /// Get top level named type
@@ -145,6 +150,18 @@ impl TypeContext {
             .collect::<Vec<_>>()
     }
 
+    pub fn set_namespace(&mut self, ns: Namespace) -> Result<(), String> {
+        self.namespaces
+            .insert(ns.name().to_owned(), ns)
+            .map_or(Ok(()), |_| Err(format!("already declared")))
+    }
+
+    pub fn get_namespace(&self, name: &str) -> Result<&Namespace, String> {
+        self.namespaces
+            .get(name)
+            .map_or(Err("not declared".to_string()), |s| Ok(s))
+    }
+
     /// Get the string representation of a type for errors or logging.
     pub fn to_string(&self, id: TypeId) -> String {
         match &self.lookup(id).kind {
@@ -153,7 +170,6 @@ impl TypeContext {
             TypeKind::Pointer(inner) => format!("*{}", self.to_string(*inner)),
             TypeKind::Alias(id) => format!("{}", self.to_string(*id)),
             TypeKind::Unique(id) => format!("{}", self.to_string(*id)),
-            TypeKind::Namespace(ns) => format!("{}", ns.name),
             TypeKind::Function(f) => {
                 let params_str = f
                     .params
@@ -175,7 +191,6 @@ impl TypeContext {
             TypeKind::Pointer(inner) => format!("Pointer<{}>", self.to_string(*inner)),
             TypeKind::Alias(id) => format!("Alias({})", self.to_string(*id)),
             TypeKind::Unique(id) => format!("Unique({})", self.to_string(*id)),
-            TypeKind::Namespace(ns) => format!("Namespace({})", ns.name),
             TypeKind::Function(f) => {
                 let params_str = f
                     .params

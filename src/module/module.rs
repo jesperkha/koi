@@ -16,7 +16,7 @@ pub fn invalid_mod_id() -> ModuleId {
 
 /// Module path wraps a string module path (app.foo.bar) and provides methods
 /// to get the path itself or the module name (the last name in the path).
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct ModulePath(String);
 
 impl ModulePath {

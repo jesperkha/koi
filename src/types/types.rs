@@ -1,7 +1,10 @@
 use std::{collections::HashMap, fmt, hash::Hash};
 use strum_macros::EnumIter;
 
-use crate::{module::Exports, types::TypeContext};
+use crate::{
+    module::{Exports, ModulePath},
+    types::TypeContext,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeKind {
@@ -14,8 +17,6 @@ pub enum TypeKind {
     /// List of parameter types and a return
     /// type (void for no return)
     Function(FunctionType),
-
-    Namespace(NamespaceType),
 }
 
 // TODO: add positional info to type object to point to related declarations in errors
@@ -72,15 +73,15 @@ pub struct FunctionType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NamespaceType {
-    pub name: String,
+pub struct Namespace {
+    pub modpath: ModulePath,
     pub symbols: HashMap<String, TypeId>,
 }
 
-impl NamespaceType {
-    pub fn new(name: String, exports: &Exports, ctx: &mut TypeContext) -> Self {
-        let mut ns = NamespaceType {
-            name,
+impl Namespace {
+    pub fn new(modpath: ModulePath, exports: &Exports, ctx: &mut TypeContext) -> Self {
+        let mut ns = Namespace {
+            modpath,
             symbols: HashMap::new(),
         };
 
@@ -91,11 +92,19 @@ impl NamespaceType {
 
         ns
     }
+
+    pub fn name(&self) -> &str {
+        self.modpath.name()
+    }
+
+    pub fn path(&self) -> &str {
+        self.modpath.path()
+    }
 }
 
-impl Hash for NamespaceType {
+impl Hash for Namespace {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
+        self.modpath.path().hash(state);
     }
 }
 

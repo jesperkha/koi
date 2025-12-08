@@ -3,9 +3,9 @@ use crate::{
     config::Config,
     error::{Error, ErrorSet, Res},
     module::{CreateModule, Exports, Module, ModuleGraph, ModuleKind, ModulePath, invalid_mod_id},
-    types::{Checker, NamespaceType, TypeContext, TypeKind, TypedAst},
+    types::{Checker, Namespace, TypeContext, TypedAst},
 };
-use tracing::{debug, info};
+use tracing::info;
 
 pub fn type_check<'a>(fs: FileSet, mg: &'a mut ModuleGraph, config: &Config) -> Res<&'a Module> {
     let mut ctx = TypeContext::new();
@@ -87,9 +87,15 @@ fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, mg: &ModuleGraph) -> Res
             };
 
             // Add module as namespace
-            let ns = NamespaceType::new(module.name().to_owned(), &module.exports, ctx);
-            let id = ctx.get_or_intern(TypeKind::Namespace(ns));
-            ctx.set_symbol(module.name().to_owned(), id, false);
+            let ns = Namespace::new(module.modpath.clone(), &module.exports, ctx);
+            let _ = ctx.set_namespace(ns).map_err(|err| {
+                errs.add(Error::range(
+                    &err,
+                    &import.names[0].pos,
+                    &import.names.last().unwrap().end_pos,
+                    &file.src,
+                ));
+            });
 
             // Put symbols imported by name directly into context
             for tok in &import.imports {
@@ -97,7 +103,9 @@ fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, mg: &ModuleGraph) -> Res
 
                 if let Some(kind) = module.exports.get(&sym) {
                     let id = ctx.get_or_intern(kind.clone());
-                    ctx.set_symbol(sym.clone(), id, false);
+                    let _ = ctx.set_symbol(sym.clone(), id, false).map_err(|err| {
+                        errs.add(Error::new(&err, tok, tok, &file.src));
+                    });
                 } else {
                     errs.add(Error::range(
                         &format!("module '{}' has no export '{}'", module.name(), sym),

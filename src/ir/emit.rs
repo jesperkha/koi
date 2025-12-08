@@ -10,7 +10,7 @@ use crate::{
         AssignIns, ExternFuncInst, FuncInst, IRType, IRUnit, Ins, LValue, StoreIns, StringDataIns,
         SymTracker, Value, ir,
     },
-    module::Module,
+    module::{Module, ModulePath},
     types::{
         self, Decl, Expr, LiteralKind, TypeContext, TypeId, TypeKind, TypedNode, Visitable, Visitor,
     },
@@ -22,10 +22,11 @@ pub fn emit_ir(m: &Module, config: &Config) -> Res<IRUnit> {
 }
 
 struct Emitter<'a> {
+    modpath: &'a ModulePath,
     ctx: &'a TypeContext,
     nodes: &'a [Decl],
     sym: SymTracker,
-    _config: &'a Config,
+    config: &'a Config,
 
     ins: Vec<Vec<Ins>>,
 
@@ -40,7 +41,8 @@ impl<'a> Emitter<'a> {
     fn new(m: &'a Module, config: &'a Config) -> Self {
         info!("emitting module: {}", m.name());
         Self {
-            _config: config,
+            modpath: &m.modpath,
+            config,
             ctx: &m.ast.ctx,
             nodes: &m.ast.decls,
             sym: SymTracker::new(),
@@ -109,6 +111,16 @@ impl<'a> Emitter<'a> {
         self.curstr += 1;
         format!("S{}", self.curstr)
     }
+
+    fn mangle_function_name(&self, name: &str, modpath: &str) -> String {
+        if self.config.no_mangle_names {
+            return String::from(name);
+        }
+        if name == "main" {
+            return String::from("main");
+        }
+        format!("_{}_{}", modpath.replace(".", "_"), name)
+    }
 }
 
 impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
@@ -148,7 +160,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         }
 
         self.push(Ins::Func(FuncInst {
-            name: node.name.clone(),
+            name: self.mangle_function_name(&node.name, self.modpath.path()),
             public: node.public,
             params,
             ret: *ret,
@@ -231,7 +243,21 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
     fn visit_call(&mut self, node: &types::CallNode) -> Result<Value, Error> {
         let callee = match &*node.callee {
             Expr::Literal(t) => match &t.kind {
-                LiteralKind::Ident(name) => Value::Function(name.clone()),
+                LiteralKind::Ident(name) => {
+                    // We need to get the function symbol and then figure out
+                    // if the name should be mangled (and with what modpath) or not.
+                    let id = self.ctx.get_symbol(name).expect("not a symbol");
+                    let TypeKind::Function(f) = &self.ctx.lookup(id).kind else {
+                        panic!("not a function");
+                    };
+                    let mangled_name = match &f.origin {
+                        types::FunctionOrigin::Module(modpath) => {
+                            self.mangle_function_name(&name, &modpath)
+                        }
+                        types::FunctionOrigin::Extern => String::from(name),
+                    };
+                    Value::Function(mangled_name)
+                }
                 _ => panic!("unchecked invalid function call"),
             },
             e => e.accept(self)?,
@@ -268,7 +294,21 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         &mut self,
         node: &types::NamespaceMemberNode,
     ) -> Result<Value, Error> {
-        todo!()
+        let name = self.mangle_function_name(&node.field, &node.modpath);
+
+        // Declare as extern function
+        let f = self.node_to_ir_type(node);
+        let IRType::Function(params, ret) = f else {
+            panic!("not a function");
+        };
+
+        self.push(Ins::Extern(ExternFuncInst {
+            name: name.clone(),
+            params,
+            ret: *ret,
+        }));
+
+        Ok(Value::Function(name))
     }
 }
 

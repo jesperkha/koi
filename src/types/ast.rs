@@ -97,7 +97,7 @@ pub struct MemberNode {
 pub struct NamespaceMemberNode {
     pub ty: Type,
     pub meta: NodeMeta,
-    pub namespace: String,
+    pub modpath: String,
     pub field: String,
 }
 
