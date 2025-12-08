@@ -1,4 +1,4 @@
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::{
     ast::{self, Field, Node, TypeNode},
@@ -17,12 +17,12 @@ struct Value {
 }
 
 pub struct Checker<'a> {
-    pkg: String,
+    module_name: String,
     ctx: &'a mut TypeContext,
     src: &'a Source,
     _config: &'a Config,
 
-    /// Locally declared variables. Package private and global
+    /// Locally declared variables. Module private and global
     /// symbols are part of the TypeContext.
     vars: SymTable<Value>,
 
@@ -35,11 +35,16 @@ pub struct Checker<'a> {
 }
 
 impl<'a> Checker<'a> {
-    pub fn new(src: &'a Source, pkg: String, ctx: &'a mut TypeContext, config: &'a Config) -> Self {
+    pub fn new(
+        src: &'a Source,
+        module_name: String,
+        ctx: &'a mut TypeContext,
+        config: &'a Config,
+    ) -> Self {
         Self {
             _config: config,
             src,
-            pkg,
+            module_name,
             ctx,
             vars: SymTable::new(),
             rtype: no_type(),
@@ -177,7 +182,7 @@ impl<'a> Checker<'a> {
             node.public,
             &node.params,
             &node.ret_type,
-            FunctionOrigin::Package(self.pkg.clone()),
+            FunctionOrigin::Module(self.module_name.clone()),
         )
     }
 
@@ -226,7 +231,7 @@ impl<'a> Checker<'a> {
 
     pub fn emit_ast(&mut self, decls: Vec<ast::Decl>) -> Result<Vec<types::Decl>, ErrorSet> {
         let mut errs = ErrorSet::new();
-        info!("file '{}'", self.src.filepath);
+        info!("checking file: {}", self.src.filepath);
 
         let typed_decls = decls
             .into_iter()
@@ -236,7 +241,7 @@ impl<'a> Checker<'a> {
             .collect::<Vec<_>>();
 
         if errs.len() > 0 {
-            info!("fail, finished with {} errors", errs.len());
+            info!("fail! finished with {} errors", errs.len());
         }
 
         errs.err_or(typed_decls)
@@ -282,10 +287,10 @@ impl<'a> Checker<'a> {
         if node.name.to_string() == "main" {
             let int_id = self.ctx.primitive(PrimitiveType::I64);
 
-            // Must be package main
-            if !self.pkg.is_empty() && self.pkg != "main" {
-                info!("package name expected to be main, is {}", self.pkg);
-                return Err(self.error("main function can only be declared in main package", &node));
+            // Must be main module
+            if !self.module_name.is_empty() && self.module_name != "main" {
+                info!("module name expected to be main, is {}", self.module_name);
+                return Err(self.error("main function can only be declared in main module", &node));
             }
 
             // If return type is not int
@@ -535,7 +540,7 @@ impl<'a> Checker<'a> {
             }));
         }
 
-        info!("callee type is actually: {:?}", callee.kind());
+        debug!("callee type is actually: {:?}", callee.kind());
         Err(self.error("not a function", &callee))
     }
 

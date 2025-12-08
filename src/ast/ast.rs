@@ -4,7 +4,6 @@ pub type NodeId = usize;
 
 #[derive(Debug)]
 pub struct Ast {
-    pub package: PackageNode,
     pub imports: Vec<ImportNode>,
     // Declarations are the only top level statements in koi. They contain
     // all other statements and expressions. Eg. a function has a block
@@ -47,7 +46,6 @@ pub trait Visitor<R> {
     fn visit_return(&mut self, node: &ReturnNode) -> R;
     fn visit_literal(&mut self, node: &Token) -> R;
     fn visit_type(&mut self, node: &TypeNode) -> R;
-    fn visit_package(&mut self, node: &Token) -> R;
     fn visit_call(&mut self, node: &CallExpr) -> R;
     fn visit_group(&mut self, node: &GroupExpr) -> R;
     fn visit_var_decl(&mut self, node: &VarDeclNode) -> R;
@@ -137,12 +135,6 @@ pub struct VarAssignNode {
     pub lval: Expr,
     pub equal: Token,
     pub expr: Expr,
-}
-
-#[derive(Debug, Clone)]
-pub struct PackageNode {
-    pub kw: Token,
-    pub name: Token,
 }
 
 #[derive(Debug, Clone)]
@@ -241,20 +233,6 @@ impl Node for Decl {
             Decl::Extern(node) => node.id(),
             Decl::Import(node) => node.id(),
         }
-    }
-}
-
-impl Node for PackageNode {
-    fn pos(&self) -> &Pos {
-        &self.kw.pos
-    }
-
-    fn end(&self) -> &Pos {
-        &self.name.end_pos
-    }
-
-    fn id(&self) -> NodeId {
-        self.kw.id
     }
 }
 

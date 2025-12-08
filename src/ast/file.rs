@@ -13,7 +13,7 @@ pub struct FileMeta {
 }
 
 /// A File represents a parsed source file, containing its AST, source code,
-/// declared package name, and other metadata about the file itself.
+/// and other metadata about the file itself.
 #[derive(Debug)]
 pub struct File {
     pub meta: FileMeta,
@@ -54,7 +54,7 @@ pub struct Import {
     pub alias: Option<String>,
 }
 
-/// A FileSet is a collection of Files part of the same package. The imports
+/// A FileSet is a collection of Files part of the same module. The imports
 /// set is a list of all imports across all source files in the set. These
 /// must be type checked before this fileset can be processed further.
 pub struct FileSet {

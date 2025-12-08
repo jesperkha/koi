@@ -46,8 +46,8 @@ pub enum PrimitiveType {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FunctionOrigin {
-    /// Contains full package path
-    Package(String),
+    /// Contains full module path
+    Module(String),
     Extern,
 }
 
@@ -57,7 +57,7 @@ impl fmt::Display for FunctionOrigin {
             f,
             "{}",
             match self {
-                FunctionOrigin::Package(s) => &s,
+                FunctionOrigin::Module(s) => &s,
                 FunctionOrigin::Extern => "extern",
             }
         )

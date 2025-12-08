@@ -38,7 +38,7 @@ struct Emitter<'a> {
 
 impl<'a> Emitter<'a> {
     fn new(m: &'a Module, config: &'a Config) -> Self {
-        info!("package '{}'", m.name);
+        info!("emitting module: {}", m.name);
         Self {
             _config: config,
             ctx: &m.ast.ctx,
@@ -62,10 +62,10 @@ impl<'a> Emitter<'a> {
         }
 
         if errs.len() == 0 {
-            info!("success, {} instructions", self.ins.len());
+            info!("success! {} instructions", self.ins.len());
             Ok(mem::take(&mut self.ins[0]))
         } else {
-            info!("fail, finished with {} errors", errs.len());
+            info!("fail! finished with {} errors", errs.len());
             Err(errs)
         }
     }

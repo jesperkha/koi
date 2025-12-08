@@ -1,4 +1,4 @@
-use tracing::{error, info, trace};
+use tracing::{info, trace};
 
 use crate::{
     config::Config,
@@ -35,11 +35,11 @@ impl<'a> Scanner<'a> {
     }
 
     fn scan(mut self) -> Res<Vec<Token>> {
-        info!("file '{}'", self.file.filepath);
+        info!("scanning file: {}", self.file.filepath);
 
         // No input
         if self.eof() {
-            info!("no input");
+            info!("no input, exiting early");
             return Ok(Vec::new());
         }
 
@@ -49,7 +49,7 @@ impl<'a> Scanner<'a> {
                 // Otherwise ignore result as one or more errors have been raised
                 Ok(toks) => {
                     if self.errs.len() == 0 {
-                        info!("success, {} tokens", toks.len());
+                        info!("success! {} tokens", toks.len());
                         return Ok(toks);
                     }
                 }
@@ -61,7 +61,7 @@ impl<'a> Scanner<'a> {
             }
         }
 
-        info!("fail, finished with {} errors", self.errs.len());
+        info!("fail! finished with {} errors", self.errs.len());
         Err(self.errs)
     }
 
@@ -262,7 +262,6 @@ impl<'a> Scanner<'a> {
     }
 
     fn error(&self, msg: &str, length: usize) -> Error {
-        error!("{}", msg);
         Error::new_syntax(msg, &self.pos(), length, &self.file)
     }
 

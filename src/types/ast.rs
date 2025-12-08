@@ -7,7 +7,7 @@ use crate::{
 pub trait TypedNode<'a> {
     /// Get the TypeKind of this node.
     fn kind(&'a self) -> &'a TypeKind;
-    /// Get the unique TypeId for this node, only to be used within the same package.
+    /// Get the unique TypeId for this node, only to be used within the same module.
     fn type_id(&self) -> TypeId;
 }
 

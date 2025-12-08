@@ -50,7 +50,7 @@ impl<'a> Driver<'a> {
 
         let mut mg = ModuleGraph::new();
 
-        // Parse all files and store as package filesets
+        // Parse all files and store as Filesets
         let mut filesets = Vec::new();
         for dir in &list_source_directories(&config.srcdir)? {
             let sources = collect_files_in_directory(dir)?;
@@ -58,19 +58,14 @@ impl<'a> Driver<'a> {
                 continue;
             }
 
-            let files = self.parse_files(sources)?;
-            let mut module_path = dir
-                .display()
-                .to_string()
-                .trim_start_matches(&config.srcdir)
-                .trim_start_matches("/")
-                .replace("/", ".");
-
+            let mut module_path = pathbuf_to_module_path(&dir, &config.srcdir);
             if module_path.is_empty() {
                 module_path = String::from("main");
             }
 
-            let module_name = module_path.split(".").last().unwrap().to_owned();
+            info!("parsing module: {}", module_path);
+            let files = self.parse_files(sources)?;
+
             filesets.push(FileSet::new(module_path, files));
         }
 
@@ -81,8 +76,8 @@ impl<'a> Driver<'a> {
         // Type check, convert to IR, and emit assembly
         let mut asm_files = Vec::new();
         for fs in sorted_filesets {
-            let module = self.type_check_and_create_package(fs, &mut mg)?;
-            let ir_unit = self.emit_package_ir(module)?;
+            let module = self.type_check_and_create_module(fs, &mut mg)?;
+            let ir_unit = self.emit_module_ir(module)?;
             let asm = self.assemble_ir_unit(ir_unit, &config.target)?;
 
             let outfile = write_output_file(&config.bindir, &module.name, &asm.source)?;
@@ -138,7 +133,7 @@ impl<'a> Driver<'a> {
         }
     }
 
-    fn type_check_and_create_package<'m>(
+    fn type_check_and_create_module<'m>(
         &self,
         fs: FileSet,
         mg: &'m mut ModuleGraph,
@@ -146,7 +141,7 @@ impl<'a> Driver<'a> {
         type_check(fs, mg, self.config).map_err(|errs| errs.to_string())
     }
 
-    fn emit_package_ir(&self, m: &Module) -> Res<IRUnit> {
+    fn emit_module_ir(&self, m: &Module) -> Res<IRUnit> {
         emit_ir(m, self.config).map_err(|errs| errs.to_string())
     }
 
@@ -236,7 +231,7 @@ fn collect_files_in_directory(dir: &PathBuf) -> Res<Vec<Source>> {
     Ok(set)
 }
 
-/// Writes output assembly file to given directory with given package name.
+/// Writes output assembly file to given directory with given module name.
 /// Returns path to written file.
 fn write_output_file(dir: &str, pkgname: &str, content: &str) -> Res<PathBuf> {
     let fmtpath = &format!("{}/{}.s", dir, pkgname);
@@ -266,9 +261,20 @@ fn cmd(command: &str, args: &[&str]) -> Res<()> {
 
 fn create_dir_if_not_exist(dir: &str) -> Res<()> {
     if !fs::exists(dir).unwrap_or(false) {
+        info!("creating directory:{}", dir);
         if let Err(_) = fs::create_dir(dir) {
             return Err(format!("failed to create directory: {}", dir));
         }
     }
     Ok(())
+}
+
+/// Convert foo/bar/faz to foo.bar.faz
+fn pathbuf_to_module_path(path: &PathBuf, source_dir: &str) -> String {
+    path.display()
+        .to_string()
+        .trim_start_matches(source_dir)
+        .trim_start_matches("/")
+        .trim_end_matches("/")
+        .replace("/", ".")
 }

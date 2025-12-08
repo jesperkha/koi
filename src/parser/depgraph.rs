@@ -13,7 +13,7 @@ fn is_stdlib(id: &str) -> bool {
 }
 
 /// Sort list of FileSets based on their imports by creating a dependency graph.
-/// The first element in the returned list is the least depended on package
+/// The first element in the returned list is the least depended on module
 /// and must be type checked first.
 pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, String> {
     assert!(sets.len() > 0, "empty set list");
