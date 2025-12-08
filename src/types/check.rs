@@ -1,35 +1,38 @@
 use crate::{
-    ast::{FileSet, Node},
+    ast::{File, FileSet, Node},
     config::Config,
     error::{Error, ErrorSet, Res},
-    token::Token,
-    types::{
-        Checker, Dependency, Exports, NamespaceType, Package, TypeContext, TypeKind, TypedAst,
-        deps::DepMap,
-    },
+    module::{CreateModule, Exports, Module, ModuleGraph, ModuleKind, invalid_mod_id},
+    types::{Checker, NamespaceType, TypeContext, TypeKind, TypedAst},
 };
 use tracing::info;
 
-pub fn type_check(fs: FileSet, deps: &mut DepMap, config: &Config) -> Res<Package> {
+pub fn type_check<'a>(fs: FileSet, mg: &'a mut ModuleGraph, config: &Config) -> Res<&'a Module> {
     let mut ctx = TypeContext::new();
-    let pkgname = fs.package_name.clone();
 
     // Passes
     check_package_names_equal(&fs, config)?;
     check_one_file_in_main_package(&fs)?;
-    resolve_imports(&fs, &mut ctx, deps)?;
+    resolve_imports(&fs, &mut ctx, mg)?;
     global_pass(&fs, &mut ctx, config)?;
 
     let exports = collect_exports(&ctx);
-    deps.add(fs.import_path.clone(), Dependency::user(exports));
-
-    let tree = emit_typed_ast(fs, ctx, config)?;
+    let tree = emit_typed_ast(&fs.package_name, fs.files, ctx, config)?;
 
     if config.dump_type_context {
         tree.ctx.dump_context_string();
     }
 
-    Ok(Package::new(pkgname, tree))
+    let create_mod = CreateModule {
+        name: fs.import_path,
+        path: fs.path,
+        ast: tree,
+        exports,
+        kind: ModuleKind::User,
+    };
+
+    let module = mg.add(create_mod, invalid_mod_id());
+    Ok(module)
 }
 
 fn check_one_file_in_main_package(fs: &FileSet) -> Result<(), ErrorSet> {
@@ -99,45 +102,44 @@ fn collect_exports(ctx: &TypeContext) -> Exports {
 }
 
 /// Resolve all imported types and symbols.
-fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, deps: &DepMap) -> Result<(), ErrorSet> {
+fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, mg: &ModuleGraph) -> Result<(), ErrorSet> {
     let mut errs = ErrorSet::new();
 
     for file in &fs.files {
         for import in &file.ast.imports {
-            let name = import
-                .names
-                .iter()
-                .map(Token::to_string)
-                .collect::<Vec<_>>()
-                .join(".");
+            let names: Vec<_> = import.names.iter().map(|t| t.to_string()).collect();
+            info!("import path: {}", names.join(", "));
 
-            // Get dependency
-            let Some(dep) = deps.get(&name) else {
-                assert!(import.names.len() > 0, "unchecked missing import name");
-                errs.add(Error::range(
-                    "dependency not found",
-                    &import.names[0].pos,
-                    &import.names.last().unwrap().end_pos,
-                    &file.src,
-                ));
-                continue;
+            // Try to get module
+            let module = match mg.resolve(&names) {
+                Ok(module) => module,
+                Err(err) => {
+                    assert!(import.names.len() > 0, "unchecked missing import name");
+                    errs.add(Error::range(
+                        &err,
+                        &import.names[0].pos,
+                        &import.names.last().unwrap().end_pos,
+                        &file.src,
+                    ));
+                    continue;
+                }
             };
 
             // Add namespace
-            let ns = NamespaceType::new(name.clone(), dep.exports(), ctx);
+            let ns = NamespaceType::new(module.name.clone(), &module.exports, ctx);
             let id = ctx.get_or_intern(TypeKind::Namespace(ns));
-            ctx.set_symbol(name.clone(), id, false);
+            ctx.set_symbol(module.name.clone(), id, false);
 
             // Add symbols by name
             for tok in &import.imports {
                 let sym = tok.to_string();
 
-                if let Some(kind) = dep.exports().get(&sym) {
+                if let Some(kind) = module.exports.get(&sym) {
                     let id = ctx.get_or_intern(kind.clone());
                     ctx.set_symbol(sym.clone(), id, false);
                 } else {
                     errs.add(Error::range(
-                        &format!("package '{}' has no export '{}'", name, sym),
+                        &format!("module '{}' has no export '{}'", module.name, sym),
                         &tok.pos,
                         &tok.end_pos,
                         &file.src,
@@ -152,18 +154,19 @@ fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, deps: &DepMap) -> Result
 
 /// Emit combined typed AST for all files in set.
 fn emit_typed_ast(
-    fs: FileSet,
+    modname: &str,
+    files: Vec<File>,
     mut ctx: TypeContext,
     config: &Config,
 ) -> Result<TypedAst, ErrorSet> {
-    info!("checking {} files", fs.files.len());
-    assert!(fs.files.len() > 0, "no files to type check");
+    info!("checking {} files", files.len());
+    assert!(files.len() > 0, "no files to type check");
 
     let mut errs = ErrorSet::new();
     let mut decls = Vec::new();
 
-    for file in fs.files {
-        Checker::new(&file.src, fs.package_name.clone(), &mut ctx, config)
+    for file in files {
+        Checker::new(&file.src, modname.to_owned(), &mut ctx, config)
             .emit_ast(file.ast.decls)
             .map_or_else(|e| errs.join(e), |d| decls.extend(d));
     }

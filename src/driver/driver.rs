@@ -13,9 +13,10 @@ use crate::{
     config::Config,
     error::ErrorSet,
     ir::{IRUnit, emit_ir},
+    module::{Module, ModuleGraph, ModuleId},
     parser::{parse, sort_by_dependency_graph},
     token::{Source, scan},
-    types::{DepMap, Package, type_check},
+    types::type_check,
 };
 
 type Res<T> = Result<T, String>;
@@ -47,7 +48,7 @@ impl<'a> Driver<'a> {
     pub fn compile(&mut self, config: BuildConfig) -> Res<()> {
         create_dir_if_not_exist(&config.bindir)?;
 
-        let mut deps = DepMap::with_stdlib();
+        let mut mg = ModuleGraph::new();
 
         // Parse all files and store as package filesets
         let mut filesets = Vec::new();
@@ -79,11 +80,11 @@ impl<'a> Driver<'a> {
         // Type check, convert to IR, and emit assembly
         let mut asm_files = Vec::new();
         for fs in sorted_filesets {
-            let pkg = self.type_check_and_create_package(fs, &mut deps)?;
-            let ir_unit = self.emit_package_ir(&pkg)?;
+            let module = self.type_check_and_create_package(fs, &mut mg)?;
+            let ir_unit = self.emit_package_ir(module)?;
             let asm = self.assemble_ir_unit(ir_unit, &config.target)?;
 
-            let outfile = write_output_file(&config.bindir, pkg.name(), &asm.source)?;
+            let outfile = write_output_file(&config.bindir, &module.name, &asm.source)?;
             info!("output assembly file: {}", outfile.display());
             asm_files.push(outfile);
         }
@@ -136,12 +137,16 @@ impl<'a> Driver<'a> {
         }
     }
 
-    fn type_check_and_create_package(&self, fs: FileSet, deps: &mut DepMap) -> Res<Package> {
-        type_check(fs, deps, self.config).map_err(|errs| errs.to_string())
+    fn type_check_and_create_package<'m>(
+        &self,
+        fs: FileSet,
+        mg: &'m mut ModuleGraph,
+    ) -> Res<&'m Module> {
+        type_check(fs, mg, self.config).map_err(|errs| errs.to_string())
     }
 
-    fn emit_package_ir(&self, pkg: &Package) -> Res<IRUnit> {
-        emit_ir(pkg, self.config).map_err(|errs| errs.to_string())
+    fn emit_package_ir(&self, m: &Module) -> Res<IRUnit> {
+        emit_ir(m, self.config).map_err(|errs| errs.to_string())
     }
 
     fn assemble_ir_unit(&self, unit: IRUnit, target: &Target) -> Res<TransUnit> {

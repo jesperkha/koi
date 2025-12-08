@@ -2,8 +2,9 @@ use crate::{
     ast::FileSet,
     config::Config,
     error::ErrorSet,
+    module::ModuleGraph,
     parser::sort_by_dependency_graph,
-    types::{DepMap, type_check},
+    types::type_check,
     util::{must, parse_string},
 };
 
@@ -28,10 +29,10 @@ fn check_files(files: &[TestFile]) -> Result<(), ErrorSet> {
 
     let sorted = sort_by_dependency_graph(parsed).unwrap_or_else(|e| panic!("{}", e));
 
-    let mut deps = DepMap::empty();
+    let mut mg = ModuleGraph::new();
     let config = Config::test();
     for fs in sorted {
-        let _ = type_check(fs, &mut deps, &config)?;
+        let _ = type_check(fs, &mut mg, &config)?;
     }
 
     Ok(())
@@ -96,7 +97,7 @@ fn test_no_exported_symbol() {
             "#,
             ),
         ],
-        "package 'foo' has no export 'doBar'",
+        "module 'foo' has no export 'doBar'",
     );
 }
 
@@ -113,7 +114,27 @@ fn test_bad_import_path() {
             }
         "#,
         )],
-        "dependency not found",
+        "could not resolve module path",
+    );
+    assert_error(
+        &vec![
+            file(
+                "foo",
+                r#"
+            "#,
+            ),
+            file(
+                "main",
+                r#"
+                import foo.bar
+
+                func main() int {
+                    return 0
+                }
+            "#,
+            ),
+        ],
+        "could not resolve module path",
     );
 }
 

@@ -4,9 +4,10 @@ use crate::{
     config::Config,
     error::{ErrorSet, Res},
     ir::{IRUnit, emit_ir},
+    module::{Module, ModuleGraph, ModuleId},
     parser::parse,
     token::{Source, Token, scan},
-    types::{DepMap, Package, type_check},
+    types::type_check,
 };
 
 pub fn compare_string_lines_or_panic(ina: String, inb: String) {
@@ -41,16 +42,16 @@ pub fn parse_string(src: &str) -> Res<File> {
     scan(&src, &config).and_then(|toks| parse(src, toks, &config))
 }
 
-pub fn check_string(src: &str) -> Res<Package> {
+pub fn check_string<'a>(src: &str, mg: &'a mut ModuleGraph) -> Res<&'a Module> {
     let config = Config::test();
     let fs = FileSet::new("main".to_string(), vec![parse_string(src)?]);
-    let mut deps = DepMap::with_stdlib();
-    type_check(fs, &mut deps, &config)
+    type_check(fs, mg, &config)
 }
 
 pub fn emit_string(src: &str) -> Res<IRUnit> {
     let config = Config::test();
-    check_string(src).and_then(|pkg| emit_ir(&pkg, &config))
+    let mut mg = ModuleGraph::new();
+    check_string(src, &mut mg).and_then(|pkg| emit_ir(&pkg, &config))
 }
 
 pub fn compile_string(src: &str) -> Result<String, String> {
@@ -64,7 +65,7 @@ pub fn compile_string(src: &str) -> Result<String, String> {
 pub fn debug_print_all_steps(src: &str) {
     let config = Config::debug();
     let source = Source::new_from_string(src);
-    let mut deps = DepMap::with_stdlib();
+    let mut mg = ModuleGraph::new();
 
     scan(&source, &config)
         .and_then(|toks| parse(source, toks, &config))
@@ -74,7 +75,7 @@ pub fn debug_print_all_steps(src: &str) {
             println!("{}", file);
             type_check(
                 FileSet::new("main".to_string(), vec![file]),
-                &mut deps,
+                &mut mg,
                 &config,
             )
         })

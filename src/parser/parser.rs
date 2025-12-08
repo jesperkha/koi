@@ -37,6 +37,7 @@ struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn new(src: Source, tokens: Vec<Token>, config: &'a Config) -> Self {
+        assert!(tokens.len() > 0, "empty token stream not allowed");
         Self {
             errs: ErrorSet::new(),
             tokens,

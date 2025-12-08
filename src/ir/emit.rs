@@ -10,14 +10,14 @@ use crate::{
         AssignIns, ExternFuncInst, FuncInst, IRType, IRUnit, Ins, LValue, StoreIns, StringDataIns,
         SymTracker, Value, ir,
     },
+    module::Module,
     types::{
-        self, Decl, Expr, LiteralKind, Package, TypeContext, TypeId, TypeKind, TypedNode,
-        Visitable, Visitor,
+        self, Decl, Expr, LiteralKind, TypeContext, TypeId, TypeKind, TypedNode, Visitable, Visitor,
     },
 };
 
-pub fn emit_ir(pkg: &Package, config: &Config) -> Res<IRUnit> {
-    let emitter = Emitter::new(pkg, config);
+pub fn emit_ir(m: &Module, config: &Config) -> Res<IRUnit> {
+    let emitter = Emitter::new(m, config);
     emitter.emit().map(|ins| IRUnit::new(ins))
 }
 
@@ -37,12 +37,12 @@ struct Emitter<'a> {
 }
 
 impl<'a> Emitter<'a> {
-    fn new(pkg: &'a Package, config: &'a Config) -> Self {
-        info!("package '{}'", pkg.name());
+    fn new(m: &'a Module, config: &'a Config) -> Self {
+        info!("package '{}'", m.name);
         Self {
             _config: config,
-            ctx: pkg.context(),
-            nodes: pkg.nodes(),
+            ctx: &m.ast.ctx,
+            nodes: &m.ast.decls,
             sym: SymTracker::new(),
             has_returned: false,
             ins: vec![Vec::new()],
