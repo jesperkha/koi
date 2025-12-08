@@ -21,15 +21,17 @@ pub struct ModulePath(String);
 
 impl ModulePath {
     pub fn new(s: String) -> Self {
+        assert!(!s.is_empty(), "cannot have empty module path");
         Self(s)
     }
 
     pub fn new_str(s: &str) -> Self {
+        assert!(!s.is_empty(), "cannot have empty module path");
         Self(s.to_owned())
     }
 
     pub fn name(&self) -> &str {
-        &self.0.split(".").last().unwrap()
+        &self.0.split(".").last().unwrap() // asserted
     }
 
     pub fn path(&self) -> &str {
