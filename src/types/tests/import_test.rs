@@ -2,7 +2,7 @@ use crate::{
     ast::FileSet,
     config::Config,
     error::ErrorSet,
-    module::ModuleGraph,
+    module::{ModuleGraph, ModulePath},
     parser::sort_by_dependency_graph,
     types::type_check,
     util::{must, parse_string},
@@ -24,7 +24,7 @@ fn check_files(files: &[TestFile]) -> Result<(), ErrorSet> {
     let parsed: Vec<FileSet> = files
         .iter()
         .map(|f| (&f.dep_name, must(parse_string(&f.src))))
-        .map(|f| FileSet::new(f.0.clone(), vec![f.1]))
+        .map(|f| FileSet::new(ModulePath::new(f.0.clone()), vec![f.1]))
         .collect();
 
     let sorted = sort_by_dependency_graph(parsed).unwrap_or_else(|e| panic!("{}", e));

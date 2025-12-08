@@ -13,7 +13,7 @@ use crate::{
     config::Config,
     error::ErrorSet,
     ir::{IRUnit, emit_ir},
-    module::{Module, ModuleGraph},
+    module::{Module, ModuleGraph, ModulePath},
     parser::{parse, sort_by_dependency_graph},
     token::{Source, scan},
     types::type_check,
@@ -66,7 +66,7 @@ impl<'a> Driver<'a> {
             info!("parsing module: {}", module_path);
             let files = self.parse_files(sources)?;
 
-            filesets.push(FileSet::new(module_path, files));
+            filesets.push(FileSet::new(ModulePath::new(module_path), files));
         }
 
         // Create and sort dependency graph, returning a list of
@@ -80,7 +80,7 @@ impl<'a> Driver<'a> {
             let ir_unit = self.emit_module_ir(module)?;
             let asm = self.assemble_ir_unit(ir_unit, &config.target)?;
 
-            let outfile = write_output_file(&config.bindir, &module.name, &asm.source)?;
+            let outfile = write_output_file(&config.bindir, module.name(), &asm.source)?;
             info!("output assembly file: {}", outfile.display());
             asm_files.push(outfile);
         }

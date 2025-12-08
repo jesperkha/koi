@@ -38,7 +38,7 @@ struct Emitter<'a> {
 
 impl<'a> Emitter<'a> {
     fn new(m: &'a Module, config: &'a Config) -> Self {
-        info!("emitting module: {}", m.name);
+        info!("emitting module: {}", m.name());
         Self {
             _config: config,
             ctx: &m.ast.ctx,

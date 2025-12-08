@@ -46,7 +46,7 @@ pub enum PrimitiveType {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FunctionOrigin {
-    /// Contains full module path
+    /// Full module path
     Module(String),
     Extern,
 }

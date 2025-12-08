@@ -4,7 +4,7 @@ use crate::{
     config::Config,
     error::{ErrorSet, Res},
     ir::{IRUnit, emit_ir},
-    module::{Module, ModuleGraph, ModuleId},
+    module::{Module, ModuleGraph, ModulePath},
     parser::parse,
     token::{Source, Token, scan},
     types::type_check,
@@ -44,7 +44,7 @@ pub fn parse_string(src: &str) -> Res<File> {
 
 pub fn check_string<'a>(src: &str, mg: &'a mut ModuleGraph) -> Res<&'a Module> {
     let config = Config::test();
-    let fs = FileSet::new(String::from("main"), vec![parse_string(src)?]);
+    let fs = FileSet::new(ModulePath::new_str("main"), vec![parse_string(src)?]);
     type_check(fs, mg, &config)
 }
 
@@ -74,7 +74,7 @@ pub fn debug_print_all_steps(src: &str) {
             println!("===========\n");
             println!("{}", file);
             type_check(
-                FileSet::new(String::from("main"), vec![file]),
+                FileSet::new(ModulePath::new_str("main"), vec![file]),
                 &mut mg,
                 &config,
             )

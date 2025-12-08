@@ -4,6 +4,7 @@ use crate::{
     ast::{self, Field, Node, TypeNode},
     config::Config,
     error::{Error, ErrorSet},
+    module::ModulePath,
     token::{Pos, Source, Token, TokenKind},
     types::{
         self, FunctionOrigin, FunctionType, LiteralKind, NodeMeta, PrimitiveType, Type,
@@ -17,10 +18,10 @@ struct Value {
 }
 
 pub struct Checker<'a> {
-    module_name: String,
     ctx: &'a mut TypeContext,
     src: &'a Source,
-    _config: &'a Config,
+    config: &'a Config,
+    modpath: &'a ModulePath,
 
     /// Locally declared variables. Module private and global
     /// symbols are part of the TypeContext.
@@ -36,15 +37,15 @@ pub struct Checker<'a> {
 
 impl<'a> Checker<'a> {
     pub fn new(
+        modpath: &'a ModulePath,
         src: &'a Source,
-        module_name: String,
         ctx: &'a mut TypeContext,
         config: &'a Config,
     ) -> Self {
         Self {
-            _config: config,
+            modpath,
+            config,
             src,
-            module_name,
             ctx,
             vars: SymTable::new(),
             rtype: no_type(),
@@ -182,7 +183,7 @@ impl<'a> Checker<'a> {
             node.public,
             &node.params,
             &node.ret_type,
-            FunctionOrigin::Module(self.module_name.clone()),
+            FunctionOrigin::Module(self.modpath.path().to_owned()),
         )
     }
 
@@ -288,8 +289,11 @@ impl<'a> Checker<'a> {
             let int_id = self.ctx.primitive(PrimitiveType::I64);
 
             // Must be main module
-            if !self.module_name.is_empty() && self.module_name != "main" {
-                info!("module name expected to be main, is {}", self.module_name);
+            if !self.modpath.name().is_empty() && self.modpath.name() != "main" {
+                info!(
+                    "module name expected to be main, is {}",
+                    self.modpath.name()
+                );
                 return Err(self.error("main function can only be declared in main module", &node));
             }
 

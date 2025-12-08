@@ -3,6 +3,7 @@ use std::{collections::HashSet, ffi::OsStr, path::PathBuf};
 
 use crate::{
     ast::{Ast, Printer},
+    module::ModulePath,
     token::{Source, Token},
 };
 
@@ -49,7 +50,7 @@ impl fmt::Display for File {
 /// path, the symbols imported, and the alias it should be bound to.
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct Import {
-    pub module_path: String,
+    pub modpath: ModulePath,
     pub symbols: Vec<String>,
     pub alias: Option<String>,
 }
@@ -60,15 +61,14 @@ pub struct Import {
 pub struct FileSet {
     /// Path to this fileset from root.
     pub path: String,
-    pub module_name: String,
-    pub module_path: String,
+    pub modpath: ModulePath,
     pub imports: HashSet<Import>,
     pub files: Vec<File>,
 }
 
 impl FileSet {
     /// Create new file set from File list. List must contain at least one file.
-    pub fn new(module_path: String, files: Vec<File>) -> Self {
+    pub fn new(modpath: ModulePath, files: Vec<File>) -> Self {
         assert!(files.len() > 0, "files list must contain at least one file");
 
         let mut imports = HashSet::new();
@@ -83,7 +83,7 @@ impl FileSet {
                     .join(".");
 
                 imports.insert(Import {
-                    module_path: import_path,
+                    modpath: ModulePath::new(import_path),
                     symbols: imp.imports.iter().map(Token::to_string).collect(),
                     alias: imp.alias.as_ref().map(|t| t.to_string()),
                 });
@@ -91,13 +91,8 @@ impl FileSet {
         }
 
         let filepath = files[0].src.filepath.clone();
-
-        assert!(!module_path.is_empty());
-        let module_name = module_path.split(".").last().unwrap().to_owned();
-
         Self {
-            module_path,
-            module_name,
+            modpath,
             path: filepath,
             imports,
             files,

@@ -14,9 +14,32 @@ pub fn invalid_mod_id() -> ModuleId {
     return usize::MAX;
 }
 
+/// Module path wraps a string module path (app.foo.bar) and provides methods
+/// to get the path itself or the module name (the last name in the path).
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub struct ModulePath(String);
+
+impl ModulePath {
+    pub fn new(s: String) -> Self {
+        Self(s)
+    }
+
+    pub fn new_str(s: &str) -> Self {
+        Self(s.to_owned())
+    }
+
+    pub fn name(&self) -> &str {
+        &self.0.split(".").last().unwrap()
+    }
+
+    pub fn path(&self) -> &str {
+        &self.0
+    }
+}
+
 pub struct CreateModule {
-    pub name: String,
-    pub path: String,
+    pub modpath: ModulePath,
+    pub filepath: String,
     pub ast: TypedAst,
     pub exports: Exports,
     pub kind: ModuleKind,
@@ -28,8 +51,9 @@ pub struct Module {
     pub id: ModuleId,
     /// The id of this modules parent. 0 means this is root.
     pub parent: ModuleId,
-    /// The module name (name of directory, not path).
-    pub name: String,
+    /// The module path, eg. app.some.mod
+    /// The module name can be fetched from the module path.
+    pub modpath: ModulePath,
     /// The relative path from src to this module.
     pub path: String,
     /// The fully typed AST generated from files in this module.
@@ -38,6 +62,12 @@ pub struct Module {
     pub exports: Exports,
     /// What type of module this is.
     pub kind: ModuleKind,
+}
+
+impl Module {
+    pub fn name(&self) -> &str {
+        self.modpath.name()
+    }
 }
 
 pub struct ModuleGraph {
@@ -76,8 +106,8 @@ impl ModuleGraph {
         self.modules.push(Module {
             id,
             parent,
-            name: m.name,
-            path: m.path,
+            modpath: m.modpath,
+            path: m.filepath,
             ast: m.ast,
             exports: m.exports,
             kind: m.kind,
@@ -98,7 +128,7 @@ impl ModuleGraph {
             for id in child_ids {
                 let module = self.get(*id).expect("implementation error");
 
-                if &module.name == name {
+                if module.name() == name {
                     // If this is the last name return the module
                     if i == names.len() - 1 {
                         return Ok(module);
@@ -108,7 +138,7 @@ impl ModuleGraph {
                     if let Some(new_ids) = self.children_ids(*id) {
                         child_ids = new_ids;
                     } else {
-                        return Err(format!("module '{}' has no submodules", module.name));
+                        return Err(format!("module '{}' has no submodules", module.name()));
                     }
                 }
             }

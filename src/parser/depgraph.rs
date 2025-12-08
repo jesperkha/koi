@@ -23,21 +23,21 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, Stri
 
     for fs in &sets {
         let id = index.len();
-        index.insert(fs.module_path.clone(), id);
+        index.insert(fs.modpath.path().to_owned(), id);
         dag.add_node(id);
     }
 
     for fs in &sets {
         for import in &fs.imports {
-            if is_stdlib(&import.module_path) {
+            if is_stdlib(import.modpath.path()) {
                 continue;
             }
 
-            let Some(a) = index.get(&import.module_path) else {
+            let Some(a) = index.get(import.modpath.path()) else {
                 continue; // Handled in import resolution
             };
 
-            let b = *index.get(&fs.module_path).expect("missing import {}");
+            let b = *index.get(fs.modpath.path()).expect("missing import {}");
 
             if has_path_connecting(&dag, b, *a, None) {
                 return Err(format!("import cycle detected"));
@@ -52,7 +52,7 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, Stri
 
     let mut id_to_fileset = HashMap::new();
     for fs in sets {
-        let id = index[&fs.module_path];
+        let id = index[fs.modpath.path()];
         id_to_fileset.insert(id, fs);
     }
 
@@ -65,7 +65,7 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, Stri
         "final check order: {}",
         sorted_sets
             .iter()
-            .map(|s| s.module_path.clone())
+            .map(|s| s.modpath.path().to_owned())
             .collect::<Vec<_>>()
             .join(", ")
     );
