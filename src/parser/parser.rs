@@ -107,7 +107,7 @@ impl<'a> Parser<'a> {
             decls,
         };
 
-        Ok(File::new(package_name, self.src, ast))
+        Ok(File::new(self.src, ast))
     }
 
     /// Consume newlines until first non-newline token or eof.

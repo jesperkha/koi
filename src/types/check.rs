@@ -1,5 +1,5 @@
 use crate::{
-    ast::{File, FileSet, Node},
+    ast::{File, FileSet},
     config::Config,
     error::{Error, ErrorSet, Res},
     module::{CreateModule, Exports, Module, ModuleGraph, ModuleKind, invalid_mod_id},
@@ -11,20 +11,18 @@ pub fn type_check<'a>(fs: FileSet, mg: &'a mut ModuleGraph, config: &Config) -> 
     let mut ctx = TypeContext::new();
 
     // Passes
-    check_package_names_equal(&fs, config)?;
-    check_one_file_in_main_package(&fs)?;
     resolve_imports(&fs, &mut ctx, mg)?;
     global_pass(&fs, &mut ctx, config)?;
 
     let exports = collect_exports(&ctx);
-    let tree = emit_typed_ast(&fs.package_name, fs.files, ctx, config)?;
+    let tree = emit_typed_ast(&fs.module_name, fs.files, ctx, config)?;
 
     if config.dump_type_context {
         tree.ctx.dump_context_string();
     }
 
     let create_mod = CreateModule {
-        name: fs.import_path,
+        name: fs.module_name,
         path: fs.path,
         ast: tree,
         exports,
@@ -35,55 +33,11 @@ pub fn type_check<'a>(fs: FileSet, mg: &'a mut ModuleGraph, config: &Config) -> 
     Ok(module)
 }
 
-fn check_one_file_in_main_package(fs: &FileSet) -> Result<(), ErrorSet> {
-    if !(&fs.package_name == "main" && fs.files.len() > 1) {
-        return Ok(());
-    }
-
-    let msg = &format!(
-        "at most one file can be part of package 'main', found {}",
-        fs.files.len()
-    );
-
-    let file = &fs.files[0];
-    let pkg = &file.ast.package;
-    Err(ErrorSet::new_from(Error::range(
-        msg,
-        pkg.pos(),
-        pkg.end(),
-        &file.src,
-    )))
-}
-
-/// Assert that all package names in the file set are the same.
-fn check_package_names_equal(fs: &FileSet, config: &Config) -> Result<(), ErrorSet> {
-    if config.anon_packages {
-        return Ok(());
-    }
-
-    let name = &fs.package_name;
-    let mut errs = ErrorSet::new();
-
-    fs.files
-        .iter()
-        .filter(|f| &f.package_name != name)
-        .for_each(|f| {
-            errs.add(Error::range(
-                &format!("expected package name '{}'", name),
-                f.ast.package.pos(),
-                f.ast.package.end(),
-                &f.src,
-            ));
-        });
-
-    errs.err_or(())
-}
-
 /// Add all global declarations to context.
 fn global_pass(fs: &FileSet, ctx: &mut TypeContext, config: &Config) -> Result<(), ErrorSet> {
     let mut errs = ErrorSet::new();
     for file in &fs.files {
-        Checker::new(&file.src, fs.package_name.clone(), ctx, config)
+        Checker::new(&file.src, fs.module_name.clone(), ctx, config)
             .global_pass(&file.ast.decls)
             .map_or_else(|e| errs.join(e), |_| {});
     }
@@ -154,7 +108,7 @@ fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, mg: &ModuleGraph) -> Res
 
 /// Emit combined typed AST for all files in set.
 fn emit_typed_ast(
-    modname: &str,
+    module_name: &str,
     files: Vec<File>,
     mut ctx: TypeContext,
     config: &Config,
@@ -166,7 +120,7 @@ fn emit_typed_ast(
     let mut decls = Vec::new();
 
     for file in files {
-        Checker::new(&file.src, modname.to_owned(), &mut ctx, config)
+        Checker::new(&file.src, module_name.to_owned(), &mut ctx, config)
             .emit_ast(file.ast.decls)
             .map_or_else(|e| errs.join(e), |d| decls.extend(d));
     }

@@ -44,7 +44,7 @@ pub fn parse_string(src: &str) -> Res<File> {
 
 pub fn check_string<'a>(src: &str, mg: &'a mut ModuleGraph) -> Res<&'a Module> {
     let config = Config::test();
-    let fs = FileSet::new("main".to_string(), vec![parse_string(src)?]);
+    let fs = FileSet::new(String::from("main"), vec![parse_string(src)?]);
     type_check(fs, mg, &config)
 }
 
@@ -74,7 +74,7 @@ pub fn debug_print_all_steps(src: &str) {
             println!("===========\n");
             println!("{}", file);
             type_check(
-                FileSet::new("main".to_string(), vec![file]),
+                FileSet::new(String::from("main"), vec![file]),
                 &mut mg,
                 &config,
             )

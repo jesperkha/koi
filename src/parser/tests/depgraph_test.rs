@@ -24,7 +24,7 @@ fn get_ordered_files(files: &[TestFile]) -> Result<Vec<String>, String> {
         .collect();
 
     let sorted = sort_by_dependency_graph(parsed)?;
-    Ok(sorted.into_iter().map(|fs| fs.import_path).collect())
+    Ok(sorted.into_iter().map(|fs| fs.module_path).collect())
 }
 
 fn assert_correct_order(files: &[TestFile], order: &[&str]) {

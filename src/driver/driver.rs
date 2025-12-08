@@ -13,7 +13,7 @@ use crate::{
     config::Config,
     error::ErrorSet,
     ir::{IRUnit, emit_ir},
-    module::{Module, ModuleGraph, ModuleId},
+    module::{Module, ModuleGraph},
     parser::{parse, sort_by_dependency_graph},
     token::{Source, scan},
     types::type_check,
@@ -59,18 +59,19 @@ impl<'a> Driver<'a> {
             }
 
             let files = self.parse_files(sources)?;
-            let mut depname = dir
+            let mut module_path = dir
                 .display()
                 .to_string()
                 .trim_start_matches(&config.srcdir)
                 .trim_start_matches("/")
                 .replace("/", ".");
 
-            if depname.is_empty() {
-                depname = "main".to_string();
+            if module_path.is_empty() {
+                module_path = String::from("main");
             }
 
-            filesets.push(FileSet::new(depname, files));
+            let module_name = module_path.split(".").last().unwrap().to_owned();
+            filesets.push(FileSet::new(module_path, files));
         }
 
         // Create and sort dependency graph, returning a list of
