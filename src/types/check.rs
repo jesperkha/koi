@@ -5,7 +5,7 @@ use crate::{
     module::{CreateModule, Exports, Module, ModuleGraph, ModuleKind, ModulePath, invalid_mod_id},
     types::{Checker, NamespaceType, TypeContext, TypeKind, TypedAst},
 };
-use tracing::info;
+use tracing::{debug, info};
 
 pub fn type_check<'a>(fs: FileSet, mg: &'a mut ModuleGraph, config: &Config) -> Res<&'a Module> {
     let mut ctx = TypeContext::new();
@@ -61,10 +61,18 @@ fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, mg: &ModuleGraph) -> Res
 
     for file in &fs.files {
         for import in &file.ast.imports {
-            let names: Vec<_> = import.names.iter().map(|t| t.to_string()).collect();
+            // Join the imported names into an import path
+            let import_path = ModulePath::new(
+                import
+                    .names
+                    .iter()
+                    .map(|t| t.to_string())
+                    .collect::<Vec<_>>()
+                    .join("."),
+            );
 
             // Try to get module
-            let module = match mg.resolve(&names) {
+            let module = match mg.resolve(&import_path) {
                 Ok(module) => module,
                 Err(err) => {
                     assert!(import.names.len() > 0, "unchecked missing import name");
@@ -78,12 +86,12 @@ fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, mg: &ModuleGraph) -> Res
                 }
             };
 
-            // Add namespace
+            // Add module as namespace
             let ns = NamespaceType::new(module.name().to_owned(), &module.exports, ctx);
             let id = ctx.get_or_intern(TypeKind::Namespace(ns));
             ctx.set_symbol(module.name().to_owned(), id, false);
 
-            // Add symbols by name
+            // Put symbols imported by name directly into context
             for tok in &import.imports {
                 let sym = tok.to_string();
 
