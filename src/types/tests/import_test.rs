@@ -232,6 +232,61 @@ fn test_namespace_import() {
 }
 
 #[test]
+fn test_duplicate_symbol() {
+    assert_error(
+        &vec![
+            file(
+                "foo",
+                r#"
+            pub func doFoo() {}
+        "#,
+            ),
+            file(
+                "main",
+                r#"
+            import foo { doFoo }
+
+            func doFoo() {}
+
+            func main() int {
+                foo.doFoo()
+                return 0
+            }
+        "#,
+            ),
+        ],
+        "already declared",
+    );
+}
+
+#[test]
+fn test_duplicate_symbol_2() {
+    assert_error(
+        &vec![
+            file(
+                "foo",
+                r#"
+            pub func doFoo() {}
+        "#,
+            ),
+            file(
+                "main",
+                r#"
+            import foo
+            import foo { doFoo }
+
+            func main() int {
+                foo.doFoo()
+                return 0
+            }
+        "#,
+            ),
+        ],
+        "already declared",
+    );
+}
+
+#[test]
 fn test_namespace_shadow_error() {
     assert_error(
         &vec![

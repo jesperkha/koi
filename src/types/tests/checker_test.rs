@@ -391,3 +391,14 @@ fn test_member_error() {
         "type 'string' has no fields",
     );
 }
+
+#[test]
+fn test_duplicate_symbol() {
+    assert_error(
+        r#"
+        func f() {}
+        func f() {}
+    "#,
+        "already declared",
+    );
+}
