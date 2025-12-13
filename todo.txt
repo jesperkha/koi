@@ -1,14 +1,15 @@
 * Up Next *
 
 Header files and stdlib
-Remove package keyword
 Import aliases
 Inline assembly
 Fix parse error when missing newline at end of file
-Testing for imports
 
 * Doing *
 
-Namespaces
-
 * Done *
+
+Import aliases
+Namespaces
+Remove package keyword
+Testing for imports

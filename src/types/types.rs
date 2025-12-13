@@ -1,7 +1,10 @@
 use std::{collections::HashMap, fmt, hash::Hash};
 use strum_macros::EnumIter;
 
-use crate::types::{Exports, TypeContext};
+use crate::{
+    module::{Exports, ModulePath},
+    types::TypeContext,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeKind {
@@ -13,9 +16,7 @@ pub enum TypeKind {
 
     /// List of parameter types and a return
     /// type (void for no return)
-    Function(Vec<TypeId>, TypeId),
-
-    Namespace(NamespaceType),
+    Function(FunctionType),
 }
 
 // TODO: add positional info to type object to point to related declarations in errors
@@ -44,16 +45,51 @@ pub enum PrimitiveType {
     String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum FunctionOrigin {
+    /// Full module path
+    Module(String),
+    Extern,
+}
+
+impl fmt::Display for FunctionOrigin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                FunctionOrigin::Module(s) => &s,
+                FunctionOrigin::Extern => "extern",
+            }
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FunctionType {
+    pub params: Vec<TypeId>,
+    pub ret: TypeId,
+    pub origin: FunctionOrigin,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NamespaceType {
+pub struct Namespace {
+    /// Name of namespace in code (may be different from module name if aliased).
     pub name: String,
+    pub modpath: ModulePath,
     pub symbols: HashMap<String, TypeId>,
 }
 
-impl NamespaceType {
-    pub fn new(name: String, exports: &Exports, ctx: &mut TypeContext) -> Self {
-        let mut ns = NamespaceType {
+impl Namespace {
+    pub fn new(
+        name: String,
+        modpath: ModulePath,
+        exports: &Exports,
+        ctx: &mut TypeContext,
+    ) -> Self {
+        let mut ns = Namespace {
             name,
+            modpath,
             symbols: HashMap::new(),
         };
 
@@ -64,11 +100,19 @@ impl NamespaceType {
 
         ns
     }
+
+    pub fn module_name(&self) -> &str {
+        self.modpath.name()
+    }
+
+    pub fn module_path(&self) -> &str {
+        self.modpath.path()
+    }
 }
 
-impl Hash for NamespaceType {
+impl Hash for Namespace {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
+        self.modpath.path().hash(state);
     }
 }
 

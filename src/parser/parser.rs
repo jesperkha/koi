@@ -5,8 +5,7 @@ use tracing::info;
 use crate::{
     ast::{
         Ast, BlockNode, CallExpr, Decl, Expr, Field, File, FuncDeclNode, FuncNode, GroupExpr,
-        ImportNode, MemberNode, Node, PackageNode, ReturnNode, Stmt, TypeNode, VarAssignNode,
-        VarDeclNode,
+        ImportNode, MemberNode, Node, ReturnNode, Stmt, TypeNode, VarAssignNode, VarDeclNode,
     },
     config::Config,
     error::{Error, ErrorSet, Res},
@@ -37,6 +36,7 @@ struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn new(src: Source, tokens: Vec<Token>, config: &'a Config) -> Self {
+        assert!(tokens.len() > 0, "empty token stream not allowed");
         Self {
             errs: ErrorSet::new(),
             tokens,
@@ -48,38 +48,13 @@ impl<'a> Parser<'a> {
     }
 
     fn parse(mut self) -> Res<File> {
-        info!("file '{}'", self.src.filepath);
-
-        // Parse package declaration as it must come first
-        let package = if !self.config.anon_packages {
-            self.skip_whitespace_and_not_eof();
-            self.parse_package_decl()
-                .map_err(|err| ErrorSet::new_from(err))?
-        } else {
-            // Bogus token, never used if package is anon
-            PackageNode {
-                kw: self.cur_or_last(),
-                name: self.cur_or_last(),
-            }
-        };
-
-        let package_name = if !self.config.anon_packages {
-            package.name.to_string()
-        } else {
-            // Anon packages are only used in tests and scripting, so the
-            // package should have all the benefits of the main package.
-            String::from("main")
-        };
+        info!("parsing file: {}", self.src.filepath);
 
         // Then parse all imports as they must come before the main code
         self.skip_whitespace_and_not_eof();
         let imports = self
             .parse_imports()
             .map_err(|err| ErrorSet::new_from(err))?;
-
-        if self.config.anon_packages {
-            info!("ignoring package");
-        }
 
         let mut decls = Vec::new();
 
@@ -94,19 +69,12 @@ impl<'a> Parser<'a> {
         }
 
         if self.errs.len() > 0 {
-            info!("fail, finished with {} errors", self.errs.len());
+            info!("fail! finished with {} errors", self.errs.len());
             return Err(self.errs);
         }
 
-        info!("success, part of package '{}'", package_name);
-
-        let ast = Ast {
-            package,
-            imports,
-            decls,
-        };
-
-        Ok(File::new(package_name, self.src, ast))
+        let ast = Ast { imports, decls };
+        Ok(File::new(self.src, ast))
     }
 
     /// Consume newlines until first non-newline token or eof.
@@ -126,12 +94,6 @@ impl<'a> Parser<'a> {
         }
 
         self.panic_mode = false;
-    }
-
-    fn parse_package_decl(&mut self) -> Result<PackageNode, Error> {
-        let kw = self.expect(TokenKind::Package)?;
-        let name = self.expect_identifier("package name")?;
-        Ok(PackageNode { kw, name })
     }
 
     fn parse_imports(&mut self) -> Result<Vec<ImportNode>, Error> {
@@ -156,11 +118,11 @@ impl<'a> Parser<'a> {
 
         let kw = self.expect(TokenKind::Import)?;
 
-        // Collect the imported package names (foo.bar etc)
-        let mut names = vec![self.expect_identifier("package name")?];
+        // Collect the imported module names (foo.bar etc)
+        let mut names = vec![self.expect_identifier("module name")?];
         while self.matches(TokenKind::Dot) {
             self.consume(); // dot
-            names.push(self.expect_identifier("package name")?);
+            names.push(self.expect_identifier("module name")?);
         }
 
         let mut alias = None;

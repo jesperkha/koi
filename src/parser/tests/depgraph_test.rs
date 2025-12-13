@@ -1,5 +1,6 @@
 use crate::{
     ast::FileSet,
+    module::ModulePath,
     parser::sort_by_dependency_graph,
     util::{must, parse_string},
 };
@@ -20,11 +21,14 @@ fn get_ordered_files(files: &[TestFile]) -> Result<Vec<String>, String> {
     let parsed: Vec<FileSet> = files
         .iter()
         .map(|f| (&f.dep_name, must(parse_string(&f.src))))
-        .map(|f| FileSet::new(f.0.clone(), vec![f.1]))
+        .map(|f| FileSet::new(ModulePath::new(f.0.clone()), vec![f.1]))
         .collect();
 
     let sorted = sort_by_dependency_graph(parsed)?;
-    Ok(sorted.into_iter().map(|fs| fs.import_path).collect())
+    Ok(sorted
+        .into_iter()
+        .map(|fs| fs.modpath.path().to_owned())
+        .collect())
 }
 
 fn assert_correct_order(files: &[TestFile], order: &[&str]) {

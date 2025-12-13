@@ -1,14 +1,16 @@
 use crate::{
-    types::Package,
+    module::ModuleGraph,
     util::{check_string, must},
 };
 
-fn assert_pass(src: &str) -> Package {
-    must(check_string(src))
+fn assert_pass(src: &str) {
+    let mut mg = ModuleGraph::new();
+    must(check_string(src, &mut mg));
 }
 
 fn assert_error(src: &str, msg: &str) {
-    match check_string(src) {
+    let mut mg = ModuleGraph::new();
+    match check_string(src, &mut mg) {
         Ok(_) => panic!("expected error: '{}'", msg),
         Err(errs) => {
             assert!(errs.len() == 1, "expected one error, got {}", errs.len());
@@ -103,6 +105,19 @@ fn test_undeclared_param() {
         }
     "#,
         "not declared",
+    );
+}
+
+#[test]
+fn test_redefinition() {
+    assert_error(
+        r#"
+        func f() {
+        }
+        func f() {
+        }
+    "#,
+        "already declared",
     );
 }
 
@@ -349,5 +364,41 @@ fn test_main_function_rules() {
         }
     "#,
         "main function must not take any arguments",
+    );
+}
+
+#[test]
+fn test_member_error() {
+    assert_error(
+        r#"
+        func main() int {
+            123.foo
+            return 0
+        }
+    "#,
+        "type 'i64' has no fields",
+    );
+    assert_error(
+        r#"
+        func f() string {
+            return "foo"
+        }
+        func main() int {
+            f().bar
+            return 0
+        }
+    "#,
+        "type 'string' has no fields",
+    );
+}
+
+#[test]
+fn test_duplicate_symbol() {
+    assert_error(
+        r#"
+        func f() {}
+        func f() {}
+    "#,
+        "already declared",
     );
 }

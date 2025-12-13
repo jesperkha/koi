@@ -2,8 +2,9 @@ use crate::{
     ast::FileSet,
     config::Config,
     error::ErrorSet,
+    module::{ModuleGraph, ModulePath},
     parser::sort_by_dependency_graph,
-    types::{DepMap, type_check},
+    types::type_check,
     util::{must, parse_string},
 };
 
@@ -23,15 +24,15 @@ fn check_files(files: &[TestFile]) -> Result<(), ErrorSet> {
     let parsed: Vec<FileSet> = files
         .iter()
         .map(|f| (&f.dep_name, must(parse_string(&f.src))))
-        .map(|f| FileSet::new(f.0.clone(), vec![f.1]))
+        .map(|f| FileSet::new(ModulePath::new(f.0.clone()), vec![f.1]))
         .collect();
 
     let sorted = sort_by_dependency_graph(parsed).unwrap_or_else(|e| panic!("{}", e));
 
-    let mut deps = DepMap::empty();
+    let mut mg = ModuleGraph::new();
     let config = Config::test();
     for fs in sorted {
-        let _ = type_check(fs, &mut deps, &config)?;
+        let _ = type_check(fs, &mut mg, &config)?;
     }
 
     Ok(())
@@ -96,7 +97,7 @@ fn test_no_exported_symbol() {
             "#,
             ),
         ],
-        "package 'foo' has no export 'doBar'",
+        "module 'foo' has no export 'doBar'",
     );
 }
 
@@ -113,7 +114,27 @@ fn test_bad_import_path() {
             }
         "#,
         )],
-        "dependency not found",
+        "could not resolve module path",
+    );
+    assert_error(
+        &vec![
+            file(
+                "foo",
+                r#"
+            "#,
+            ),
+            file(
+                "main",
+                r#"
+                import foo.bar
+
+                func main() int {
+                    return 0
+                }
+            "#,
+            ),
+        ],
+        "could not resolve module path",
     );
 }
 
@@ -187,25 +208,208 @@ fn test_many_imports() {
     ]);
 }
 
-// #[test]
-// fn test_namespace_import() {
-//     assert_pass(&vec![
-//         file(
-//             "foo",
-//             r#"
-//             pub func doFoo() {}
-//         "#,
-//         ),
-//         file(
-//             "main",
-//             r#"
-//             import foo
+#[test]
+fn test_namespace_import() {
+    assert_pass(&vec![
+        file(
+            "foo",
+            r#"
+            pub func doFoo() {}
+        "#,
+        ),
+        file(
+            "main",
+            r#"
+            import foo
 
-//             func main() int {
-//                 foo.doFoo()
-//                 return 0
-//             }
-//         "#,
-//         ),
-//     ]);
-// }
+            func main() int {
+                foo.doFoo()
+                return 0
+            }
+        "#,
+        ),
+    ]);
+}
+
+#[test]
+fn test_duplicate_symbol() {
+    assert_error(
+        &vec![
+            file(
+                "foo",
+                r#"
+            pub func doFoo() {}
+        "#,
+            ),
+            file(
+                "main",
+                r#"
+            import foo { doFoo }
+
+            func doFoo() {}
+
+            func main() int {
+                foo.doFoo()
+                return 0
+            }
+        "#,
+            ),
+        ],
+        "already declared",
+    );
+}
+
+#[test]
+fn test_duplicate_symbol_2() {
+    assert_error(
+        &vec![
+            file(
+                "foo",
+                r#"
+            pub func doFoo() {}
+        "#,
+            ),
+            file(
+                "main",
+                r#"
+            import foo
+            import foo { doFoo }
+
+            func main() int {
+                foo.doFoo()
+                return 0
+            }
+        "#,
+            ),
+        ],
+        "already declared",
+    );
+}
+
+#[test]
+fn test_namespace_shadow_error() {
+    assert_error(
+        &vec![
+            file(
+                "foo",
+                r#"
+                pub func doFoo() {}
+            "#,
+            ),
+            file(
+                "main",
+                r#"
+                import foo
+
+                func main() int {
+                    foo := 1
+                    return 0
+                }
+            "#,
+            ),
+        ],
+        "shadowing a namespace is not allowed",
+    );
+}
+
+#[test]
+fn test_namespace_as_expression_error() {
+    assert_error(
+        &vec![
+            file(
+                "foo",
+                r#"
+                func f() {}
+            "#,
+            ),
+            file(
+                "main",
+                r#"
+                import foo
+
+                func main() int {
+                    a := foo
+                    return 0
+                }
+            "#,
+            ),
+        ],
+        "namespace cannot be used as a value",
+    );
+}
+
+#[test]
+fn test_import_alias() {
+    assert_pass(&vec![
+        file(
+            "foo",
+            r#"
+                pub func f() {}
+            "#,
+        ),
+        file(
+            "main",
+            r#"
+                import foo as bar
+
+                func main() int {
+                    bar.f()
+                    return 0
+                }
+            "#,
+        ),
+    ]);
+    assert_pass(&vec![
+        file(
+            "foo",
+            r#"
+                pub func f() {}
+            "#,
+        ),
+        file(
+            "main",
+            r#"
+                import foo as bar
+                import foo
+
+                func main() int {
+                    bar.f()
+                    foo.f()
+                    return 0
+                }
+            "#,
+        ),
+    ]);
+}
+
+#[test]
+fn test_duplicate_alias() {
+    assert_error(
+        &vec![
+            file(
+                "bar",
+                r#"
+                func f() {}
+            "#,
+            ),
+            file(
+                "foo",
+                r#"
+                func f() {}
+            "#,
+            ),
+            file(
+                "main",
+                r#"
+                import foo as faz
+                import bar as faz
+
+                func main() int {
+                    return 0
+                }
+            "#,
+            ),
+        ],
+        "already declared",
+    );
+}

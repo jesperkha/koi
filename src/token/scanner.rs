@@ -1,4 +1,4 @@
-use tracing::{error, info, trace};
+use tracing::{info, trace};
 
 use crate::{
     config::Config,
@@ -35,11 +35,11 @@ impl<'a> Scanner<'a> {
     }
 
     fn scan(mut self) -> Res<Vec<Token>> {
-        info!("file '{}'", self.file.filepath);
+        info!("scanning file: {}", self.file.filepath);
 
         // No input
         if self.eof() {
-            info!("no input");
+            info!("no input, exiting early");
             return Ok(Vec::new());
         }
 
@@ -49,7 +49,7 @@ impl<'a> Scanner<'a> {
                 // Otherwise ignore result as one or more errors have been raised
                 Ok(toks) => {
                     if self.errs.len() == 0 {
-                        info!("success, {} tokens", toks.len());
+                        info!("success! {} tokens", toks.len());
                         return Ok(toks);
                     }
                 }
@@ -61,7 +61,7 @@ impl<'a> Scanner<'a> {
             }
         }
 
-        info!("fail, finished with {} errors", self.errs.len());
+        info!("fail! finished with {} errors", self.errs.len());
         Err(self.errs)
     }
 
@@ -145,8 +145,14 @@ impl<'a> Scanner<'a> {
 
                 // Number
                 v if Scanner::is_number(v) => {
-                    let length = self.peek_while(Scanner::is_numeric);
-                    let lexeme = self.file.str_range(self.pos, self.pos + length);
+                    let mut length = self.peek_while(Scanner::is_numeric);
+                    let mut lexeme = self.file.str_range(self.pos, self.pos + length);
+
+                    // Ignore ending period for now, checked by Checker
+                    if lexeme.ends_with(".") {
+                        length -= 1;
+                        lexeme = lexeme.trim_end_matches(".");
+                    }
 
                     let kind = if lexeme.contains('.') {
                         match lexeme.parse() {
@@ -256,7 +262,6 @@ impl<'a> Scanner<'a> {
     }
 
     fn error(&self, msg: &str, length: usize) -> Error {
-        error!("{}", msg);
         Error::new_syntax(msg, &self.pos(), length, &self.file)
     }
 

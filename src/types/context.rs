@@ -1,7 +1,7 @@
 use std::{collections::HashMap, str};
 use strum::IntoEnumIterator;
 
-use crate::types::{PrimitiveType, Type, TypeId, TypeKind, no_type};
+use crate::types::{Namespace, PrimitiveType, Type, TypeId, TypeKind, no_type};
 
 /// Context for type lookups.
 pub struct TypeContext {
@@ -12,6 +12,8 @@ pub struct TypeContext {
     cache: HashMap<TypeKind, TypeId>,
     /// Top level symbol mappings.
     symbols: HashMap<String, Symbol>,
+    /// Top level symbol mappings.
+    namespaces: HashMap<String, Namespace>,
 }
 
 #[derive(Clone)]
@@ -27,6 +29,7 @@ impl TypeContext {
             types: Vec::new(),
             cache: HashMap::new(),
             symbols: HashMap::new(),
+            namespaces: HashMap::new(),
         };
 
         for t in PrimitiveType::iter() {
@@ -125,12 +128,14 @@ impl TypeContext {
     }
 
     /// Set top level named type
-    pub fn set_symbol(&mut self, name: String, ty: TypeId, exported: bool) {
-        self.symbols.insert(name, Symbol { ty, exported });
+    pub fn set_symbol(&mut self, name: String, ty: TypeId, exported: bool) -> Result<(), String> {
+        self.symbols
+            .insert(name, Symbol { ty, exported })
+            .map_or(Ok(()), |_| Err(format!("already declared")))
     }
 
     /// Get top level named type
-    pub fn get_symbol(&mut self, name: &str) -> Result<TypeId, String> {
+    pub fn get_symbol(&self, name: &str) -> Result<TypeId, String> {
         self.symbols
             .get(name)
             .map_or(Err("not declared".to_string()), |s| Ok(s.ty))
@@ -145,24 +150,57 @@ impl TypeContext {
             .collect::<Vec<_>>()
     }
 
+    pub fn set_namespace(&mut self, ns: Namespace) -> Result<(), String> {
+        self.namespaces
+            .insert(ns.name.clone(), ns)
+            .map_or(Ok(()), |_| Err(format!("already declared")))
+    }
+
+    pub fn get_namespace(&self, name: &str) -> Result<&Namespace, String> {
+        self.namespaces
+            .get(name)
+            .map_or(Err("not declared".to_string()), |s| Ok(s))
+    }
+
     /// Get the string representation of a type for errors or logging.
     pub fn to_string(&self, id: TypeId) -> String {
         match &self.lookup(id).kind {
             TypeKind::Primitive(p) => format!("{p}"),
             TypeKind::Array(inner) => format!("[]{}", self.to_string(*inner)),
             TypeKind::Pointer(inner) => format!("*{}", self.to_string(*inner)),
-            TypeKind::Alias(id) => format!("Alias({})", self.to_string(*id)),
-            TypeKind::Unique(id) => format!("Unique({})", self.to_string(*id)),
-            TypeKind::Namespace(ns) => format!("Namespace({})", ns.name),
-            TypeKind::Function(params, ret) => {
-                let params_str = params
+            TypeKind::Alias(id) => format!("{}", self.to_string(*id)),
+            TypeKind::Unique(id) => format!("{}", self.to_string(*id)),
+            TypeKind::Function(f) => {
+                let params_str = f
+                    .params
                     .iter()
                     .map(|p| self.to_string(*p))
                     .collect::<Vec<_>>()
                     .join(", ");
 
-                let ret_str = self.to_string(*ret);
+                let ret_str = self.to_string(f.ret);
                 format!("func ({}) {}", params_str, ret_str)
+            }
+        }
+    }
+
+    pub fn to_string_debug(&self, id: TypeId) -> String {
+        match &self.lookup(id).kind {
+            TypeKind::Primitive(p) => format!("{p}"),
+            TypeKind::Array(inner) => format!("Array<{}>", self.to_string(*inner)),
+            TypeKind::Pointer(inner) => format!("Pointer<{}>", self.to_string(*inner)),
+            TypeKind::Alias(id) => format!("Alias({})", self.to_string(*id)),
+            TypeKind::Unique(id) => format!("Unique({})", self.to_string(*id)),
+            TypeKind::Function(f) => {
+                let params_str = f
+                    .params
+                    .iter()
+                    .map(|p| self.to_string(*p))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                let ret_str = self.to_string(f.ret);
+                format!("func ({}) {} ({})", params_str, ret_str, f.origin)
             }
         }
     }
@@ -174,7 +212,7 @@ impl TypeContext {
         s += "| TYPES\n";
         s += "|-------------------------------\n";
         for i in 0..self.types.len() {
-            s += &format!("| {:<3} {}\n", i, self.to_string(i));
+            s += &format!("| {:<3} {}\n", i, self.to_string_debug(i));
         }
 
         s += "| \n";
@@ -185,7 +223,7 @@ impl TypeContext {
                 "| {:<10} {:<3} {}\n",
                 sym.0,
                 (sym.1).ty,
-                if (sym.1).exported { "(public)" } else { "" }
+                if (sym.1).exported { "(public)" } else { "" },
             );
         }
 

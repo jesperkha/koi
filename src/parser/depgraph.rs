@@ -13,29 +13,31 @@ fn is_stdlib(id: &str) -> bool {
 }
 
 /// Sort list of FileSets based on their imports by creating a dependency graph.
-/// The first element in the returned list is the least depended on package
+/// The first element in the returned list is the least depended on module
 /// and must be type checked first.
 pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, String> {
+    assert!(sets.len() > 0, "empty set list");
+
     let mut index = HashMap::new();
     let mut dag: DiGraphMap<usize, ()> = DiGraphMap::new();
 
     for fs in &sets {
         let id = index.len();
-        index.insert(fs.import_path.clone(), id);
+        index.insert(fs.modpath.path().to_owned(), id);
         dag.add_node(id);
     }
 
     for fs in &sets {
         for import in &fs.imports {
-            if is_stdlib(&import.import_path) {
+            if is_stdlib(import.modpath.path()) {
                 continue;
             }
 
-            let Some(a) = index.get(&import.import_path) else {
+            let Some(a) = index.get(import.modpath.path()) else {
                 continue; // Handled in import resolution
             };
 
-            let b = *index.get(&fs.import_path).expect("missing import {}");
+            let b = *index.get(fs.modpath.path()).expect("missing import {}");
 
             if has_path_connecting(&dag, b, *a, None) {
                 return Err(format!("import cycle detected"));
@@ -50,7 +52,7 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, Stri
 
     let mut id_to_fileset = HashMap::new();
     for fs in sets {
-        let id = index[&fs.import_path];
+        let id = index[fs.modpath.path()];
         id_to_fileset.insert(id, fs);
     }
 
@@ -63,7 +65,7 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, Stri
         "final check order: {}",
         sorted_sets
             .iter()
-            .map(|s| s.import_path.clone())
+            .map(|s| s.modpath.path().to_owned())
             .collect::<Vec<_>>()
             .join(", ")
     );

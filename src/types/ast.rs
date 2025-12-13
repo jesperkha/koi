@@ -7,7 +7,7 @@ use crate::{
 pub trait TypedNode<'a> {
     /// Get the TypeKind of this node.
     fn kind(&'a self) -> &'a TypeKind;
-    /// Get the unique TypeId for this node, only to be used within the same package.
+    /// Get the unique TypeId for this node, only to be used within the same module.
     fn type_id(&self) -> TypeId;
 }
 
@@ -25,6 +25,7 @@ pub trait Visitor<T> {
     fn visit_extern(&mut self, node: &ExternNode) -> T;
     fn visit_call(&mut self, node: &CallNode) -> T;
     fn visit_member(&mut self, node: &MemberNode) -> T;
+    fn visit_namespace_member(&mut self, node: &NamespaceMemberNode) -> T;
 }
 
 pub struct TypedAst {
@@ -62,6 +63,7 @@ pub enum Expr {
     Literal(LiteralNode),
     Call(CallNode),
     Member(MemberNode),
+    NamespaceMember(NamespaceMemberNode),
 }
 
 pub struct FuncNode {
@@ -89,6 +91,13 @@ pub struct MemberNode {
     pub ty: Type,
     pub meta: NodeMeta,
     pub expr: Box<Expr>,
+    pub field: String,
+}
+
+pub struct NamespaceMemberNode {
+    pub ty: Type,
+    pub meta: NodeMeta,
+    pub modpath: String,
     pub field: String,
 }
 
@@ -155,6 +164,7 @@ impl Visitable for Expr {
             Expr::Literal(node) => v.visit_literal(node),
             Expr::Call(node) => v.visit_call(node),
             Expr::Member(node) => v.visit_member(node),
+            Expr::NamespaceMember(node) => v.visit_namespace_member(node),
         }
     }
 }
@@ -217,6 +227,7 @@ impl Node for Expr {
             Expr::Literal(node) => &node.meta.pos,
             Expr::Call(node) => &node.meta.pos,
             Expr::Member(node) => &node.meta.pos,
+            Expr::NamespaceMember(node) => &node.meta.pos,
         }
     }
 
@@ -225,6 +236,7 @@ impl Node for Expr {
             Expr::Literal(node) => &node.meta.end,
             Expr::Call(node) => &node.meta.end,
             Expr::Member(node) => &node.meta.end,
+            Expr::NamespaceMember(node) => &node.meta.end,
         }
     }
 
@@ -233,6 +245,7 @@ impl Node for Expr {
             Expr::Literal(node) => node.meta.id,
             Expr::Call(node) => node.meta.id,
             Expr::Member(node) => node.meta.id,
+            Expr::NamespaceMember(node) => node.meta.id,
         }
     }
 }
@@ -265,7 +278,8 @@ impl_typed_node_enum!(Stmt {
 impl_typed_node_enum!(Expr {
     Call,
     Literal,
-    Member
+    Member,
+    NamespaceMember
 });
 
 macro_rules! impl_typed_node {
@@ -292,5 +306,6 @@ impl_typed_node!(
     ReturnNode,
     VarDeclNode,
     VarAssignNode,
+    NamespaceMemberNode,
     MemberNode,
 );

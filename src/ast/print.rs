@@ -101,10 +101,6 @@ impl Visitor<()> for Printer {
         }
     }
 
-    fn visit_package(&mut self, node: &Token) -> () {
-        self.s.push_str(format!("package {}\n\n", node).as_str());
-    }
-
     fn visit_call(&mut self, node: &super::CallExpr) -> () {
         node.callee.accept(self);
         self.s.push('(');
