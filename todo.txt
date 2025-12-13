@@ -1,7 +1,6 @@
 * Up Next *
 
 Header files and stdlib
-Import aliases
 Inline assembly
 Fix parse error when missing newline at end of file
 

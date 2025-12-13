@@ -10,7 +10,7 @@ use crate::{
         AssignIns, ExternFuncInst, FuncInst, IRType, IRUnit, Ins, LValue, StoreIns, StringDataIns,
         SymTracker, Value, ir,
     },
-    module::{Module, ModulePath},
+    module::{Module, ModulePath, SymbolList},
     types::{
         self, Decl, Expr, LiteralKind, TypeContext, TypeId, TypeKind, TypedNode, Visitable, Visitor,
     },
@@ -24,10 +24,11 @@ pub fn emit_ir(m: &Module, config: &Config) -> Res<IRUnit> {
 struct Emitter<'a> {
     modpath: &'a ModulePath,
     ctx: &'a TypeContext,
+    syms: &'a SymbolList,
     nodes: &'a [Decl],
-    sym: SymTracker,
     config: &'a Config,
 
+    sym: SymTracker,
     ins: Vec<Vec<Ins>>,
 
     // Track if void functions have returned or not to add explicit return
@@ -42,6 +43,7 @@ impl<'a> Emitter<'a> {
         info!("emitting module: {}", m.name());
         Self {
             modpath: &m.modpath,
+            syms: &m.symbols,
             config,
             ctx: &m.ast.ctx,
             nodes: &m.ast.decls,
@@ -244,19 +246,15 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         let callee = match &*node.callee {
             Expr::Literal(t) => match &t.kind {
                 LiteralKind::Ident(name) => {
-                    // We need to get the function symbol and then figure out
-                    // if the name should be mangled (and with what modpath) or not.
-                    let id = self.ctx.get_symbol(name).expect("not a symbol");
-                    let TypeKind::Function(f) = &self.ctx.lookup(id).kind else {
-                        panic!("not a function");
+                    // Get the function symbol and generate the correct link name
+                    let sym = self.syms.get(name).expect("not a symbol");
+                    let linkname = if self.config.no_mangle_names {
+                        sym.name.clone()
+                    } else {
+                        // Already handles 'main', extern, and more
+                        sym.link_name()
                     };
-                    let mangled_name = match &f.origin {
-                        types::FunctionOrigin::Module(modpath) => {
-                            self.mangle_function_name(&name, &modpath)
-                        }
-                        types::FunctionOrigin::Extern => String::from(name),
-                    };
-                    Value::Function(mangled_name)
+                    Value::Function(linkname)
                 }
                 _ => panic!("unchecked invalid function call"),
             },

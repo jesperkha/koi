@@ -1,6 +1,9 @@
 use std::{collections::HashMap, hash::Hash};
 
-use crate::{module::Exports, types::TypedAst};
+use crate::{
+    module::{Exports, SymbolList},
+    types::TypedAst,
+};
 
 pub enum ModuleKind {
     Stdlib,
@@ -45,6 +48,7 @@ pub struct CreateModule {
     pub ast: TypedAst,
     pub exports: Exports,
     pub kind: ModuleKind,
+    pub symbols: SymbolList,
 }
 
 /// A Module is a self-contained compilation unit. It contains the combined
@@ -64,6 +68,8 @@ pub struct Module {
     pub exports: Exports,
     /// What type of module this is.
     pub kind: ModuleKind,
+    /// List of symbols declared and used within this module.
+    pub symbols: SymbolList,
 }
 
 impl Module {
@@ -97,6 +103,7 @@ impl ModuleGraph {
             ast: m.ast,
             exports: m.exports,
             kind: m.kind,
+            symbols: m.symbols,
         });
 
         let module = &self.modules[id];

@@ -69,7 +69,6 @@ impl fmt::Display for FunctionOrigin {
 pub struct FunctionType {
     pub params: Vec<TypeId>,
     pub ret: TypeId,
-    pub origin: FunctionOrigin,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,8 +92,8 @@ impl Namespace {
             symbols: HashMap::new(),
         };
 
-        for (name, kind) in exports.symbols() {
-            let id = ctx.get_or_intern(kind.clone());
+        for (name, sym) in exports.symbols() {
+            let id = ctx.get_or_intern(sym.kind.clone());
             ns.symbols.insert(name.to_string(), id);
         }
 

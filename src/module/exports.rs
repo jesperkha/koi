@@ -1,27 +1,52 @@
 use std::collections::HashMap;
 
-use crate::types::TypeKind;
+use crate::{
+    module::{Symbol, SymbolList},
+    types::{TypeContext, TypeKind},
+};
+
+pub struct ExportedSymbol {
+    pub symbol: Symbol,
+    pub kind: TypeKind,
+}
 
 pub struct Exports {
-    symbols: HashMap<String, TypeKind>,
+    exports: HashMap<String, ExportedSymbol>,
 }
 
 impl Exports {
-    pub fn new() -> Self {
-        Exports {
-            symbols: HashMap::new(),
-        }
+    pub fn extract(ctx: &TypeContext, syms: &SymbolList) -> Self {
+        let exports = syms
+            .symbols()
+            .iter()
+            .filter(|s| s.1.is_exported)
+            .map(|s| {
+                (
+                    s.0.clone(),
+                    ExportedSymbol {
+                        symbol: s.1.clone(),
+                        kind: ctx.lookup(s.1.ty).kind.clone(),
+                    },
+                )
+            })
+            .collect();
+
+        Exports { exports }
     }
 
-    pub fn add(&mut self, name: String, kind: TypeKind) {
-        self.symbols.insert(name, kind);
+    pub fn get_type(&self, name: &str) -> Option<&TypeKind> {
+        self.exports.get(name).map(|s| &s.kind)
     }
 
-    pub fn get(&self, name: &str) -> Option<&TypeKind> {
-        self.symbols.get(name)
+    pub fn get_symbol(&self, name: &str) -> Option<&Symbol> {
+        self.exports.get(name).map(|s| &s.symbol)
     }
 
-    pub fn symbols(&self) -> &HashMap<String, TypeKind> {
-        &self.symbols
+    pub fn get(&self, name: &str) -> Option<&ExportedSymbol> {
+        self.exports.get(name)
+    }
+
+    pub fn symbols(&self) -> &HashMap<String, ExportedSymbol> {
+        &self.exports
     }
 }
