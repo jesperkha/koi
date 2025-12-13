@@ -575,14 +575,14 @@ impl<'a> Checker<'a> {
                 // Get symbol from field
                 let Some(symbol) = ns.symbols.get(&field) else {
                     return Err(self.error_token(
-                        &format!("namespace '{}' has no member '{}'", &ns.name(), &field),
+                        &format!("namespace '{}' has no member '{}'", &ns.name, &field),
                         &node.field,
                     ));
                 };
 
                 return Ok(types::Expr::NamespaceMember(types::NamespaceMemberNode {
                     ty: self.ctx.lookup(*symbol).clone(),
-                    modpath: ns.path().to_owned(),
+                    modpath: ns.module_path().to_owned(),
                     meta,
                     field,
                 }));

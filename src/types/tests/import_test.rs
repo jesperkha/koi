@@ -337,3 +337,79 @@ fn test_namespace_as_expression_error() {
         "namespace cannot be used as a value",
     );
 }
+
+#[test]
+fn test_import_alias() {
+    assert_pass(&vec![
+        file(
+            "foo",
+            r#"
+                pub func f() {}
+            "#,
+        ),
+        file(
+            "main",
+            r#"
+                import foo as bar
+
+                func main() int {
+                    bar.f()
+                    return 0
+                }
+            "#,
+        ),
+    ]);
+    assert_pass(&vec![
+        file(
+            "foo",
+            r#"
+                pub func f() {}
+            "#,
+        ),
+        file(
+            "main",
+            r#"
+                import foo as bar
+                import foo
+
+                func main() int {
+                    bar.f()
+                    foo.f()
+                    return 0
+                }
+            "#,
+        ),
+    ]);
+}
+
+#[test]
+fn test_duplicate_alias() {
+    assert_error(
+        &vec![
+            file(
+                "bar",
+                r#"
+                func f() {}
+            "#,
+            ),
+            file(
+                "foo",
+                r#"
+                func f() {}
+            "#,
+            ),
+            file(
+                "main",
+                r#"
+                import foo as faz
+                import bar as faz
+
+                func main() int {
+                    return 0
+                }
+            "#,
+            ),
+        ],
+        "already declared",
+    );
+}

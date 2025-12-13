@@ -86,15 +86,21 @@ fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, mg: &ModuleGraph) -> Res
                 }
             };
 
+            // Get namespace name and which token to highlight when reporting
+            // duplicate definition error.
+            let (name, range) = if let Some(alias) = &import.alias {
+                (alias.to_string(), (&alias.pos, &alias.end_pos))
+            } else {
+                (
+                    module.modpath.name().to_owned(),
+                    (&import.names[0].pos, &import.names.last().unwrap().end_pos),
+                )
+            };
+
             // Add module as namespace
-            let ns = Namespace::new(module.modpath.clone(), &module.exports, ctx);
+            let ns = Namespace::new(name, module.modpath.clone(), &module.exports, ctx);
             let _ = ctx.set_namespace(ns).map_err(|err| {
-                errs.add(Error::range(
-                    &err,
-                    &import.names[0].pos,
-                    &import.names.last().unwrap().end_pos,
-                    &file.src,
-                ));
+                errs.add(Error::range(&err, range.0, range.1, &file.src));
             });
 
             // Put symbols imported by name directly into context

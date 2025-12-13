@@ -7,9 +7,9 @@ Fix parse error when missing newline at end of file
 
 * Doing *
 
-Namespaces
-
 * Done *
 
+Import aliases
+Namespaces
 Remove package keyword
 Testing for imports

@@ -74,13 +74,21 @@ pub struct FunctionType {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Namespace {
+    /// Name of namespace in code (may be different from module name if aliased).
+    pub name: String,
     pub modpath: ModulePath,
     pub symbols: HashMap<String, TypeId>,
 }
 
 impl Namespace {
-    pub fn new(modpath: ModulePath, exports: &Exports, ctx: &mut TypeContext) -> Self {
+    pub fn new(
+        name: String,
+        modpath: ModulePath,
+        exports: &Exports,
+        ctx: &mut TypeContext,
+    ) -> Self {
         let mut ns = Namespace {
+            name,
             modpath,
             symbols: HashMap::new(),
         };
@@ -93,11 +101,11 @@ impl Namespace {
         ns
     }
 
-    pub fn name(&self) -> &str {
+    pub fn module_name(&self) -> &str {
         self.modpath.name()
     }
 
-    pub fn path(&self) -> &str {
+    pub fn module_path(&self) -> &str {
         self.modpath.path()
     }
 }

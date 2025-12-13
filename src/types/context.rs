@@ -152,7 +152,7 @@ impl TypeContext {
 
     pub fn set_namespace(&mut self, ns: Namespace) -> Result<(), String> {
         self.namespaces
-            .insert(ns.name().to_owned(), ns)
+            .insert(ns.name.clone(), ns)
             .map_or(Ok(()), |_| Err(format!("already declared")))
     }
 
