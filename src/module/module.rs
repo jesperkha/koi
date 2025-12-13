@@ -5,6 +5,8 @@ use crate::{
     types::TypedAst,
 };
 
+// TODO: header files and stdlib
+
 pub enum ModuleKind {
     Stdlib,
     User,

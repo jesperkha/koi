@@ -91,6 +91,9 @@ pub enum TokenKind {
     StringLit(String), // String does not include quotes
     CharLit(u8),
 
+    // TODO: inline assembly
+    // ASM,
+
     // Keywords
     True,
     False,

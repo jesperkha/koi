@@ -47,6 +47,8 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // TODO: fix error when missing a newline at EOF
+
     fn parse(mut self) -> Res<File> {
         info!("parsing file: {}", self.src.filepath);
 
