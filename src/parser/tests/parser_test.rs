@@ -198,6 +198,7 @@ fn test_extern() {
         extern func write(fd int, s string, len int) int
     "#,
     );
+    compare_string(r#"extern func puts(s string)"#);
 }
 
 #[test]

@@ -1,0 +1,94 @@
+use std::collections::HashMap;
+
+use crate::{module::ModulePath, types::TypeId};
+
+#[derive(Clone)]
+pub struct Symbol {
+    /// Symbol kind contains additional, more specific, symbol information.
+    pub kind: SymbolKind,
+    /// The symbols type.
+    pub ty: TypeId,
+    /// The symbol name as it was declared.
+    pub name: String,
+    /// Where the symbol originates from.
+    pub origin: SymbolOrigin,
+    /// If this symbol is exported from its origin module.
+    pub is_exported: bool,
+    /// True if the symbol name should not be mangled (link_name).
+    pub no_mangle: bool,
+}
+
+impl Symbol {
+    /// If the symbol is extern (resolved at link time).
+    /// If this is true, then 'link_name' should be the same as 'name'.
+    pub fn is_extern(&self) -> bool {
+        matches!(self.origin, SymbolOrigin::Extern)
+    }
+
+    /// The mangled link name (prefixed with module path etc).
+    /// For any symbol named 'main' it will return 'main'.
+    /// For any extern symbol it will return the unaltered name.
+    /// If no_mangle is true the unaltered symbol name is returned.
+    pub fn link_name(&self) -> String {
+        if self.name == "main" {
+            return String::from("main");
+        }
+        if self.no_mangle {
+            return self.name.clone();
+        }
+        match &self.origin {
+            SymbolOrigin::Module(modpath) => {
+                format!("_{}_{}", modpath.path().replace(".", "_"), self.name)
+            }
+            SymbolOrigin::Extern => self.name.clone(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum SymbolOrigin {
+    Module(ModulePath),
+    Extern,
+}
+
+#[derive(Clone)]
+pub enum SymbolKind {
+    Function(FuncSymbol),
+}
+
+#[derive(Clone)]
+pub struct FuncSymbol {
+    /// If the function body should be inlined.
+    pub is_inline: bool,
+    /// If the function body should be naked (no entry/exit protocol or additional
+    /// code added by the compiler).
+    pub is_naked: bool,
+}
+
+pub struct SymbolList {
+    symbols: HashMap<String, Symbol>,
+}
+
+impl SymbolList {
+    pub fn new() -> Self {
+        Self {
+            symbols: HashMap::new(),
+        }
+    }
+
+    pub fn add(&mut self, sym: Symbol) -> Result<(), String> {
+        self.symbols
+            .insert(sym.name.clone(), sym)
+            .map_or(Ok(()), |_| Err(format!("already declared")))
+    }
+
+    pub fn get(&self, name: &str) -> Result<&Symbol, String> {
+        self.symbols
+            .get(name)
+            .map_or(Err("not declared".to_string()), |s| Ok(s))
+    }
+
+    pub fn symbols(&self) -> &HashMap<String, Symbol> {
+        &self.symbols
+    }
+}

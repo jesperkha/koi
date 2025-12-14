@@ -1,7 +1,7 @@
 pub struct Config {
     /// If true, the TypeContext object is printed after type checking.
     pub dump_type_context: bool,
-    /// Dont mangle any function names
+    /// Dont mangle any symbol names, used primarily for testing.
     pub no_mangle_names: bool,
 }
 

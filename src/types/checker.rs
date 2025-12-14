@@ -4,11 +4,11 @@ use crate::{
     ast::{self, Field, Node, TypeNode},
     config::Config,
     error::{Error, ErrorSet},
-    module::ModulePath,
+    module::{FuncSymbol, ModulePath, Symbol, SymbolKind, SymbolList, SymbolOrigin},
     token::{Pos, Source, Token, TokenKind},
     types::{
-        self, FunctionOrigin, FunctionType, LiteralKind, NodeMeta, PrimitiveType, Type,
-        TypeContext, TypeId, TypeKind, TypedNode, ast_node_to_meta, no_type, symtable::SymTable,
+        self, FunctionType, LiteralKind, NodeMeta, PrimitiveType, Type, TypeContext, TypeId,
+        TypeKind, TypedNode, ast_node_to_meta, no_type, symtable::VarTable,
     },
 };
 
@@ -18,14 +18,15 @@ struct Value {
 }
 
 pub struct Checker<'a> {
+    // Dependencies
     ctx: &'a mut TypeContext,
+    symbols: &'a mut SymbolList,
     src: &'a Source,
     config: &'a Config,
     modpath: &'a ModulePath,
 
-    /// Locally declared variables. Module private and global
-    /// symbols are part of the TypeContext.
-    vars: SymTable<Value>,
+    /// Locally declared variables for type checking.
+    vars: VarTable<Value>,
 
     /// Return type in current scope
     rtype: TypeId,
@@ -40,6 +41,7 @@ impl<'a> Checker<'a> {
         modpath: &'a ModulePath,
         src: &'a Source,
         ctx: &'a mut TypeContext,
+        symbols: &'a mut SymbolList,
         config: &'a Config,
     ) -> Self {
         Self {
@@ -47,7 +49,8 @@ impl<'a> Checker<'a> {
             config,
             src,
             ctx,
-            vars: SymTable::new(),
+            symbols,
+            vars: VarTable::new(),
             rtype: no_type(),
             has_returned: false,
         }
@@ -88,7 +91,7 @@ impl<'a> Checker<'a> {
     // TODO: remove constants (maybe)
     /// Bind a name (token) to a type. Returns same type id or error if already defined.
     fn bind(&mut self, name: &Token, id: TypeId, constant: bool) -> Result<TypeId, Error> {
-        if !self.vars.bind(name, Value { ty: id, constant }) {
+        if !self.vars.bind(name.to_string(), Value { ty: id, constant }) {
             Err(self.error_token("already declared", name))
         } else {
             Ok(id)
@@ -101,8 +104,8 @@ impl<'a> Checker<'a> {
         if let Some(var) = self.vars.get(&name_str) {
             return Ok(var.ty);
         }
-        if let Ok(sym) = self.ctx.get_symbol(&name_str) {
-            return Ok(sym);
+        if let Ok(sym) = self.symbols.get(&name_str) {
+            return Ok(sym.ty);
         }
         Err(self.error_token("not declared", name))
     }
@@ -152,8 +155,8 @@ impl<'a> Checker<'a> {
     /// Check if the expression is an identifier and return the corresponding type.
     fn if_identifier_get_type(&self, expr: &ast::Expr) -> Option<&Type> {
         if let Some(name) = self.if_identifier_get_name(expr) {
-            if let Ok(id) = self.ctx.get_symbol(name) {
-                return Some(self.ctx.lookup(id));
+            if let Ok(sym) = self.symbols.get(name) {
+                return Some(self.ctx.lookup(sym.ty));
             }
         }
         None
@@ -190,7 +193,7 @@ impl<'a> Checker<'a> {
             node.public,
             &node.params,
             &node.ret_type,
-            FunctionOrigin::Module(self.modpath.path().to_owned()),
+            SymbolOrigin::Module(self.modpath.clone()),
         )
     }
 
@@ -200,17 +203,17 @@ impl<'a> Checker<'a> {
             node.public,
             &node.params,
             &node.ret_type,
-            FunctionOrigin::Extern,
+            SymbolOrigin::Extern,
         )
     }
 
     fn declare_function_definition(
         &mut self,
         name: &Token,
-        public: bool,
+        is_exported: bool,
         params: &Vec<ast::Field>,
         ret_type: &Option<ast::TypeNode>,
-        origin: FunctionOrigin,
+        origin: SymbolOrigin,
     ) -> Result<(), Error> {
         // Evaluate return type if any
         let ret = self.eval_optional_type(ret_type)?;
@@ -222,20 +225,26 @@ impl<'a> Checker<'a> {
             .collect::<Result<Vec<_>, _>>()?;
 
         // Declare function in context
-        let kind = TypeKind::Function(FunctionType {
+        let ty = self.ctx.get_or_intern(TypeKind::Function(FunctionType {
             params: param_ids.iter().map(|v| v.1).collect(),
             ret,
-            origin,
-        });
+        }));
 
-        let func_id = self.ctx.get_or_intern(kind);
-        let name_str = name.to_string();
-        let _ = self
-            .ctx
-            .set_symbol(name_str, func_id, public)
-            .map_err(|err| {
-                return self.error_token(&err, name);
-            })?;
+        let symbol = Symbol {
+            name: name.to_string(),
+            kind: SymbolKind::Function(FuncSymbol {
+                is_inline: false,
+                is_naked: false,
+            }),
+            no_mangle: false,
+            ty,
+            origin,
+            is_exported,
+        };
+
+        let _ = self.symbols.add(symbol).map_err(|err| {
+            return self.error_token(&err, name);
+        })?;
 
         Ok(())
     }
@@ -374,12 +383,12 @@ impl<'a> Checker<'a> {
         // self.bind(&node.name, id, true)?;
 
         let name = node.name.to_string();
-        let id = self
-            .ctx
-            .get_symbol(&name)
+        let sym = self
+            .symbols
+            .get(&name)
             .expect("should have been declared in global pass");
 
-        let ty = self.ctx.lookup(id).clone();
+        let ty = self.ctx.lookup(sym.ty).clone();
         Ok(types::Decl::Extern(types::ExternNode { ty, meta, name }))
     }
 

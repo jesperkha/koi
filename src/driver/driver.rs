@@ -63,6 +63,8 @@ impl<'a> Driver<'a> {
                 module_path = String::from("main");
             }
 
+            // TODO: if all files are empty, continue
+
             info!("parsing module: {}", module_path);
             let files = self.parse_files(sources)?;
 

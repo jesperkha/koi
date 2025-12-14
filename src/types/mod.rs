@@ -13,4 +13,4 @@ pub use types::*;
 
 pub use checker::Checker;
 pub use context::TypeContext;
-pub use symtable::SymTable;
+pub use symtable::VarTable;

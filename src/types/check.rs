@@ -2,26 +2,31 @@ use crate::{
     ast::{File, FileSet},
     config::Config,
     error::{Error, ErrorSet, Res},
-    module::{CreateModule, Exports, Module, ModuleGraph, ModuleKind, ModulePath, invalid_mod_id},
+    module::{
+        CreateModule, Exports, Module, ModuleGraph, ModuleKind, ModulePath, SymbolList,
+        invalid_mod_id,
+    },
     types::{Checker, Namespace, TypeContext, TypedAst},
 };
 use tracing::info;
 
 pub fn type_check<'a>(fs: FileSet, mg: &'a mut ModuleGraph, config: &Config) -> Res<&'a Module> {
     let mut ctx = TypeContext::new();
+    let mut syms = SymbolList::new();
 
     // Passes
-    resolve_imports(&fs, &mut ctx, mg)?;
-    global_pass(&fs, &mut ctx, config)?;
+    resolve_imports(&fs, &mut ctx, &mut syms, mg)?;
+    global_pass(&fs, &mut ctx, &mut syms, config)?;
 
-    let exports = collect_exports(&ctx);
-    let tree = emit_typed_ast(&fs.modpath, fs.files, ctx, config)?;
+    let exports = Exports::extract(&ctx, &syms);
+    let tree = emit_typed_ast(&fs.modpath, fs.files, ctx, &mut syms, config)?;
 
     if config.dump_type_context {
         tree.ctx.dump_context_string();
     }
 
     let create_mod = CreateModule {
+        symbols: syms,
         modpath: fs.modpath,
         filepath: fs.path,
         ast: tree,
@@ -34,10 +39,15 @@ pub fn type_check<'a>(fs: FileSet, mg: &'a mut ModuleGraph, config: &Config) -> 
 }
 
 /// Add all global declarations to context.
-fn global_pass(fs: &FileSet, ctx: &mut TypeContext, config: &Config) -> Result<(), ErrorSet> {
+fn global_pass(
+    fs: &FileSet,
+    ctx: &mut TypeContext,
+    syms: &mut SymbolList,
+    config: &Config,
+) -> Result<(), ErrorSet> {
     let mut errs = ErrorSet::new();
     for file in &fs.files {
-        Checker::new(&fs.modpath, &file.src, ctx, config)
+        Checker::new(&fs.modpath, &file.src, ctx, syms, config)
             .global_pass(&file.ast.decls)
             .map_or_else(|e| errs.join(e), |_| {});
     }
@@ -45,18 +55,13 @@ fn global_pass(fs: &FileSet, ctx: &mut TypeContext, config: &Config) -> Result<(
     errs.err_or(())
 }
 
-/// Collect all export from TypeContext into an Exports object.
-fn collect_exports(ctx: &TypeContext) -> Exports {
-    let mut exports = Exports::new();
-    ctx.exported_symbols()
-        .into_iter()
-        .for_each(|s| exports.add(s.0, s.1));
-
-    exports
-}
-
 /// Resolve all imported types and symbols.
-fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, mg: &ModuleGraph) -> Result<(), ErrorSet> {
+fn resolve_imports(
+    fs: &FileSet,
+    ctx: &mut TypeContext,
+    syms: &mut SymbolList,
+    mg: &ModuleGraph,
+) -> Result<(), ErrorSet> {
     let mut errs = ErrorSet::new();
 
     for file in &fs.files {
@@ -105,16 +110,19 @@ fn resolve_imports(fs: &FileSet, ctx: &mut TypeContext, mg: &ModuleGraph) -> Res
 
             // Put symbols imported by name directly into context
             for tok in &import.imports {
-                let sym = tok.to_string();
+                let symbol_name = tok.to_string();
 
-                if let Some(kind) = module.exports.get(&sym) {
-                    let id = ctx.get_or_intern(kind.clone());
-                    let _ = ctx.set_symbol(sym.clone(), id, false).map_err(|err| {
+                // TODO: look into global type context to use global type ids and avoid shit ton of cloning of TypeKind
+
+                // If the symbol exists we add it to the modules symbol list and register the type kind.
+                if let Some(export) = module.exports.get(&symbol_name) {
+                    let _ = ctx.get_or_intern(export.kind.clone());
+                    let _ = syms.add(export.symbol.clone()).map_err(|err| {
                         errs.add(Error::new(&err, tok, tok, &file.src));
                     });
                 } else {
                     errs.add(Error::range(
-                        &format!("module '{}' has no export '{}'", module.name(), sym),
+                        &format!("module '{}' has no export '{}'", module.name(), symbol_name),
                         &tok.pos,
                         &tok.end_pos,
                         &file.src,
@@ -132,6 +140,7 @@ fn emit_typed_ast(
     modpath: &ModulePath,
     files: Vec<File>,
     mut ctx: TypeContext,
+    syms: &mut SymbolList,
     config: &Config,
 ) -> Result<TypedAst, ErrorSet> {
     info!("checking {} files", files.len());
@@ -141,7 +150,7 @@ fn emit_typed_ast(
     let mut decls = Vec::new();
 
     for file in files {
-        Checker::new(modpath, &file.src, &mut ctx, config)
+        Checker::new(modpath, &file.src, &mut ctx, syms, config)
             .emit_ast(file.ast.decls)
             .map_or_else(|e| errs.join(e), |d| decls.extend(d));
     }

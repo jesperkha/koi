@@ -10,25 +10,16 @@ pub struct TypeContext {
     types: Vec<Type>,
     /// Map type kinds to their unique type id.
     cache: HashMap<TypeKind, TypeId>,
-    /// Top level symbol mappings.
-    symbols: HashMap<String, Symbol>,
+    // TODO: (part of global typecontext) move to own type
     /// Top level symbol mappings.
     namespaces: HashMap<String, Namespace>,
 }
 
-#[derive(Clone)]
-pub struct Symbol {
-    pub ty: TypeId,
-    pub exported: bool,
-}
-
 impl TypeContext {
-    // TODO: accept exported symbols and intern at init
     pub fn new() -> Self {
         let mut s = Self {
             types: Vec::new(),
             cache: HashMap::new(),
-            symbols: HashMap::new(),
             namespaces: HashMap::new(),
         };
 
@@ -127,29 +118,6 @@ impl TypeContext {
         }
     }
 
-    /// Set top level named type
-    pub fn set_symbol(&mut self, name: String, ty: TypeId, exported: bool) -> Result<(), String> {
-        self.symbols
-            .insert(name, Symbol { ty, exported })
-            .map_or(Ok(()), |_| Err(format!("already declared")))
-    }
-
-    /// Get top level named type
-    pub fn get_symbol(&self, name: &str) -> Result<TypeId, String> {
-        self.symbols
-            .get(name)
-            .map_or(Err("not declared".to_string()), |s| Ok(s.ty))
-    }
-
-    /// Get an owned list of all exported symbols from this context.
-    pub fn exported_symbols(&self) -> Vec<(String, TypeKind)> {
-        self.symbols
-            .iter()
-            .filter(|s| (s.1).exported)
-            .map(|s| (s.0.clone(), self.lookup(s.1.ty).kind.clone()))
-            .collect::<Vec<_>>()
-    }
-
     pub fn set_namespace(&mut self, ns: Namespace) -> Result<(), String> {
         self.namespaces
             .insert(ns.name.clone(), ns)
@@ -200,7 +168,7 @@ impl TypeContext {
                     .join(", ");
 
                 let ret_str = self.to_string(f.ret);
-                format!("func ({}) {} ({})", params_str, ret_str, f.origin)
+                format!("func ({}) {}", params_str, ret_str)
             }
         }
     }
@@ -213,18 +181,6 @@ impl TypeContext {
         s += "|-------------------------------\n";
         for i in 0..self.types.len() {
             s += &format!("| {:<3} {}\n", i, self.to_string_debug(i));
-        }
-
-        s += "| \n";
-        s += "| SYMBOLS\n";
-        s += "|-------------------------------\n";
-        for sym in &self.symbols {
-            s += &format!(
-                "| {:<10} {:<3} {}\n",
-                sym.0,
-                (sym.1).ty,
-                if (sym.1).exported { "(public)" } else { "" },
-            );
         }
 
         println!("{}", s);
