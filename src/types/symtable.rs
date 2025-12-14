@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 
-use crate::token::Token;
-
-/// The SymTable manages all symbol/type mappings in a file.
-pub struct SymTable<T> {
+/// The VarTable handles all name to type mappings for local and scoped variables.
+pub struct VarTable<T> {
     /// A stack of scopes. Always has at least one base scope.
     scopes: Vec<HashMap<String, T>>,
 }
 
-impl<T> SymTable<T> {
+impl<T> VarTable<T> {
     pub fn new() -> Self {
         Self {
             scopes: vec![HashMap::new()],
@@ -28,17 +26,11 @@ impl<T> SymTable<T> {
 
     /// Bind a name to T in the current scope. Return true if bind
     /// is ok (name was not already declared).
-    ///
-    /// TODO: use string input here too instead of Token
-    pub fn bind(&mut self, name: &Token, t: T) -> bool {
-        self.scopes
-            .last_mut()
-            .unwrap()
-            .insert(name.to_string(), t)
-            .is_none()
+    pub fn bind(&mut self, name: String, t: T) -> bool {
+        self.scopes.last_mut().unwrap().insert(name, t).is_none()
     }
 
-    /// Look up a name starting from the innermost scope outward.
+    /// Look up a name starting from the innermost scope and iterating outwards.
     pub fn get(&self, name: &String) -> Option<&T> {
         for scope in self.scopes.iter().rev() {
             if let Some(t) = scope.get(name) {

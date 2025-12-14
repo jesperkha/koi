@@ -47,8 +47,6 @@ impl<'a> Parser<'a> {
         }
     }
 
-    // TODO: fix error when missing a newline at EOF
-
     fn parse(mut self) -> Res<File> {
         info!("parsing file: {}", self.src.filepath);
 
@@ -262,7 +260,7 @@ impl<'a> Parser<'a> {
         let rparen = self.expect(TokenKind::RParen)?;
 
         // Check for return type
-        let ret_type = if self.matches(TokenKind::LBrace) || self.matches(TokenKind::Newline) {
+        let ret_type = if self.matches_any(&[TokenKind::LBrace, TokenKind::Newline]) || self.eof() {
             None
         } else {
             Some(self.parse_type()?)
@@ -599,8 +597,10 @@ impl<'a> Parser<'a> {
 
     fn matches_any(&self, kinds: &[TokenKind]) -> bool {
         for k in kinds {
-            if self.matches(k.to_owned()) {
-                return true;
+            if let Some(tok) = self.cur() {
+                if &tok.kind == k {
+                    return true;
+                }
             }
         }
         return false;

@@ -10,12 +10,12 @@ pub struct TypeContext {
     types: Vec<Type>,
     /// Map type kinds to their unique type id.
     cache: HashMap<TypeKind, TypeId>,
+    // TODO: (part of global typecontext) move to own type
     /// Top level symbol mappings.
     namespaces: HashMap<String, Namespace>,
 }
 
 impl TypeContext {
-    // TODO: accept exported symbols and intern at init
     pub fn new() -> Self {
         let mut s = Self {
             types: Vec::new(),

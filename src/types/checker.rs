@@ -8,7 +8,7 @@ use crate::{
     token::{Pos, Source, Token, TokenKind},
     types::{
         self, FunctionType, LiteralKind, NodeMeta, PrimitiveType, Type, TypeContext, TypeId,
-        TypeKind, TypedNode, ast_node_to_meta, no_type, symtable::SymTable,
+        TypeKind, TypedNode, ast_node_to_meta, no_type, symtable::VarTable,
     },
 };
 
@@ -18,15 +18,15 @@ struct Value {
 }
 
 pub struct Checker<'a> {
+    // Dependencies
     ctx: &'a mut TypeContext,
     symbols: &'a mut SymbolList,
     src: &'a Source,
     config: &'a Config,
     modpath: &'a ModulePath,
 
-    /// Locally declared variables. Module private and global
-    /// symbols are part of the TypeContext.
-    vars: SymTable<Value>,
+    /// Locally declared variables for type checking.
+    vars: VarTable<Value>,
 
     /// Return type in current scope
     rtype: TypeId,
@@ -49,9 +49,9 @@ impl<'a> Checker<'a> {
             config,
             src,
             ctx,
-            vars: SymTable::new(),
-            rtype: no_type(),
             symbols,
+            vars: VarTable::new(),
+            rtype: no_type(),
             has_returned: false,
         }
     }
@@ -91,7 +91,7 @@ impl<'a> Checker<'a> {
     // TODO: remove constants (maybe)
     /// Bind a name (token) to a type. Returns same type id or error if already defined.
     fn bind(&mut self, name: &Token, id: TypeId, constant: bool) -> Result<TypeId, Error> {
-        if !self.vars.bind(name, Value { ty: id, constant }) {
+        if !self.vars.bind(name.to_string(), Value { ty: id, constant }) {
             Err(self.error_token("already declared", name))
         } else {
             Ok(id)
