@@ -10,7 +10,7 @@ use crate::{
         AssignIns, ExternFuncInst, FuncInst, IRType, IRUnit, Ins, LValue, StoreIns, StringDataIns,
         SymTracker, Value, ir,
     },
-    module::{Module, ModulePath, Symbol, SymbolList},
+    module::{Module, ModulePath, NamespaceList, Symbol, SymbolList},
     types::{
         self, Decl, Expr, LiteralKind, TypeContext, TypeId, TypeKind, TypedNode, Visitable, Visitor,
     },
@@ -25,6 +25,7 @@ struct Emitter<'a> {
     modpath: &'a ModulePath,
     ctx: &'a TypeContext,
     syms: &'a SymbolList,
+    nsl: &'a NamespaceList,
     nodes: &'a [Decl],
     config: &'a Config,
 
@@ -42,6 +43,7 @@ impl<'a> Emitter<'a> {
     fn new(m: &'a Module, config: &'a Config) -> Self {
         Self {
             modpath: &m.modpath,
+            nsl: &m.namespaces,
             syms: &m.symbols,
             config,
             ctx: &m.ast.ctx,
@@ -286,12 +288,8 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         &mut self,
         node: &types::NamespaceMemberNode,
     ) -> Result<Value, Error> {
-        // TODO: replace with own mangle method when namespace contains Symbols
-        let name = if self.config.no_mangle_names {
-            node.field.clone()
-        } else {
-            format!("_{}_{}", &node.field, node.modpath.path().replace(".", "_"))
-        };
+        let sym = self.nsl.get(&node.name).unwrap().get(&node.field).unwrap();
+        let linkname = self.mangle_symbol_name(sym);
 
         // Declare as extern function
         let f = self.node_to_ir_type(node);
@@ -300,12 +298,12 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         };
 
         self.push(Ins::Extern(ExternFuncInst {
-            name: name.clone(),
+            name: linkname.clone(),
             params,
             ret: *ret,
         }));
 
-        Ok(Value::Function(name))
+        Ok(Value::Function(linkname))
     }
 }
 

@@ -597,7 +597,7 @@ impl<'a> Checker<'a> {
 
                 return Ok(types::Expr::NamespaceMember(types::NamespaceMemberNode {
                     ty: self.ctx.lookup(symbol.ty).clone(),
-                    modpath: ns.modpath().to_owned(),
+                    name: ns.modpath().name().to_owned(),
                     meta,
                     field,
                 }));

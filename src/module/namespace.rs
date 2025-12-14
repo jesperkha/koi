@@ -18,7 +18,7 @@ impl Namespace {
         };
 
         for (_, export) in exports.symbols() {
-            ns.symbols.add(export.symbol.clone());
+            let _ = ns.symbols.add(export.symbol.clone());
         }
 
         ns

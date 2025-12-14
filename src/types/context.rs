@@ -64,7 +64,7 @@ impl TypeContext {
     pub fn lookup(&self, id: TypeId) -> &Type {
         // Illegal state if id is noType or not known
         assert_ne!(id, no_type());
-        assert!(id <= self.types.len());
+        assert!(id < self.types.len());
         &self.types[id]
     }
 
