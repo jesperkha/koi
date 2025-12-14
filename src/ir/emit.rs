@@ -10,7 +10,7 @@ use crate::{
         AssignIns, ExternFuncInst, FuncInst, IRType, IRUnit, Ins, LValue, StoreIns, StringDataIns,
         SymTracker, Value, ir,
     },
-    module::{Module, ModulePath, SymbolList},
+    module::{Module, ModulePath, Symbol, SymbolList},
     types::{
         self, Decl, Expr, LiteralKind, TypeContext, TypeId, TypeKind, TypedNode, Visitable, Visitor,
     },
@@ -40,7 +40,6 @@ struct Emitter<'a> {
 
 impl<'a> Emitter<'a> {
     fn new(m: &'a Module, config: &'a Config) -> Self {
-        info!("emitting module: {}", m.name());
         Self {
             modpath: &m.modpath,
             syms: &m.symbols,
@@ -56,6 +55,7 @@ impl<'a> Emitter<'a> {
     }
 
     fn emit(mut self) -> Res<Vec<Ins>> {
+        info!("emitting module: {}", self.modpath.path());
         let mut errs = ErrorSet::new();
 
         for decl in self.nodes {
@@ -114,14 +114,12 @@ impl<'a> Emitter<'a> {
         format!("S{}", self.curstr)
     }
 
-    fn mangle_function_name(&self, name: &str, modpath: &str) -> String {
+    fn mangle_symbol_name(&self, sym: &Symbol) -> String {
         if self.config.no_mangle_names {
-            return String::from(name);
+            sym.name.clone()
+        } else {
+            sym.link_name()
         }
-        if name == "main" {
-            return String::from("main");
-        }
-        format!("_{}_{}", modpath.replace(".", "_"), name)
     }
 }
 
@@ -161,8 +159,10 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
             ));
         }
 
+        let sym = self.syms.get(&node.name).expect("not a symbol");
+
         self.push(Ins::Func(FuncInst {
-            name: self.mangle_function_name(&node.name, self.modpath.path()),
+            name: self.mangle_symbol_name(sym),
             public: node.public,
             params,
             ret: *ret,
@@ -248,13 +248,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
                 LiteralKind::Ident(name) => {
                     // Get the function symbol and generate the correct link name
                     let sym = self.syms.get(name).expect("not a symbol");
-                    let linkname = if self.config.no_mangle_names {
-                        sym.name.clone()
-                    } else {
-                        // Already handles 'main', extern, and more
-                        sym.link_name()
-                    };
-                    Value::Function(linkname)
+                    Value::Function(self.mangle_symbol_name(sym))
                 }
                 _ => panic!("unchecked invalid function call"),
             },
@@ -292,7 +286,12 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         &mut self,
         node: &types::NamespaceMemberNode,
     ) -> Result<Value, Error> {
-        let name = self.mangle_function_name(&node.field, &node.modpath);
+        // TODO: replace with own mangle method when namespace contains Symbols
+        let name = if self.config.no_mangle_names {
+            node.field.clone()
+        } else {
+            format!("_{}_{}", &node.field, node.modpath.path().replace(".", "_"))
+        };
 
         // Declare as extern function
         let f = self.node_to_ir_type(node);

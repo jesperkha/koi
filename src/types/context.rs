@@ -1,7 +1,7 @@
 use std::{collections::HashMap, str};
 use strum::IntoEnumIterator;
 
-use crate::types::{Namespace, PrimitiveType, Type, TypeId, TypeKind, no_type};
+use crate::types::{PrimitiveType, Type, TypeId, TypeKind, no_type};
 
 /// Context for type lookups.
 pub struct TypeContext {
@@ -10,9 +10,6 @@ pub struct TypeContext {
     types: Vec<Type>,
     /// Map type kinds to their unique type id.
     cache: HashMap<TypeKind, TypeId>,
-    // TODO: (part of global typecontext) move to own type
-    /// Top level symbol mappings.
-    namespaces: HashMap<String, Namespace>,
 }
 
 impl TypeContext {
@@ -20,7 +17,6 @@ impl TypeContext {
         let mut s = Self {
             types: Vec::new(),
             cache: HashMap::new(),
-            namespaces: HashMap::new(),
         };
 
         for t in PrimitiveType::iter() {
@@ -116,18 +112,6 @@ impl TypeContext {
             kind: TypeKind::Primitive(PrimitiveType::Void),
             id: self.primitive(PrimitiveType::Void),
         }
-    }
-
-    pub fn set_namespace(&mut self, ns: Namespace) -> Result<(), String> {
-        self.namespaces
-            .insert(ns.name.clone(), ns)
-            .map_or(Ok(()), |_| Err(format!("already declared")))
-    }
-
-    pub fn get_namespace(&self, name: &str) -> Result<&Namespace, String> {
-        self.namespaces
-            .get(name)
-            .map_or(Err("not declared".to_string()), |s| Ok(s))
     }
 
     /// Get the string representation of a type for errors or logging.

@@ -1,5 +1,6 @@
 use crate::{
     ast::{Node, NodeId},
+    module::ModulePath,
     token::Pos,
     types::{Type, TypeContext, TypeId, TypeKind},
 };
@@ -97,7 +98,7 @@ pub struct MemberNode {
 pub struct NamespaceMemberNode {
     pub ty: Type,
     pub meta: NodeMeta,
-    pub modpath: String,
+    pub modpath: ModulePath,
     pub field: String,
 }
 

@@ -3,29 +3,31 @@ use crate::{
     config::Config,
     error::{Error, ErrorSet, Res},
     module::{
-        CreateModule, Exports, Module, ModuleGraph, ModuleKind, ModulePath, SymbolList,
-        invalid_mod_id,
+        CreateModule, Exports, Module, ModuleGraph, ModuleKind, ModulePath, Namespace,
+        NamespaceList, SymbolList, invalid_mod_id,
     },
-    types::{Checker, Namespace, TypeContext, TypedAst},
+    types::{Checker, TypeContext, TypedAst},
 };
 use tracing::info;
 
 pub fn type_check<'a>(fs: FileSet, mg: &'a mut ModuleGraph, config: &Config) -> Res<&'a Module> {
     let mut ctx = TypeContext::new();
     let mut syms = SymbolList::new();
+    let mut nsl = NamespaceList::new();
 
     // Passes
-    resolve_imports(&fs, &mut ctx, &mut syms, mg)?;
-    global_pass(&fs, &mut ctx, &mut syms, config)?;
+    resolve_imports(&fs, &mut ctx, &mut syms, &mut nsl, mg)?;
+    global_pass(&fs, &mut ctx, &mut syms, &mut nsl, config)?;
 
     let exports = Exports::extract(&ctx, &syms);
-    let tree = emit_typed_ast(&fs.modpath, fs.files, ctx, &mut syms, config)?;
+    let tree = emit_typed_ast(&fs.modpath, fs.files, ctx, &mut syms, &mut nsl, config)?;
 
     if config.dump_type_context {
         tree.ctx.dump_context_string();
     }
 
     let create_mod = CreateModule {
+        namespaces: nsl,
         symbols: syms,
         modpath: fs.modpath,
         filepath: fs.path,
@@ -43,11 +45,12 @@ fn global_pass(
     fs: &FileSet,
     ctx: &mut TypeContext,
     syms: &mut SymbolList,
+    nsl: &mut NamespaceList,
     config: &Config,
 ) -> Result<(), ErrorSet> {
     let mut errs = ErrorSet::new();
     for file in &fs.files {
-        Checker::new(&fs.modpath, &file.src, ctx, syms, config)
+        Checker::new(&fs.modpath, &file.src, ctx, syms, nsl, config)
             .global_pass(&file.ast.decls)
             .map_or_else(|e| errs.join(e), |_| {});
     }
@@ -60,6 +63,7 @@ fn resolve_imports(
     fs: &FileSet,
     ctx: &mut TypeContext,
     syms: &mut SymbolList,
+    nsl: &mut NamespaceList,
     mg: &ModuleGraph,
 ) -> Result<(), ErrorSet> {
     let mut errs = ErrorSet::new();
@@ -103,8 +107,8 @@ fn resolve_imports(
             };
 
             // Add module as namespace
-            let ns = Namespace::new(name, module.modpath.clone(), &module.exports, ctx);
-            let _ = ctx.set_namespace(ns).map_err(|err| {
+            let ns = Namespace::new(name, module.modpath.clone(), &module.exports);
+            let _ = nsl.add(ns).map_err(|err| {
                 errs.add(Error::range(&err, range.0, range.1, &file.src));
             });
 
@@ -141,6 +145,7 @@ fn emit_typed_ast(
     files: Vec<File>,
     mut ctx: TypeContext,
     syms: &mut SymbolList,
+    nsl: &mut NamespaceList,
     config: &Config,
 ) -> Result<TypedAst, ErrorSet> {
     info!("checking {} files", files.len());
@@ -150,7 +155,7 @@ fn emit_typed_ast(
     let mut decls = Vec::new();
 
     for file in files {
-        Checker::new(modpath, &file.src, &mut ctx, syms, config)
+        Checker::new(modpath, &file.src, &mut ctx, syms, nsl, config)
             .emit_ast(file.ast.decls)
             .map_or_else(|e| errs.join(e), |d| decls.extend(d));
     }
