@@ -24,6 +24,9 @@ pub fn type_check<'a>(fs: FileSet, mg: &'a mut ModuleGraph, config: &Config) -> 
     if config.dump_type_context {
         tree.ctx.dump_context_string();
     }
+    if config.print_symbols {
+        syms.print();
+    }
 
     let create_mod = CreateModule {
         symbols: syms,

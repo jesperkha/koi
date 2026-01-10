@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{module::ModulePath, types::TypeId};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Symbol {
     /// Symbol kind contains additional, more specific, symbol information.
     pub kind: SymbolKind,
@@ -45,18 +45,18 @@ impl Symbol {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum SymbolOrigin {
     Module(ModulePath),
     Extern,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum SymbolKind {
     Function(FuncSymbol),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FuncSymbol {
     /// If the function body should be inlined.
     pub is_inline: bool,
@@ -90,5 +90,11 @@ impl SymbolList {
 
     pub fn symbols(&self) -> &HashMap<String, Symbol> {
         &self.symbols
+    }
+
+    pub fn print(&self) {
+        for (name, sym) in &self.symbols {
+            println!("{}: {:?}", name, sym)
+        }
     }
 }
