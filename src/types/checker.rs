@@ -7,8 +7,8 @@ use crate::{
     module::{FuncSymbol, ModulePath, Symbol, SymbolKind, SymbolList, SymbolOrigin},
     token::{Pos, Source, Token, TokenKind},
     types::{
-        self, FunctionType, LiteralKind, NodeMeta, PrimitiveType, Type, TypeContext, TypeId,
-        TypeKind, TypedNode, ast_node_to_meta, no_type, symtable::VarTable,
+        self, FunctionType, LiteralKind, NamespaceList, NodeMeta, PrimitiveType, Type, TypeContext,
+        TypeId, TypeKind, TypedNode, ast_node_to_meta, no_type, symtable::VarTable,
     },
 };
 
@@ -21,6 +21,8 @@ pub struct Checker<'a> {
     // Dependencies
     ctx: &'a mut TypeContext,
     symbols: &'a mut SymbolList,
+    nsl: &'a NamespaceList,
+
     src: &'a Source,
     config: &'a Config,
     modpath: &'a ModulePath,
@@ -41,6 +43,7 @@ impl<'a> Checker<'a> {
         modpath: &'a ModulePath,
         src: &'a Source,
         ctx: &'a mut TypeContext,
+        nsl: &'a NamespaceList,
         symbols: &'a mut SymbolList,
         config: &'a Config,
     ) -> Self {
@@ -48,6 +51,7 @@ impl<'a> Checker<'a> {
             modpath,
             config,
             src,
+            nsl,
             ctx,
             symbols,
             vars: VarTable::new(),
@@ -429,7 +433,7 @@ impl<'a> Checker<'a> {
             return Err(self.error("cannot assign void type to variable", &typed_expr));
         }
 
-        if let Ok(_) = self.ctx.get_namespace(&node.name.to_string()) {
+        if let Ok(_) = self.nsl.get(&node.name.to_string()) {
             return Err(self.error_token("shadowing a namespace is not allowed", &node.name));
         }
 
@@ -492,7 +496,7 @@ impl<'a> Checker<'a> {
             TokenKind::IdentLit(name) => {
                 let ty_id = match self.get(&tok) {
                     Err(err) => {
-                        if let Ok(_) = self.ctx.get_namespace(name) {
+                        if let Ok(_) = self.nsl.get(name) {
                             return Err(
                                 self.error_token("namespace cannot be used as a value", &tok)
                             );
@@ -580,7 +584,7 @@ impl<'a> Checker<'a> {
 
         // First check if the left hand value is a namespace
         if let Some(name) = self.if_identifier_get_name(&*node.expr) {
-            if let Ok(ns) = self.ctx.get_namespace(name) {
+            if let Ok(ns) = self.nsl.get(name) {
                 // Get symbol from field
                 let Some(symbol) = ns.symbols.get(&field) else {
                     return Err(self.error_token(

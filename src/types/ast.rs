@@ -29,7 +29,6 @@ pub trait Visitor<T> {
 }
 
 pub struct TypedAst {
-    pub ctx: TypeContext,
     pub decls: Vec<Decl>,
 }
 
