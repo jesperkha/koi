@@ -26,8 +26,8 @@ pub fn type_check<'a>(
     let exports = Exports::extract(&ctx, &syms);
     let tree = emit_typed_ast(&fs.modpath, fs.files, ctx, &mut syms, &mut nsl, config)?;
 
-    if config.dump_type_context {
-        ctx.dump_context_string();
+    if config.print_symbol_tables {
+        syms.print(fs.modpath.name());
     }
 
     let create_mod = CreateModule {

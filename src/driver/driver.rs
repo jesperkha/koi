@@ -89,6 +89,10 @@ impl<'a> Driver<'a> {
             asm_files.push(outfile);
         }
 
+        if self.config.dump_type_context {
+            ctx.dump_context_string();
+        }
+
         // Assemble all source files
         for file in &asm_files {
             info!("assembling: {}", file.display());

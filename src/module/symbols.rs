@@ -1,8 +1,9 @@
+use core::fmt;
 use std::collections::HashMap;
 
 use crate::{module::ModulePath, types::TypeId};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Symbol {
     /// Symbol kind contains additional, more specific, symbol information.
     pub kind: SymbolKind,
@@ -45,18 +46,18 @@ impl Symbol {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum SymbolOrigin {
     Module(ModulePath),
     Extern,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum SymbolKind {
     Function(FuncSymbol),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FuncSymbol {
     /// If the function body should be inlined.
     pub is_inline: bool,
@@ -90,5 +91,56 @@ impl SymbolList {
 
     pub fn symbols(&self) -> &HashMap<String, Symbol> {
         &self.symbols
+    }
+
+    pub fn print(&self, module: &str) {
+        println!("Symbols in {}", module);
+        println!("----------------------");
+        for (name, sym) in &self.symbols {
+            println!("| {:<10} {}", name, sym)
+        }
+        println!();
+    }
+}
+
+impl fmt::Display for Symbol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Symbol(name={}, kind={}, origin={}, typeid={}, exported={}, mangled={}, extern={})",
+            self.name,
+            self.kind,
+            self.origin,
+            self.ty,
+            self.is_exported,
+            !self.no_mangle,
+            self.is_extern(),
+        )
+    }
+}
+
+impl fmt::Display for SymbolOrigin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                SymbolOrigin::Module(module_path) => format!("Module({})", module_path.path()),
+                SymbolOrigin::Extern => format!("extern"),
+            }
+        )
+    }
+}
+
+impl fmt::Display for SymbolKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                SymbolKind::Function(s) =>
+                    format!("Func(inline={}, naked={})", s.is_inline, s.is_naked),
+            }
+        )
     }
 }

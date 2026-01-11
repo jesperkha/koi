@@ -161,7 +161,7 @@ impl TypeContext {
     pub fn dump_context_string(&self) {
         let mut s = String::new();
 
-        s += "| TYPES\n";
+        s += "| Types\n";
         s += "|-------------------------------\n";
         for i in 0..self.types.len() {
             s += &format!("| {:<3} {}\n", i, self.to_string_debug(i));
