@@ -1,7 +1,7 @@
 use crate::{
     ast::{Node, NodeId},
     token::Pos,
-    types::{Type, TypeContext, TypeId, TypeKind},
+    types::{Type, TypeId, TypeKind},
 };
 
 pub trait TypedNode<'a> {
@@ -29,7 +29,6 @@ pub trait Visitor<T> {
 }
 
 pub struct TypedAst {
-    pub ctx: TypeContext,
     pub decls: Vec<Decl>,
 }
 
@@ -97,7 +96,7 @@ pub struct MemberNode {
 pub struct NamespaceMemberNode {
     pub ty: Type,
     pub meta: NodeMeta,
-    pub modpath: String,
+    pub name: String,
     pub field: String,
 }
 

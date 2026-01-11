@@ -7,7 +7,7 @@ use crate::{
     module::{Module, ModuleGraph, ModulePath},
     parser::parse,
     token::{Source, Token, scan},
-    types::type_check,
+    types::{TypeContext, type_check},
 };
 
 pub fn compare_string_lines_or_panic(ina: String, inb: String) {
@@ -42,16 +42,21 @@ pub fn parse_string(src: &str) -> Res<File> {
     scan(&src, &config).and_then(|toks| parse(src, toks, &config))
 }
 
-pub fn check_string<'a>(src: &str, mg: &'a mut ModuleGraph) -> Res<&'a Module> {
+pub fn check_string<'a>(
+    src: &str,
+    mg: &'a mut ModuleGraph,
+    ctx: &mut TypeContext,
+) -> Res<&'a Module> {
     let config = Config::test();
     let fs = FileSet::new(ModulePath::new_str("main"), vec![parse_string(src)?]);
-    type_check(fs, mg, &config)
+    type_check(fs, mg, ctx, &config)
 }
 
 pub fn emit_string(src: &str) -> Res<IRUnit> {
     let config = Config::test();
     let mut mg = ModuleGraph::new();
-    check_string(src, &mut mg).and_then(|pkg| emit_ir(&pkg, &config))
+    let mut ctx = TypeContext::new();
+    check_string(src, &mut mg, &mut ctx).and_then(|pkg| emit_ir(&pkg, &ctx, &config))
 }
 
 pub fn compile_string(src: &str) -> Result<String, String> {
@@ -66,6 +71,7 @@ pub fn debug_print_all_steps(src: &str) {
     let config = Config::debug();
     let source = Source::new_from_string(src);
     let mut mg = ModuleGraph::new();
+    let mut ctx = TypeContext::new();
 
     scan(&source, &config)
         .and_then(|toks| parse(source, toks, &config))
@@ -76,10 +82,11 @@ pub fn debug_print_all_steps(src: &str) {
             type_check(
                 FileSet::new(ModulePath::new_str("main"), vec![file]),
                 &mut mg,
+                &mut ctx,
                 &config,
             )
         })
-        .and_then(|pkg| emit_ir(&pkg, &config))
+        .and_then(|pkg| emit_ir(&pkg, &ctx, &config))
         .map_err(|err| err.to_string())
         .and_then(|unit| {
             println!("INTERMEDIATE REPRESENTATION");

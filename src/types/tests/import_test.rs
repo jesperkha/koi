@@ -4,7 +4,7 @@ use crate::{
     error::ErrorSet,
     module::{ModuleGraph, ModulePath},
     parser::sort_by_dependency_graph,
-    types::type_check,
+    types::{TypeContext, type_check},
     util::{must, parse_string},
 };
 
@@ -30,9 +30,11 @@ fn check_files(files: &[TestFile]) -> Result<(), ErrorSet> {
     let sorted = sort_by_dependency_graph(parsed).unwrap_or_else(|e| panic!("{}", e));
 
     let mut mg = ModuleGraph::new();
+    let mut ctx = TypeContext::new();
     let config = Config::test();
+
     for fs in sorted {
-        let _ = type_check(fs, &mut mg, &config)?;
+        let _ = type_check(fs, &mut mg, &mut ctx, &config)?;
     }
 
     Ok(())

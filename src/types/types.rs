@@ -1,10 +1,5 @@
-use std::{collections::HashMap, fmt, hash::Hash};
+use std::{fmt, hash::Hash};
 use strum_macros::EnumIter;
-
-use crate::{
-    module::{Exports, ModulePath},
-    types::TypeContext,
-};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeKind {
@@ -69,50 +64,6 @@ impl fmt::Display for FunctionOrigin {
 pub struct FunctionType {
     pub params: Vec<TypeId>,
     pub ret: TypeId,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Namespace {
-    /// Name of namespace in code (may be different from module name if aliased).
-    pub name: String,
-    pub modpath: ModulePath,
-    pub symbols: HashMap<String, TypeId>,
-}
-
-impl Namespace {
-    pub fn new(
-        name: String,
-        modpath: ModulePath,
-        exports: &Exports,
-        ctx: &mut TypeContext,
-    ) -> Self {
-        let mut ns = Namespace {
-            name,
-            modpath,
-            symbols: HashMap::new(),
-        };
-
-        for (name, sym) in exports.symbols() {
-            let id = ctx.get_or_intern(sym.kind.clone());
-            ns.symbols.insert(name.to_string(), id);
-        }
-
-        ns
-    }
-
-    pub fn module_name(&self) -> &str {
-        self.modpath.name()
-    }
-
-    pub fn module_path(&self) -> &str {
-        self.modpath.path()
-    }
-}
-
-impl Hash for Namespace {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.modpath.path().hash(state);
-    }
 }
 
 pub type TypeId = usize; // Unique identifier

@@ -4,7 +4,7 @@ use crate::{
     ast::{self, Field, Node, TypeNode},
     config::Config,
     error::{Error, ErrorSet},
-    module::{FuncSymbol, ModulePath, Symbol, SymbolKind, SymbolList, SymbolOrigin},
+    module::{FuncSymbol, ModulePath, NamespaceList, Symbol, SymbolKind, SymbolList, SymbolOrigin},
     token::{Pos, Source, Token, TokenKind},
     types::{
         self, FunctionType, LiteralKind, NodeMeta, PrimitiveType, Type, TypeContext, TypeId,
@@ -21,6 +21,7 @@ pub struct Checker<'a> {
     // Dependencies
     ctx: &'a mut TypeContext,
     symbols: &'a mut SymbolList,
+    nsl: &'a mut NamespaceList,
     src: &'a Source,
     config: &'a Config,
     modpath: &'a ModulePath,
@@ -42,12 +43,14 @@ impl<'a> Checker<'a> {
         src: &'a Source,
         ctx: &'a mut TypeContext,
         symbols: &'a mut SymbolList,
+        nsl: &'a mut NamespaceList,
         config: &'a Config,
     ) -> Self {
         Self {
             modpath,
             config,
             src,
+            nsl,
             ctx,
             symbols,
             vars: VarTable::new(),
@@ -429,7 +432,7 @@ impl<'a> Checker<'a> {
             return Err(self.error("cannot assign void type to variable", &typed_expr));
         }
 
-        if let Ok(_) = self.ctx.get_namespace(&node.name.to_string()) {
+        if let Ok(_) = self.nsl.get(&node.name.to_string()) {
             return Err(self.error_token("shadowing a namespace is not allowed", &node.name));
         }
 
@@ -492,7 +495,7 @@ impl<'a> Checker<'a> {
             TokenKind::IdentLit(name) => {
                 let ty_id = match self.get(&tok) {
                     Err(err) => {
-                        if let Ok(_) = self.ctx.get_namespace(name) {
+                        if let Ok(_) = self.nsl.get(name) {
                             return Err(
                                 self.error_token("namespace cannot be used as a value", &tok)
                             );
@@ -580,18 +583,18 @@ impl<'a> Checker<'a> {
 
         // First check if the left hand value is a namespace
         if let Some(name) = self.if_identifier_get_name(&*node.expr) {
-            if let Ok(ns) = self.ctx.get_namespace(name) {
+            if let Ok(ns) = self.nsl.get(name) {
                 // Get symbol from field
-                let Some(symbol) = ns.symbols.get(&field) else {
+                let Ok(symbol) = ns.get(&field) else {
                     return Err(self.error_token(
-                        &format!("namespace '{}' has no member '{}'", &ns.name, &field),
+                        &format!("namespace '{}' has no member '{}'", ns.name(), &field),
                         &node.field,
                     ));
                 };
 
                 return Ok(types::Expr::NamespaceMember(types::NamespaceMemberNode {
-                    ty: self.ctx.lookup(*symbol).clone(),
-                    modpath: ns.module_path().to_owned(),
+                    ty: self.ctx.lookup(symbol.ty).clone(),
+                    name: ns.modpath().name().to_owned(),
                     meta,
                     field,
                 }));

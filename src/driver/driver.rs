@@ -16,7 +16,7 @@ use crate::{
     module::{Module, ModuleGraph, ModulePath},
     parser::{parse, sort_by_dependency_graph},
     token::{Source, scan},
-    types::type_check,
+    types::{TypeContext, type_check},
 };
 
 type Res<T> = Result<T, String>;
@@ -45,10 +45,10 @@ impl<'a> Driver<'a> {
         Self { config }
     }
 
+    /// Compile the project at given source directory according to
+    /// the build configuration.
     pub fn compile(&mut self, config: BuildConfig) -> Res<()> {
         create_dir_if_not_exist(&config.bindir)?;
-
-        let mut mg = ModuleGraph::new();
 
         // Parse all files and store as Filesets
         let mut filesets = Vec::new();
@@ -63,10 +63,13 @@ impl<'a> Driver<'a> {
                 module_path = String::from("main");
             }
 
-            // TODO: if all files are empty, continue
-
             info!("parsing module: {}", module_path);
             let files = self.parse_files(sources)?;
+
+            if files.len() == 0 {
+                info!("no files to parse");
+                continue;
+            }
 
             filesets.push(FileSet::new(ModulePath::new(module_path), files));
         }
@@ -75,16 +78,24 @@ impl<'a> Driver<'a> {
         // filesets in correct type checking order.
         let sorted_filesets = sort_by_dependency_graph(filesets)?;
 
+        // Global state
+        let mut mg = ModuleGraph::new();
+        let mut ctx = TypeContext::new();
+
         // Type check, convert to IR, and emit assembly
         let mut asm_files = Vec::new();
         for fs in sorted_filesets {
-            let module = self.type_check_and_create_module(fs, &mut mg)?;
-            let ir_unit = self.emit_module_ir(module)?;
+            let module = self.type_check_and_create_module(fs, &mut mg, &mut ctx)?;
+            let ir_unit = self.emit_module_ir(module, &ctx)?;
             let asm = self.assemble_ir_unit(ir_unit, &config.target)?;
 
             let outfile = write_output_file(&config.bindir, module.name(), &asm.source)?;
             info!("output assembly file: {}", outfile.display());
             asm_files.push(outfile);
+        }
+
+        if self.config.dump_type_context {
+            ctx.dump_context_string();
         }
 
         // Assemble all source files
@@ -123,6 +134,10 @@ impl<'a> Driver<'a> {
         let mut files = Vec::new();
 
         for src in sources {
+            if src.size == 0 {
+                continue;
+            }
+
             scan(&src, self.config)
                 .and_then(|toks| parse(src, toks, self.config))
                 .map_or_else(|err| errs.join(err), |file| files.push(file));
@@ -139,12 +154,13 @@ impl<'a> Driver<'a> {
         &self,
         fs: FileSet,
         mg: &'m mut ModuleGraph,
+        ctx: &mut TypeContext,
     ) -> Res<&'m Module> {
-        type_check(fs, mg, self.config).map_err(|errs| errs.to_string())
+        type_check(fs, mg, ctx, self.config).map_err(|errs| errs.to_string())
     }
 
-    fn emit_module_ir(&self, m: &Module) -> Res<IRUnit> {
-        emit_ir(m, self.config).map_err(|errs| errs.to_string())
+    fn emit_module_ir(&self, m: &Module, ctx: &TypeContext) -> Res<IRUnit> {
+        emit_ir(m, ctx, self.config).map_err(|errs| errs.to_string())
     }
 
     fn assemble_ir_unit(&self, unit: IRUnit, target: &Target) -> Res<TransUnit> {
