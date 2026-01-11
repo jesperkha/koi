@@ -280,7 +280,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         Ok(Value::Const(result))
     }
 
-    fn visit_member(&mut self, node: &types::MemberNode) -> Result<Value, Error> {
+    fn visit_member(&mut self, _node: &types::MemberNode) -> Result<Value, Error> {
         todo!()
     }
 

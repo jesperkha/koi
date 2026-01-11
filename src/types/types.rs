@@ -1,10 +1,5 @@
-use std::{collections::HashMap, fmt, hash::Hash};
+use std::{fmt, hash::Hash};
 use strum_macros::EnumIter;
-
-use crate::{
-    module::{Exports, ModulePath},
-    types::TypeContext,
-};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeKind {

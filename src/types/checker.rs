@@ -4,10 +4,7 @@ use crate::{
     ast::{self, Field, Node, TypeNode},
     config::Config,
     error::{Error, ErrorSet},
-    module::{
-        FuncSymbol, ModulePath, Namespace, NamespaceList, Symbol, SymbolKind, SymbolList,
-        SymbolOrigin,
-    },
+    module::{FuncSymbol, ModulePath, NamespaceList, Symbol, SymbolKind, SymbolList, SymbolOrigin},
     token::{Pos, Source, Token, TokenKind},
     types::{
         self, FunctionType, LiteralKind, NodeMeta, PrimitiveType, Type, TypeContext, TypeId,

@@ -1,8 +1,7 @@
 use crate::{
     ast::{Node, NodeId},
-    module::ModulePath,
     token::Pos,
-    types::{Type, TypeContext, TypeId, TypeKind},
+    types::{Type, TypeId, TypeKind},
 };
 
 pub trait TypedNode<'a> {

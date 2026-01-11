@@ -1,7 +1,7 @@
 use std::{collections::HashMap, hash::Hash};
 
 use crate::{
-    module::{Exports, Namespace, NamespaceList, SymbolList},
+    module::{Exports, NamespaceList, SymbolList},
     types::TypedAst,
 };
 

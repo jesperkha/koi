@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str};
+use std::collections::HashMap;
 use strum::IntoEnumIterator;
 
 use crate::types::{PrimitiveType, Type, TypeId, TypeKind, no_type};
