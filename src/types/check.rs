@@ -21,11 +21,11 @@ pub fn type_check<'a>(
     let mut nsl = NamespaceList::new();
 
     // Perform import resolution and global declaration pass
-    resolve_imports(&fs, ctx, &mut syms, &mut nsl, mg)?;
+    resolve_imports(&fs, &mut syms, &mut nsl, mg)?;
     global_pass(&fs, ctx, &mut syms, &mut nsl, config)?;
 
     // Extract exported symbols from global declarations
-    let exports = Exports::extract(ctx, &syms);
+    let exports = Exports::extract(&syms);
 
     // Emit typed AST
     let tree = emit_typed_ast(&fs.modpath, fs.files, ctx, &mut syms, &mut nsl, config)?;
@@ -70,7 +70,6 @@ fn global_pass(
 /// to the provided lists.
 fn resolve_imports(
     fs: &FileSet,
-    ctx: &mut TypeContext,
     syms: &mut SymbolList,
     nsl: &mut NamespaceList,
     mg: &ModuleGraph,
@@ -127,10 +126,9 @@ fn resolve_imports(
 
                 // TODO: use type id everywhere instead of TypeKind clone since we have a global context
 
-                // If the symbol exists we add it to the modules symbol list and register the type kind.
-                if let Some(export) = module.exports.get(&symbol_name) {
-                    let _ = ctx.get_or_intern(export.kind.clone());
-                    let _ = syms.add(export.symbol.clone()).map_err(|err| {
+                // If the symbol exists we add it to the modules symbol list
+                if let Some(export_sym) = module.exports.get(&symbol_name) {
+                    let _ = syms.add(export_sym.clone()).map_err(|err| {
                         errs.add(Error::new(&err, tok, tok, &file.src));
                     });
                 } else {

@@ -17,8 +17,8 @@ impl Namespace {
             symbols: SymbolList::new(),
         };
 
-        for (_, export) in exports.symbols() {
-            let _ = ns.symbols.add(export.symbol.clone());
+        for (_, sym) in exports.symbols() {
+            let _ = ns.symbols.add(sym.clone());
         }
 
         ns
