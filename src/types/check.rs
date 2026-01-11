@@ -10,20 +10,24 @@ use crate::{
 };
 use tracing::info;
 
-pub fn type_check<'a>(fs: FileSet, mg: &'a mut ModuleGraph, config: &Config) -> Res<&'a Module> {
-    let mut ctx = TypeContext::new();
+pub fn type_check<'a>(
+    fs: FileSet,
+    mg: &'a mut ModuleGraph,
+    ctx: &mut TypeContext,
+    config: &Config,
+) -> Res<&'a Module> {
     let mut syms = SymbolList::new();
     let mut nsl = NamespaceList::new();
 
     // Passes
-    resolve_imports(&fs, &mut ctx, &mut syms, &mut nsl, mg)?;
-    global_pass(&fs, &mut ctx, &mut syms, &mut nsl, config)?;
+    resolve_imports(&fs, ctx, &mut syms, &mut nsl, mg)?;
+    global_pass(&fs, ctx, &mut syms, &mut nsl, config)?;
 
     let exports = Exports::extract(&ctx, &syms);
     let tree = emit_typed_ast(&fs.modpath, fs.files, ctx, &mut syms, &mut nsl, config)?;
 
     if config.dump_type_context {
-        tree.ctx.dump_context_string();
+        ctx.dump_context_string();
     }
 
     let create_mod = CreateModule {
@@ -143,7 +147,7 @@ fn resolve_imports(
 fn emit_typed_ast(
     modpath: &ModulePath,
     files: Vec<File>,
-    mut ctx: TypeContext,
+    ctx: &mut TypeContext,
     syms: &mut SymbolList,
     nsl: &mut NamespaceList,
     config: &Config,
@@ -155,10 +159,10 @@ fn emit_typed_ast(
     let mut decls = Vec::new();
 
     for file in files {
-        Checker::new(modpath, &file.src, &mut ctx, syms, nsl, config)
+        Checker::new(modpath, &file.src, ctx, syms, nsl, config)
             .emit_ast(file.ast.decls)
             .map_or_else(|e| errs.join(e), |d| decls.extend(d));
     }
 
-    errs.err_or(TypedAst { ctx, decls })
+    errs.err_or(TypedAst { decls })
 }

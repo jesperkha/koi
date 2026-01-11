@@ -16,8 +16,8 @@ use crate::{
     },
 };
 
-pub fn emit_ir(m: &Module, config: &Config) -> Res<IRUnit> {
-    let emitter = Emitter::new(m, config);
+pub fn emit_ir(m: &Module, ctx: &TypeContext, config: &Config) -> Res<IRUnit> {
+    let emitter = Emitter::new(m, ctx, config);
     emitter.emit().map(|ins| IRUnit::new(ins))
 }
 
@@ -40,13 +40,13 @@ struct Emitter<'a> {
 }
 
 impl<'a> Emitter<'a> {
-    fn new(m: &'a Module, config: &'a Config) -> Self {
+    fn new(m: &'a Module, ctx: &'a TypeContext, config: &'a Config) -> Self {
         Self {
             modpath: &m.modpath,
             nsl: &m.namespaces,
             syms: &m.symbols,
             config,
-            ctx: &m.ast.ctx,
+            ctx,
             nodes: &m.ast.decls,
             sym: SymTracker::new(),
             has_returned: false,

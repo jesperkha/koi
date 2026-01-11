@@ -16,7 +16,7 @@ use crate::{
     module::{Module, ModuleGraph, ModulePath},
     parser::{parse, sort_by_dependency_graph},
     token::{Source, scan},
-    types::type_check,
+    types::{TypeContext, type_check},
 };
 
 type Res<T> = Result<T, String>;
@@ -48,7 +48,9 @@ impl<'a> Driver<'a> {
     pub fn compile(&mut self, config: BuildConfig) -> Res<()> {
         create_dir_if_not_exist(&config.bindir)?;
 
+        // Global state
         let mut mg = ModuleGraph::new();
+        let mut ctx = TypeContext::new();
 
         // Parse all files and store as Filesets
         let mut filesets = Vec::new();
@@ -78,8 +80,8 @@ impl<'a> Driver<'a> {
         // Type check, convert to IR, and emit assembly
         let mut asm_files = Vec::new();
         for fs in sorted_filesets {
-            let module = self.type_check_and_create_module(fs, &mut mg)?;
-            let ir_unit = self.emit_module_ir(module)?;
+            let module = self.type_check_and_create_module(fs, &mut mg, &mut ctx)?;
+            let ir_unit = self.emit_module_ir(module, &ctx)?;
             let asm = self.assemble_ir_unit(ir_unit, &config.target)?;
 
             let outfile = write_output_file(&config.bindir, module.name(), &asm.source)?;
@@ -139,12 +141,13 @@ impl<'a> Driver<'a> {
         &self,
         fs: FileSet,
         mg: &'m mut ModuleGraph,
+        ctx: &mut TypeContext,
     ) -> Res<&'m Module> {
-        type_check(fs, mg, self.config).map_err(|errs| errs.to_string())
+        type_check(fs, mg, ctx, self.config).map_err(|errs| errs.to_string())
     }
 
-    fn emit_module_ir(&self, m: &Module) -> Res<IRUnit> {
-        emit_ir(m, self.config).map_err(|errs| errs.to_string())
+    fn emit_module_ir(&self, m: &Module, ctx: &TypeContext) -> Res<IRUnit> {
+        emit_ir(m, ctx, self.config).map_err(|errs| errs.to_string())
     }
 
     fn assemble_ir_unit(&self, unit: IRUnit, target: &Target) -> Res<TransUnit> {
