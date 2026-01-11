@@ -10,6 +10,7 @@ use crate::{
 };
 use tracing::info;
 
+/// Type check a fileset and produce a typed module.
 pub fn type_check<'a>(
     fs: FileSet,
     mg: &'a mut ModuleGraph,
@@ -19,11 +20,14 @@ pub fn type_check<'a>(
     let mut syms = SymbolList::new();
     let mut nsl = NamespaceList::new();
 
-    // Passes
+    // Perform import resolution and global declaration pass
     resolve_imports(&fs, ctx, &mut syms, &mut nsl, mg)?;
     global_pass(&fs, ctx, &mut syms, &mut nsl, config)?;
 
-    let exports = Exports::extract(&ctx, &syms);
+    // Extract exported symbols from global declarations
+    let exports = Exports::extract(ctx, &syms);
+
+    // Emit typed AST
     let tree = emit_typed_ast(&fs.modpath, fs.files, ctx, &mut syms, &mut nsl, config)?;
 
     if config.print_symbol_tables {
@@ -40,11 +44,11 @@ pub fn type_check<'a>(
         kind: ModuleKind::User,
     };
 
-    let module = mg.add(create_mod, invalid_mod_id());
-    Ok(module)
+    Ok(mg.add(create_mod, invalid_mod_id()))
 }
 
-/// Add all global declarations to context.
+/// The global pass collects all global declarations and registers them
+/// in the type context and symbol table.
 fn global_pass(
     fs: &FileSet,
     ctx: &mut TypeContext,
@@ -62,7 +66,8 @@ fn global_pass(
     errs.err_or(())
 }
 
-/// Resolve all imported types and symbols.
+/// Resolve imports for all files in set, adding namespaces and symbols
+/// to the provided lists.
 fn resolve_imports(
     fs: &FileSet,
     ctx: &mut TypeContext,
@@ -120,7 +125,7 @@ fn resolve_imports(
             for tok in &import.imports {
                 let symbol_name = tok.to_string();
 
-                // TODO: look into global type context to use global type ids and avoid shit ton of cloning of TypeKind
+                // TODO: use type id everywhere instead of TypeKind clone since we have a global context
 
                 // If the symbol exists we add it to the modules symbol list and register the type kind.
                 if let Some(export) = module.exports.get(&symbol_name) {
