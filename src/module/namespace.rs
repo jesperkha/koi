@@ -1,41 +1,45 @@
 use std::collections::HashMap;
 
-use crate::module::{Exports, ModulePath, Symbol, SymbolList};
+use crate::module::{Module, ModulePath, Symbol, SymbolList};
 
 pub struct Namespace {
-    /// Name of namespace in code (may be different from module name if aliased).
     name: String,
     modpath: ModulePath,
     symbols: SymbolList,
 }
 
 impl Namespace {
-    pub fn new(name: String, modpath: ModulePath, exports: &Exports) -> Self {
+    /// Create a new namespace from a module's exports.
+    pub fn new(name: String, module: &Module) -> Self {
         let mut ns = Namespace {
             name,
-            modpath,
+            modpath: module.modpath.clone(),
             symbols: SymbolList::new(),
         };
 
-        for (_, sym) in exports.symbols() {
+        for (_, sym) in module.exports() {
             let _ = ns.symbols.add(sym.clone());
         }
 
         ns
     }
 
+    /// Name of namespace in code (may be different from module name if aliased).
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// The module path this namespace refers to.
     pub fn modpath(&self) -> &ModulePath {
         &self.modpath
     }
 
+    /// Add a symbol to this namespace.
     pub fn add(&mut self, sym: Symbol) -> Result<(), String> {
         self.symbols.add(sym)
     }
 
+    /// Get a symbol from this namespace.
     pub fn get(&self, name: &str) -> Result<&Symbol, String> {
         self.symbols.get(name)
     }
@@ -50,12 +54,14 @@ impl NamespaceList {
         Self { ns: HashMap::new() }
     }
 
+    /// Add a namespace to the list.
     pub fn add(&mut self, ns: Namespace) -> Result<(), String> {
         self.ns
             .insert(ns.name.clone(), ns)
             .map_or(Ok(()), |_| Err(format!("already declared")))
     }
 
+    /// Get a namespace by name.
     pub fn get(&self, name: &str) -> Result<&Namespace, String> {
         self.ns
             .get(name)

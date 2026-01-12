@@ -1,7 +1,7 @@
 use std::{collections::HashMap, hash::Hash};
 
 use crate::{
-    module::{Exports, NamespaceList, SymbolList},
+    module::{NamespaceList, Symbol, SymbolList},
     types::TypedAst,
 };
 
@@ -48,7 +48,6 @@ pub struct CreateModule {
     pub modpath: ModulePath,
     pub filepath: String,
     pub ast: TypedAst,
-    pub exports: Exports,
     pub kind: ModuleKind,
     pub symbols: SymbolList,
     pub namespaces: NamespaceList,
@@ -67,8 +66,6 @@ pub struct Module {
     pub path: String,
     /// The fully typed AST generated from files in this module.
     pub ast: TypedAst,
-    /// All symbols exported by this module.
-    pub exports: Exports,
     /// What type of module this is.
     pub kind: ModuleKind,
     /// List of symbols declared and used within this module.
@@ -80,6 +77,15 @@ pub struct Module {
 impl Module {
     pub fn name(&self) -> &str {
         self.modpath.name()
+    }
+
+    /// Collect all exported symbols from this module.
+    pub fn exports(&self) -> HashMap<&String, &Symbol> {
+        self.symbols
+            .symbols()
+            .iter()
+            .filter(|s| s.1.is_exported)
+            .collect::<_>()
     }
 }
 
@@ -106,7 +112,6 @@ impl ModuleGraph {
             modpath: m.modpath,
             path: m.filepath,
             ast: m.ast,
-            exports: m.exports,
             kind: m.kind,
             symbols: m.symbols,
             namespaces: m.namespaces,
