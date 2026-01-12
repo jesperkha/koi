@@ -25,7 +25,7 @@ pub fn type_check<'a>(
     global_pass(&fs, ctx, &mut syms, &mut nsl, config)?;
 
     // Emit typed AST
-    let tree = emit_typed_ast(&fs.modpath, fs.files, ctx, &mut syms, &mut nsl, config)?;
+    let typed_ast = emit_typed_ast(&fs.modpath, fs.files, ctx, &mut syms, &mut nsl, config)?;
 
     if config.print_symbol_tables {
         syms.print(fs.modpath.name());
@@ -36,7 +36,7 @@ pub fn type_check<'a>(
         symbols: syms,
         modpath: fs.modpath,
         filepath: fs.path,
-        ast: tree,
+        ast: typed_ast,
         kind: ModuleKind::User,
     };
 
