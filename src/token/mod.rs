@@ -7,7 +7,7 @@ pub use source::*;
 pub use token::*;
 
 #[cfg(test)]
-mod token_test;
+mod source_test;
 
 #[cfg(test)]
 mod scanner_test;
