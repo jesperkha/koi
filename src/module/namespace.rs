@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::module::{Exports, ModulePath, Symbol, SymbolList};
+use crate::module::{Module, ModulePath, Symbol, SymbolList};
 
 pub struct Namespace {
     /// Name of namespace in code (may be different from module name if aliased).
@@ -10,14 +10,14 @@ pub struct Namespace {
 }
 
 impl Namespace {
-    pub fn new(name: String, modpath: ModulePath, exports: &Exports) -> Self {
+    pub fn new(name: String, module: &Module) -> Self {
         let mut ns = Namespace {
             name,
-            modpath,
+            modpath: module.modpath.clone(),
             symbols: SymbolList::new(),
         };
 
-        for (_, sym) in exports.symbols() {
+        for (_, sym) in module.exports() {
             let _ = ns.symbols.add(sym.clone());
         }
 

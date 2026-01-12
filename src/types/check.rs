@@ -3,8 +3,8 @@ use crate::{
     config::Config,
     error::{Error, ErrorSet, Res},
     module::{
-        CreateModule, Exports, Module, ModuleGraph, ModuleKind, ModulePath, Namespace,
-        NamespaceList, SymbolList, invalid_mod_id,
+        CreateModule, Module, ModuleGraph, ModuleKind, ModulePath, Namespace, NamespaceList,
+        SymbolList, invalid_mod_id,
     },
     types::{Checker, TypeContext, TypedAst},
 };
@@ -24,9 +24,6 @@ pub fn type_check<'a>(
     resolve_imports(&fs, &mut syms, &mut nsl, mg)?;
     global_pass(&fs, ctx, &mut syms, &mut nsl, config)?;
 
-    // Extract exported symbols from global declarations
-    let exports = Exports::extract(&syms);
-
     // Emit typed AST
     let tree = emit_typed_ast(&fs.modpath, fs.files, ctx, &mut syms, &mut nsl, config)?;
 
@@ -40,7 +37,6 @@ pub fn type_check<'a>(
         modpath: fs.modpath,
         filepath: fs.path,
         ast: tree,
-        exports,
         kind: ModuleKind::User,
     };
 
@@ -115,20 +111,18 @@ fn resolve_imports(
             };
 
             // Add module as namespace
-            let ns = Namespace::new(name, module.modpath.clone(), &module.exports);
+            let ns = Namespace::new(name, module);
             let _ = nsl.add(ns).map_err(|err| {
                 errs.add(Error::range(&err, range.0, range.1, &file.src));
             });
 
-            // Put symbols imported by name directly into context
+            // Put symbols imported by name directly into symbol list
             for tok in &import.imports {
                 let symbol_name = tok.to_string();
 
-                // TODO: use type id everywhere instead of TypeKind clone since we have a global context
-
                 // If the symbol exists we add it to the modules symbol list
-                if let Some(export_sym) = module.exports.get(&symbol_name) {
-                    let _ = syms.add(export_sym.clone()).map_err(|err| {
+                if let Some(export_sym) = module.exports().get(&symbol_name) {
+                    let _ = syms.add((*export_sym).clone()).map_err(|err| {
                         errs.add(Error::new(&err, tok, tok, &file.src));
                     });
                 } else {
