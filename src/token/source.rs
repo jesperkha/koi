@@ -45,11 +45,14 @@ impl Source {
             // Find the end of the current line
             let end = Self::find_end_of_line(src, i);
 
+            if end == i {
+                // Empty line, move to next character
+                i += 1;
+                continue;
+            }
+
             // Move to the start of the next line
             i = end + 1;
-            if i < src.len() && src[i] == b'\n' {
-                i += 1;
-            }
         }
 
         // Guarantee at least one index
@@ -83,22 +86,13 @@ impl Source {
         str::from_utf8(&self.src[from..to]).expect("invalid utf-8")
     }
 
-    /// Returns the position of the character before the next newline,
+    /// Returns the position of the next newline character
     /// or the last character in `src` if none is found.
     fn find_end_of_line(src: &[u8], offset: usize) -> usize {
-        if offset >= src.len() {
-            return src.len().saturating_sub(1);
-        }
-
-        // If the current character is a newline, return previous character
-        if src[offset] == b'\n' {
-            return offset.saturating_sub(1);
-        }
-
         // Search for the next newline after `offset`
         match src[offset..].iter().position(|&c| c == b'\n') {
-            Some(pos) => offset + pos - 1,       // character before newline
-            None => src.len().saturating_sub(1), // no newline found
+            Some(pos) => offset + pos, // character before newline
+            None => src.len() - 1,     // no newline found
         }
     }
 }
