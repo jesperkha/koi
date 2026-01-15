@@ -11,7 +11,7 @@ use crate::{
     ast::{File, FileSet},
     build::{TransUnit, X86Builder, assemble},
     config::Config,
-    error::ErrorSet,
+    error::{ErrorSet, compile_error},
     ir::{IRUnit, emit_ir},
     module::{Module, ModuleGraph, ModulePath},
     parser::{parse, sort_by_dependency_graph},
@@ -72,6 +72,14 @@ impl<'a> Driver<'a> {
             }
 
             filesets.push(FileSet::new(ModulePath::new(module_path), files));
+        }
+
+        // Return early if no files were found
+        if filesets.len() == 0 {
+            return Err(compile_error(&format!(
+                "no source files in directory '{}'",
+                config.srcdir
+            )));
         }
 
         // Create and sort dependency graph, returning a list of

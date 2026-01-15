@@ -34,4 +34,4 @@ main
 # Added by cargo
 
 /target
-/_test
+test
