@@ -1,9 +1,9 @@
+use chrono::Local;
 use std::{
     fs::{self},
     path::{Path, PathBuf},
     process::Command,
 };
-
 use tracing::info;
 use walkdir::WalkDir;
 
@@ -34,6 +34,10 @@ pub struct BuildConfig {
     pub srcdir: String,
     /// Target architecture
     pub target: Target,
+    /// Output IR to file
+    pub output_ir: bool,
+    /// Output TypeContext to file after build
+    pub output_type_context: bool,
 }
 
 pub struct Driver<'a> {
@@ -49,6 +53,9 @@ impl<'a> Driver<'a> {
     /// the build configuration.
     pub fn compile(&mut self, config: BuildConfig) -> Res<()> {
         create_dir_if_not_exist(&config.bindir)?;
+
+        let tmpdir = new_temp_dir_name(&config.bindir);
+        create_dir_if_not_exist(&tmpdir)?;
 
         // Parse all files and store as Filesets
         let mut filesets = Vec::new();
@@ -95,15 +102,33 @@ impl<'a> Driver<'a> {
         for fs in sorted_filesets {
             let module = self.type_check_and_create_module(fs, &mut mg, &mut ctx)?;
             let ir_unit = self.emit_module_ir(module, &ctx)?;
+
+            // Output IR if configured
+            if config.output_ir {
+                write_file(
+                    &tmpdir,
+                    &format!("{}_ir.txt", module.modpath.path()),
+                    &ir_unit.to_string(),
+                )?;
+            }
+
             let asm = self.assemble_ir_unit(ir_unit, &config.target)?;
 
-            let outfile = write_output_file(&config.bindir, module.name(), &asm.source)?;
+            let outfile = write_output_file(&tmpdir, module.name(), &asm.source)?;
             info!("output assembly file: {}", outfile.display());
             asm_files.push(outfile);
         }
 
+        let ctx_string = ctx.dump_context_string();
+
+        // Print type context in debug mode
         if self.config.dump_type_context {
-            ctx.dump_context_string();
+            println!("{}", ctx_string);
+        }
+
+        // Write type context if specified
+        if config.output_type_context {
+            write_file(&tmpdir, "types.txt", &ctx_string)?;
         }
 
         // Assemble all source files
@@ -257,6 +282,17 @@ fn collect_files_in_directory(dir: &PathBuf) -> Res<Vec<Source>> {
     Ok(set)
 }
 
+/// Write file to directory with content.
+fn write_file(dir: &str, filename: &str, content: &str) -> Res<()> {
+    let fmtpath = &format!("{}/{}", dir, filename);
+    let path = Path::new(fmtpath);
+    if let Err(_) = fs::write(&path, content) {
+        return Err(format!("failed to write file: {}", fmtpath));
+    };
+
+    Ok(())
+}
+
 /// Writes output assembly file to given directory with given module name.
 /// Returns path to written file.
 fn write_output_file(dir: &str, pkgname: &str, content: &str) -> Res<PathBuf> {
@@ -303,4 +339,13 @@ fn pathbuf_to_module_path(path: &PathBuf, source_dir: &str) -> String {
         .trim_start_matches("/")
         .trim_end_matches("/")
         .replace("/", ".")
+}
+
+/// Get new unique temp directory name based on current time.
+fn new_temp_dir_name(bindir: &str) -> String {
+    format!(
+        "{}/{}",
+        bindir,
+        Local::now().format("%y%m%d%H%M%S%3f").to_string()
+    )
 }

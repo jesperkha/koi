@@ -21,7 +21,7 @@ enum Commands {
         outfile: String,
 
         /// Name of directory to output intermediate files
-        #[arg(short, long, default_value_t = String::from("bin"))]
+        #[arg(short, long, default_value_t = String::from(".koi"))]
         bindir: String,
 
         /// Source directory for files
@@ -61,6 +61,8 @@ fn main() {
                 outfile,
                 srcdir: source,
                 target: Target::X86_64,
+                output_ir: true,
+                output_type_context: true,
             };
 
             let mut driver = Driver::new(&config);
