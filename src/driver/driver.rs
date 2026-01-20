@@ -58,6 +58,8 @@ pub struct BuildConfig {
     pub srcdir: String,
     /// Target architecture
     pub target: Target,
+
+    pub mode: CompilationMode,
 }
 
 /// Compile the project using the given global config and build configuration.
@@ -73,57 +75,62 @@ pub fn compile(config: &Config, build_cfg: &BuildConfig) -> Res<()> {
     // based on their imports.
     let sorted_filesets = sort_by_dependency_graph(filesets)?;
 
-    // Global state
-    let mut mg = ModuleGraph::new();
+    // Create global type context. This stores all types created and
+    // used in all modules and lets us reference them by numeric IDs.
     let mut ctx = TypeContext::new();
 
-    // Type check, convert to IR, and emit assembly
-    let mut asm_files = Vec::new();
-    for fs in sorted_filesets {
-        let module = type_check_and_create_module(fs, &mut mg, &mut ctx, config)?;
+    // Type check all file sets, turning them into Modules, and put
+    // them in a ModuleGraph.
+    let module_graph = type_check_and_create_modules(sorted_filesets, &mut ctx, config)?;
 
-        // Write header file
-        // create_header_file_for_module(&build_cfg.bindir, module, &ctx)?;
+    match build_cfg.mode {
+        CompilationMode::Normal => {
+            // Type check, convert to IR, and emit assembly
+            let mut asm_files = Vec::new();
+            for module in module_graph.modules() {
+                let ir_unit = emit_module_ir(module, &ctx, config)?;
+                let asm = assemble_ir_unit(ir_unit, &build_cfg.target, config)?;
 
-        let ir_unit = emit_module_ir(module, &ctx, config)?;
-        let asm = assemble_ir_unit(ir_unit, &build_cfg.target, config)?;
+                let outfile = write_output_file(&build_cfg.bindir, module.name(), &asm.source)?;
+                info!("output assembly file: {}", outfile.display());
+                asm_files.push(outfile);
+            }
 
-        let outfile = write_output_file(&build_cfg.bindir, module.name(), &asm.source)?;
-        info!("output assembly file: {}", outfile.display());
-        asm_files.push(outfile);
+            if config.dump_type_context {
+                ctx.dump_context_string();
+            }
+
+            // Assemble all source files
+            for file in &asm_files {
+                info!("assembling: {}", file.display());
+                let src = file.to_string_lossy();
+                let out = file.with_extension("o");
+                cmd("as", &["-o", &out.to_string_lossy(), &src])?;
+            }
+
+            let mut objectfiles = vec![];
+            for file in asm_files {
+                objectfiles.push(file.with_extension("o").to_string_lossy().to_string());
+            }
+
+            // TODO: rewrite this mess
+
+            // let entry_o = format!("{}/entry.o", build_cfg.bindir);
+            // cmd("as", &["-o", &entry_o, "lib/compile/entry.s"])?;
+
+            let mut args = vec!["-o", &build_cfg.outfile];
+            args.extend_from_slice(
+                &objectfiles
+                    .iter()
+                    .map(|f| f.as_str())
+                    .collect::<Vec<&str>>(),
+            );
+
+            cmd("gcc", &args)?;
+        }
+        CompilationMode::Module => todo!(),
+        CompilationMode::CompileOnly => todo!(),
     }
-
-    if config.dump_type_context {
-        ctx.dump_context_string();
-    }
-
-    // Assemble all source files
-    for file in &asm_files {
-        info!("assembling: {}", file.display());
-        let src = file.to_string_lossy();
-        let out = file.with_extension("o");
-        cmd("as", &["-o", &out.to_string_lossy(), &src])?;
-    }
-
-    let mut objectfiles = vec![];
-    for file in asm_files {
-        objectfiles.push(file.with_extension("o").to_string_lossy().to_string());
-    }
-
-    // TODO: rewrite this mess
-
-    // let entry_o = format!("{}/entry.o", build_cfg.bindir);
-    // cmd("as", &["-o", &entry_o, "lib/compile/entry.s"])?;
-
-    let mut args = vec!["-o", &build_cfg.outfile];
-    args.extend_from_slice(
-        &objectfiles
-            .iter()
-            .map(|f| f.as_str())
-            .collect::<Vec<&str>>(),
-    );
-
-    cmd("gcc", &args)?;
 
     Ok(())
 }
@@ -145,7 +152,7 @@ fn find_and_parse_all_source_files(source_dir: &str, config: &Config) -> Res<Vec
         }
 
         info!("parsing module: {}", module_path);
-        let files = parse_files(sources, config)?;
+        let files = parse_files_in_directory(sources, config)?;
 
         if files.is_empty() {
             info!("no files to parse");
@@ -159,7 +166,7 @@ fn find_and_parse_all_source_files(source_dir: &str, config: &Config) -> Res<Vec
 }
 
 /// Parse a list of Sources into AST Files, collecting errors into a single string.
-fn parse_files(sources: Vec<Source>, config: &Config) -> Res<Vec<File>> {
+fn parse_files_in_directory(sources: Vec<Source>, config: &Config) -> Res<Vec<File>> {
     let mut errs = ErrorSet::new();
     let mut files = Vec::new();
 
@@ -180,14 +187,18 @@ fn parse_files(sources: Vec<Source>, config: &Config) -> Res<Vec<File>> {
     }
 }
 
-/// Shorthand for type checking a fileset and converting error to string.
-fn type_check_and_create_module<'m>(
-    fs: FileSet,
-    mg: &'m mut ModuleGraph,
+fn type_check_and_create_modules(
+    sorted_sets: Vec<FileSet>,
     ctx: &mut TypeContext,
     config: &Config,
-) -> Res<&'m Module> {
-    type_check(fs, mg, ctx, config).map_err(|errs| errs.to_string())
+) -> Res<ModuleGraph> {
+    let mut mg = ModuleGraph::new();
+
+    for fs in sorted_sets {
+        type_check(fs, &mut mg, ctx, config).map_err(|errs| errs.to_string())?;
+    }
+
+    Ok(mg)
 }
 
 /// Shorthand for emitting a module to IR and converting error to string.

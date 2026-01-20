@@ -142,4 +142,8 @@ impl ModuleGraph {
                 Ok(&self.modules[*id])
             })
     }
+
+    pub fn modules(&self) -> &Vec<Module> {
+        &self.modules
+    }
 }

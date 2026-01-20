@@ -1,6 +1,6 @@
 use koi::{
     config::Config,
-    driver::{BuildConfig, Target, compile},
+    driver::{BuildConfig, CompilationMode, Target, compile},
 };
 use tracing_subscriber::EnvFilter;
 
@@ -15,10 +15,11 @@ fn main() -> Result<(), String> {
     let config = Config::debug();
 
     let build_config = BuildConfig {
+        mode: CompilationMode::Normal,
+        target: Target::X86_64,
         bindir: "bin".to_string(),
         outfile: "main".to_string(),
         srcdir: "_test".to_string(),
-        target: Target::X86_64,
     };
 
     compile(&config, &build_config)
