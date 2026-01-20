@@ -77,10 +77,12 @@ impl<'a> Scanner<'a> {
                 ),
 
                 // Line comment
-                b'/' if matches!(self.peek(), Some(b'/')) => (
-                    Token::new(TokenKind::Whitespace, 0, self.pos()),
-                    self.peek_while(|b| b != b'\n'),
-                ),
+                b'/' if matches!(self.peek(), Some(b'/')) => {
+                    let len = self.peek_while(|b| b != b'\n');
+                    let lexeme = self.file.str_range(self.pos, self.pos + len);
+                    let tok = Token::new(TokenKind::Comment(lexeme.to_owned()), len, self.pos());
+                    (tok, len)
+                }
 
                 // Block comment
                 b'/' if matches!(self.peek(), Some(b'*')) => {

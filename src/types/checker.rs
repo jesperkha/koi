@@ -196,6 +196,7 @@ impl<'a> Checker<'a> {
             node.public,
             &node.params,
             &node.ret_type,
+            node.docs.clone(),
             SymbolOrigin::Module(self.modpath.clone()),
         )
     }
@@ -206,6 +207,7 @@ impl<'a> Checker<'a> {
             node.public,
             &node.params,
             &node.ret_type,
+            node.docs.clone(),
             SymbolOrigin::Extern,
         )
     }
@@ -216,6 +218,7 @@ impl<'a> Checker<'a> {
         is_exported: bool,
         params: &Vec<ast::Field>,
         ret_type: &Option<ast::TypeNode>,
+        docs: Vec<String>,
         origin: SymbolOrigin,
     ) -> Result<(), Error> {
         // Evaluate return type if any
@@ -236,6 +239,7 @@ impl<'a> Checker<'a> {
         let symbol = Symbol {
             name: name.to_string(),
             kind: SymbolKind::Function(FuncSymbol {
+                docs,
                 is_inline: false,
                 is_naked: false,
             }),

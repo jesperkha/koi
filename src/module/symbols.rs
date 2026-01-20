@@ -59,6 +59,8 @@ pub enum SymbolKind {
 
 #[derive(Clone, Debug)]
 pub struct FuncSymbol {
+    /// Function doc comments with leading double slash and no newline.
+    pub docs: Vec<String>,
     /// If the function body should be inlined.
     pub is_inline: bool,
     /// If the function body should be naked (no entry/exit protocol or additional

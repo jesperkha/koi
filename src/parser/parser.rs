@@ -20,9 +20,12 @@ pub fn parse(src: Source, tokens: Vec<Token>, config: &Config) -> Res<File> {
 struct Parser<'a> {
     errs: ErrorSet,
     tokens: Vec<Token>,
-    pos: usize,
     config: &'a Config,
     src: Source,
+
+    pos: usize,
+    /// List of accumulated comments. Clears after each blank line.
+    comments: Vec<String>,
 
     // Panic mode occurs when the parser encounters an unknown token sequence
     // and needs to synchronize to a 'clean' state. When panic mode starts,
@@ -43,6 +46,7 @@ impl<'a> Parser<'a> {
             panic_mode: false,
             config,
             src,
+            comments: Vec::new(),
         }
     }
 
@@ -89,7 +93,24 @@ impl<'a> Parser<'a> {
     /// Consume newlines until first non-newline token or eof.
     /// Returns true if not eof after consumption.
     fn skip_whitespace_and_not_eof(&mut self) -> bool {
-        while !self.eof_or_panic() && self.matches(TokenKind::Newline) {
+        let mut last_was_comment = false;
+        while !self.eof_or_panic() {
+            if let Some(comment) = self.matches_comment() {
+                self.comments.push(comment);
+                self.consume();
+                last_was_comment = true;
+                continue;
+            }
+
+            if !self.matches(TokenKind::Newline) {
+                break;
+            }
+
+            if !last_was_comment {
+                self.comments.clear();
+            }
+
+            last_was_comment = false;
             self.consume();
         }
         !self.eof()
@@ -276,6 +297,7 @@ impl<'a> Parser<'a> {
         };
 
         Ok(FuncDeclNode {
+            docs: self.comments.clone(),
             public,
             name,
             lparen,
@@ -297,6 +319,7 @@ impl<'a> Parser<'a> {
         let body = self.parse_block()?;
 
         Ok(Decl::Func(FuncNode {
+            docs: self.comments.clone(),
             public,
             name: decl.name,
             lparen: decl.lparen,
@@ -613,6 +636,16 @@ impl<'a> Parser<'a> {
             }
         }
         return false;
+    }
+
+    /// Return comment string if current token is a comment.
+    fn matches_comment(&self) -> Option<String> {
+        if let Some(tok) = self.cur() {
+            if let TokenKind::Comment(s) = tok.kind {
+                return Some(s);
+            }
+        }
+        None
     }
 
     fn eof(&self) -> bool {
