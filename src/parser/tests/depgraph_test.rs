@@ -104,3 +104,102 @@ fn test_import_cycle() {
         "import cycle detected",
     );
 }
+
+fn assert_unordered_eq(actual: Vec<String>, expected: &[&str]) {
+    let mut a: Vec<String> = actual;
+    a.sort();
+    let mut b: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
+    b.sort();
+    assert_eq!(a, b);
+}
+
+fn pos_of(ordered: &Vec<String>, name: &str) -> usize {
+    ordered
+        .iter()
+        .position(|s| s == name)
+        .unwrap_or_else(|| panic!("expected '{}' to be present", name))
+}
+
+#[test]
+fn test_empty_input() {
+    let ordered = get_ordered_files(&[]).unwrap();
+    assert_eq!(ordered.len(), 0);
+}
+
+#[test]
+fn test_independent_files() {
+    let files = vec![file("a", r#""#), file("b", r#""#), file("c", r#""#)];
+    let ordered = get_ordered_files(&files).unwrap();
+    // any order is fine as long as all entries are present
+    assert_unordered_eq(ordered, &vec!["a", "b", "c"]);
+}
+
+#[test]
+fn test_shared_dependency() {
+    let files = vec![
+        file("a", r#"import common"#),
+        file("b", r#"import common"#),
+        file("common", r#""#),
+    ];
+    let ordered = get_ordered_files(&files).unwrap();
+    // common must come before both a and b
+    let p_common = pos_of(&ordered, "common");
+    let p_a = pos_of(&ordered, "a");
+    let p_b = pos_of(&ordered, "b");
+    assert!(p_common < p_a);
+    assert!(p_common < p_b);
+    // a and b relative order not important; ensure all present
+    assert_unordered_eq(ordered, &vec!["a", "b", "common"]);
+}
+
+#[test]
+fn test_multiple_imports_and_branching() {
+    let files = vec![
+        file(
+            "main",
+            r#"
+            import a
+            import b
+        "#,
+        ),
+        file("a", r#"import common"#),
+        file("b", r#"import common"#),
+        file("common", r#""#),
+    ];
+    let ordered = get_ordered_files(&files).unwrap();
+    let p_common = pos_of(&ordered, "common");
+    let p_a = pos_of(&ordered, "a");
+    let p_b = pos_of(&ordered, "b");
+    let p_main = pos_of(&ordered, "main");
+    assert!(p_common < p_a);
+    assert!(p_common < p_b);
+    assert!(p_a < p_main);
+    assert!(p_b < p_main);
+    assert_unordered_eq(ordered, &vec!["main", "a", "b", "common"]);
+}
+
+#[test]
+fn test_duplicate_imports_no_error() {
+    let files = vec![
+        file(
+            "dup",
+            r#"
+            import dep
+            import dep
+        "#,
+        ),
+        file("dep", r#""#),
+    ];
+    let ordered = get_ordered_files(&files).unwrap();
+    // dep must come before dup
+    assert!(pos_of(&ordered, "dep") < pos_of(&ordered, "dup"));
+    assert_unordered_eq(ordered, &vec!["dup", "dep"]);
+}
+
+#[test]
+fn test_self_import_is_cycle() {
+    assert_error(
+        &vec![file("selfy", r#"import selfy"#)],
+        "import cycle detected",
+    );
+}

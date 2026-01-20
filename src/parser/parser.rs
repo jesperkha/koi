@@ -36,7 +36,6 @@ struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn new(src: Source, tokens: Vec<Token>, config: &'a Config) -> Self {
-        assert!(tokens.len() > 0, "empty token stream not allowed");
         Self {
             errs: ErrorSet::new(),
             tokens,
@@ -48,6 +47,16 @@ impl<'a> Parser<'a> {
     }
 
     fn parse(mut self) -> Res<File> {
+        if self.tokens.len() == 0 {
+            return Ok(File::new(
+                self.src,
+                Ast {
+                    imports: vec![],
+                    decls: vec![],
+                },
+            ));
+        }
+
         info!("parsing file: {}", self.src.filepath);
 
         // Then parse all imports as they must come before the main code

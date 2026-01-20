@@ -17,6 +17,7 @@ pub struct FileMeta {
 /// and other metadata about the file itself.
 #[derive(Debug)]
 pub struct File {
+    pub empty: bool,
     pub meta: FileMeta,
     pub ast: Ast,
     pub src: Source,
@@ -25,6 +26,7 @@ pub struct File {
 impl File {
     pub fn new(src: Source, ast: Ast) -> Self {
         File {
+            empty: ast.decls.is_empty() && ast.imports.is_empty(),
             meta: FileMeta {
                 filename: String::from(
                     PathBuf::from(&src.filepath)
