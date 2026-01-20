@@ -1,0 +1,38 @@
+use crate::{
+    module::{Module, SymbolKind},
+    types::{TypeContext, TypeKind},
+};
+
+/// Return header file contents for a given module. All exported symbols of
+/// the given module are included and neatly formatted with docs.
+pub fn create_header_file(module: &Module, ctx: &TypeContext) -> Result<String, String> {
+    let mut s = String::new();
+
+    for (name, symbol) in module.exports() {
+        match &symbol.kind {
+            SymbolKind::Function(func) => {
+                for doc in &func.docs {
+                    s.push_str(&format!("{}\n", doc));
+                }
+
+                let TypeKind::Function(ftype) = &ctx.lookup(symbol.ty).kind else {
+                    panic!("expected function type");
+                };
+
+                s.push_str(&format!(
+                    "pub func {}({}) {}\n\n",
+                    name,
+                    ftype
+                        .params
+                        .iter()
+                        .map(|p| ctx.to_string(*p))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    ctx.to_string(ftype.ret)
+                ));
+            }
+        }
+    }
+
+    Ok(s)
+}

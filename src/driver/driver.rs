@@ -13,7 +13,7 @@ use crate::{
     config::Config,
     error::ErrorSet,
     ir::{IRUnit, emit_ir},
-    module::{Module, ModuleGraph, ModulePath},
+    module::{Module, ModuleGraph, ModulePath, create_header_file},
     parser::{parse, sort_by_dependency_graph},
     token::{Source, scan},
     types::{TypeContext, type_check},
@@ -86,6 +86,10 @@ impl<'a> Driver<'a> {
         let mut asm_files = Vec::new();
         for fs in sorted_filesets {
             let module = self.type_check_and_create_module(fs, &mut mg, &mut ctx)?;
+
+            // Write header file
+            //create_header_file_for_module(&config.bindir, module, &ctx)?;
+
             let ir_unit = self.emit_module_ir(module, &ctx)?;
             let asm = self.assemble_ir_unit(ir_unit, &config.target)?;
 
@@ -249,6 +253,16 @@ fn collect_files_in_directory(dir: &PathBuf) -> Res<Vec<Source>> {
     Ok(set)
 }
 
+/// Write file at given filepath with content.
+fn write_file(filepath: &str, content: &str) -> Res<()> {
+    let path = Path::new(filepath);
+    if let Err(_) = fs::write(&path, content) {
+        return Err("failed to write output".to_string());
+    };
+
+    Ok(())
+}
+
 /// Writes output assembly file to given directory with given module name.
 /// Returns path to written file.
 fn write_output_file(dir: &str, pkgname: &str, content: &str) -> Res<PathBuf> {
@@ -295,4 +309,13 @@ fn pathbuf_to_module_path(path: &PathBuf, source_dir: &str) -> String {
         .trim_start_matches("/")
         .trim_end_matches("/")
         .replace("/", ".")
+}
+
+/// Create header file for module in given output dir.
+fn create_header_file_for_module(outdir: &str, module: &Module, ctx: &TypeContext) -> Res<()> {
+    let header = create_header_file(module, &ctx)?;
+    write_file(
+        &format!("{}/{}.head", outdir, module.modpath.path_underscore()),
+        &header,
+    )
 }

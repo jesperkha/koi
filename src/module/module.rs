@@ -35,12 +35,19 @@ impl ModulePath {
         Self(s.to_owned())
     }
 
+    /// Get only the module name (the last identifier of the path).
     pub fn name(&self) -> &str {
         &self.0.split(".").last().unwrap() // asserted
     }
 
+    /// Get the full module path.
     pub fn path(&self) -> &str {
         &self.0
+    }
+
+    /// Get the module path with underscore (_) separators instead of period (.)
+    pub fn path_underscore(&self) -> String {
+        String::from(&self.0).replace(".", "_")
     }
 }
 
