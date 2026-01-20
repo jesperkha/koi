@@ -405,3 +405,57 @@ fn test_duplicate_symbol() {
         "already declared",
     );
 }
+
+#[test]
+fn test_param_shadowing_is_error() {
+    // declaring a local variable with the same name as a parameter should error
+    assert_error(
+        r#"
+        func f(a int) {
+            a := 1
+        }
+    "#,
+        "already declared",
+    );
+}
+
+#[test]
+fn test_extern_then_func_conflict() {
+    // extern declaration followed by a concrete function with same name should be an error
+    assert_error(
+        r#"
+        extern func foo()
+        func foo() {
+        }
+    "#,
+        "already declared",
+    );
+}
+
+#[test]
+fn test_duplicate_extern_declaration() {
+    // two extern declarations with same name should be an error
+    assert_error(
+        r#"
+        extern func foo()
+        extern func foo()
+    "#,
+        "already declared",
+    );
+}
+
+#[test]
+fn test_return_from_call_mismatch() {
+    // returning result of a function with wrong return type should surface proper error
+    assert_error(
+        r#"
+        func g() bool {
+            return true
+        }
+        func f() int {
+            return g()
+        }
+    "#,
+        "incorrect return type: expected 'i64', got 'bool'",
+    );
+}

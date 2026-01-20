@@ -16,7 +16,9 @@ fn is_stdlib(id: &str) -> bool {
 /// The first element in the returned list is the least depended on module
 /// and must be type checked first.
 pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, String> {
-    assert!(sets.len() > 0, "empty set list");
+    if sets.len() == 0 {
+        return Ok(sets);
+    }
 
     let mut index = HashMap::new();
     let mut dag: DiGraphMap<usize, ()> = DiGraphMap::new();
@@ -29,15 +31,22 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, Stri
 
     for fs in &sets {
         for import in &fs.imports {
-            if is_stdlib(import.modpath.path()) {
+            let import_path = import.modpath.path();
+            let fs_path = fs.modpath.path();
+
+            if import_path == fs_path {
+                return Err(format!("import cycle detected"));
+            }
+
+            if is_stdlib(import_path) {
                 continue;
             }
 
-            let Some(a) = index.get(import.modpath.path()) else {
+            let Some(a) = index.get(import_path) else {
                 continue; // Handled in import resolution
             };
 
-            let b = *index.get(fs.modpath.path()).expect("missing import {}");
+            let b = *index.get(fs_path).expect("missing import {}");
 
             if has_path_connecting(&dag, b, *a, None) {
                 return Err(format!("import cycle detected"));

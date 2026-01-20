@@ -44,14 +44,26 @@ fn assert_pass(files: &[TestFile]) {
     must(check_files(files))
 }
 
-fn assert_error(files: &[TestFile], msg: &str) {
+fn assert_errors(files: &[TestFile], msgs: &[&str]) {
     match check_files(files) {
-        Ok(_) => panic!("expected error: '{}'", msg),
+        Ok(_) => panic!("expected errors: {:?}", msgs),
         Err(errs) => {
-            assert!(errs.len() == 1, "expected one error, got {}", errs.len());
-            assert_eq!(errs.get(0).message, msg);
+            assert_eq!(
+                errs.len(),
+                msgs.len(),
+                "expected {} errors, got {}",
+                msgs.len(),
+                errs.len()
+            );
+            for (i, &expected) in msgs.iter().enumerate() {
+                assert_eq!(errs.get(i).message, expected);
+            }
         }
     }
+}
+
+fn assert_error(files: &[TestFile], msg: &str) {
+    assert_errors(files, &[msg]);
 }
 
 #[test]
@@ -413,5 +425,117 @@ fn test_duplicate_alias() {
             ),
         ],
         "already declared",
+    );
+}
+
+#[test]
+fn test_duplicate_explicit_imports() {
+    assert_errors(
+        &vec![
+            file(
+                "foo",
+                r#"
+                pub func a() {}
+            "#,
+            ),
+            file(
+                "main",
+                r#"
+                import foo { a }
+                import foo { a }
+
+                func main() int {
+                    a()
+                    return 0
+                }
+            "#,
+            ),
+        ],
+        &vec!["already declared", "already declared"],
+    );
+}
+
+#[test]
+fn test_duplicate_symbol_from_two_modules() {
+    assert_error(
+        &vec![
+            file(
+                "foo",
+                r#"
+                pub func a() {}
+            "#,
+            ),
+            file(
+                "bar",
+                r#"
+                pub func a() {}
+            "#,
+            ),
+            file(
+                "main",
+                r#"
+                import foo { a }
+                import bar { a }
+
+                func main() int {
+                    a()
+                    return 0
+                }
+            "#,
+            ),
+        ],
+        "already declared",
+    );
+}
+
+#[test]
+fn test_alias_shadowing_error() {
+    assert_error(
+        &vec![
+            file(
+                "foo",
+                r#"
+                pub func f() {}
+            "#,
+            ),
+            file(
+                "main",
+                r#"
+                import foo as f
+
+                func main() int {
+                    f := 1
+                    return 0
+                }
+            "#,
+            ),
+        ],
+        "shadowing a namespace is not allowed",
+    );
+}
+
+#[test]
+fn test_import_private_symbol_error() {
+    assert_error(
+        &vec![
+            file(
+                "foo",
+                r#"
+                func private() {}
+            "#,
+            ),
+            file(
+                "main",
+                r#"
+                import foo { private }
+
+                func main() int {
+                    private()
+                    return 0
+                }
+            "#,
+            ),
+        ],
+        "module 'foo' has no export 'private'",
     );
 }

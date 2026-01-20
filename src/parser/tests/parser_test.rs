@@ -408,3 +408,98 @@ fn test_member_error() {
         "expected expression",
     );
 }
+
+// Additional edge-case tests
+
+#[test]
+fn test_pub_extern_parsed() {
+    // ensure public extern declarations are accepted
+    assert_pass(r#"pub extern func write(fd int, s string, len int) int"#);
+}
+
+#[test]
+fn test_unclosed_call_paren_error() {
+    expect_error(
+        r#"
+        func f() {
+            a(b
+        }
+    "#,
+        "expected ,",
+    );
+}
+
+#[test]
+fn test_only_newlines_is_ok() {
+    // file with only newlines should parse as empty file
+    assert_pass("\n\n");
+}
+
+#[test]
+fn test_recovery_reports_errors_but_continues() {
+    let src = r#"
+        func bad() {
+            .
+        }
+        func good() {
+        }
+    "#;
+    match parse_string(src) {
+        Ok(_) => panic!("expected parse errors"),
+        Err(errs) => assert!(errs.len() >= 1),
+    }
+}
+
+#[test]
+fn test_param_list_missing_comma_reports_error() {
+    let src = r#"
+        func bad(a int b int) {}
+    "#;
+    match parse_string(src) {
+        Ok(_) => panic!("expected parse errors"),
+        Err(errs) => assert!(errs.len() >= 1),
+    }
+}
+
+#[test]
+fn test_unclosed_group_reports_error() {
+    let src = r#"
+        func f() {
+            (1
+        }
+    "#;
+    match parse_string(src) {
+        Ok(_) => panic!("expected parse errors"),
+        Err(errs) => assert!(errs.len() >= 1),
+    }
+}
+
+#[test]
+fn test_pub_alone_reports_error_and_recovers() {
+    let src = r#"
+        pub
+
+        func good() {}
+    "#;
+    match parse_string(src) {
+        Ok(_) => panic!("expected parse errors"),
+        Err(errs) => {
+            // Should report at least one error but still attempt recovery
+            assert!(errs.len() >= 1);
+        }
+    }
+}
+
+#[test]
+fn test_malformed_import_reports_error() {
+    let src = r#"
+        import foo {
+            , bar
+        }
+        func good() {}
+    "#;
+    match parse_string(src) {
+        Ok(_) => panic!("expected parse errors"),
+        Err(errs) => assert!(errs.len() >= 1),
+    }
+}
