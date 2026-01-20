@@ -19,12 +19,36 @@ use crate::{
     types::{TypeContext, type_check},
 };
 
+/// Result type shorthand used in this file.
 type Res<T> = Result<T, String>;
 
+/// The target specifies what the output assembly (or bytecode) will look
+/// like. Different builders are used for different targets.
 pub enum Target {
+    /// Target CPUs with the x86_64 instruction set.
     X86_64,
 }
 
+/// Compilation mode determines which steps are done and/or excluded
+/// in the compilation process.
+pub enum CompilationMode {
+    /// In normal mode the source directory is compiled to a single
+    /// executable put in a specified location.
+    Normal,
+
+    /// In module mode the source directory is compiled to a shared
+    /// object file (.so) and a header file is generated along with it.
+    /// This is used for compiling libraries and shared code.
+    Module,
+
+    /// Only compile the source to assembly and output it to the
+    /// specified directory.
+    CompileOnly,
+}
+
+/// BuildConfig contains details on the general build process. Where output
+/// files should go, where the source is located, what target is used, etc.
+/// Compiler specific config can be found in [src/config/config.rs].
 pub struct BuildConfig {
     /// Directory for assembly and object file output
     pub bindir: String,
@@ -36,6 +60,7 @@ pub struct BuildConfig {
     pub target: Target,
 }
 
+/// The Driver is the compiler entry point and connects all the compilers internals.
 pub struct Driver<'a> {
     config: &'a Config,
 }
@@ -45,8 +70,6 @@ impl<'a> Driver<'a> {
         Self { config }
     }
 
-    /// Compile the project at given source directory according to
-    /// the build configuration.
     pub fn compile(&mut self, config: BuildConfig) -> Res<()> {
         create_dir_if_not_exist(&config.bindir)?;
 
@@ -154,6 +177,7 @@ impl<'a> Driver<'a> {
         }
     }
 
+    /// Shorthand for type checking a fileset and converting error to string.
     fn type_check_and_create_module<'m>(
         &self,
         fs: FileSet,
@@ -163,10 +187,12 @@ impl<'a> Driver<'a> {
         type_check(fs, mg, ctx, self.config).map_err(|errs| errs.to_string())
     }
 
+    /// Shorthand for emitting a module to IR and converting error to string.
     fn emit_module_ir(&self, m: &Module, ctx: &TypeContext) -> Res<IRUnit> {
         emit_ir(m, ctx, self.config).map_err(|errs| errs.to_string())
     }
 
+    /// Shorthand for assembling an IR unit and converting error to string.
     fn assemble_ir_unit(&self, unit: IRUnit, target: &Target) -> Res<TransUnit> {
         match target {
             Target::X86_64 => assemble::<X86Builder>(self.config, unit),
