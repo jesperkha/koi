@@ -61,35 +61,16 @@ pub struct BuildConfig {
 }
 
 /// Compile the project using the given global config and build configuration.
-pub fn compile(cfg: &Config, build_cfg: &BuildConfig) -> Res<()> {
+pub fn compile(config: &Config, build_cfg: &BuildConfig) -> Res<()> {
     create_dir_if_not_exist(&build_cfg.bindir)?;
 
-    // Parse all files and store as Filesets
-    let mut filesets = Vec::new();
-    for dir in &list_source_directories(&build_cfg.srcdir)? {
-        let sources = collect_files_in_directory(dir)?;
-        if sources.is_empty() {
-            continue;
-        }
+    // Recursively search the given source directory for files and
+    // return a list of FileSet of all source files found.
+    let filesets = find_and_parse_all_source_files(&build_cfg.srcdir, &config)?;
 
-        let mut module_path = pathbuf_to_module_path(&dir, &build_cfg.srcdir);
-        if module_path.is_empty() {
-            module_path = String::from("main");
-        }
-
-        info!("parsing module: {}", module_path);
-        let files = parse_files(sources, cfg)?;
-
-        if files.is_empty() {
-            info!("no files to parse");
-            continue;
-        }
-
-        filesets.push(FileSet::new(ModulePath::new(module_path), files));
-    }
-
-    // Create and sort dependency graph, returning a list of
-    // filesets in correct type checking order.
+    // Create a dependency graph and sort it, returning a list of
+    // filesets in correct type checking order. FileSets are sorted
+    // based on their imports.
     let sorted_filesets = sort_by_dependency_graph(filesets)?;
 
     // Global state
@@ -99,20 +80,20 @@ pub fn compile(cfg: &Config, build_cfg: &BuildConfig) -> Res<()> {
     // Type check, convert to IR, and emit assembly
     let mut asm_files = Vec::new();
     for fs in sorted_filesets {
-        let module = type_check_and_create_module(fs, &mut mg, &mut ctx, cfg)?;
+        let module = type_check_and_create_module(fs, &mut mg, &mut ctx, config)?;
 
         // Write header file
         // create_header_file_for_module(&build_cfg.bindir, module, &ctx)?;
 
-        let ir_unit = emit_module_ir(module, &ctx, cfg)?;
-        let asm = assemble_ir_unit(ir_unit, &build_cfg.target, cfg)?;
+        let ir_unit = emit_module_ir(module, &ctx, config)?;
+        let asm = assemble_ir_unit(ir_unit, &build_cfg.target, config)?;
 
         let outfile = write_output_file(&build_cfg.bindir, module.name(), &asm.source)?;
         info!("output assembly file: {}", outfile.display());
         asm_files.push(outfile);
     }
 
-    if cfg.dump_type_context {
+    if config.dump_type_context {
         ctx.dump_context_string();
     }
 
@@ -145,6 +126,36 @@ pub fn compile(cfg: &Config, build_cfg: &BuildConfig) -> Res<()> {
     cmd("gcc", &args)?;
 
     Ok(())
+}
+
+/// Recursively search the given source directory for files and return a list of FileSet of
+/// all source files found.
+fn find_and_parse_all_source_files(source_dir: &str, config: &Config) -> Res<Vec<FileSet>> {
+    let mut filesets = Vec::new();
+
+    for dir in &list_source_directories(source_dir)? {
+        let sources = collect_files_in_directory(dir)?;
+        if sources.is_empty() {
+            continue;
+        }
+
+        let mut module_path = pathbuf_to_module_path(&dir, source_dir);
+        if module_path.is_empty() {
+            module_path = String::from("main");
+        }
+
+        info!("parsing module: {}", module_path);
+        let files = parse_files(sources, config)?;
+
+        if files.is_empty() {
+            info!("no files to parse");
+            continue;
+        }
+
+        filesets.push(FileSet::new(ModulePath::new(module_path), files));
+    }
+
+    Ok(filesets)
 }
 
 /// Parse a list of Sources into AST Files, collecting errors into a single string.
