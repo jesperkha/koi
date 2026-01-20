@@ -408,3 +408,44 @@ fn test_member_error() {
         "expected expression",
     );
 }
+
+// Additional edge-case tests
+
+#[test]
+fn test_pub_extern_parsed() {
+    // ensure public extern declarations are accepted
+    assert_pass(r#"pub extern func write(fd int, s string, len int) int"#);
+}
+
+#[test]
+fn test_unclosed_call_paren_error() {
+    expect_error(
+        r#"
+        func f() {
+            a(b
+        }
+    "#,
+        "expected ,",
+    );
+}
+
+#[test]
+fn test_only_newlines_is_ok() {
+    // file with only newlines should parse as empty file
+    assert_pass("\n\n");
+}
+
+#[test]
+fn test_recovery_reports_errors_but_continues() {
+    let src = r#"
+        func bad() {
+            .
+        }
+        func good() {
+        }
+    "#;
+    match parse_string(src) {
+        Ok(_) => panic!("expected parse errors"),
+        Err(errs) => assert!(errs.len() >= 1),
+    }
+}
