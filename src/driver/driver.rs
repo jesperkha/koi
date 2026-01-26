@@ -82,16 +82,15 @@ pub fn compile(config: &Config, build_cfg: &BuildConfig) -> Res<()> {
         ctx.dump_context_string();
     }
 
+    // Emit the intermediate representation for all modules
     let units = module_graph
         .modules()
         .iter()
         .map(|module| emit_module_ir(module, &ctx, config))
         .collect::<Result<Vec<Unit>, String>>()?;
 
-    let ir = Ir::new(units);
-    let output_file = build_ir(ir, config, build_cfg)?;
-
-    println!("Output file {}", output_file);
+    // Build the final executable/libary file
+    let _ = build_ir(Ir::new(units), config, build_cfg)?;
 
     Ok(())
 }
@@ -175,7 +174,7 @@ fn build_ir(ir: Ir, config: &Config, build_cfg: &BuildConfig) -> Res<String> {
             x86::BuildConfig {
                 linkmode: comp_mode_to_link_mode(&build_cfg.mode),
                 tmpdir: build_cfg.bindir.clone(),
-                outfile: "main".into(),
+                outfile: build_cfg.outfile.clone(),
             },
             config,
         ),
