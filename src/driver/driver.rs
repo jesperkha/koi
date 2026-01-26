@@ -73,6 +73,10 @@ pub fn compile(config: &Config) -> Res<()> {
     // return a list of FileSet of all source files found.
     let filesets = find_and_parse_all_source_files(&build_cfg.src, &config)?;
 
+    if filesets.len() == 0 {
+        return Err(format!("no source files in '{}'", build_cfg.src));
+    }
+
     // Create a dependency graph and sort it, returning a list of
     // filesets in correct type checking order. FileSets are sorted
     // based on their imports.
