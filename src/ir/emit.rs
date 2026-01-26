@@ -7,8 +7,8 @@ use crate::{
     config::Config,
     error::{Error, ErrorSet, Res},
     ir::{
-        AssignIns, ExternFuncInst, FuncInst, IRType, IRUnit, Ins, LValue, StoreIns, StringDataIns,
-        SymTracker, Value, ir,
+        AssignIns, ExternFuncInst, FuncInst, IRType, Ins, LValue, StoreIns, StringDataIns,
+        SymTracker, Unit, Value, ir,
     },
     module::{Module, ModulePath, NamespaceList, Symbol, SymbolList},
     types::{
@@ -16,9 +16,9 @@ use crate::{
     },
 };
 
-pub fn emit_ir(m: &Module, ctx: &TypeContext, config: &Config) -> Res<IRUnit> {
+pub fn emit_ir(m: &Module, ctx: &TypeContext, config: &Config) -> Res<Unit> {
     let emitter = Emitter::new(m, ctx, config);
-    emitter.emit().map(|ins| IRUnit::new(ins))
+    emitter.emit().map(|ins| Unit::new(m.modpath.clone(), ins))
 }
 
 struct Emitter<'a> {

@@ -1,9 +1,8 @@
 use crate::{
     ast::{File, FileSet},
-    build::{Builder, X86Builder},
     config::Config,
     error::{ErrorSet, Res},
-    ir::{IRUnit, emit_ir},
+    ir::{Unit, emit_ir},
     module::{Module, ModuleGraph, ModulePath},
     parser::parse,
     token::{Source, Token, scan},
@@ -52,54 +51,9 @@ pub fn check_string<'a>(
     type_check(fs, mg, ctx, &config)
 }
 
-pub fn emit_string(src: &str) -> Res<IRUnit> {
+pub fn emit_string(src: &str) -> Res<Unit> {
     let config = Config::test();
     let mut mg = ModuleGraph::new();
     let mut ctx = TypeContext::new();
     check_string(src, &mut mg, &mut ctx).and_then(|pkg| emit_ir(&pkg, &ctx, &config))
-}
-
-pub fn compile_string(src: &str) -> Result<String, String> {
-    let config = Config::test();
-    emit_string(src)
-        .map_err(|err| err.to_string())
-        .and_then(|ir| X86Builder::new(&config).assemble(ir))
-        .and_then(|unit| Ok(unit.source))
-}
-
-pub fn debug_print_all_steps(src: &str) {
-    let config = Config::debug();
-    let source = Source::new_from_string(src);
-    let mut mg = ModuleGraph::new();
-    let mut ctx = TypeContext::new();
-
-    scan(&source, &config)
-        .and_then(|toks| parse(source, toks, &config))
-        .and_then(|file| {
-            println!("SOURCE CODE");
-            println!("===========\n");
-            println!("{}", file);
-            type_check(
-                FileSet::new(ModulePath::new_str("main"), vec![file]),
-                &mut mg,
-                &mut ctx,
-                &config,
-            )
-        })
-        .and_then(|pkg| emit_ir(&pkg, &ctx, &config))
-        .map_err(|err| err.to_string())
-        .and_then(|unit| {
-            println!("INTERMEDIATE REPRESENTATION");
-            println!("===========================\n");
-            println!("{}", unit);
-            X86Builder::new(&config).assemble(unit)
-        })
-        .map_or_else(
-            |err| println!("{}", err),
-            |unit| {
-                println!("ASSEMBLY (X86)");
-                println!("==============\n");
-                println!("{}", unit.source);
-            },
-        );
 }

@@ -1,7 +1,6 @@
 use std::{
     fs::{self},
     path::{Path, PathBuf},
-    process::Command,
 };
 
 use tracing::info;
@@ -9,11 +8,11 @@ use walkdir::WalkDir;
 
 use crate::{
     ast::{File, FileSet},
-    build::{TransUnit, X86Builder, assemble},
+    build::x86,
     config::Config,
     error::ErrorSet,
-    ir::{IRUnit, emit_ir},
-    module::{Module, ModuleGraph, ModulePath, create_header_file},
+    ir::{Ir, Unit, emit_ir},
+    module::{Module, ModuleGraph, ModulePath},
     parser::{parse, sort_by_dependency_graph},
     token::{Source, scan},
     types::{TypeContext, type_check},
@@ -29,21 +28,16 @@ pub enum Target {
     X86_64,
 }
 
-/// Compilation mode determines which steps are done and/or excluded
-/// in the compilation process.
 pub enum CompilationMode {
     /// In normal mode the source directory is compiled to a single
     /// executable put in a specified location.
     Normal,
 
-    /// In module mode the source directory is compiled to a shared
-    /// object file (.so) and a header file is generated along with it.
-    /// This is used for compiling libraries and shared code.
-    Module,
-
-    /// Only compile the source to assembly and output it to the
-    /// specified directory.
-    CompileOnly,
+    /// In package mode the specified source directory is compiled to
+    /// a shared object file (.so) and a header file is generated for
+    /// each exported module. This is used for compiling libraries and
+    /// shared code.
+    Package,
 }
 
 /// BuildConfig contains details on the general build process. Where output
@@ -58,7 +52,8 @@ pub struct BuildConfig {
     pub srcdir: String,
     /// Target architecture
     pub target: Target,
-
+    /// Compilation mode determines which steps are done and/or excluded
+    /// in the compilation process.
     pub mode: CompilationMode,
 }
 
@@ -83,54 +78,20 @@ pub fn compile(config: &Config, build_cfg: &BuildConfig) -> Res<()> {
     // them in a ModuleGraph.
     let module_graph = type_check_and_create_modules(sorted_filesets, &mut ctx, config)?;
 
-    match build_cfg.mode {
-        CompilationMode::Normal => {
-            // Type check, convert to IR, and emit assembly
-            let mut asm_files = Vec::new();
-            for module in module_graph.modules() {
-                let ir_unit = emit_module_ir(module, &ctx, config)?;
-                let asm = assemble_ir_unit(ir_unit, &build_cfg.target, config)?;
-
-                let outfile = write_output_file(&build_cfg.bindir, module.name(), &asm.source)?;
-                info!("output assembly file: {}", outfile.display());
-                asm_files.push(outfile);
-            }
-
-            if config.dump_type_context {
-                ctx.dump_context_string();
-            }
-
-            // Assemble all source files
-            for file in &asm_files {
-                info!("assembling: {}", file.display());
-                let src = file.to_string_lossy();
-                let out = file.with_extension("o");
-                cmd("as", &["-o", &out.to_string_lossy(), &src])?;
-            }
-
-            let mut objectfiles = vec![];
-            for file in asm_files {
-                objectfiles.push(file.with_extension("o").to_string_lossy().to_string());
-            }
-
-            // TODO: rewrite this mess
-
-            // let entry_o = format!("{}/entry.o", build_cfg.bindir);
-            // cmd("as", &["-o", &entry_o, "lib/compile/entry.s"])?;
-
-            let mut args = vec!["-o", &build_cfg.outfile];
-            args.extend_from_slice(
-                &objectfiles
-                    .iter()
-                    .map(|f| f.as_str())
-                    .collect::<Vec<&str>>(),
-            );
-
-            cmd("gcc", &args)?;
-        }
-        CompilationMode::Module => todo!(),
-        CompilationMode::CompileOnly => todo!(),
+    if config.dump_type_context {
+        ctx.dump_context_string();
     }
+
+    let units = module_graph
+        .modules()
+        .iter()
+        .map(|module| emit_module_ir(module, &ctx, config))
+        .collect::<Result<Vec<Unit>, String>>()?;
+
+    let ir = Ir::new(units);
+    let output_file = build_ir(ir, config, build_cfg)?;
+
+    println!("Output file {}", output_file);
 
     Ok(())
 }
@@ -202,14 +163,30 @@ fn type_check_and_create_modules(
 }
 
 /// Shorthand for emitting a module to IR and converting error to string.
-fn emit_module_ir(m: &Module, ctx: &TypeContext, config: &Config) -> Res<IRUnit> {
+fn emit_module_ir(m: &Module, ctx: &TypeContext, config: &Config) -> Res<Unit> {
     emit_ir(m, ctx, config).map_err(|errs| errs.to_string())
 }
 
 /// Shorthand for assembling an IR unit and converting error to string.
-fn assemble_ir_unit(unit: IRUnit, target: &Target, config: &Config) -> Res<TransUnit> {
-    match target {
-        Target::X86_64 => assemble::<X86Builder>(config, unit),
+fn build_ir(ir: Ir, config: &Config, build_cfg: &BuildConfig) -> Res<String> {
+    match build_cfg.target {
+        Target::X86_64 => x86::build(
+            ir,
+            x86::BuildConfig {
+                linkmode: comp_mode_to_link_mode(&build_cfg.mode),
+                tmpdir: build_cfg.bindir.clone(),
+                outfile: "main".into(),
+            },
+            config,
+        ),
+    }
+}
+
+/// Report which x86 link mode to use for which compilation mode.
+fn comp_mode_to_link_mode(mode: &CompilationMode) -> x86::LinkMode {
+    match mode {
+        CompilationMode::Normal => x86::LinkMode::Exectuable,
+        CompilationMode::Package => x86::LinkMode::SharedObject,
     }
 }
 
@@ -292,44 +269,6 @@ fn collect_files_in_directory(dir: &PathBuf) -> Res<Vec<Source>> {
     Ok(set)
 }
 
-/// Write file at given filepath with content.
-fn write_file(filepath: &str, content: &str) -> Res<()> {
-    let path = Path::new(filepath);
-    if let Err(_) = fs::write(&path, content) {
-        return Err("failed to write output".to_string());
-    };
-
-    Ok(())
-}
-
-/// Writes output assembly file to given directory with given module name.
-/// Returns path to written file.
-fn write_output_file(dir: &str, pkgname: &str, content: &str) -> Res<PathBuf> {
-    let fmtpath = &format!("{}/{}.s", dir, pkgname);
-    let path = Path::new(fmtpath);
-    if let Err(_) = fs::write(&path, content) {
-        return Err("failed to write output".to_string());
-    };
-
-    Ok(path.to_path_buf())
-}
-
-fn cmd(command: &str, args: &[&str]) -> Res<()> {
-    let status = Command::new(command)
-        .args(args)
-        .status()
-        .or_else(|_| Err(format!("failed to run command: {}", command)))?;
-
-    if !status.success() {
-        Err(format!(
-            "command '{}' exited with a non-success code",
-            command,
-        ))
-    } else {
-        Ok(())
-    }
-}
-
 fn create_dir_if_not_exist(dir: &str) -> Res<()> {
     if !fs::exists(dir).unwrap_or(false) {
         info!("creating directory:{}", dir);
@@ -348,13 +287,4 @@ fn pathbuf_to_module_path(path: &PathBuf, source_dir: &str) -> String {
         .trim_start_matches("/")
         .trim_end_matches("/")
         .replace("/", ".")
-}
-
-/// Create header file for module in given output dir.
-fn create_header_file_for_module(outdir: &str, module: &Module, ctx: &TypeContext) -> Res<()> {
-    let header = create_header_file(module, &ctx)?;
-    write_file(
-        &format!("{}/{}.head", outdir, module.modpath.path_underscore()),
-        &header,
-    )
 }
