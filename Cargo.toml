@@ -5,8 +5,10 @@ edition = "2024"
 
 [dependencies]
 petgraph = "0.8.3"
+serde = { version = "1.0.228", features = ["derive"] }
 strum = "0.26"
 strum_macros = "0.26"
+toml = "0.9.11"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 walkdir = "2"

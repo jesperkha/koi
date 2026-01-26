@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use serde::Deserialize;
 use tracing::info;
 use walkdir::WalkDir;
 
@@ -23,11 +24,15 @@ type Res<T> = Result<T, String>;
 
 /// The target specifies what the output assembly (or bytecode) will look
 /// like. Different builders are used for different targets.
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum Target {
     /// Target CPUs with the x86_64 instruction set.
     X86_64,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum CompilationMode {
     /// In normal mode the source directory is compiled to a single
     /// executable put in a specified location.
@@ -43,13 +48,14 @@ pub enum CompilationMode {
 /// BuildConfig contains details on the general build process. Where output
 /// files should go, where the source is located, what target is used, etc.
 /// Compiler specific config can be found in [src/config/config.rs].
+#[derive(Deserialize)]
 pub struct BuildConfig {
     /// Directory for assembly and object file output
-    pub bindir: String,
+    pub bin: String,
     /// Name of target executable
-    pub outfile: String,
+    pub out: String,
     /// Root directory of Koi project
-    pub srcdir: String,
+    pub src: String,
     /// Target architecture
     pub target: Target,
     /// Compilation mode determines which steps are done and/or excluded
@@ -58,12 +64,14 @@ pub struct BuildConfig {
 }
 
 /// Compile the project using the given global config and build configuration.
-pub fn compile(config: &Config, build_cfg: &BuildConfig) -> Res<()> {
-    create_dir_if_not_exist(&build_cfg.bindir)?;
+pub fn compile(config: &Config) -> Res<()> {
+    let build_cfg = load_modfile()?;
+
+    create_dir_if_not_exist(&build_cfg.bin)?;
 
     // Recursively search the given source directory for files and
     // return a list of FileSet of all source files found.
-    let filesets = find_and_parse_all_source_files(&build_cfg.srcdir, &config)?;
+    let filesets = find_and_parse_all_source_files(&build_cfg.src, &config)?;
 
     // Create a dependency graph and sort it, returning a list of
     // filesets in correct type checking order. FileSets are sorted
@@ -90,7 +98,7 @@ pub fn compile(config: &Config, build_cfg: &BuildConfig) -> Res<()> {
         .collect::<Result<Vec<Unit>, String>>()?;
 
     // Build the final executable/libary file
-    let _ = build_ir(Ir::new(units), config, build_cfg)?;
+    let _ = build_ir(Ir::new(units), config, &build_cfg)?;
 
     Ok(())
 }
@@ -173,8 +181,8 @@ fn build_ir(ir: Ir, config: &Config, build_cfg: &BuildConfig) -> Res<String> {
             ir,
             x86::BuildConfig {
                 linkmode: comp_mode_to_link_mode(&build_cfg.mode),
-                tmpdir: build_cfg.bindir.clone(),
-                outfile: build_cfg.outfile.clone(),
+                tmpdir: build_cfg.bin.clone(),
+                outfile: build_cfg.out.clone(),
             },
             config,
         ),
@@ -270,7 +278,7 @@ fn collect_files_in_directory(dir: &PathBuf) -> Res<Vec<Source>> {
 
 fn create_dir_if_not_exist(dir: &str) -> Res<()> {
     if !fs::exists(dir).unwrap_or(false) {
-        info!("creating directory:{}", dir);
+        info!("creating directory: {}", dir);
         if let Err(_) = fs::create_dir(dir) {
             return Err(format!("failed to create directory: {}", dir));
         }
@@ -286,4 +294,11 @@ fn pathbuf_to_module_path(path: &PathBuf, source_dir: &str) -> String {
         .trim_start_matches("/")
         .trim_end_matches("/")
         .replace("/", ".")
+}
+
+/// Load koi.toml file and parse as BuildConfig.
+fn load_modfile() -> Result<BuildConfig, String> {
+    let src = fs::read_to_string("koi.toml")
+        .map_err(|_| format!("Failed to open koi.toml. Run `koi init` if missing."))?;
+    toml::from_str(&src).map_err(|e| e.to_string())
 }

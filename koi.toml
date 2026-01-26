@@ -1,0 +1,5 @@
+bin = "bin"
+src = "_test"
+out = "main"
+target = "x86-64"
+mode = "app"
