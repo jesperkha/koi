@@ -1,5 +1,14 @@
-bin = "bin"
-src = "_test"
-out = "main"
+# Koi project configuration
+
+bin = "bin"  # Output directory for temporary files
+src = "src"  # Source code directory
+out = "main" # Filepath of output file
+
+# Compilation mode
+#   normal  - Compile as an executable
+#   package - Compile as a shared library
+mode = "normal"
+
+# Target architecture/format
+#   x86-64 - Target unknown x86-64 gnu linux 
 target = "x86-64"
-mode = "app"
