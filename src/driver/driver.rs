@@ -17,6 +17,7 @@ use crate::{
     parser::{parse, sort_by_dependency_graph},
     token::{Source, scan},
     types::{TypeContext, type_check},
+    util::create_dir_if_not_exist,
 };
 
 /// Result type shorthand used in this file.
@@ -278,16 +279,6 @@ fn collect_files_in_directory(dir: &PathBuf) -> Res<Vec<Source>> {
     }
 
     Ok(set)
-}
-
-fn create_dir_if_not_exist(dir: &str) -> Res<()> {
-    if !fs::exists(dir).unwrap_or(false) {
-        info!("creating directory: {}", dir);
-        if let Err(_) = fs::create_dir(dir) {
-            return Err(format!("failed to create directory: {}", dir));
-        }
-    }
-    Ok(())
 }
 
 /// Convert foo/bar/faz to foo.bar.faz

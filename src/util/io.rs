@@ -1,5 +1,7 @@
 use std::{fs, path::Path, process::Command};
 
+use tracing::info;
+
 /// Write file at given filepath with content.
 pub fn write_file(filepath: &str, content: &str) -> Result<(), String> {
     let path = Path::new(filepath);
@@ -25,4 +27,14 @@ pub fn cmd(command: &str, args: &[String]) -> Result<(), String> {
     } else {
         Ok(())
     }
+}
+
+pub fn create_dir_if_not_exist(dir: &str) -> Result<(), String> {
+    if !fs::exists(dir).unwrap_or(false) {
+        info!("creating directory: {}", dir);
+        if let Err(_) = fs::create_dir(dir) {
+            return Err(format!("failed to create directory: {}", dir));
+        }
+    }
+    Ok(())
 }

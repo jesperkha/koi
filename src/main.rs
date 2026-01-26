@@ -1,7 +1,11 @@
 use std::{fs, process::exit};
 
 use clap::{CommandFactory, Parser, Subcommand};
-use koi::{config::Config, driver::compile, util::write_file};
+use koi::{
+    config::Config,
+    driver::compile,
+    util::{create_dir_if_not_exist, write_file},
+};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
@@ -57,6 +61,8 @@ fn koi_init() -> Result<(), String> {
         println!("File koi.toml already exists");
         return Ok(());
     }
+
+    create_dir_if_not_exist("src")?;
 
     let content = r#"# Koi project configuration
 
