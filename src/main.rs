@@ -2,7 +2,6 @@ use std::{fs, process::exit};
 
 use clap::{CommandFactory, Parser, Subcommand};
 use koi::{driver::compile, util::write_file};
-use tracing::Span;
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
@@ -23,19 +22,7 @@ enum Command {
 }
 
 fn main() {
-    // Configure global subscriber for tracing
-    // Run with RUST_LOG=<level> (trace, debug, info, warn, error)
-    // Defaults to error
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .with_target(false)
-        .with_thread_ids(false)
-        .with_thread_names(false)
-        .with_file(false)
-        .with_line_number(false)
-        .without_time()
-        .compact()
-        .init();
+    init_logger();
 
     let cli = Cli::parse();
 
@@ -66,7 +53,7 @@ fn koi_init() -> Result<(), String> {
 
 [project]
 type = "app"      # Project type (app|package) 
-src = "_test"     # Source code directory
+src = "src"       # Source code directory
 out = "main"      # Filepath of output file
 bin = "bin"       # Output directory for temporary files
 target = "x86-64" # Target arch (x86-64)
@@ -78,4 +65,20 @@ debug-mode = false
     write_file("koi.toml", content)?;
     println!("Created koi.toml");
     Ok(())
+}
+
+fn init_logger() {
+    // Configure global subscriber for tracing
+    // Run with RUST_LOG=<level> (trace, debug, info, warn, error)
+    // Defaults to error
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_target(false)
+        .with_thread_ids(false)
+        .with_thread_names(false)
+        .with_file(false)
+        .with_line_number(false)
+        .without_time()
+        .compact()
+        .init();
 }

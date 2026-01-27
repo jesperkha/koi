@@ -1,5 +1,7 @@
 use std::{
     collections::HashMap,
+    env,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
 };
 
@@ -48,7 +50,15 @@ pub fn build(ir: Ir, buildcfg: BuildConfig, config: &Config) -> Result<String, S
     }
 
     let mut args = asm_files;
-    args.push("lib/compile/entry.s".into());
+
+    let rootdir = get_root_dir();
+    args.push(
+        rootdir
+            .join("lib")
+            .join("entry.s")
+            .to_string_lossy()
+            .to_string(),
+    );
     args.push("-nostartfiles".into());
 
     match buildcfg.linkmode {
@@ -67,6 +77,17 @@ pub fn build(ir: Ir, buildcfg: BuildConfig, config: &Config) -> Result<String, S
     }
 
     Ok(buildcfg.outfile)
+}
+
+fn get_root_dir() -> PathBuf {
+    let binding = env::current_exe().unwrap();
+    let mut rootdir = binding.parent().unwrap().parent().unwrap();
+    if rootdir.ends_with("target/debug") {
+        rootdir = Path::new(".");
+    }
+
+    info!("Rootdir: {}", rootdir.to_string_lossy().to_string());
+    rootdir.to_owned()
 }
 
 fn gcc_available() -> bool {
