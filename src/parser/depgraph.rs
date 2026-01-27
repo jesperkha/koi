@@ -71,12 +71,12 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, Stri
         .collect();
 
     info!(
-        "final check order: {}",
+        "Final ordered module dependency list: {}",
         sorted_sets
             .iter()
             .map(|s| s.modpath.path().to_owned())
             .collect::<Vec<_>>()
-            .join(", ")
+            .join(" -> ")
     );
 
     Ok(sorted_sets)

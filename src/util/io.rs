@@ -1,4 +1,8 @@
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::{Command, CommandArgs},
+};
 
 use tracing::info;
 
@@ -14,6 +18,8 @@ pub fn write_file(filepath: &str, content: &str) -> Result<(), String> {
 
 /// Run shell command
 pub fn cmd(command: &str, args: &[String]) -> Result<(), String> {
+    info!("Cmd: {} {}", command, args.join(" "));
+
     let status = Command::new(command)
         .args(args)
         .status()
@@ -31,7 +37,7 @@ pub fn cmd(command: &str, args: &[String]) -> Result<(), String> {
 
 pub fn create_dir_if_not_exist(dir: &str) -> Result<(), String> {
     if !fs::exists(dir).unwrap_or(false) {
-        info!("creating directory: {}", dir);
+        info!("Creating directory: {}", dir);
         if let Err(_) = fs::create_dir(dir) {
             return Err(format!("failed to create directory: {}", dir));
         }

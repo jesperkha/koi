@@ -3,6 +3,8 @@ use std::{
     process::{Command, Stdio},
 };
 
+use tracing::info;
+
 use crate::{
     build::x86::reg_alloc::RegAllocator,
     config::Config,
@@ -27,6 +29,8 @@ pub struct BuildConfig {
 
 /// Build and compile an x86-64 executable or shared object file.
 pub fn build(ir: Ir, buildcfg: BuildConfig, config: &Config) -> Result<String, String> {
+    info!("Building for x86-64. Output: {}", buildcfg.outfile);
+
     if !gcc_available() {
         return Err("Failed to run gcc. Make sure it's installed and in PATH.".into());
     }
@@ -34,9 +38,11 @@ pub fn build(ir: Ir, buildcfg: BuildConfig, config: &Config) -> Result<String, S
     let mut asm_files = Vec::new();
 
     for unit in ir.units {
+        info!("Assembling module {}", unit.modpath.path());
         let filepath = format!("{}/{}.s", buildcfg.tmpdir, unit.modpath.path_underscore());
         let source = X86Builder::new(config).build(unit)?;
 
+        info!("Writing file {}", filepath);
         write_file(&filepath, &source)?;
         asm_files.push(filepath);
     }
@@ -47,10 +53,12 @@ pub fn build(ir: Ir, buildcfg: BuildConfig, config: &Config) -> Result<String, S
 
     match buildcfg.linkmode {
         LinkMode::Exectuable => {
+            info!("Compiling executable");
             args.push(format!("-o{}", buildcfg.outfile));
             cmd("gcc", &args)?;
         }
         LinkMode::SharedObject => {
+            info!("Compiling shared library");
             args.push(format!("-olib{}.so", buildcfg.outfile));
             args.push("-shared".into());
             args.push("-fPIE".into());

@@ -149,7 +149,11 @@ fn emit_typed_ast(
     nsl: &mut NamespaceList,
     config: &Config,
 ) -> Result<TypedAst, ErrorSet> {
-    info!("checking {} files", files.len());
+    info!(
+        "Type checking {} files in module {}",
+        files.len(),
+        modpath.path()
+    );
     assert!(files.len() > 0, "no files to type check");
 
     let mut errs = ErrorSet::new();

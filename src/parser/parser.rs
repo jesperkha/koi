@@ -61,7 +61,7 @@ impl<'a> Parser<'a> {
             ));
         }
 
-        info!("parsing file: {}", self.src.filepath);
+        info!("Parsing file: {}", self.src.filepath);
 
         // Then parse all imports as they must come before the main code
         self.skip_whitespace_and_not_eof();
@@ -82,7 +82,7 @@ impl<'a> Parser<'a> {
         }
 
         if self.errs.len() > 0 {
-            info!("fail! finished with {} errors", self.errs.len());
+            info!("Fail: finished with {} errors", self.errs.len());
             return Err(self.errs);
         }
 

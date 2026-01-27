@@ -1,7 +1,7 @@
 use core::panic;
 use std::mem;
 
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::{
     config::Config,
@@ -57,7 +57,7 @@ impl<'a> Emitter<'a> {
     }
 
     fn emit(mut self) -> Res<Vec<Ins>> {
-        info!("emitting module: {}", self.modpath.path());
+        info!("Emitting IR for module: {}", self.modpath.path());
         let mut errs = ErrorSet::new();
 
         for decl in self.nodes {
@@ -68,10 +68,10 @@ impl<'a> Emitter<'a> {
         }
 
         if errs.len() == 0 {
-            info!("success! {} instructions", self.ins.len());
+            debug!("success: {} instructions", self.ins.len());
             Ok(mem::take(&mut self.ins[0]))
         } else {
-            info!("fail! finished with {} errors", errs.len());
+            info!("Fail: finished with {} errors", errs.len());
             Err(errs)
         }
     }

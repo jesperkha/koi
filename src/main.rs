@@ -2,6 +2,7 @@ use std::{fs, process::exit};
 
 use clap::{CommandFactory, Parser, Subcommand};
 use koi::{driver::compile, util::write_file};
+use tracing::Span;
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
@@ -27,6 +28,13 @@ fn main() {
     // Defaults to error
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
+        .with_target(false)
+        .with_thread_ids(false)
+        .with_thread_names(false)
+        .with_file(false)
+        .with_line_number(false)
+        .without_time()
+        .compact()
         .init();
 
     let cli = Cli::parse();

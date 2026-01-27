@@ -69,6 +69,7 @@ pub fn compile() -> Res<()> {
 /// Recursively search the given source directory for files and return a list of FileSet of
 /// all source files found.
 fn find_and_parse_all_source_files(source_dir: &str, config: &Config) -> Res<Vec<FileSet>> {
+    info!("Collecting source files in {}", source_dir);
     let mut filesets = Vec::new();
 
     for dir in &list_source_directories(source_dir)? {
@@ -82,11 +83,11 @@ fn find_and_parse_all_source_files(source_dir: &str, config: &Config) -> Res<Vec
             module_path = String::from("main");
         }
 
-        info!("parsing module: {}", module_path);
+        info!("Parsing module: {}", module_path);
         let files = parse_files_in_directory(sources, config)?;
 
         if files.is_empty() {
-            info!("no files to parse");
+            info!("No input files");
             continue;
         }
 

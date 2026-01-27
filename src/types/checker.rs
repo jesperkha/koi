@@ -260,7 +260,7 @@ impl<'a> Checker<'a> {
 
     pub fn emit_ast(&mut self, decls: Vec<ast::Decl>) -> Result<Vec<types::Decl>, ErrorSet> {
         let mut errs = ErrorSet::new();
-        info!("checking file: {}", self.src.filepath);
+        info!("Type check: {}", self.src.filepath);
 
         let typed_decls = decls
             .into_iter()
@@ -270,7 +270,7 @@ impl<'a> Checker<'a> {
             .collect::<Vec<_>>();
 
         if errs.len() > 0 {
-            info!("fail! finished with {} errors", errs.len());
+            info!("Fail: finished with {} errors", errs.len());
         }
 
         errs.err_or(typed_decls)
@@ -318,7 +318,7 @@ impl<'a> Checker<'a> {
 
             // Must be main module
             if !self.modpath.name().is_empty() && self.modpath.name() != "main" {
-                info!(
+                debug!(
                     "module name expected to be main, is {}",
                     self.modpath.name()
                 );

@@ -58,6 +58,7 @@ pub struct Options {
     pub debug_mode: bool,
 }
 
+/// Internal compiler configuration
 pub struct Config {
     /// Print TypeContext after type checking.
     pub dump_type_context: bool,
