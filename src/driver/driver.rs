@@ -10,7 +10,7 @@ use crate::{
     ast::{File, FileSet},
     build::x86,
     config::{Config, Project, ProjectType, Target, load_config_file},
-    error::ErrorSet,
+    error::{ErrorSet, error_str},
     ir::{Ir, Unit, emit_ir},
     module::{Module, ModuleGraph, ModulePath, create_header_file},
     parser::{parse, sort_by_dependency_graph},
@@ -49,11 +49,11 @@ pub fn compile() -> Res<()> {
     // them in a ModuleGraph.
     let module_graph = type_check_and_create_modules(sorted_filesets, &mut ctx, &config)?;
 
-    if config.dump_type_context {
-        ctx.dump_context_string();
-    }
+    // High level passes are checks done after the main parsing and type checking
+    // steps and are instead performed on the project as a whole.
+    do_high_level_passes(&module_graph, &ctx, &project, &config)?;
 
-    // If building a package, emit package header file as well
+    // Create header file for package
     if matches!(project.project_type, ProjectType::Package) {
         let content = create_header_file(module_graph.main(), &ctx)?;
         write_file(&format!("{}.h.koi", project.out), &content)?;
@@ -254,4 +254,34 @@ fn pathbuf_to_module_path(path: &PathBuf, source_dir: &str) -> String {
         .trim_start_matches("/")
         .trim_end_matches("/")
         .replace("/", ".")
+}
+
+/// High level passes are checks done after the main parsing and type checking
+/// steps and are instead performed on the project as a whole.
+fn do_high_level_passes(
+    modgraph: &ModuleGraph,
+    ctx: &TypeContext,
+    project: &Project,
+    config: &Config,
+) -> Result<(), String> {
+    // Check if main function is present and if it should be
+    let has_main = modgraph.main().symbols.get("main").map_or(false, |_| true);
+    if !has_main && matches!(project.project_type, ProjectType::App) {
+        return error_str("main module has no main function");
+    }
+    if has_main && matches!(project.project_type, ProjectType::Package) {
+        return error_str("package project cannot have a main function");
+    }
+
+    // Print debug info
+    if config.dump_type_context {
+        ctx.dump_context_string();
+    }
+    if config.print_symbol_tables {
+        for module in modgraph.modules() {
+            module.symbols.print(module.modpath.path());
+        }
+    }
+
+    Ok(())
 }

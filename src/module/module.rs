@@ -105,10 +105,9 @@ impl Module {
 }
 
 pub struct ModuleGraph {
-    pub modules: Vec<Module>,
+    modules: Vec<Module>,
     /// Indecies in modules vec
-    pub cache: HashMap<String, ModuleId>,
-
+    cache: HashMap<String, ModuleId>,
     /// id of main module
     main_id: ModuleId,
 }

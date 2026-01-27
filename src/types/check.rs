@@ -27,10 +27,6 @@ pub fn type_check<'a>(
     // Emit typed AST
     let typed_ast = emit_typed_ast(&fs.modpath, fs.files, ctx, &mut syms, &mut nsl, config)?;
 
-    if config.print_symbol_tables {
-        syms.print(fs.modpath.name());
-    }
-
     let create_mod = CreateModule {
         namespaces: nsl,
         symbols: syms,

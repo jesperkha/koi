@@ -96,8 +96,8 @@ impl SymbolList {
     }
 
     pub fn print(&self, module: &str) {
-        println!("Symbols in {}", module);
-        println!("----------------------");
+        println!("| Symbols in {}", module);
+        println!("| ----------------------");
         for (name, sym) in &self.symbols {
             println!("| {:<10} {}", name, sym)
         }
