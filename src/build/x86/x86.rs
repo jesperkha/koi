@@ -80,11 +80,13 @@ pub fn build(ir: Ir, buildcfg: BuildConfig, config: &Config) -> Result<String, S
 }
 
 fn get_root_dir() -> PathBuf {
-    let binding = env::current_exe().unwrap();
-    let mut rootdir = binding.parent().unwrap().parent().unwrap();
-    if rootdir.ends_with("target/debug") {
-        rootdir = Path::new(".");
-    }
+    let exec_path = env::current_exe().unwrap();
+
+    let rootdir = if exec_path.ends_with("target/debug/koi") {
+        Path::new(".") // for debug/testing using cargo run
+    } else {
+        exec_path.parent().unwrap().parent().unwrap()
+    };
 
     info!("Rootdir: {}", rootdir.to_string_lossy().to_string());
     rootdir.to_owned()

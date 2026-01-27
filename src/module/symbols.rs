@@ -23,7 +23,7 @@ impl Symbol {
     /// If the symbol is extern (resolved at link time).
     /// If this is true, then 'link_name' should be the same as 'name'.
     pub fn is_extern(&self) -> bool {
-        matches!(self.origin, SymbolOrigin::Extern)
+        matches!(self.origin, SymbolOrigin::Extern(_))
     }
 
     /// The mangled link name (prefixed with module path etc).
@@ -41,7 +41,7 @@ impl Symbol {
             SymbolOrigin::Module(modpath) => {
                 format!("_{}_{}", modpath.path().replace(".", "_"), self.name)
             }
-            SymbolOrigin::Extern => self.name.clone(),
+            SymbolOrigin::Extern(_) => self.name.clone(),
         }
     }
 }
@@ -49,7 +49,7 @@ impl Symbol {
 #[derive(Clone, Debug)]
 pub enum SymbolOrigin {
     Module(ModulePath),
-    Extern,
+    Extern(ModulePath), // Contains origin of declaration
 }
 
 #[derive(Clone, Debug)]
@@ -128,7 +128,7 @@ impl fmt::Display for SymbolOrigin {
             "{}",
             match self {
                 SymbolOrigin::Module(module_path) => format!("Module({})", module_path.path()),
-                SymbolOrigin::Extern => format!("extern"),
+                SymbolOrigin::Extern(_) => format!("extern"),
             }
         )
     }

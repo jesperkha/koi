@@ -1,11 +1,9 @@
 use std::{collections::HashMap, hash::Hash};
 
 use crate::{
-    module::{NamespaceList, Symbol, SymbolList},
+    module::{NamespaceList, Symbol, SymbolList, SymbolOrigin},
     types::TypedAst,
 };
-
-// TODO: header files and stdlib
 
 pub enum ModuleKind {
     Stdlib,
@@ -91,7 +89,17 @@ impl Module {
         self.symbols
             .symbols()
             .iter()
-            .filter(|s| s.1.is_exported)
+            .filter(|s| {
+                // Is it exported?
+                if !s.1.is_exported {
+                    return false;
+                }
+
+                match &s.1.origin {
+                    SymbolOrigin::Module(modpath) => &self.modpath == modpath,
+                    SymbolOrigin::Extern(modpath) => &self.modpath == modpath,
+                }
+            })
             .collect::<_>()
     }
 }
@@ -100,6 +108,9 @@ pub struct ModuleGraph {
     pub modules: Vec<Module>,
     /// Indecies in modules vec
     pub cache: HashMap<String, ModuleId>,
+
+    /// id of main module
+    main_id: ModuleId,
 }
 
 impl ModuleGraph {
@@ -107,6 +118,7 @@ impl ModuleGraph {
         ModuleGraph {
             modules: Vec::new(),
             cache: HashMap::new(),
+            main_id: 0,
         }
     }
 
@@ -126,6 +138,11 @@ impl ModuleGraph {
 
         let module = &self.modules[id];
         self.cache.insert(module.modpath.path().to_owned(), id);
+
+        if module.modpath.path() == "main" {
+            self.main_id = id;
+        }
+
         module
     }
 
@@ -141,6 +158,12 @@ impl ModuleGraph {
             .map_or(Err(format!("could not resolve module path")), |id| {
                 Ok(&self.modules[*id])
             })
+    }
+
+    /// Get main module
+    pub fn main(&self) -> &Module {
+        // main module should always exist if used
+        self.get(self.main_id).expect("no main module")
     }
 
     pub fn modules(&self) -> &Vec<Module> {

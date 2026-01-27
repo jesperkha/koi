@@ -208,7 +208,7 @@ impl<'a> Checker<'a> {
             &node.params,
             &node.ret_type,
             node.docs.clone(),
-            SymbolOrigin::Extern,
+            SymbolOrigin::Extern(self.modpath.clone()),
         )
     }
 

@@ -1,8 +1,4 @@
-use std::{
-    fs,
-    path::Path,
-    process::{Command, CommandArgs},
-};
+use std::{fs, path::Path, process::Command};
 
 use tracing::info;
 

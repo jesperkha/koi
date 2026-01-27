@@ -12,11 +12,11 @@ use crate::{
     config::{Config, Project, ProjectType, Target, load_config_file},
     error::ErrorSet,
     ir::{Ir, Unit, emit_ir},
-    module::{Module, ModuleGraph, ModulePath},
+    module::{Module, ModuleGraph, ModulePath, create_header_file},
     parser::{parse, sort_by_dependency_graph},
     token::{Source, scan},
     types::{TypeContext, type_check},
-    util::create_dir_if_not_exist,
+    util::{create_dir_if_not_exist, write_file},
 };
 
 /// Result type shorthand used in this file.
@@ -51,6 +51,12 @@ pub fn compile() -> Res<()> {
 
     if config.dump_type_context {
         ctx.dump_context_string();
+    }
+
+    // If building a package, emit package header file as well
+    if matches!(project.project_type, ProjectType::Package) {
+        let content = create_header_file(module_graph.main(), &ctx)?;
+        write_file(&format!("{}.h.koi", project.out), &content)?;
     }
 
     // Emit the intermediate representation for all modules
