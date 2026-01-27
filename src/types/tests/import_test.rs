@@ -539,3 +539,61 @@ fn test_import_private_symbol_error() {
         "module 'foo' has no export 'private'",
     );
 }
+
+#[test]
+fn test_no_reexport() {
+    assert_error(
+        &vec![
+            file(
+                "one",
+                r#"
+                pub func f() {}
+            "#,
+            ),
+            file(
+                "two",
+                r#"
+                import one { f }
+            "#,
+            ),
+            file(
+                "main",
+                r#"
+                import two { f }
+
+                func main() int {
+                    return 0
+                }
+            "#,
+            ),
+        ],
+        "module 'two' has no export 'f'",
+    );
+    assert_error(
+        &vec![
+            file(
+                "one",
+                r#"
+                pub extern func f()
+            "#,
+            ),
+            file(
+                "two",
+                r#"
+                import one { f }
+            "#,
+            ),
+            file(
+                "main",
+                r#"
+                import two { f }
+
+                func main() int {
+                    return 0
+                }
+            "#,
+            ),
+        ],
+        "module 'two' has no export 'f'",
+    );
+}
