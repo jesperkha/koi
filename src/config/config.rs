@@ -1,3 +1,63 @@
+use std::fs;
+
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ConfigFile {
+    pub project: Project,
+    pub options: Options,
+}
+
+/// The target specifies what the output assembly (or bytecode) will look
+/// like. Different builders are used for different targets.
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Target {
+    /// Target CPUs with the x86_64 instruction set.
+    X86_64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ProjectType {
+    /// In app mode the source directory is compiled to a single
+    /// executable put in a specified location.
+    App,
+
+    /// In package mode the specified source directory is compiled to
+    /// a shared object file (.so) and a header file is generated for
+    /// each exported module. This is used for compiling libraries and
+    /// shared code.
+    Package,
+}
+
+/// BuildConfig contains details on the general build process. Where output
+/// files should go, where the source is located, what target is used, etc.
+/// Compiler specific config can be found in [src/config/config.rs].
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct Project {
+    /// Directory for assembly and object file output
+    pub bin: String,
+    /// Name of target executable
+    pub out: String,
+    /// Root directory of Koi project
+    pub src: String,
+    /// Target architecture
+    pub target: Target,
+    /// Project type determines which steps are done and/or excluded
+    /// in the compilation process.
+    #[serde(rename = "type")]
+    pub project_type: ProjectType,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct Options {
+    pub debug_mode: bool,
+}
+
 pub struct Config {
     /// Print TypeContext after type checking.
     pub dump_type_context: bool,
@@ -31,4 +91,20 @@ impl Config {
             print_symbol_tables: true,
         }
     }
+}
+
+/// Load koi.toml file and parse as BuildConfig.
+pub fn load_config_file() -> Result<(Project, Config), String> {
+    let src = fs::read_to_string("koi.toml")
+        .map_err(|_| format!("Failed to open koi.toml. Run `koi init` if missing."))?;
+    let config_file: ConfigFile = toml::from_str(&src).map_err(|e| e.to_string())?;
+
+    Ok((
+        config_file.project,
+        if config_file.options.debug_mode {
+            Config::debug()
+        } else {
+            Config::default()
+        },
+    ))
 }

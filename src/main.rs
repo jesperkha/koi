@@ -1,11 +1,7 @@
 use std::{fs, process::exit};
 
 use clap::{CommandFactory, Parser, Subcommand};
-use koi::{
-    config::Config,
-    driver::compile,
-    util::{create_dir_if_not_exist, write_file},
-};
+use koi::{driver::compile, util::write_file};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
@@ -19,10 +15,8 @@ struct Cli {
 enum Command {
     /// Initialize a new project
     Init,
-
     /// Build and run project
     Run,
-
     /// Build project
     Build,
 }
@@ -42,11 +36,9 @@ fn main() {
         return;
     };
 
-    let config = Config::debug();
-
     let res = match command {
         Command::Init => koi_init(),
-        Command::Build => compile(&config),
+        Command::Build => compile(),
         Command::Run => todo!(),
     };
 
@@ -62,22 +54,17 @@ fn koi_init() -> Result<(), String> {
         return Ok(());
     }
 
-    create_dir_if_not_exist("src")?;
-
     let content = r#"# Koi project configuration
 
-bin = "bin"  # Output directory for temporary files
-src = "src"  # Source code directory
-out = "main" # Filepath of output file
+[project]
+type = "app"      # Project type (app|package) 
+src = "_test"     # Source code directory
+out = "main"      # Filepath of output file
+bin = "bin"       # Output directory for temporary files
+target = "x86-64" # Target arch (x86-64)
 
-# Compilation mode
-#   normal  - Compile as an executable
-#   package - Compile as a shared library
-mode = "normal"
-
-# Target architecture/format
-#   x86-64 - Target unknown x86-64 gnu linux 
-target = "x86-64"
+[options]
+debug-mode = false
 "#;
 
     write_file("koi.toml", content)?;

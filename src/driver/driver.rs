@@ -3,14 +3,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use serde::Deserialize;
 use tracing::info;
 use walkdir::WalkDir;
 
 use crate::{
     ast::{File, FileSet},
     build::x86,
-    config::Config,
+    config::{Config, Project, ProjectType, Target, load_config_file},
     error::ErrorSet,
     ir::{Ir, Unit, emit_ir},
     module::{Module, ModuleGraph, ModulePath},
@@ -23,59 +22,18 @@ use crate::{
 /// Result type shorthand used in this file.
 type Res<T> = Result<T, String>;
 
-/// The target specifies what the output assembly (or bytecode) will look
-/// like. Different builders are used for different targets.
-#[derive(Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum Target {
-    /// Target CPUs with the x86_64 instruction set.
-    X86_64,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum CompilationMode {
-    /// In normal mode the source directory is compiled to a single
-    /// executable put in a specified location.
-    Normal,
-
-    /// In package mode the specified source directory is compiled to
-    /// a shared object file (.so) and a header file is generated for
-    /// each exported module. This is used for compiling libraries and
-    /// shared code.
-    Package,
-}
-
-/// BuildConfig contains details on the general build process. Where output
-/// files should go, where the source is located, what target is used, etc.
-/// Compiler specific config can be found in [src/config/config.rs].
-#[derive(Deserialize)]
-pub struct BuildConfig {
-    /// Directory for assembly and object file output
-    pub bin: String,
-    /// Name of target executable
-    pub out: String,
-    /// Root directory of Koi project
-    pub src: String,
-    /// Target architecture
-    pub target: Target,
-    /// Compilation mode determines which steps are done and/or excluded
-    /// in the compilation process.
-    pub mode: CompilationMode,
-}
-
 /// Compile the project using the given global config and build configuration.
-pub fn compile(config: &Config) -> Res<()> {
-    let build_cfg = load_modfile()?;
+pub fn compile() -> Res<()> {
+    let (project, config) = load_config_file()?;
 
-    create_dir_if_not_exist(&build_cfg.bin)?;
+    create_dir_if_not_exist(&project.bin)?;
 
     // Recursively search the given source directory for files and
     // return a list of FileSet of all source files found.
-    let filesets = find_and_parse_all_source_files(&build_cfg.src, &config)?;
+    let filesets = find_and_parse_all_source_files(&project.src, &config)?;
 
     if filesets.len() == 0 {
-        return Err(format!("no source files in '{}'", build_cfg.src));
+        return Err(format!("no source files in '{}'", project.src));
     }
 
     // Create a dependency graph and sort it, returning a list of
@@ -89,7 +47,7 @@ pub fn compile(config: &Config) -> Res<()> {
 
     // Type check all file sets, turning them into Modules, and put
     // them in a ModuleGraph.
-    let module_graph = type_check_and_create_modules(sorted_filesets, &mut ctx, config)?;
+    let module_graph = type_check_and_create_modules(sorted_filesets, &mut ctx, &config)?;
 
     if config.dump_type_context {
         ctx.dump_context_string();
@@ -99,11 +57,11 @@ pub fn compile(config: &Config) -> Res<()> {
     let units = module_graph
         .modules()
         .iter()
-        .map(|module| emit_module_ir(module, &ctx, config))
+        .map(|module| emit_module_ir(module, &ctx, &config))
         .collect::<Result<Vec<Unit>, String>>()?;
 
     // Build the final executable/libary file
-    let _ = build_ir(Ir::new(units), config, &build_cfg)?;
+    let _ = build_ir(Ir::new(units), &config, &project)?;
 
     Ok(())
 }
@@ -180,12 +138,12 @@ fn emit_module_ir(m: &Module, ctx: &TypeContext, config: &Config) -> Res<Unit> {
 }
 
 /// Shorthand for assembling an IR unit and converting error to string.
-fn build_ir(ir: Ir, config: &Config, build_cfg: &BuildConfig) -> Res<String> {
+fn build_ir(ir: Ir, config: &Config, build_cfg: &Project) -> Res<String> {
     match build_cfg.target {
         Target::X86_64 => x86::build(
             ir,
             x86::BuildConfig {
-                linkmode: comp_mode_to_link_mode(&build_cfg.mode),
+                linkmode: proj_type_to_link_mode(&build_cfg.project_type),
                 tmpdir: build_cfg.bin.clone(),
                 outfile: build_cfg.out.clone(),
             },
@@ -195,10 +153,10 @@ fn build_ir(ir: Ir, config: &Config, build_cfg: &BuildConfig) -> Res<String> {
 }
 
 /// Report which x86 link mode to use for which compilation mode.
-fn comp_mode_to_link_mode(mode: &CompilationMode) -> x86::LinkMode {
+fn proj_type_to_link_mode(mode: &ProjectType) -> x86::LinkMode {
     match mode {
-        CompilationMode::Normal => x86::LinkMode::Exectuable,
-        CompilationMode::Package => x86::LinkMode::SharedObject,
+        ProjectType::App => x86::LinkMode::Exectuable,
+        ProjectType::Package => x86::LinkMode::SharedObject,
     }
 }
 
@@ -289,11 +247,4 @@ fn pathbuf_to_module_path(path: &PathBuf, source_dir: &str) -> String {
         .trim_start_matches("/")
         .trim_end_matches("/")
         .replace("/", ".")
-}
-
-/// Load koi.toml file and parse as BuildConfig.
-fn load_modfile() -> Result<BuildConfig, String> {
-    let src = fs::read_to_string("koi.toml")
-        .map_err(|_| format!("Failed to open koi.toml. Run `koi init` if missing."))?;
-    toml::from_str(&src).map_err(|e| e.to_string())
 }
