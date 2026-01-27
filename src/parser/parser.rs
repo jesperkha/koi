@@ -20,7 +20,7 @@ pub fn parse(src: Source, tokens: Vec<Token>, config: &Config) -> Res<File> {
 struct Parser<'a> {
     errs: ErrorSet,
     tokens: Vec<Token>,
-    config: &'a Config,
+    _config: &'a Config,
     src: Source,
 
     pos: usize,
@@ -44,7 +44,7 @@ impl<'a> Parser<'a> {
             tokens,
             pos: 0,
             panic_mode: false,
-            config,
+            _config: config,
             src,
             comments: Vec::new(),
         }

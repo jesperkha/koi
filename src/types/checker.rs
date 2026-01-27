@@ -23,7 +23,7 @@ pub struct Checker<'a> {
     symbols: &'a mut SymbolList,
     nsl: &'a mut NamespaceList,
     src: &'a Source,
-    config: &'a Config,
+    _config: &'a Config,
     modpath: &'a ModulePath,
 
     /// Locally declared variables for type checking.
@@ -48,7 +48,7 @@ impl<'a> Checker<'a> {
     ) -> Self {
         Self {
             modpath,
-            config,
+            _config: config,
             src,
             nsl,
             ctx,
@@ -120,7 +120,7 @@ impl<'a> Checker<'a> {
     }
 
     /// Collect a list of type ids for each field in the slice.
-    fn collect_field_types(&mut self, fields: &[Field]) -> Result<Vec<TypeId>, Error> {
+    fn _collect_field_types(&mut self, fields: &[Field]) -> Result<Vec<TypeId>, Error> {
         fields.iter().map(|f| self.eval_type(&f.typ)).collect()
     }
 
@@ -156,7 +156,7 @@ impl<'a> Checker<'a> {
     }
 
     /// Check if the expression is an identifier and return the corresponding type.
-    fn if_identifier_get_type(&self, expr: &ast::Expr) -> Option<&Type> {
+    fn _if_identifier_get_type(&self, expr: &ast::Expr) -> Option<&Type> {
         if let Some(name) = self.if_identifier_get_name(expr) {
             if let Ok(sym) = self.symbols.get(name) {
                 return Some(self.ctx.lookup(sym.ty));

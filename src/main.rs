@@ -2,7 +2,6 @@ use std::{fs, process::exit};
 
 use clap::{CommandFactory, Parser, Subcommand};
 use koi::{driver::compile, util::write_file};
-use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
