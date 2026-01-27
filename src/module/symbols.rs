@@ -95,13 +95,15 @@ impl SymbolList {
         &self.symbols
     }
 
-    pub fn print(&self, module: &str) {
-        println!("| Symbols in {}", module);
-        println!("| ----------------------");
+    /// Create a string dump of all symbols in this module.
+    pub fn dump(&self, module: &str) -> String {
+        let mut s = String::new();
+        s += &format!("| Symbols in {}\n", module);
+        s += &format!("| ----------------------\n");
         for (name, sym) in &self.symbols {
-            println!("| {:<10} {}", name, sym)
+            s += &format!("| {:<10} {}\n", name, sym)
         }
-        println!();
+        s
     }
 }
 

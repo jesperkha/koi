@@ -95,17 +95,16 @@ impl Config {
 }
 
 /// Load koi.toml file and parse as BuildConfig.
-pub fn load_config_file() -> Result<(Project, Config), String> {
+pub fn load_config_file() -> Result<(Project, Options, Config), String> {
     let src = fs::read_to_string("koi.toml")
         .map_err(|_| format!("Failed to open koi.toml. Run `koi init` if missing."))?;
     let config_file: ConfigFile = toml::from_str(&src).map_err(|e| e.to_string())?;
 
-    Ok((
-        config_file.project,
-        if config_file.options.debug_mode {
-            Config::debug()
-        } else {
-            Config::default()
-        },
-    ))
+    let config = if config_file.options.debug_mode {
+        Config::debug()
+    } else {
+        Config::default()
+    };
+
+    Ok((config_file.project, config_file.options, config))
 }

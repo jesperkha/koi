@@ -4,6 +4,7 @@ use std::{
 };
 
 use tracing::info;
+use tracing_subscriber::EnvFilter;
 use walkdir::WalkDir;
 
 use crate::{
@@ -24,7 +25,9 @@ type Res<T> = Result<T, String>;
 
 /// Compile the project using the given global config and build configuration.
 pub fn compile() -> Res<()> {
-    let (project, config) = load_config_file()?;
+    let (project, options, config) = load_config_file()?;
+
+    init_logger(options.debug_mode);
 
     create_dir_if_not_exist(&project.bin)?;
 
@@ -273,15 +276,45 @@ fn do_high_level_passes(
         return error_str("package project cannot have a main function");
     }
 
-    // Print debug info
     if config.dump_type_context {
-        ctx.dump_context_string();
+        let path = format!("{}/types.txt", project.bin);
+        info!("Writing type info to {}", path);
+        write_file(&path, &ctx.dump_context_string())?;
     }
+
     if config.print_symbol_tables {
+        let mut s = String::new();
         for module in modgraph.modules() {
-            module.symbols.print(module.modpath.path());
+            s += &module.symbols.dump(module.modpath.path());
         }
+
+        let path = format!("{}/symbols.txt", project.bin);
+        info!("Writing symbol info to {}", path);
+        write_file(&path, &s)?;
     }
 
     Ok(())
+}
+
+fn init_logger(debug_mode: bool) {
+    let env_filter = EnvFilter::builder()
+        // Set default level based on debug_mode
+        .with_default_directive(if debug_mode {
+            tracing_subscriber::filter::LevelFilter::INFO.into()
+        } else {
+            tracing_subscriber::filter::LevelFilter::WARN.into()
+        })
+        // Merge with RUST_LOG if present
+        .from_env_lossy(); // reads RUST_LOG if set, otherwise uses default
+
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .with_target(false)
+        .with_thread_ids(false)
+        .with_thread_names(false)
+        .with_file(false)
+        .with_line_number(false)
+        .without_time()
+        .compact()
+        .init();
 }

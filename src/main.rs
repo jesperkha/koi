@@ -22,8 +22,6 @@ enum Command {
 }
 
 fn main() {
-    init_logger();
-
     let cli = Cli::parse();
 
     let Some(command) = cli.command else {
@@ -65,20 +63,4 @@ debug-mode = false
     write_file("koi.toml", content)?;
     println!("Created koi.toml");
     Ok(())
-}
-
-fn init_logger() {
-    // Configure global subscriber for tracing
-    // Run with RUST_LOG=<level> (trace, debug, info, warn, error)
-    // Defaults to error
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .with_target(false)
-        .with_thread_ids(false)
-        .with_thread_names(false)
-        .with_file(false)
-        .with_line_number(false)
-        .without_time()
-        .compact()
-        .init();
 }
