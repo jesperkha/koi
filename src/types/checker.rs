@@ -180,6 +180,7 @@ impl<'a> Checker<'a> {
         let mut errs = ErrorSet::new();
         for d in decls {
             let _ = match d {
+                ast::Decl::FuncDecl(node) => self.declare_function_decl(node),
                 ast::Decl::Func(node) => self.declare_function(node),
                 ast::Decl::Extern(node) => self.declare_extern(node),
                 _ => Ok(()),
@@ -188,6 +189,17 @@ impl<'a> Checker<'a> {
         }
 
         errs.err_or(())
+    }
+
+    fn declare_function_decl(&mut self, node: &ast::FuncDeclNode) -> Result<(), Error> {
+        self.declare_function_definition(
+            &node.name,
+            node.public,
+            &node.params,
+            &node.ret_type,
+            node.docs.clone(),
+            SymbolOrigin::Module(self.modpath.clone()),
+        )
     }
 
     fn declare_function(&mut self, node: &ast::FuncNode) -> Result<(), Error> {
@@ -280,7 +292,7 @@ impl<'a> Checker<'a> {
         match decl {
             ast::Decl::Func(node) => self.emit_func(node),
             ast::Decl::Extern(node) => self.emit_extern(node),
-            ast::Decl::Import(_) => panic!("import statements should not be emitted"),
+            _ => panic!("unexpected decl node in ast: {:?}", decl),
         }
     }
 

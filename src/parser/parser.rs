@@ -12,9 +12,14 @@ use crate::{
     token::{Source, Token, TokenKind},
 };
 
-pub fn parse(src: Source, tokens: Vec<Token>, config: &Config) -> Res<File> {
+pub fn parse_file(src: Source, tokens: Vec<Token>, config: &Config) -> Res<File> {
     let parser = Parser::new(src, tokens, config);
-    parser.parse()
+    parser.parse_file()
+}
+
+pub fn parse_header(src: Source, tokens: Vec<Token>, config: &Config) -> Res<(Ast, Source)> {
+    let parser = Parser::new(src, tokens, config);
+    parser.parse_header()
 }
 
 struct Parser<'a> {
@@ -38,7 +43,7 @@ struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn new(src: Source, tokens: Vec<Token>, config: &'a Config) -> Self {
+    pub fn new(src: Source, tokens: Vec<Token>, config: &'a Config) -> Self {
         Self {
             errs: ErrorSet::new(),
             tokens,
@@ -50,7 +55,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse(mut self) -> Res<File> {
+    pub fn parse_file(mut self) -> Res<File> {
         if self.tokens.len() == 0 {
             return Ok(File::new(
                 self.src,
@@ -88,6 +93,43 @@ impl<'a> Parser<'a> {
 
         let ast = Ast { imports, decls };
         Ok(File::new(self.src, ast))
+    }
+
+    /// Parse header file (declarations only)
+    pub fn parse_header(mut self) -> Res<(Ast, Source)> {
+        let mut decls = Vec::new();
+
+        while self.skip_whitespace_and_not_eof() {
+            match self.parse_header_decl() {
+                Ok(decl) => decls.push(decl),
+                Err(err) => {
+                    self.errs.add(err);
+                    self.recover_from_error();
+                }
+            }
+        }
+
+        if self.errs.len() > 0 {
+            info!("Fail, finished with {} errors", self.errs.len());
+            return Err(self.errs);
+        }
+
+        self.errs.err_or((
+            Ast {
+                decls,
+                imports: vec![],
+            },
+            self.src,
+        ))
+    }
+
+    fn parse_header_decl(&mut self) -> Result<Decl, Error> {
+        let token = self.cur_must()?;
+
+        match token.kind {
+            TokenKind::Func => self.parse_function_def(true).map(|f| Decl::FuncDecl(f)),
+            _ => Err(self.error_token("expected declaration")),
+        }
     }
 
     /// Consume newlines until first non-newline token or eof.
@@ -560,6 +602,13 @@ impl<'a> Parser<'a> {
 
     fn cur(&self) -> Option<Token> {
         self.tokens.get(self.pos).cloned()
+    }
+
+    /// Get current token or report end of file error
+    fn cur_must(&self) -> Result<&Token, Error> {
+        self.tokens
+            .get(self.pos)
+            .map_or(Err(self.error_token("unexpected end of input")), Result::Ok)
     }
 
     fn cur_or_last(&self) -> Token {

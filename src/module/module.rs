@@ -8,7 +8,7 @@ use crate::{
 pub enum ModuleKind {
     Stdlib,
     User,
-    ThirdParty,
+    Package,
 }
 
 pub type ModuleId = usize;
@@ -33,9 +33,56 @@ impl ModulePath {
         Self(s.to_owned())
     }
 
+    pub fn new_package(name: &str) -> Self {
+        assert!(!name.is_empty(), "cannot have empty module path");
+        Self(format!("lib.{}", name))
+    }
+
+    pub fn new_stdlib(name: &str) -> Self {
+        assert!(!name.is_empty(), "cannot have empty module path");
+        Self(format!("std.{}", name))
+    }
+
+    /// Check if this module path is part of the standard library.
+    ///
+    /// ```
+    /// use koi::module::ModulePath;
+    ///
+    /// let modpath = ModulePath::new_str("std.io");
+    /// assert!(modpath.is_stdlib());
+    ///
+    /// let modpath2 = ModulePath::new_stdlib("foo");
+    /// assert!(modpath2.is_stdlib());
+    /// ```
+    pub fn is_stdlib(&self) -> bool {
+        self.0.starts_with("std.")
+    }
+
     /// Get only the module name (the last identifier of the path).
+    ///
+    /// ```
+    /// use koi::module::ModulePath;
+    ///
+    /// let modpath = ModulePath::new_str("app.foo.bar");
+    /// assert_eq!(modpath.name(), "bar");
+    ///
+    /// let modpath2 = ModulePath::new_str("main");
+    /// assert_eq!(modpath2.name(), "main");
+    /// ```
     pub fn name(&self) -> &str {
         &self.0.split(".").last().unwrap() // asserted
+    }
+
+    /// Get the first part of the module path.
+    ///
+    /// ```
+    /// use koi::module::ModulePath;
+    ///
+    /// let modpath = ModulePath::new_str("app.foo.bar");
+    /// assert_eq!(modpath.first(), "app");
+    /// ```
+    pub fn first(&self) -> &str {
+        &self.0.split(".").next().unwrap() // asserted
     }
 
     /// Get the full module path.
@@ -44,6 +91,13 @@ impl ModulePath {
     }
 
     /// Get the module path with underscore (_) separators instead of period (.)
+    ///
+    /// ```
+    /// use koi::module::ModulePath;
+    ///
+    /// let modpath = ModulePath::new_str("app.foo.bar");
+    /// assert_eq!(modpath.path_underscore(), "app_foo_bar");
+    /// ```
     pub fn path_underscore(&self) -> String {
         String::from(&self.0).replace(".", "_")
     }

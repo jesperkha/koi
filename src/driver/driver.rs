@@ -14,7 +14,7 @@ use crate::{
     error::{ErrorSet, error_str},
     ir::{Ir, Unit, emit_ir},
     module::{Module, ModuleGraph, ModulePath, create_header_file},
-    parser::{parse, sort_by_dependency_graph},
+    parser::{parse_file, sort_by_dependency_graph},
     token::{Source, scan},
     types::{TypeContext, type_check},
     util::{create_dir_if_not_exist, write_file},
@@ -117,7 +117,7 @@ fn parse_files_in_directory(sources: Vec<Source>, config: &Config) -> Res<Vec<Fi
         }
 
         scan(&src, config)
-            .and_then(|toks| parse(src, toks, config))
+            .and_then(|toks| parse_file(src, toks, config))
             .map_or_else(|err| errs.join(err), |file| files.push(file));
     }
 
