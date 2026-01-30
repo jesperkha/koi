@@ -56,7 +56,8 @@ func multiply(a int, b int) int
 
     let module = read_header_file(
         ModulePath::new_str("test"),
-        &header_src,
+        "test.h.koi",
+        header_src.as_bytes().to_owned(),
         &mut ctx,
         &mut mg,
         &config,

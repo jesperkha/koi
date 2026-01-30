@@ -166,12 +166,7 @@ fn load_thirdparty_modules(
     let dir = path_or_relative_to_root(&options.thirdparty_path);
     info!("Loading thirdparty from {}", dir.display());
 
-    if !dir.exists() {
-        return error_str(&format!(
-            "thirdparty directory not found: {}",
-            dir.display()
-        ));
-    }
+    create_dir_if_not_exist(&dir.to_string_lossy())?;
 
     load_header_modules(&dir, mg, ctx, config, "thirdparty", |libname| {
         ModulePath::new_package(libname)
@@ -203,10 +198,11 @@ where
         }
 
         info!("Loading {} header: {}", log_prefix, path.display());
-        let src = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let src = fs::read(&path).map_err(|e| e.to_string())?;
         let libname = fname.trim_end_matches(".h.koi");
         let modpath = to_modpath(libname);
-        read_header_file(modpath, &src, ctx, mg, config).map_err(|e| e.to_string())?;
+        read_header_file(modpath, &path.to_string_lossy(), src, ctx, mg, config)
+            .map_err(|e| e.to_string())?;
     }
 
     Ok(())
