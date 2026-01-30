@@ -24,12 +24,13 @@ pub fn create_header_file(module: &Module, ctx: &TypeContext) -> Result<String, 
 /// Parse and type check a header file from source string, adding it to the module graph.
 pub fn read_header_file<'a>(
     modpath: ModulePath,
-    src: &str,
+    filepath: &str,
+    src: Vec<u8>,
     ctx: &mut TypeContext,
     mg: &'a mut ModuleGraph,
     config: &Config,
 ) -> Res<&'a Module> {
-    let source = Source::new_from_string(src);
+    let source = Source::new(filepath.to_owned(), src);
     let tokens = scan(&source, config)?;
 
     let (ast, source) = parse_header(source, tokens, config)?;

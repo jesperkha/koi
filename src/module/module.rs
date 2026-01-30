@@ -110,6 +110,7 @@ pub struct CreateModule {
     pub kind: ModuleKind,
     pub symbols: SymbolList,
     pub namespaces: NamespaceList,
+    pub is_header: bool,
 }
 
 /// A Module is a self-contained compilation unit. It contains the combined
@@ -131,11 +132,18 @@ pub struct Module {
     pub symbols: SymbolList,
     /// List of namespaces imported into this module.
     pub namespaces: NamespaceList,
+    /// Is this module a header file? If true, do not build it.
+    pub is_header: bool,
 }
 
 impl Module {
     pub fn name(&self) -> &str {
         self.modpath.name()
+    }
+
+    /// Reports whether this module should be built (produce IR/codegen) or not.
+    pub fn should_be_built(&self) -> bool {
+        !self.is_header
     }
 
     /// Collect all exported symbols from this module.
@@ -185,6 +193,7 @@ impl ModuleGraph {
             path: m.filepath,
             ast: m.ast,
             kind: m.kind,
+            is_header: m.is_header,
             symbols: m.symbols,
             namespaces: m.namespaces,
         });

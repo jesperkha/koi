@@ -291,7 +291,7 @@ impl Visitable for Decl {
         match self {
             Decl::Func(node) => visitor.visit_func(node),
             Decl::Extern(node) => visitor.visit_extern(node),
-            Decl::Import(node) => visitor.visit_import(node), // TODO: remove?
+            Decl::Import(node) => visitor.visit_import(node),
             _ => panic!("unexpected func decl node in ast"),
         }
     }

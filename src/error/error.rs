@@ -2,8 +2,6 @@ use core::fmt;
 
 use crate::token::{Pos, Source, Token};
 
-// TODO: compact errors based on config
-
 pub fn error_str<T>(msg: &str) -> Result<T, String> {
     Err(format!("error: {}", msg))
 }

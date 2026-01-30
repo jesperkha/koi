@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-// TODO: move to util?
-
 /// The VarTable handles all name to type mappings for local and scoped variables.
 pub struct VarTable<T> {
     /// A stack of scopes. Always has at least one base scope.
@@ -29,11 +27,14 @@ impl<T> VarTable<T> {
     /// Bind a name to T in the current scope. Return true if bind
     /// is ok (name was not already declared).
     pub fn bind(&mut self, name: String, t: T) -> bool {
+        if self.get(&name).is_some() {
+            return false;
+        }
         self.scopes.last_mut().unwrap().insert(name, t).is_none()
     }
 
     /// Look up a name starting from the innermost scope and iterating outwards.
-    pub fn get(&self, name: &String) -> Option<&T> {
+    pub fn get(&self, name: &str) -> Option<&T> {
         for scope in self.scopes.iter().rev() {
             if let Some(t) = scope.get(name) {
                 return Some(t);
