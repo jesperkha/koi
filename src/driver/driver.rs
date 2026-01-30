@@ -14,10 +14,10 @@ use crate::{
     error::{ErrorSet, error_str},
     ir::{Ir, Unit, emit_ir},
     module::{Module, ModuleGraph, ModulePath, create_header_file, read_header_file},
-    parser::{parse_file, parse_header, sort_by_dependency_graph},
+    parser::{parse_file, sort_by_dependency_graph},
     token::{Source, scan},
     types::{TypeContext, type_check},
-    util::{create_dir_if_not_exist, get_root_dir, path_or_relative_to_root, write_file},
+    util::{create_dir_if_not_exist, path_or_relative_to_root, write_file},
 };
 
 /// Result type shorthand used in this file.
