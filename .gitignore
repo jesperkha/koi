@@ -35,3 +35,6 @@ main
 
 /target
 /_test
+
+/koi
+koi.toml

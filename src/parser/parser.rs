@@ -12,17 +12,25 @@ use crate::{
     token::{Source, Token, TokenKind},
 };
 
-pub fn parse(src: Source, tokens: Vec<Token>, config: &Config) -> Res<File> {
+pub fn parse_file(src: Source, tokens: Vec<Token>, config: &Config) -> Res<File> {
     let parser = Parser::new(src, tokens, config);
-    parser.parse()
+    parser.parse_file()
+}
+
+pub fn parse_header(src: Source, tokens: Vec<Token>, config: &Config) -> Res<(Ast, Source)> {
+    let parser = Parser::new(src, tokens, config);
+    parser.parse_header()
 }
 
 struct Parser<'a> {
     errs: ErrorSet,
     tokens: Vec<Token>,
-    pos: usize,
-    config: &'a Config,
+    _config: &'a Config,
     src: Source,
+
+    pos: usize,
+    /// List of accumulated comments. Clears after each blank line.
+    comments: Vec<String>,
 
     // Panic mode occurs when the parser encounters an unknown token sequence
     // and needs to synchronize to a 'clean' state. When panic mode starts,
@@ -35,18 +43,19 @@ struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn new(src: Source, tokens: Vec<Token>, config: &'a Config) -> Self {
+    pub fn new(src: Source, tokens: Vec<Token>, config: &'a Config) -> Self {
         Self {
             errs: ErrorSet::new(),
             tokens,
             pos: 0,
             panic_mode: false,
-            config,
+            _config: config,
             src,
+            comments: Vec::new(),
         }
     }
 
-    fn parse(mut self) -> Res<File> {
+    pub fn parse_file(mut self) -> Res<File> {
         if self.tokens.len() == 0 {
             return Ok(File::new(
                 self.src,
@@ -57,7 +66,7 @@ impl<'a> Parser<'a> {
             ));
         }
 
-        info!("parsing file: {}", self.src.filepath);
+        info!("Parsing file: {}", self.src.filepath);
 
         // Then parse all imports as they must come before the main code
         self.skip_whitespace_and_not_eof();
@@ -78,7 +87,7 @@ impl<'a> Parser<'a> {
         }
 
         if self.errs.len() > 0 {
-            info!("fail! finished with {} errors", self.errs.len());
+            info!("Fail: finished with {} errors", self.errs.len());
             return Err(self.errs);
         }
 
@@ -86,10 +95,68 @@ impl<'a> Parser<'a> {
         Ok(File::new(self.src, ast))
     }
 
+    /// Parse header file (declarations only)
+    pub fn parse_header(mut self) -> Res<(Ast, Source)> {
+        let mut decls = Vec::new();
+
+        while self.skip_whitespace_and_not_eof() {
+            match self.parse_header_decl() {
+                Ok(decl) => decls.push(decl),
+                Err(err) => {
+                    self.errs.add(err);
+                    self.recover_from_error();
+                }
+            }
+        }
+
+        if self.errs.len() > 0 {
+            info!("Fail, finished with {} errors", self.errs.len());
+            return Err(self.errs);
+        }
+
+        self.errs.err_or((
+            Ast {
+                decls,
+                imports: vec![],
+            },
+            self.src,
+        ))
+    }
+
+    fn parse_header_decl(&mut self) -> Result<Decl, Error> {
+        let token = self.cur_must()?;
+
+        match token.kind {
+            TokenKind::Func => self.parse_function_def(true).map(|f| Decl::FuncDecl(f)),
+            TokenKind::Extern => {
+                self.consume(); // extern
+                self.parse_function_def(true).map(|def| Decl::Extern(def))
+            }
+            _ => Err(self.error_token("expected declaration")),
+        }
+    }
+
     /// Consume newlines until first non-newline token or eof.
     /// Returns true if not eof after consumption.
     fn skip_whitespace_and_not_eof(&mut self) -> bool {
-        while !self.eof_or_panic() && self.matches(TokenKind::Newline) {
+        let mut last_was_comment = false;
+        while !self.eof_or_panic() {
+            if let Some(comment) = self.matches_comment() {
+                self.comments.push(comment);
+                self.consume();
+                last_was_comment = true;
+                continue;
+            }
+
+            if !self.matches(TokenKind::Newline) {
+                break;
+            }
+
+            if !last_was_comment {
+                self.comments.clear();
+            }
+
+            last_was_comment = false;
             self.consume();
         }
         !self.eof()
@@ -276,6 +343,7 @@ impl<'a> Parser<'a> {
         };
 
         Ok(FuncDeclNode {
+            docs: self.comments.clone(),
             public,
             name,
             lparen,
@@ -297,6 +365,7 @@ impl<'a> Parser<'a> {
         let body = self.parse_block()?;
 
         Ok(Decl::Func(FuncNode {
+            docs: self.comments.clone(),
             public,
             name: decl.name,
             lparen: decl.lparen,
@@ -539,6 +608,13 @@ impl<'a> Parser<'a> {
         self.tokens.get(self.pos).cloned()
     }
 
+    /// Get current token or report end of file error
+    fn cur_must(&self) -> Result<&Token, Error> {
+        self.tokens
+            .get(self.pos)
+            .map_or(Err(self.error_token("unexpected end of input")), Result::Ok)
+    }
+
     fn cur_or_last(&self) -> Token {
         if self.pos < self.tokens.len() {
             self.tokens.get(self.pos).unwrap().clone()
@@ -613,6 +689,16 @@ impl<'a> Parser<'a> {
             }
         }
         return false;
+    }
+
+    /// Return comment string if current token is a comment.
+    fn matches_comment(&self) -> Option<String> {
+        if let Some(tok) = self.cur() {
+            if let TokenKind::Comment(s) = tok.kind {
+                return Some(s);
+            }
+        }
+        None
     }
 
     fn eof(&self) -> bool {

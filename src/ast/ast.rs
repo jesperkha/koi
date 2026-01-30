@@ -1,3 +1,5 @@
+use core::panic;
+
 use crate::token::{Pos, Token};
 
 pub type NodeId = usize;
@@ -63,6 +65,7 @@ pub enum Decl {
     Func(FuncNode),
     Extern(FuncDeclNode),
     Import(ImportNode),
+    FuncDecl(FuncDeclNode),
 }
 
 /// Statements are found inside blocks. They have side effects and do
@@ -152,6 +155,7 @@ pub struct ReturnNode {
 
 #[derive(Debug)]
 pub struct FuncDeclNode {
+    pub docs: Vec<String>,
     pub public: bool,
     pub name: Token,
     pub lparen: Token,
@@ -162,6 +166,7 @@ pub struct FuncDeclNode {
 
 #[derive(Debug)]
 pub struct FuncNode {
+    pub docs: Vec<String>,
     pub public: bool,
     pub name: Token,
     pub lparen: Token,
@@ -216,6 +221,7 @@ impl Node for Decl {
             Decl::Func(node) => node.pos(),
             Decl::Extern(node) => node.pos(),
             Decl::Import(node) => node.pos(),
+            Decl::FuncDecl(node) => node.pos(),
         }
     }
 
@@ -224,6 +230,7 @@ impl Node for Decl {
             Decl::Func(node) => node.end(),
             Decl::Extern(node) => node.end(),
             Decl::Import(node) => node.end(),
+            Decl::FuncDecl(node) => node.end(),
         }
     }
 
@@ -232,6 +239,7 @@ impl Node for Decl {
             Decl::Func(node) => node.id(),
             Decl::Extern(node) => node.id(),
             Decl::Import(node) => node.id(),
+            Decl::FuncDecl(node) => node.id(),
         }
     }
 }
@@ -283,7 +291,8 @@ impl Visitable for Decl {
         match self {
             Decl::Func(node) => visitor.visit_func(node),
             Decl::Extern(node) => visitor.visit_extern(node),
-            Decl::Import(node) => visitor.visit_import(node),
+            Decl::Import(node) => visitor.visit_import(node), // TODO: remove?
+            _ => panic!("unexpected func decl node in ast"),
         }
     }
 }

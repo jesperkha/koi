@@ -42,6 +42,30 @@ fn test_literal() {
 }
 
 #[test]
+fn test_function_docs() {
+    compare_string(
+        r#"
+        // Some docs
+        // Another doc
+        func f() int {
+            return 0
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        // Doc 1
+        func f() {
+        }
+
+        // Doc 2
+        func g() {
+        }
+    "#,
+    );
+}
+
+#[test]
 fn test_function_with_return() {
     compare_string(
         r#"

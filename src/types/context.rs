@@ -158,7 +158,7 @@ impl TypeContext {
     }
 
     /// Print a string dump of all type and symbol mappings.
-    pub fn dump_context_string(&self) {
+    pub fn dump_context_string(&self) -> String {
         let mut s = String::new();
 
         s += "| Types\n";
@@ -167,6 +167,6 @@ impl TypeContext {
             s += &format!("| {:<3} {}\n", i, self.to_string_debug(i));
         }
 
-        println!("{}", s);
+        s
     }
 }

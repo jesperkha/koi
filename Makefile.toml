@@ -1,5 +1,0 @@
-[tasks.clean]
-description = "Remove generated files"
-command = "rm"
-args = ["-rf", "target", "bin", "main"]
-

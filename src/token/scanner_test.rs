@@ -155,12 +155,13 @@ fn test_symbols() {
 #[test]
 fn test_line_comment() {
     scan_and_then("hello // comment\nworld", |toks| {
-        assert_eq!(toks.len(), 3);
+        assert_eq!(toks.len(), 4);
         assert_eq!(toks[0].kind, TokenKind::IdentLit("hello".to_string()));
-        assert_eq!(toks[2].kind, TokenKind::IdentLit("world".to_string()));
+        assert_eq!(toks[1].kind, TokenKind::Comment("// comment".to_string()));
+        assert_eq!(toks[3].kind, TokenKind::IdentLit("world".to_string()));
     });
 
-    scan_and_then("// comment", |toks| assert_eq!(toks.len(), 0));
+    scan_and_then("// comment", |toks| assert_eq!(toks.len(), 1));
 }
 
 #[test]

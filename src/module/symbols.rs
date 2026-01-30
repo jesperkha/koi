@@ -1,7 +1,10 @@
 use core::fmt;
 use std::collections::HashMap;
 
-use crate::{module::ModulePath, types::TypeId};
+use crate::{
+    module::ModulePath,
+    types::{TypeContext, TypeId},
+};
 
 #[derive(Clone, Debug)]
 pub struct Symbol {
@@ -23,7 +26,7 @@ impl Symbol {
     /// If the symbol is extern (resolved at link time).
     /// If this is true, then 'link_name' should be the same as 'name'.
     pub fn is_extern(&self) -> bool {
-        matches!(self.origin, SymbolOrigin::Extern)
+        matches!(self.origin, SymbolOrigin::Extern(_))
     }
 
     /// The mangled link name (prefixed with module path etc).
@@ -41,7 +44,25 @@ impl Symbol {
             SymbolOrigin::Module(modpath) => {
                 format!("_{}_{}", modpath.path().replace(".", "_"), self.name)
             }
-            SymbolOrigin::Extern => self.name.clone(),
+            SymbolOrigin::Extern(_) => self.name.clone(),
+        }
+    }
+
+    /// Format the symbol as it would appear in a header file.
+    pub fn to_header_format(&self, ctx: &TypeContext) -> String {
+        match &self.kind {
+            SymbolKind::Function(func) => {
+                format!(
+                    "{}\n{}{}\n\n",
+                    func.docs.join("\n"),
+                    if self.is_extern() { "extern " } else { "" },
+                    format!(
+                        "func {}{}",
+                        self.name,
+                        ctx.to_string(self.ty).trim_start_matches("func ")
+                    )
+                )
+            }
         }
     }
 }
@@ -49,7 +70,7 @@ impl Symbol {
 #[derive(Clone, Debug)]
 pub enum SymbolOrigin {
     Module(ModulePath),
-    Extern,
+    Extern(ModulePath), // Contains origin of declaration
 }
 
 #[derive(Clone, Debug)]
@@ -59,6 +80,8 @@ pub enum SymbolKind {
 
 #[derive(Clone, Debug)]
 pub struct FuncSymbol {
+    /// Function doc comments with leading double slash and no newline.
+    pub docs: Vec<String>,
     /// If the function body should be inlined.
     pub is_inline: bool,
     /// If the function body should be naked (no entry/exit protocol or additional
@@ -93,13 +116,15 @@ impl SymbolList {
         &self.symbols
     }
 
-    pub fn print(&self, module: &str) {
-        println!("Symbols in {}", module);
-        println!("----------------------");
+    /// Create a string dump of all symbols in this module.
+    pub fn dump(&self, module: &str) -> String {
+        let mut s = String::new();
+        s += &format!("| Symbols in {}\n", module);
+        s += &format!("| ----------------------\n");
         for (name, sym) in &self.symbols {
-            println!("| {:<10} {}", name, sym)
+            s += &format!("| {:<10} {}\n", name, sym)
         }
-        println!();
+        s
     }
 }
 
@@ -126,7 +151,7 @@ impl fmt::Display for SymbolOrigin {
             "{}",
             match self {
                 SymbolOrigin::Module(module_path) => format!("Module({})", module_path.path()),
-                SymbolOrigin::Extern => format!("extern"),
+                SymbolOrigin::Extern(_) => format!("extern"),
             }
         )
     }

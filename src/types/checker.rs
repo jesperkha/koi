@@ -23,7 +23,7 @@ pub struct Checker<'a> {
     symbols: &'a mut SymbolList,
     nsl: &'a mut NamespaceList,
     src: &'a Source,
-    config: &'a Config,
+    _config: &'a Config,
     modpath: &'a ModulePath,
 
     /// Locally declared variables for type checking.
@@ -48,7 +48,7 @@ impl<'a> Checker<'a> {
     ) -> Self {
         Self {
             modpath,
-            config,
+            _config: config,
             src,
             nsl,
             ctx,
@@ -120,7 +120,7 @@ impl<'a> Checker<'a> {
     }
 
     /// Collect a list of type ids for each field in the slice.
-    fn collect_field_types(&mut self, fields: &[Field]) -> Result<Vec<TypeId>, Error> {
+    fn _collect_field_types(&mut self, fields: &[Field]) -> Result<Vec<TypeId>, Error> {
         fields.iter().map(|f| self.eval_type(&f.typ)).collect()
     }
 
@@ -156,7 +156,7 @@ impl<'a> Checker<'a> {
     }
 
     /// Check if the expression is an identifier and return the corresponding type.
-    fn if_identifier_get_type(&self, expr: &ast::Expr) -> Option<&Type> {
+    fn _if_identifier_get_type(&self, expr: &ast::Expr) -> Option<&Type> {
         if let Some(name) = self.if_identifier_get_name(expr) {
             if let Ok(sym) = self.symbols.get(name) {
                 return Some(self.ctx.lookup(sym.ty));
@@ -180,6 +180,7 @@ impl<'a> Checker<'a> {
         let mut errs = ErrorSet::new();
         for d in decls {
             let _ = match d {
+                ast::Decl::FuncDecl(node) => self.declare_function_decl(node),
                 ast::Decl::Func(node) => self.declare_function(node),
                 ast::Decl::Extern(node) => self.declare_extern(node),
                 _ => Ok(()),
@@ -190,12 +191,24 @@ impl<'a> Checker<'a> {
         errs.err_or(())
     }
 
+    fn declare_function_decl(&mut self, node: &ast::FuncDeclNode) -> Result<(), Error> {
+        self.declare_function_definition(
+            &node.name,
+            node.public,
+            &node.params,
+            &node.ret_type,
+            node.docs.clone(),
+            SymbolOrigin::Module(self.modpath.clone()),
+        )
+    }
+
     fn declare_function(&mut self, node: &ast::FuncNode) -> Result<(), Error> {
         self.declare_function_definition(
             &node.name,
             node.public,
             &node.params,
             &node.ret_type,
+            node.docs.clone(),
             SymbolOrigin::Module(self.modpath.clone()),
         )
     }
@@ -206,7 +219,8 @@ impl<'a> Checker<'a> {
             node.public,
             &node.params,
             &node.ret_type,
-            SymbolOrigin::Extern,
+            node.docs.clone(),
+            SymbolOrigin::Extern(self.modpath.clone()),
         )
     }
 
@@ -216,6 +230,7 @@ impl<'a> Checker<'a> {
         is_exported: bool,
         params: &Vec<ast::Field>,
         ret_type: &Option<ast::TypeNode>,
+        docs: Vec<String>,
         origin: SymbolOrigin,
     ) -> Result<(), Error> {
         // Evaluate return type if any
@@ -236,6 +251,7 @@ impl<'a> Checker<'a> {
         let symbol = Symbol {
             name: name.to_string(),
             kind: SymbolKind::Function(FuncSymbol {
+                docs,
                 is_inline: false,
                 is_naked: false,
             }),
@@ -256,7 +272,7 @@ impl<'a> Checker<'a> {
 
     pub fn emit_ast(&mut self, decls: Vec<ast::Decl>) -> Result<Vec<types::Decl>, ErrorSet> {
         let mut errs = ErrorSet::new();
-        info!("checking file: {}", self.src.filepath);
+        info!("Type check: {}", self.src.filepath);
 
         let typed_decls = decls
             .into_iter()
@@ -266,7 +282,7 @@ impl<'a> Checker<'a> {
             .collect::<Vec<_>>();
 
         if errs.len() > 0 {
-            info!("fail! finished with {} errors", errs.len());
+            info!("Fail: finished with {} errors", errs.len());
         }
 
         errs.err_or(typed_decls)
@@ -276,7 +292,7 @@ impl<'a> Checker<'a> {
         match decl {
             ast::Decl::Func(node) => self.emit_func(node),
             ast::Decl::Extern(node) => self.emit_extern(node),
-            ast::Decl::Import(_) => panic!("import statements should not be emitted"),
+            _ => panic!("unexpected decl node in ast: {:?}", decl),
         }
     }
 
@@ -314,7 +330,7 @@ impl<'a> Checker<'a> {
 
             // Must be main module
             if !self.modpath.name().is_empty() && self.modpath.name() != "main" {
-                info!(
+                debug!(
                     "module name expected to be main, is {}",
                     self.modpath.name()
                 );
@@ -626,6 +642,7 @@ fn token_to_primitive_type(tok: &Token) -> PrimitiveType {
         TokenKind::FloatType => PrimitiveType::F64,
 
         TokenKind::StringType => PrimitiveType::String,
+        TokenKind::Void => PrimitiveType::Void,
 
         _ => panic!("unknown TypeNode::Primitive kind: {}", tok.kind),
     }

@@ -1,12 +1,93 @@
-use std::collections::HashMap;
-
-use crate::{
-    build::{Builder, RegAllocator, TransUnit},
-    config::Config,
-    ir::{AssignIns, ConstId, IRUnit, IRVisitor, LValue, StoreIns, IRType, Value},
+use std::{
+    collections::HashMap,
+    process::{Command, Stdio},
 };
 
-pub struct X86Builder<'a> {
+use tracing::info;
+
+use crate::{
+    build::x86::reg_alloc::RegAllocator,
+    config::Config,
+    ir::{AssignIns, ConstId, IRType, IRVisitor, Ir, LValue, StoreIns, Unit, Value},
+    util::{cmd, get_root_dir, write_file},
+};
+
+pub enum LinkMode {
+    /// Link as executable ELF file
+    Exectuable,
+    /// Link to shared object file (.so)
+    SharedObject,
+}
+
+pub struct BuildConfig {
+    pub linkmode: LinkMode,
+    /// Where to output temp files (.s .o)
+    pub tmpdir: String,
+    /// Filepath out output executable/object file
+    pub outfile: String,
+}
+
+/// Build and compile an x86-64 executable or shared object file.
+pub fn build(ir: Ir, buildcfg: BuildConfig, config: &Config) -> Result<(), String> {
+    info!("Building for x86-64. Output: {}", buildcfg.outfile);
+
+    if !gcc_available() {
+        return Err("Failed to run gcc. Make sure it's installed and in PATH.".into());
+    }
+
+    let mut asm_files = Vec::new();
+
+    for unit in ir.units {
+        info!("Assembling module {}", unit.modpath.path());
+        let filepath = format!("{}/{}.s", buildcfg.tmpdir, unit.modpath.path_underscore());
+        let source = X86Builder::new(config).build(unit)?;
+
+        info!("Writing file {}", filepath);
+        write_file(&filepath, &source)?;
+        asm_files.push(filepath);
+    }
+
+    let mut args = asm_files;
+
+    let rootdir = get_root_dir();
+    args.push(
+        rootdir
+            .join("lib")
+            .join("entry.s")
+            .to_string_lossy()
+            .to_string(),
+    );
+    args.push("-nostartfiles".into());
+
+    match buildcfg.linkmode {
+        LinkMode::Exectuable => {
+            info!("Compiling executable");
+            args.push(format!("-o{}", buildcfg.outfile));
+            cmd("gcc", &args)?;
+        }
+        LinkMode::SharedObject => {
+            info!("Compiling shared library");
+            args.push(format!("-olib{}.so", buildcfg.outfile));
+            args.push("-shared".into());
+            args.push("-fPIE".into());
+            cmd("gcc", &args)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn gcc_available() -> bool {
+    Command::new("gcc")
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+struct X86Builder<'a> {
     _config: &'a Config,
     regmap: HashMap<ConstId, String>,
     parammap: HashMap<ConstId, String>,
@@ -68,6 +149,43 @@ impl Writer {
 }
 
 impl<'a> X86Builder<'a> {
+    pub fn new(config: &'a Config) -> Self {
+        Self {
+            _config: config,
+
+            head: Writer::new(),
+            text: Writer::new(),
+            data: Writer::new(),
+
+            regmap: HashMap::new(),
+            parammap: HashMap::new(),
+            alloc: RegAllocator::new(),
+            stacksize: 0,
+        }
+    }
+
+    pub fn build(mut self, unit: Unit) -> Result<String, String> {
+        self.head.writeln(".intel_syntax noprefix");
+        self.data.push();
+
+        for ins in &unit.ins {
+            ins.accept(&mut self);
+        }
+
+        let mut src = Writer::new();
+        src.append(&self.head);
+
+        src.writeln(".section .data\n");
+        src.append(&self.data);
+
+        src.writeln(".section .text\n");
+        src.append(&self.text);
+
+        src.writeln(".section .note.GNU-stack,\"\",@progbits\n");
+
+        Ok(src.content)
+    }
+
     fn push(&mut self) {
         self.text.push();
     }
@@ -144,47 +262,6 @@ impl<'a> X86Builder<'a> {
             _ => panic!("illegal size: {}", size),
         };
         format!("{} PTR [rbp-{}]", directive, self.stacksize)
-    }
-}
-
-impl<'a> Builder<'a> for X86Builder<'a> {
-    fn new(config: &'a Config) -> Self {
-        Self {
-            _config: config,
-
-            head: Writer::new(),
-            text: Writer::new(),
-            data: Writer::new(),
-
-            regmap: HashMap::new(),
-            parammap: HashMap::new(),
-            alloc: RegAllocator::new(),
-            stacksize: 0,
-        }
-    }
-
-    fn assemble(mut self, unit: IRUnit) -> Result<TransUnit, String> {
-        self.head.writeln(".intel_syntax noprefix");
-        self.data.push();
-
-        for ins in &unit.ins {
-            ins.accept(&mut self);
-        }
-
-        let mut src = Writer::new();
-        src.append(&self.head);
-
-        src.writeln(".section .data\n");
-        src.append(&self.data);
-
-        src.writeln(".section .text\n");
-        src.append(&self.text);
-
-        src.writeln(".section .note.GNU-stack,\"\",@progbits\n");
-
-        Ok(TransUnit {
-            source: src.content,
-        })
     }
 }
 
@@ -269,6 +346,6 @@ impl<'a> IRVisitor<()> for X86Builder<'a> {
     }
 }
 
-pub fn round_up_to_mult_of_16(n: usize) -> usize {
+fn round_up_to_mult_of_16(n: usize) -> usize {
     (n + 15) & !15
 }

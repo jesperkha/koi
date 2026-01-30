@@ -1,4 +1,4 @@
-use crate::ir::{Primitive, IRType};
+use crate::ir::{IRType, Primitive};
 
 #[derive(Debug)]
 pub struct RegAllocator {
@@ -7,8 +7,8 @@ pub struct RegAllocator {
     int_ret: &'static str,
     float_ret: &'static str,
 
-    next_int: usize,
-    next_float: usize,
+    // next_int: usize,
+    // next_float: usize,
     param_int: usize,
     param_float: usize,
 }
@@ -22,8 +22,8 @@ impl RegAllocator {
             ],
             int_ret: "rax",
             float_ret: "xmm0",
-            next_int: 0,
-            next_float: 0,
+            // next_int: 0,
+            // next_float: 0,
             param_int: 0,
             param_float: 0,
         }
@@ -53,22 +53,22 @@ impl RegAllocator {
         )
     }
 
-    /// Get next available register suitable for given type
-    pub fn next_reg(&mut self, ty: &IRType) -> String {
-        if Self::is_float(ty) {
-            assert!(self.next_float < self.float_regs.len());
-            let reg = self.float_regs[self.next_float];
-            self.next_float += 1;
-            reg.to_string()
-        } else if Self::is_intlike(ty) {
-            assert!(self.next_int < self.int_regs.len());
-            let reg = self.int_regs[self.next_int];
-            self.next_int += 1;
-            reg.to_string()
-        } else {
-            panic!("unknown type");
-        }
-    }
+    // /// Get next available register suitable for given type
+    // pub fn next_reg(&mut self, ty: &IRType) -> String {
+    //     if Self::is_float(ty) {
+    //         assert!(self.next_float < self.float_regs.len());
+    //         let reg = self.float_regs[self.next_float];
+    //         self.next_float += 1;
+    //         reg.to_string()
+    //     } else if Self::is_intlike(ty) {
+    //         assert!(self.next_int < self.int_regs.len());
+    //         let reg = self.int_regs[self.next_int];
+    //         self.next_int += 1;
+    //         reg.to_string()
+    //     } else {
+    //         panic!("unknown type");
+    //     }
+    // }
 
     /// Get return register for given type
     pub fn return_reg(&self, ty: &IRType) -> String {
@@ -98,13 +98,13 @@ impl RegAllocator {
         }
     }
 
-    /// Reset all register allocation counters (for new functions or contexts)
-    pub fn reset(&mut self) {
-        self.next_int = 0;
-        self.next_float = 0;
-        self.param_int = 0;
-        self.param_float = 0;
-    }
+    // /// Reset all register allocation counters (for new functions or contexts)
+    // pub fn reset(&mut self) {
+    //     self.next_int = 0;
+    //     self.next_float = 0;
+    //     self.param_int = 0;
+    //     self.param_float = 0;
+    // }
 
     /// Reset only parameter registers (for next function call)
     pub fn reset_params(&mut self) {
@@ -112,9 +112,9 @@ impl RegAllocator {
         self.param_float = 0;
     }
 
-    /// Reset only temporary registers (for new expression evaluation)
-    pub fn reset_temps(&mut self) {
-        self.next_int = 0;
-        self.next_float = 0;
-    }
+    //     /// Reset only temporary registers (for new expression evaluation)
+    //     pub fn reset_temps(&mut self) {
+    //         self.next_int = 0;
+    //         self.next_float = 0;
+    //     }
 }

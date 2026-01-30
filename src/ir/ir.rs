@@ -1,18 +1,29 @@
 use core::fmt;
 
-use crate::ir::print::ir_to_string;
+use crate::{ir::print::ir_to_string, module::ModulePath};
 
-pub struct IRUnit {
-    pub ins: Vec<Ins>,
+pub struct Ir {
+    pub units: Vec<Unit>,
 }
 
-impl IRUnit {
-    pub fn new(ins: Vec<Ins>) -> Self {
-        Self { ins }
+impl Ir {
+    pub fn new(units: Vec<Unit>) -> Self {
+        Self { units }
     }
 }
 
-impl fmt::Display for IRUnit {
+pub struct Unit {
+    pub ins: Vec<Ins>,
+    pub modpath: ModulePath,
+}
+
+impl Unit {
+    pub fn new(modpath: ModulePath, ins: Vec<Ins>) -> Self {
+        Self { modpath, ins }
+    }
+}
+
+impl fmt::Display for Unit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", ir_to_string(&self.ins))
     }

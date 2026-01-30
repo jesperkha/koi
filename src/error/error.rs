@@ -4,6 +4,10 @@ use crate::token::{Pos, Source, Token};
 
 // TODO: compact errors based on config
 
+pub fn error_str<T>(msg: &str) -> Result<T, String> {
+    Err(format!("error: {}", msg))
+}
+
 #[derive(Debug, Clone)]
 pub struct Error {
     /// Raw error message without formatting

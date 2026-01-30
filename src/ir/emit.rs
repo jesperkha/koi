@@ -1,14 +1,14 @@
 use core::panic;
 use std::mem;
 
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::{
     config::Config,
     error::{Error, ErrorSet, Res},
     ir::{
-        AssignIns, ExternFuncInst, FuncInst, IRType, IRUnit, Ins, LValue, StoreIns, StringDataIns,
-        SymTracker, Value, ir,
+        AssignIns, ExternFuncInst, FuncInst, IRType, Ins, LValue, StoreIns, StringDataIns,
+        SymTracker, Unit, Value, ir,
     },
     module::{Module, ModulePath, NamespaceList, Symbol, SymbolList},
     types::{
@@ -16,9 +16,9 @@ use crate::{
     },
 };
 
-pub fn emit_ir(m: &Module, ctx: &TypeContext, config: &Config) -> Res<IRUnit> {
+pub fn emit_ir(m: &Module, ctx: &TypeContext, config: &Config) -> Res<Unit> {
     let emitter = Emitter::new(m, ctx, config);
-    emitter.emit().map(|ins| IRUnit::new(ins))
+    emitter.emit().map(|ins| Unit::new(m.modpath.clone(), ins))
 }
 
 struct Emitter<'a> {
@@ -57,7 +57,7 @@ impl<'a> Emitter<'a> {
     }
 
     fn emit(mut self) -> Res<Vec<Ins>> {
-        info!("emitting module: {}", self.modpath.path());
+        info!("Emitting IR for module: {}", self.modpath.path());
         let mut errs = ErrorSet::new();
 
         for decl in self.nodes {
@@ -68,10 +68,10 @@ impl<'a> Emitter<'a> {
         }
 
         if errs.len() == 0 {
-            info!("success! {} instructions", self.ins.len());
+            debug!("success: {} instructions", self.ins.len());
             Ok(mem::take(&mut self.ins[0]))
         } else {
-            info!("fail! finished with {} errors", errs.len());
+            info!("Fail: finished with {} errors", errs.len());
             Err(errs)
         }
     }

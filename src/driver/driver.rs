@@ -1,172 +1,256 @@
 use std::{
     fs::{self},
     path::{Path, PathBuf},
-    process::Command,
 };
 
 use tracing::info;
+use tracing_subscriber::EnvFilter;
 use walkdir::WalkDir;
 
 use crate::{
     ast::{File, FileSet},
-    build::{TransUnit, X86Builder, assemble},
-    config::Config,
-    error::ErrorSet,
-    ir::{IRUnit, emit_ir},
-    module::{Module, ModuleGraph, ModulePath},
-    parser::{parse, sort_by_dependency_graph},
+    build::x86,
+    config::{Config, Options, Project, ProjectType, Target, load_config_file},
+    error::{ErrorSet, error_str},
+    ir::{Ir, Unit, emit_ir},
+    module::{Module, ModuleGraph, ModulePath, create_header_file, read_header_file},
+    parser::{parse_file, sort_by_dependency_graph},
     token::{Source, scan},
     types::{TypeContext, type_check},
+    util::{create_dir_if_not_exist, path_or_relative_to_root, write_file},
 };
 
+/// Result type shorthand used in this file.
 type Res<T> = Result<T, String>;
 
-pub enum Target {
-    X86_64,
+/// Compile the project using the given global config and build configuration.
+pub fn compile() -> Res<()> {
+    let (project, options, config) = load_config_file()?;
+
+    init_logger(options.debug_mode);
+
+    create_dir_if_not_exist(&project.bin)?;
+
+    // Recursively search the given source directory for files and
+    // return a list of FileSet of all source files found.
+    let filesets = find_and_parse_all_source_files(&project.src, &config)?;
+
+    if filesets.len() == 0 {
+        return Err(format!("no source files in '{}'", project.src));
+    }
+
+    // Create a dependency graph and sort it, returning a list of
+    // filesets in correct type checking order. FileSets are sorted
+    // based on their imports.
+    let sorted_filesets = sort_by_dependency_graph(filesets)?;
+
+    // Create global type context. This stores all types created and
+    // used in all modules and lets us reference them by numeric IDs.
+    let mut ctx = TypeContext::new();
+
+    // Create module graph to hold all modules in the project.
+    let mut module_graph = ModuleGraph::new();
+
+    load_stdlib_modules(&mut module_graph, &mut ctx, &config, &options)?;
+    load_thirdparty_modules(&mut module_graph, &mut ctx, &config, &options)?;
+
+    // Type check all file sets, turning them into Modules, and put
+    // them in a ModuleGraph.
+    type_check_and_create_modules(sorted_filesets, &mut module_graph, &mut ctx, &config)?;
+
+    // High level passes are checks done after the main parsing and type checking
+    // steps and are instead performed on the project as a whole.
+    do_high_level_passes(&module_graph, &ctx, &project, &config)?;
+
+    // Create header file for package
+    if matches!(project.project_type, ProjectType::Package) {
+        let content = create_header_file(module_graph.main(), &ctx)?;
+        write_file(&format!("{}.h.koi", project.out), &content)?;
+    }
+
+    // Emit the intermediate representation for all modules
+    let units = module_graph
+        .modules()
+        .iter()
+        .map(|module| emit_module_ir(module, &ctx, &config))
+        .collect::<Result<Vec<Unit>, String>>()?;
+
+    // Build the final executable/libary file
+    build(Ir::new(units), &config, &project)
 }
 
-pub struct BuildConfig {
-    /// Directory for assembly and object file output
-    pub bindir: String,
-    /// Name of target executable
-    pub outfile: String,
-    /// Root directory of Koi project
-    pub srcdir: String,
-    /// Target architecture
-    pub target: Target,
+/// Recursively search the given source directory for files and return a list of FileSet of
+/// all source files found.
+fn find_and_parse_all_source_files(source_dir: &str, config: &Config) -> Res<Vec<FileSet>> {
+    info!("Collecting source files in {}", source_dir);
+    let mut filesets = Vec::new();
+
+    for dir in &list_source_directories(source_dir)? {
+        let sources = collect_files_in_directory(dir)?;
+        if sources.is_empty() {
+            continue;
+        }
+
+        let mut module_path = pathbuf_to_module_path(&dir, source_dir);
+        if module_path.is_empty() {
+            module_path = String::from("main");
+        }
+
+        info!("Parsing module: {}", module_path);
+        let files = parse_files_in_directory(sources, config)?;
+
+        if files.is_empty() {
+            info!("No input files");
+            continue;
+        }
+
+        filesets.push(FileSet::new(ModulePath::new(module_path), files));
+    }
+
+    Ok(filesets)
 }
 
-pub struct Driver<'a> {
-    config: &'a Config,
+/// Parse a list of Sources into AST Files, collecting errors into a single string.
+fn parse_files_in_directory(sources: Vec<Source>, config: &Config) -> Res<Vec<File>> {
+    let mut errs = ErrorSet::new();
+    let mut files = Vec::new();
+
+    for src in sources {
+        if src.size == 0 {
+            continue;
+        }
+
+        scan(&src, config)
+            .and_then(|toks| parse_file(src, toks, config))
+            .map_or_else(|err| errs.join(err), |file| files.push(file));
+    }
+
+    if errs.len() > 0 {
+        Err(errs.to_string())
+    } else {
+        Ok(files)
+    }
 }
 
-impl<'a> Driver<'a> {
-    pub fn new(config: &'a Config) -> Self {
-        Self { config }
+/// Parse standard library modules found in the path specified by config. Add them to the
+/// module graph and type context.
+fn load_stdlib_modules(
+    mg: &mut ModuleGraph,
+    ctx: &mut TypeContext,
+    config: &Config,
+    options: &Options,
+) -> Res<()> {
+    let dir = path_or_relative_to_root(&options.stdlib_path);
+    info!("Loading stdlib from {}", dir.display());
+
+    if !dir.exists() {
+        return error_str(&format!(
+            "standard library directory not found: {}",
+            dir.display()
+        ));
     }
 
-    /// Compile the project at given source directory according to
-    /// the build configuration.
-    pub fn compile(&mut self, config: BuildConfig) -> Res<()> {
-        create_dir_if_not_exist(&config.bindir)?;
+    load_header_modules(&dir, mg, ctx, config, "stdlib", |libname| {
+        ModulePath::new_stdlib(libname)
+    })
+}
 
-        // Parse all files and store as Filesets
-        let mut filesets = Vec::new();
-        for dir in &list_source_directories(&config.srcdir)? {
-            let sources = collect_files_in_directory(dir)?;
-            if sources.len() == 0 {
-                continue;
-            }
+/// Parse thirdparty modules found in the path specified by config. Add them to the
+/// module graph and type context.
+fn load_thirdparty_modules(
+    mg: &mut ModuleGraph,
+    ctx: &mut TypeContext,
+    config: &Config,
+    options: &Options,
+) -> Res<()> {
+    let dir = path_or_relative_to_root(&options.thirdparty_path);
+    info!("Loading thirdparty from {}", dir.display());
 
-            let mut module_path = pathbuf_to_module_path(&dir, &config.srcdir);
-            if module_path.is_empty() {
-                module_path = String::from("main");
-            }
-
-            info!("parsing module: {}", module_path);
-            let files = self.parse_files(sources)?;
-
-            if files.len() == 0 {
-                info!("no files to parse");
-                continue;
-            }
-
-            filesets.push(FileSet::new(ModulePath::new(module_path), files));
-        }
-
-        // Create and sort dependency graph, returning a list of
-        // filesets in correct type checking order.
-        let sorted_filesets = sort_by_dependency_graph(filesets)?;
-
-        // Global state
-        let mut mg = ModuleGraph::new();
-        let mut ctx = TypeContext::new();
-
-        // Type check, convert to IR, and emit assembly
-        let mut asm_files = Vec::new();
-        for fs in sorted_filesets {
-            let module = self.type_check_and_create_module(fs, &mut mg, &mut ctx)?;
-            let ir_unit = self.emit_module_ir(module, &ctx)?;
-            let asm = self.assemble_ir_unit(ir_unit, &config.target)?;
-
-            let outfile = write_output_file(&config.bindir, module.name(), &asm.source)?;
-            info!("output assembly file: {}", outfile.display());
-            asm_files.push(outfile);
-        }
-
-        if self.config.dump_type_context {
-            ctx.dump_context_string();
-        }
-
-        // Assemble all source files
-        for file in &asm_files {
-            info!("assembling: {}", file.display());
-            let src = file.to_string_lossy();
-            let out = file.with_extension("o");
-            cmd("as", &["-o", &out.to_string_lossy(), &src])?;
-        }
-
-        let mut objectfiles = vec![];
-        for file in asm_files {
-            objectfiles.push(file.with_extension("o").to_string_lossy().to_string());
-        }
-
-        // TODO: rewrite this mess
-
-        // let entry_o = format!("{}/entry.o", config.bindir);
-        // cmd("as", &["-o", &entry_o, "lib/compile/entry.s"])?;
-
-        let mut args = vec!["-o", &config.outfile];
-        args.extend_from_slice(
-            &objectfiles
-                .iter()
-                .map(|f| f.as_str())
-                .collect::<Vec<&str>>(),
-        );
-
-        cmd("gcc", &args)?;
-
-        Ok(())
+    if !dir.exists() {
+        return error_str(&format!(
+            "thirdparty directory not found: {}",
+            dir.display()
+        ));
     }
 
-    fn parse_files(&self, sources: Vec<Source>) -> Res<Vec<File>> {
-        let mut errs = ErrorSet::new();
-        let mut files = Vec::new();
+    load_header_modules(&dir, mg, ctx, config, "thirdparty", |libname| {
+        ModulePath::new_package(libname)
+    })
+}
 
-        for src in sources {
-            if src.size == 0 {
-                continue;
-            }
-
-            scan(&src, self.config)
-                .and_then(|toks| parse(src, toks, self.config))
-                .map_or_else(|err| errs.join(err), |file| files.push(file));
+fn load_header_modules<F>(
+    dir: &PathBuf,
+    mg: &mut ModuleGraph,
+    ctx: &mut TypeContext,
+    config: &Config,
+    log_prefix: &str,
+    to_modpath: F,
+) -> Res<()>
+where
+    F: Fn(&str) -> ModulePath,
+{
+    for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
+        let path = entry.map_err(|e| e.to_string())?.path();
+        if !path.is_file() {
+            continue;
         }
 
-        if errs.len() > 0 {
-            Err(errs.to_string())
-        } else {
-            Ok(files)
+        let Some(fname) = path.file_name().and_then(|f| f.to_str()) else {
+            continue;
+        };
+        if !fname.ends_with(".h.koi") {
+            continue;
         }
+
+        info!("Loading {} header: {}", log_prefix, path.display());
+        let src = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let libname = fname.trim_end_matches(".h.koi");
+        let modpath = to_modpath(libname);
+        read_header_file(modpath, &src, ctx, mg, config).map_err(|e| e.to_string())?;
     }
 
-    fn type_check_and_create_module<'m>(
-        &self,
-        fs: FileSet,
-        mg: &'m mut ModuleGraph,
-        ctx: &mut TypeContext,
-    ) -> Res<&'m Module> {
-        type_check(fs, mg, ctx, self.config).map_err(|errs| errs.to_string())
+    Ok(())
+}
+
+/// Type check all file sets, turning them into Modules, and put them in the ModuleGraph.
+fn type_check_and_create_modules(
+    sorted_sets: Vec<FileSet>,
+    mg: &mut ModuleGraph,
+    ctx: &mut TypeContext,
+    config: &Config,
+) -> Res<()> {
+    for fs in sorted_sets {
+        type_check(fs, mg, ctx, config).map_err(|errs| errs.to_string())?;
     }
 
-    fn emit_module_ir(&self, m: &Module, ctx: &TypeContext) -> Res<IRUnit> {
-        emit_ir(m, ctx, self.config).map_err(|errs| errs.to_string())
-    }
+    Ok(())
+}
 
-    fn assemble_ir_unit(&self, unit: IRUnit, target: &Target) -> Res<TransUnit> {
-        match target {
-            Target::X86_64 => assemble::<X86Builder>(self.config, unit),
-        }
+/// Shorthand for emitting a module to IR and converting error to string.
+fn emit_module_ir(m: &Module, ctx: &TypeContext, config: &Config) -> Res<Unit> {
+    emit_ir(m, ctx, config).map_err(|errs| errs.to_string())
+}
+
+/// Shorthand for assembling an IR unit and converting error to string.
+fn build(ir: Ir, config: &Config, build_cfg: &Project) -> Res<()> {
+    match build_cfg.target {
+        Target::X86_64 => x86::build(
+            ir,
+            x86::BuildConfig {
+                linkmode: proj_type_to_link_mode(&build_cfg.project_type),
+                tmpdir: build_cfg.bin.clone(),
+                outfile: build_cfg.out.clone(),
+            },
+            config,
+        ),
+    }
+}
+
+/// Report which x86 link mode to use for which compilation mode.
+fn proj_type_to_link_mode(mode: &ProjectType) -> x86::LinkMode {
+    match mode {
+        ProjectType::App => x86::LinkMode::Exectuable,
+        ProjectType::Package => x86::LinkMode::SharedObject,
     }
 }
 
@@ -249,44 +333,6 @@ fn collect_files_in_directory(dir: &PathBuf) -> Res<Vec<Source>> {
     Ok(set)
 }
 
-/// Writes output assembly file to given directory with given module name.
-/// Returns path to written file.
-fn write_output_file(dir: &str, pkgname: &str, content: &str) -> Res<PathBuf> {
-    let fmtpath = &format!("{}/{}.s", dir, pkgname);
-    let path = Path::new(fmtpath);
-    if let Err(_) = fs::write(&path, content) {
-        return Err("failed to write output".to_string());
-    };
-
-    Ok(path.to_path_buf())
-}
-
-fn cmd(command: &str, args: &[&str]) -> Res<()> {
-    let status = Command::new(command)
-        .args(args)
-        .status()
-        .or_else(|_| Err(format!("failed to run command: {}", command)))?;
-
-    if !status.success() {
-        Err(format!(
-            "command '{}' exited with a non-success code",
-            command,
-        ))
-    } else {
-        Ok(())
-    }
-}
-
-fn create_dir_if_not_exist(dir: &str) -> Res<()> {
-    if !fs::exists(dir).unwrap_or(false) {
-        info!("creating directory:{}", dir);
-        if let Err(_) = fs::create_dir(dir) {
-            return Err(format!("failed to create directory: {}", dir));
-        }
-    }
-    Ok(())
-}
-
 /// Convert foo/bar/faz to foo.bar.faz
 fn pathbuf_to_module_path(path: &PathBuf, source_dir: &str) -> String {
     path.display()
@@ -295,4 +341,64 @@ fn pathbuf_to_module_path(path: &PathBuf, source_dir: &str) -> String {
         .trim_start_matches("/")
         .trim_end_matches("/")
         .replace("/", ".")
+}
+
+/// High level passes are checks done after the main parsing and type checking
+/// steps and are instead performed on the project as a whole.
+fn do_high_level_passes(
+    modgraph: &ModuleGraph,
+    ctx: &TypeContext,
+    project: &Project,
+    config: &Config,
+) -> Result<(), String> {
+    // Check if main function is present and if it should be
+    let has_main = modgraph.main().symbols.get("main").map_or(false, |_| true);
+    if !has_main && matches!(project.project_type, ProjectType::App) {
+        return error_str("main module has no main function");
+    }
+    if has_main && matches!(project.project_type, ProjectType::Package) {
+        return error_str("package project cannot have a main function");
+    }
+
+    if config.dump_type_context {
+        let path = format!("{}/types.txt", project.bin);
+        info!("Writing type info to {}", path);
+        write_file(&path, &ctx.dump_context_string())?;
+    }
+
+    if config.print_symbol_tables {
+        let mut s = String::new();
+        for module in modgraph.modules() {
+            s += &module.symbols.dump(module.modpath.path());
+        }
+
+        let path = format!("{}/symbols.txt", project.bin);
+        info!("Writing symbol info to {}", path);
+        write_file(&path, &s)?;
+    }
+
+    Ok(())
+}
+
+fn init_logger(debug_mode: bool) {
+    let env_filter = EnvFilter::builder()
+        // Set default level based on debug_mode
+        .with_default_directive(if debug_mode {
+            tracing_subscriber::filter::LevelFilter::INFO.into()
+        } else {
+            tracing_subscriber::filter::LevelFilter::WARN.into()
+        })
+        // Merge with RUST_LOG if present
+        .from_env_lossy(); // reads RUST_LOG if set, otherwise uses default
+
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .with_target(false)
+        .with_thread_ids(false)
+        .with_thread_names(false)
+        .with_file(false)
+        .with_line_number(false)
+        .without_time()
+        .compact()
+        .init();
 }

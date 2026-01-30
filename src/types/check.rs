@@ -1,11 +1,12 @@
 use crate::{
-    ast::{File, FileSet},
+    ast::{Ast, File, FileSet},
     config::Config,
     error::{Error, ErrorSet, Res},
     module::{
         CreateModule, Module, ModuleGraph, ModuleKind, ModulePath, Namespace, NamespaceList,
         SymbolList, invalid_mod_id,
     },
+    token::Source,
     types::{Checker, TypeContext, TypedAst},
 };
 use tracing::info;
@@ -27,10 +28,6 @@ pub fn type_check<'a>(
     // Emit typed AST
     let typed_ast = emit_typed_ast(&fs.modpath, fs.files, ctx, &mut syms, &mut nsl, config)?;
 
-    if config.print_symbol_tables {
-        syms.print(fs.modpath.name());
-    }
-
     let create_mod = CreateModule {
         namespaces: nsl,
         symbols: syms,
@@ -38,6 +35,33 @@ pub fn type_check<'a>(
         filepath: fs.path,
         ast: typed_ast,
         kind: ModuleKind::User,
+    };
+
+    Ok(mg.add(create_mod, invalid_mod_id()))
+}
+
+/// Run global pass on header file to create module in module graph.
+pub fn type_check_header<'a>(
+    modpath: &ModulePath,
+    src: &Source,
+    ast: Ast,
+    mg: &'a mut ModuleGraph,
+    ctx: &mut TypeContext,
+    config: &Config,
+) -> Res<&'a Module> {
+    let mut syms = SymbolList::new();
+    let mut nsl = NamespaceList::new();
+
+    let mut checker = Checker::new(modpath, src, ctx, &mut syms, &mut nsl, config);
+    checker.global_pass(&ast.decls)?;
+
+    let create_mod = CreateModule {
+        namespaces: nsl,
+        symbols: syms,
+        modpath: modpath.clone(),
+        filepath: src.filepath.clone(),
+        ast: TypedAst { decls: Vec::new() },
+        kind: ModuleKind::Package,
     };
 
     Ok(mg.add(create_mod, invalid_mod_id()))
@@ -149,7 +173,11 @@ fn emit_typed_ast(
     nsl: &mut NamespaceList,
     config: &Config,
 ) -> Result<TypedAst, ErrorSet> {
-    info!("checking {} files", files.len());
+    info!(
+        "Type checking {} files in module {}",
+        files.len(),
+        modpath.path()
+    );
     assert!(files.len() > 0, "no files to type check");
 
     let mut errs = ErrorSet::new();
