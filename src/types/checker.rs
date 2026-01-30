@@ -13,9 +13,12 @@ use crate::{
     util::VarTable,
 };
 
-struct Value {
+/// A Binding is either a declared variable or function parameter. Bindings
+/// shadow global symbols like functions and types.
+struct Binding {
     ty: TypeId,
-    constant: bool,
+    is_const: bool,
+    pos: Pos,
 }
 
 pub struct Checker<'a> {
@@ -28,7 +31,7 @@ pub struct Checker<'a> {
     modpath: &'a ModulePath,
 
     /// Locally declared variables for type checking.
-    vars: VarTable<Value>,
+    vars: VarTable<Binding>,
 
     /// Return type in current scope
     rtype: TypeId,
@@ -94,8 +97,20 @@ impl<'a> Checker<'a> {
 
     /// Bind a name (token) to a type. Returns same type id or error if already defined.
     fn bind(&mut self, name: &Token, id: TypeId, constant: bool) -> Result<TypeId, Error> {
-        if !self.vars.bind(name.to_string(), Value { ty: id, constant }) {
-            Err(self.error_token("already declared", name))
+        if !self.vars.bind(
+            name.to_string(),
+            Binding {
+                ty: id,
+                is_const: constant,
+                pos: name.pos.clone(),
+            },
+        ) {
+            Err(self
+                .error_token("already declared", name)
+                .with_info(&format!(
+                    "previously declared on line {}", // always local to this file
+                    self.vars.get(&name.to_string()).unwrap().pos.row + 1
+                )))
         } else {
             Ok(id)
         }
@@ -128,7 +143,7 @@ impl<'a> Checker<'a> {
     fn is_constant(&self, lval: &ast::Expr) -> bool {
         match lval {
             ast::Expr::Literal(token) => match &token.kind {
-                TokenKind::IdentLit(name) => self.vars.get(name).map_or(false, |sym| sym.constant),
+                TokenKind::IdentLit(name) => self.vars.get(name).map_or(false, |sym| sym.is_const),
                 _ => false,
             },
             ast::Expr::Group(_) | ast::Expr::Call(_) => true,
