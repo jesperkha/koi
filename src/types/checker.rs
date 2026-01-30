@@ -8,8 +8,9 @@ use crate::{
     token::{Pos, Source, Token, TokenKind},
     types::{
         self, FunctionType, LiteralKind, NodeMeta, PrimitiveType, Type, TypeContext, TypeId,
-        TypeKind, TypedNode, ast_node_to_meta, no_type, symtable::VarTable,
+        TypeKind, TypedNode, ast_node_to_meta, no_type,
     },
+    util::VarTable,
 };
 
 struct Value {
@@ -91,7 +92,6 @@ impl<'a> Checker<'a> {
         )
     }
 
-    // TODO: remove constants (maybe)
     /// Bind a name (token) to a type. Returns same type id or error if already defined.
     fn bind(&mut self, name: &Token, id: TypeId, constant: bool) -> Result<TypeId, Error> {
         if !self.vars.bind(name.to_string(), Value { ty: id, constant }) {
@@ -621,7 +621,6 @@ impl<'a> Checker<'a> {
         // a normal expression.
         let expr = self.emit_expr(*node.expr)?;
 
-        // TODO: implement struct fields here
         return Err(self.error(
             &format!(
                 "type '{}' has no fields",

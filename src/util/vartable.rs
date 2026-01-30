@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-// TODO: move to util?
-
 /// The VarTable handles all name to type mappings for local and scoped variables.
 pub struct VarTable<T> {
     /// A stack of scopes. Always has at least one base scope.

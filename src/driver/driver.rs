@@ -265,8 +265,6 @@ fn list_source_directories(path: &str) -> Result<Vec<PathBuf>, String> {
     let mut dirs = Vec::new();
     let mut errors = Vec::new();
 
-    // TODO: ignore based on config and .gitignore
-
     for entry in WalkDir::new(path)
         .into_iter()
         .filter_entry(|e| !is_hidden(e))
