@@ -10,14 +10,14 @@ use walkdir::WalkDir;
 use crate::{
     ast::{File, FileSet},
     build::x86,
-    config::{Config, Project, ProjectType, Target, load_config_file},
+    config::{Config, Options, Project, ProjectType, Target, load_config_file},
     error::{ErrorSet, error_str},
     ir::{Ir, Unit, emit_ir},
-    module::{Module, ModuleGraph, ModulePath, create_header_file},
-    parser::{parse_file, sort_by_dependency_graph},
+    module::{Module, ModuleGraph, ModulePath, create_header_file, read_header_file},
+    parser::{parse_file, parse_header, sort_by_dependency_graph},
     token::{Source, scan},
     types::{TypeContext, type_check},
-    util::{create_dir_if_not_exist, write_file},
+    util::{create_dir_if_not_exist, get_root_dir, path_or_relative_to_root, write_file},
 };
 
 /// Result type shorthand used in this file.
@@ -48,9 +48,15 @@ pub fn compile() -> Res<()> {
     // used in all modules and lets us reference them by numeric IDs.
     let mut ctx = TypeContext::new();
 
+    // Create module graph to hold all modules in the project.
+    let mut module_graph = ModuleGraph::new();
+
+    load_stdlib_modules(&mut module_graph, &mut ctx, &config, &options)?;
+    load_thirdparty_modules(&mut module_graph, &mut ctx, &config, &options)?;
+
     // Type check all file sets, turning them into Modules, and put
     // them in a ModuleGraph.
-    let module_graph = type_check_and_create_modules(sorted_filesets, &mut ctx, &config)?;
+    type_check_and_create_modules(sorted_filesets, &mut module_graph, &mut ctx, &config)?;
 
     // High level passes are checks done after the main parsing and type checking
     // steps and are instead performed on the project as a whole.
@@ -70,9 +76,7 @@ pub fn compile() -> Res<()> {
         .collect::<Result<Vec<Unit>, String>>()?;
 
     // Build the final executable/libary file
-    let _ = build_ir(Ir::new(units), &config, &project)?;
-
-    Ok(())
+    build(Ir::new(units), &config, &project)
 }
 
 /// Recursively search the given source directory for files and return a list of FileSet of
@@ -128,18 +132,98 @@ fn parse_files_in_directory(sources: Vec<Source>, config: &Config) -> Res<Vec<Fi
     }
 }
 
-fn type_check_and_create_modules(
-    sorted_sets: Vec<FileSet>,
+/// Parse standard library modules found in the path specified by config. Add them to the
+/// module graph and type context.
+fn load_stdlib_modules(
+    mg: &mut ModuleGraph,
     ctx: &mut TypeContext,
     config: &Config,
-) -> Res<ModuleGraph> {
-    let mut mg = ModuleGraph::new();
+    options: &Options,
+) -> Res<()> {
+    let dir = path_or_relative_to_root(&options.stdlib_path);
+    info!("Loading stdlib from {}", dir.display());
 
-    for fs in sorted_sets {
-        type_check(fs, &mut mg, ctx, config).map_err(|errs| errs.to_string())?;
+    if !dir.exists() {
+        return error_str(&format!(
+            "standard library directory not found: {}",
+            dir.display()
+        ));
     }
 
-    Ok(mg)
+    load_header_modules(&dir, mg, ctx, config, "stdlib", |libname| {
+        ModulePath::new_stdlib(libname)
+    })
+}
+
+/// Parse thirdparty modules found in the path specified by config. Add them to the
+/// module graph and type context.
+fn load_thirdparty_modules(
+    mg: &mut ModuleGraph,
+    ctx: &mut TypeContext,
+    config: &Config,
+    options: &Options,
+) -> Res<()> {
+    let dir = path_or_relative_to_root(&options.thirdparty_path);
+    info!("Loading thirdparty from {}", dir.display());
+
+    if !dir.exists() {
+        return error_str(&format!(
+            "thirdparty directory not found: {}",
+            dir.display()
+        ));
+    }
+
+    load_header_modules(&dir, mg, ctx, config, "thirdparty", |libname| {
+        ModulePath::new_package(libname)
+    })
+}
+
+fn load_header_modules<F>(
+    dir: &PathBuf,
+    mg: &mut ModuleGraph,
+    ctx: &mut TypeContext,
+    config: &Config,
+    log_prefix: &str,
+    to_modpath: F,
+) -> Res<()>
+where
+    F: Fn(&str) -> ModulePath,
+{
+    for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
+        let path = entry.map_err(|e| e.to_string())?.path();
+        if !path.is_file() {
+            continue;
+        }
+
+        let Some(fname) = path.file_name().and_then(|f| f.to_str()) else {
+            continue;
+        };
+        if !fname.ends_with(".h.koi") {
+            continue;
+        }
+
+        info!("Loading {} header: {}", log_prefix, path.display());
+        let src = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let libname = fname.trim_end_matches(".h.koi");
+        let modpath = to_modpath(libname);
+        read_header_file(modpath, &src, ctx, mg, config).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+/// Type check all file sets, turning them into Modules, and put them in the ModuleGraph.
+fn type_check_and_create_modules(
+    sorted_sets: Vec<FileSet>,
+    mg: &mut ModuleGraph,
+    ctx: &mut TypeContext,
+    config: &Config,
+) -> Res<()> {
+    for fs in sorted_sets {
+        type_check(fs, mg, ctx, config).map_err(|errs| errs.to_string())?;
+    }
+
+    Ok(())
 }
 
 /// Shorthand for emitting a module to IR and converting error to string.
@@ -148,7 +232,7 @@ fn emit_module_ir(m: &Module, ctx: &TypeContext, config: &Config) -> Res<Unit> {
 }
 
 /// Shorthand for assembling an IR unit and converting error to string.
-fn build_ir(ir: Ir, config: &Config, build_cfg: &Project) -> Res<String> {
+fn build(ir: Ir, config: &Config, build_cfg: &Project) -> Res<()> {
     match build_cfg.target {
         Target::X86_64 => x86::build(
             ir,

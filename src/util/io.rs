@@ -1,4 +1,8 @@
-use std::{fs, path::Path, process::Command};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use tracing::info;
 
@@ -39,4 +43,28 @@ pub fn create_dir_if_not_exist(dir: &str) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// Get the directory of the executable. This is the base installation
+/// directory and all config/runtime files are relative to this.
+pub fn get_root_dir() -> PathBuf {
+    let exec_path = env::current_exe().unwrap();
+
+    let rootdir = if exec_path.ends_with("target/debug/koi") {
+        Path::new(".") // for debug/testing using cargo run
+    } else {
+        exec_path.parent().unwrap().parent().unwrap()
+    };
+
+    rootdir.to_owned()
+}
+
+/// If the given path contains the special token ":root:", replace it with
+/// the root directory of the Koi installation. Otherwise return the path as is.
+pub fn path_or_relative_to_root(path: &str) -> PathBuf {
+    if path.contains(":root:/") {
+        return get_root_dir().join(path.replace(":root:/", ""));
+    }
+
+    PathBuf::from(path)
 }

@@ -1,7 +1,5 @@
 use std::{
     collections::HashMap,
-    env,
-    path::{Path, PathBuf},
     process::{Command, Stdio},
 };
 
@@ -11,7 +9,7 @@ use crate::{
     build::x86::reg_alloc::RegAllocator,
     config::Config,
     ir::{AssignIns, ConstId, IRType, IRVisitor, Ir, LValue, StoreIns, Unit, Value},
-    util::{cmd, write_file},
+    util::{cmd, get_root_dir, write_file},
 };
 
 pub enum LinkMode {
@@ -30,7 +28,7 @@ pub struct BuildConfig {
 }
 
 /// Build and compile an x86-64 executable or shared object file.
-pub fn build(ir: Ir, buildcfg: BuildConfig, config: &Config) -> Result<String, String> {
+pub fn build(ir: Ir, buildcfg: BuildConfig, config: &Config) -> Result<(), String> {
     info!("Building for x86-64. Output: {}", buildcfg.outfile);
 
     if !gcc_available() {
@@ -76,20 +74,7 @@ pub fn build(ir: Ir, buildcfg: BuildConfig, config: &Config) -> Result<String, S
         }
     }
 
-    Ok(buildcfg.outfile)
-}
-
-fn get_root_dir() -> PathBuf {
-    let exec_path = env::current_exe().unwrap();
-
-    let rootdir = if exec_path.ends_with("target/debug/koi") {
-        Path::new(".") // for debug/testing using cargo run
-    } else {
-        exec_path.parent().unwrap().parent().unwrap()
-    };
-
-    info!("Rootdir: {}", rootdir.to_string_lossy().to_string());
-    rootdir.to_owned()
+    Ok(())
 }
 
 fn gcc_available() -> bool {

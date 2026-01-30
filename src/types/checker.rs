@@ -642,6 +642,7 @@ fn token_to_primitive_type(tok: &Token) -> PrimitiveType {
         TokenKind::FloatType => PrimitiveType::F64,
 
         TokenKind::StringType => PrimitiveType::String,
+        TokenKind::Void => PrimitiveType::Void,
 
         _ => panic!("unknown TypeNode::Primitive kind: {}", tok.kind),
     }

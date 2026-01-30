@@ -128,6 +128,10 @@ impl<'a> Parser<'a> {
 
         match token.kind {
             TokenKind::Func => self.parse_function_def(true).map(|f| Decl::FuncDecl(f)),
+            TokenKind::Extern => {
+                self.consume(); // extern
+                self.parse_function_def(true).map(|def| Decl::Extern(def))
+            }
             _ => Err(self.error_token("expected declaration")),
         }
     }

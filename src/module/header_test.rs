@@ -1,4 +1,4 @@
-use crate::util::check_string;
+use crate::{module::ModulePath, util::check_string};
 
 #[test]
 fn test_create_header_file() {
@@ -54,9 +54,15 @@ fn test_read_header_file() {
 func multiply(a int, b int) int
 "#;
 
-    let module = read_header_file("test", &header_src, &mut ctx, &mut mg, &config)
-        .map_err(|err| panic!("type check error: {}", err))
-        .unwrap();
+    let module = read_header_file(
+        ModulePath::new_str("test"),
+        &header_src,
+        &mut ctx,
+        &mut mg,
+        &config,
+    )
+    .map_err(|err| panic!("type check error: {}", err))
+    .unwrap();
 
     let key = "multiply".to_owned();
     assert!(module.exports().contains_key(&key));
