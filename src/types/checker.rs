@@ -264,7 +264,9 @@ impl<'a> Checker<'a> {
         }));
 
         let symbol = Symbol {
+            filename: self.src.filepath.clone(),
             name: name.to_string(),
+            pos: name.pos.clone(),
             kind: SymbolKind::Function(FuncSymbol {
                 docs,
                 is_inline: false,
@@ -277,7 +279,12 @@ impl<'a> Checker<'a> {
         };
 
         let _ = self.symbols.add(symbol).map_err(|err| {
-            return self.error_token(&err, name);
+            let sym = self.symbols.get(&name.to_string()).unwrap();
+            return self.error_token(&err, name).with_info(&format!(
+                "previously declared in {} line {}",
+                sym.filename,
+                sym.pos.row + 1
+            ));
         })?;
 
         Ok(())

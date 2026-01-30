@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use crate::{
     module::ModulePath,
+    token::Pos,
     types::{TypeContext, TypeId},
 };
 
@@ -20,6 +21,10 @@ pub struct Symbol {
     pub is_exported: bool,
     /// True if the symbol name should not be mangled (link_name).
     pub no_mangle: bool,
+    /// Position of symbol declaration.
+    pub pos: Pos,
+    /// The filename where the symbol was declared.
+    pub filename: String,
 }
 
 impl Symbol {
@@ -101,9 +106,11 @@ impl SymbolList {
     }
 
     pub fn add(&mut self, sym: Symbol) -> Result<(), String> {
-        self.symbols
-            .insert(sym.name.clone(), sym)
-            .map_or(Ok(()), |_| Err(format!("already declared")))
+        if self.symbols.contains_key(&sym.name) {
+            return Err("already declared".to_string());
+        }
+        self.symbols.insert(sym.name.clone(), sym);
+        Ok(())
     }
 
     pub fn get(&self, name: &str) -> Result<&Symbol, String> {

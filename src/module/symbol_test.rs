@@ -1,9 +1,14 @@
-use crate::module::{FuncSymbol, ModulePath, Symbol, SymbolKind, SymbolOrigin};
+use crate::{
+    module::{FuncSymbol, ModulePath, Symbol, SymbolKind, SymbolOrigin},
+    token::Pos,
+};
 
 #[test]
 fn test_symbol_link_name_module() {
     let modpath = ModulePath::new_str("app.utils");
     let symbol = Symbol {
+        filename: String::from("test/test.rs"),
+        pos: Pos::default(),
         kind: SymbolKind::Function(FuncSymbol {
             docs: vec![],
             is_inline: false,
@@ -23,6 +28,8 @@ fn test_symbol_link_name_module() {
 fn test_symbol_link_name_extern() {
     let modpath = ModulePath::new_str("app.utils");
     let extern_symbol = Symbol {
+        filename: String::from("test/test.rs"),
+        pos: Pos::default(),
         kind: SymbolKind::Function(FuncSymbol {
             docs: vec![],
             is_inline: false,
@@ -41,6 +48,8 @@ fn test_symbol_link_name_extern() {
 #[test]
 fn test_symbol_link_name_main() {
     let main_symbol = Symbol {
+        filename: String::from("test/test.rs"),
+        pos: Pos::default(),
         kind: SymbolKind::Function(FuncSymbol {
             docs: vec![],
             is_inline: false,
