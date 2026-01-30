@@ -72,6 +72,7 @@ pub fn compile() -> Res<()> {
     let units = module_graph
         .modules()
         .iter()
+        .filter(|module| module.should_be_built())
         .map(|module| emit_module_ir(module, &ctx, &config))
         .collect::<Result<Vec<Unit>, String>>()?;
 

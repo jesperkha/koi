@@ -29,6 +29,7 @@ pub fn type_check<'a>(
     let typed_ast = emit_typed_ast(&fs.modpath, fs.files, ctx, &mut syms, &mut nsl, config)?;
 
     let create_mod = CreateModule {
+        is_header: false,
         namespaces: nsl,
         symbols: syms,
         modpath: fs.modpath,
@@ -56,6 +57,7 @@ pub fn type_check_header<'a>(
     checker.global_pass(&ast.decls)?;
 
     let create_mod = CreateModule {
+        is_header: true,
         namespaces: nsl,
         symbols: syms,
         modpath: modpath.clone(),
