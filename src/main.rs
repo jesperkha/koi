@@ -57,8 +57,6 @@ target = "x86-64" # Target arch (x86-64)
 
 [options]
 debug-mode = false
-stdlib-path = ":root:/lib/std"         
-thirdparty-path = ":root:/lib/thirdparty"
 "#;
 
     write_file("koi.toml", content)?;
