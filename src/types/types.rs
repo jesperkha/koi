@@ -1,6 +1,19 @@
 use std::{fmt, hash::Hash};
 use strum_macros::EnumIter;
 
+pub type TypeId = usize; // Unique identifier
+
+/// Get the id of invalid types (not assigned yet).
+pub fn no_type() -> TypeId {
+    return usize::MAX;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Type {
+    pub kind: TypeKind,
+    pub id: TypeId, // Unique identifier for interning/comparison
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeKind {
     Primitive(PrimitiveType),
@@ -12,12 +25,6 @@ pub enum TypeKind {
     /// List of parameter types and a return
     /// type (void for no return)
     Function(FunctionType),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Type {
-    pub kind: TypeKind,
-    pub id: TypeId, // Unique identifier for interning/comparison
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EnumIter)]
@@ -39,36 +46,9 @@ pub enum PrimitiveType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum FunctionOrigin {
-    /// Full module path
-    Module(String),
-    Extern,
-}
-
-impl fmt::Display for FunctionOrigin {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                FunctionOrigin::Module(s) => &s,
-                FunctionOrigin::Extern => "extern",
-            }
-        )
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FunctionType {
     pub params: Vec<TypeId>,
     pub ret: TypeId,
-}
-
-pub type TypeId = usize; // Unique identifier
-
-/// Get the id of invalid types (not assigned yet).
-pub fn no_type() -> TypeId {
-    return usize::MAX;
 }
 
 impl fmt::Display for PrimitiveType {
