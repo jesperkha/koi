@@ -6,8 +6,12 @@ use crate::{
 };
 
 pub enum ModuleKind {
-    Stdlib,
+    /// User module are created from the source code of the current project.
+    /// These modules are built into the final executable/library.
     User,
+
+    /// Package modules are external libraries, such as the standard library,
+    /// and are skipped when building, as they are pre-compiled.
     Package,
 }
 
@@ -110,7 +114,6 @@ pub struct CreateModule {
     pub kind: ModuleKind,
     pub symbols: SymbolList,
     pub namespaces: NamespaceList,
-    pub is_header: bool,
 }
 
 /// A Module is a self-contained compilation unit. It contains the combined
@@ -132,8 +135,6 @@ pub struct Module {
     pub symbols: SymbolList,
     /// List of namespaces imported into this module.
     pub namespaces: NamespaceList,
-    /// Is this module a header file? If true, do not build it.
-    pub is_header: bool,
 }
 
 impl Module {
@@ -147,7 +148,7 @@ impl Module {
 
     /// Reports whether this module should be built (produce IR/codegen) or not.
     pub fn should_be_built(&self) -> bool {
-        !self.is_header
+        !matches!(self.kind, ModuleKind::Package)
     }
 
     /// Collect all exported symbols from this module.
@@ -197,7 +198,6 @@ impl ModuleGraph {
             path: m.filepath,
             ast: m.ast,
             kind: m.kind,
-            is_header: m.is_header,
             symbols: m.symbols,
             namespaces: m.namespaces,
         });
