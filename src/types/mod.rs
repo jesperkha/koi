@@ -5,7 +5,7 @@ mod context;
 mod tests;
 mod types;
 
-pub use check::{type_check, type_check_header};
+pub use check::type_check;
 
 pub use ast::*;
 pub use types::*;

@@ -1,12 +1,11 @@
 use crate::{
-    ast::{Ast, File, FileSet},
+    ast::{File, FileSet},
     config::Config,
     error::{Error, ErrorSet, Res},
     module::{
         CreateModule, Module, ModuleGraph, ModuleKind, ModulePath, Namespace, NamespaceList,
         SymbolList, invalid_mod_id,
     },
-    token::Source,
     types::{Checker, TypeContext, TypedAst},
 };
 use tracing::info;
@@ -42,34 +41,6 @@ pub fn type_check<'a>(
         filepath: fs.path,
         ast: typed_ast,
         kind: ModuleKind::User,
-    };
-
-    Ok(mg.add(create_mod, invalid_mod_id()))
-}
-
-/// Run global pass on header file to create module in module graph.
-pub fn type_check_header<'a>(
-    modpath: &ModulePath,
-    src: &Source,
-    ast: Ast,
-    mg: &'a mut ModuleGraph,
-    ctx: &mut TypeContext,
-    config: &Config,
-) -> Res<&'a Module> {
-    let mut syms = SymbolList::new();
-    let mut nsl = NamespaceList::new();
-
-    let mut checker = Checker::new(modpath, src, ctx, &mut syms, &mut nsl, config);
-    checker.global_pass(&ast.decls)?;
-
-    let create_mod = CreateModule {
-        is_header: true,
-        namespaces: nsl,
-        symbols: syms,
-        modpath: modpath.clone(),
-        filepath: src.filepath.clone(),
-        ast: TypedAst { decls: Vec::new() },
-        kind: ModuleKind::Package,
     };
 
     Ok(mg.add(create_mod, invalid_mod_id()))
