@@ -1,6 +1,5 @@
-use std::fs;
-
 use serde::Deserialize;
+use std::fs;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -58,8 +57,6 @@ pub struct Project {
 #[serde(rename_all = "kebab-case")]
 pub struct Options {
     pub debug_mode: bool,
-    pub stdlib_path: String,
-    pub thirdparty_path: String,
 }
 
 /// Internal compiler configuration

@@ -59,13 +59,3 @@ pub fn get_root_dir() -> PathBuf {
 
     rootdir.to_owned()
 }
-
-/// If the given path contains the special token ":root:", replace it with
-/// the root directory of the Koi installation. Otherwise return the path as is.
-pub fn path_or_relative_to_root(path: &str) -> PathBuf {
-    if path.contains(":root:/") {
-        return get_root_dir().join(path.replace(":root:/", ""));
-    }
-
-    PathBuf::from(path)
-}

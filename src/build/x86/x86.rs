@@ -7,9 +7,9 @@ use tracing::info;
 
 use crate::{
     build::x86::reg_alloc::RegAllocator,
-    config::Config,
+    config::{Config, PathManager},
     ir::{AssignIns, ConstId, IRType, IRVisitor, Ir, LValue, StoreIns, Unit, Value},
-    util::{cmd, get_root_dir, write_file},
+    util::{cmd, write_file},
 };
 
 pub enum LinkMode {
@@ -28,7 +28,12 @@ pub struct BuildConfig {
 }
 
 /// Build and compile an x86-64 executable or shared object file.
-pub fn build(ir: Ir, buildcfg: BuildConfig, config: &Config) -> Result<(), String> {
+pub fn build(
+    ir: Ir,
+    buildcfg: BuildConfig,
+    config: &Config,
+    pm: &PathManager,
+) -> Result<(), String> {
     info!("Building for x86-64. Output: {}", buildcfg.outfile);
 
     if !gcc_available() {
@@ -53,10 +58,8 @@ pub fn build(ir: Ir, buildcfg: BuildConfig, config: &Config) -> Result<(), Strin
     match buildcfg.linkmode {
         LinkMode::Exectuable => {
             info!("Compiling executable");
-            let rootdir = get_root_dir();
             args.push(
-                rootdir
-                    .join("lib")
+                pm.library_path()
                     .join("entry.s")
                     .to_string_lossy()
                     .to_string(),

@@ -10,14 +10,14 @@ use walkdir::WalkDir;
 use crate::{
     ast::{File, FileSet},
     build::x86,
-    config::{Config, Project, ProjectType, Target, load_config_file},
+    config::{Config, PathManager, Project, ProjectType, Target, load_config_file},
     error::{ErrorSet, error_str},
     ir::{Ir, Unit, emit_ir},
     module::{Module, ModuleGraph, ModulePath, create_header_file},
     parser::{parse, sort_by_dependency_graph},
     token::{Source, scan},
     types::{TypeContext, type_check},
-    util::{create_dir_if_not_exist, write_file},
+    util::{create_dir_if_not_exist, get_root_dir, write_file},
 };
 
 /// Result type shorthand used in this file.
@@ -26,6 +26,7 @@ type Res<T> = Result<T, String>;
 /// Compile the project using the given global config and build configuration.
 pub fn compile() -> Res<()> {
     let (project, options, config) = load_config_file()?;
+    let pm = PathManager::new(get_root_dir());
 
     init_logger(options.debug_mode);
 
@@ -74,7 +75,7 @@ pub fn compile() -> Res<()> {
         .collect::<Result<Vec<Unit>, String>>()?;
 
     // Build the final executable/libary file
-    build(Ir::new(units), &config, &project)
+    build(Ir::new(units), &config, &project, &pm)
 }
 
 /// Create header files for main module and all modules listed in project include list.
@@ -180,7 +181,7 @@ fn emit_module_ir(m: &Module, ctx: &TypeContext, config: &Config) -> Res<Unit> {
 }
 
 /// Shorthand for assembling an IR unit and converting error to string.
-fn build(ir: Ir, config: &Config, build_cfg: &Project) -> Res<()> {
+fn build(ir: Ir, config: &Config, build_cfg: &Project, pm: &PathManager) -> Res<()> {
     match build_cfg.target {
         Target::X86_64 => x86::build(
             ir,
@@ -190,6 +191,7 @@ fn build(ir: Ir, config: &Config, build_cfg: &Project) -> Res<()> {
                 outfile: build_cfg.out.clone(),
             },
             config,
+            pm,
         ),
     }
 }
