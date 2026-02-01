@@ -4,13 +4,14 @@ use std::{
     process::Command,
 };
 
-use tracing::info;
+use tracing::{debug, info};
 
 /// Write file at given filepath with content.
 pub fn write_file(filepath: &str, content: &str) -> Result<(), String> {
+    debug!("Writing file: {}", filepath);
     let path = Path::new(filepath);
     if let Err(_) = fs::write(&path, content) {
-        return Err("failed to write output".to_string());
+        return Err(format!("error: failed to write file {}", filepath));
     };
 
     Ok(())

@@ -157,8 +157,8 @@ impl fmt::Display for SymbolOrigin {
             f,
             "{}",
             match self {
-                SymbolOrigin::Module(module_path) => format!("Module({})", module_path.path()),
-                SymbolOrigin::Extern(_) => format!("extern"),
+                SymbolOrigin::Module(modpath) => format!("module({})", modpath.path()),
+                SymbolOrigin::Extern(modpath) => format!("extern({})", modpath.path()),
             }
         )
     }

@@ -4,7 +4,7 @@ use crate::{
     error::{ErrorSet, Res},
     ir::{Unit, emit_ir},
     module::{Module, ModuleGraph, ModulePath},
-    parser::parse_file,
+    parser::parse,
     token::{Source, Token, scan},
     types::{TypeContext, type_check},
 };
@@ -38,7 +38,7 @@ pub fn scan_string(src: &str) -> Res<Vec<Token>> {
 pub fn parse_string(src: &str) -> Res<File> {
     let src = Source::new_from_string(src);
     let config = Config::test();
-    scan(&src, &config).and_then(|toks| parse_file(src, toks, &config))
+    scan(&src, &config).and_then(|toks| parse(src, toks, &config))
 }
 
 pub fn check_string<'a>(

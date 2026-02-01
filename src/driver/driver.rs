@@ -10,14 +10,14 @@ use walkdir::WalkDir;
 use crate::{
     ast::{File, FileSet},
     build::x86,
-    config::{Config, Options, Project, ProjectType, Target, load_config_file},
+    config::{Config, Project, ProjectType, Target, load_config_file},
     error::{ErrorSet, error_str},
     ir::{Ir, Unit, emit_ir},
-    module::{Module, ModuleGraph, ModulePath, create_header_file, read_header_file},
-    parser::{parse_file, sort_by_dependency_graph},
+    module::{Module, ModuleGraph, ModulePath, create_header_file},
+    parser::{parse, sort_by_dependency_graph},
     token::{Source, scan},
     types::{TypeContext, type_check},
-    util::{create_dir_if_not_exist, path_or_relative_to_root, write_file},
+    util::{create_dir_if_not_exist, write_file},
 };
 
 /// Result type shorthand used in this file.
@@ -34,7 +34,6 @@ pub fn compile() -> Res<()> {
     // Recursively search the given source directory for files and
     // return a list of FileSet of all source files found.
     let filesets = find_and_parse_all_source_files(&project.src, &config)?;
-
     if filesets.len() == 0 {
         return Err(format!("no source files in '{}'", project.src));
     }
@@ -51,9 +50,6 @@ pub fn compile() -> Res<()> {
     // Create module graph to hold all modules in the project.
     let mut module_graph = ModuleGraph::new();
 
-    load_stdlib_modules(&mut module_graph, &mut ctx, &config, &options)?;
-    load_thirdparty_modules(&mut module_graph, &mut ctx, &config, &options)?;
-
     // Type check all file sets, turning them into Modules, and put
     // them in a ModuleGraph.
     type_check_and_create_modules(sorted_filesets, &mut module_graph, &mut ctx, &config)?;
@@ -62,10 +58,11 @@ pub fn compile() -> Res<()> {
     // steps and are instead performed on the project as a whole.
     do_high_level_passes(&module_graph, &ctx, &project, &config)?;
 
-    // Create header file for package
+    // Create header files for package
     if matches!(project.project_type, ProjectType::Package) {
-        let content = create_header_file(module_graph.main(), &ctx)?;
-        write_file(&format!("{}.h.koi", project.out), &content)?;
+        let empty = Vec::new();
+        let includes = project.includes.as_ref().unwrap_or(&empty);
+        create_package_headers(&module_graph, &ctx, &includes, &project)?;
     }
 
     // Emit the intermediate representation for all modules
@@ -78,6 +75,36 @@ pub fn compile() -> Res<()> {
 
     // Build the final executable/libary file
     build(Ir::new(units), &config, &project)
+}
+
+/// Create header files for main module and all modules listed in project include list.
+fn create_package_headers(
+    modgraph: &ModuleGraph,
+    ctx: &TypeContext,
+    includes: &[String],
+    project: &Project,
+) -> Res<()> {
+    let exported_modules = modgraph
+        .modules()
+        .iter()
+        .filter(|m| m.is_main() || includes.iter().any(|include| include == m.modpath.path()))
+        .collect::<Vec<&Module>>();
+
+    for module in exported_modules {
+        let filename = format!(
+            "{}.mod",
+            if module.is_main() {
+                &project.out
+            } else {
+                module.modpath.path()
+            }
+        );
+
+        let content = create_header_file(module, &ctx)?;
+        write_file(&filename, &content)?;
+    }
+
+    Ok(())
 }
 
 /// Recursively search the given source directory for files and return a list of FileSet of
@@ -122,7 +149,7 @@ fn parse_files_in_directory(sources: Vec<Source>, config: &Config) -> Res<Vec<Fi
         }
 
         scan(&src, config)
-            .and_then(|toks| parse_file(src, toks, config))
+            .and_then(|toks| parse(src, toks, config))
             .map_or_else(|err| errs.join(err), |file| files.push(file));
     }
 
@@ -131,82 +158,6 @@ fn parse_files_in_directory(sources: Vec<Source>, config: &Config) -> Res<Vec<Fi
     } else {
         Ok(files)
     }
-}
-
-/// Parse standard library modules found in the path specified by config. Add them to the
-/// module graph and type context.
-fn load_stdlib_modules(
-    mg: &mut ModuleGraph,
-    ctx: &mut TypeContext,
-    config: &Config,
-    options: &Options,
-) -> Res<()> {
-    let dir = path_or_relative_to_root(&options.stdlib_path);
-    info!("Loading stdlib from {}", dir.display());
-
-    if !dir.exists() {
-        return error_str(&format!(
-            "standard library directory not found: {}",
-            dir.display()
-        ));
-    }
-
-    load_header_modules(&dir, mg, ctx, config, "stdlib", |libname| {
-        ModulePath::new_stdlib(libname)
-    })
-}
-
-/// Parse thirdparty modules found in the path specified by config. Add them to the
-/// module graph and type context.
-fn load_thirdparty_modules(
-    mg: &mut ModuleGraph,
-    ctx: &mut TypeContext,
-    config: &Config,
-    options: &Options,
-) -> Res<()> {
-    let dir = path_or_relative_to_root(&options.thirdparty_path);
-    info!("Loading thirdparty from {}", dir.display());
-
-    create_dir_if_not_exist(&dir.to_string_lossy())?;
-
-    load_header_modules(&dir, mg, ctx, config, "thirdparty", |libname| {
-        ModulePath::new_package(libname)
-    })
-}
-
-fn load_header_modules<F>(
-    dir: &PathBuf,
-    mg: &mut ModuleGraph,
-    ctx: &mut TypeContext,
-    config: &Config,
-    log_prefix: &str,
-    to_modpath: F,
-) -> Res<()>
-where
-    F: Fn(&str) -> ModulePath,
-{
-    for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
-        let path = entry.map_err(|e| e.to_string())?.path();
-        if !path.is_file() {
-            continue;
-        }
-
-        let Some(fname) = path.file_name().and_then(|f| f.to_str()) else {
-            continue;
-        };
-        if !fname.ends_with(".h.koi") {
-            continue;
-        }
-
-        info!("Loading {} header: {}", log_prefix, path.display());
-        let src = fs::read(&path).map_err(|e| e.to_string())?;
-        let libname = fname.trim_end_matches(".h.koi");
-        let modpath = to_modpath(libname);
-        read_header_file(modpath, &path.to_string_lossy(), src, ctx, mg, config)
-            .map_err(|e| e.to_string())?;
-    }
-
-    Ok(())
 }
 
 /// Type check all file sets, turning them into Modules, and put them in the ModuleGraph.
@@ -347,7 +298,11 @@ fn do_high_level_passes(
     config: &Config,
 ) -> Result<(), String> {
     // Check if main function is present and if it should be
-    let has_main = modgraph.main().symbols.get("main").map_or(false, |_| true);
+    let has_main = modgraph
+        .main()
+        .map(|m| m.symbols.get("main"))
+        .map_or(false, |_| true);
+
     if !has_main && matches!(project.project_type, ProjectType::App) {
         return error_str("main module has no main function");
     }

@@ -48,20 +48,19 @@ pub fn build(ir: Ir, buildcfg: BuildConfig, config: &Config) -> Result<(), Strin
     }
 
     let mut args = asm_files;
-
-    let rootdir = get_root_dir();
-    args.push(
-        rootdir
-            .join("lib")
-            .join("entry.s")
-            .to_string_lossy()
-            .to_string(),
-    );
     args.push("-nostartfiles".into());
 
     match buildcfg.linkmode {
         LinkMode::Exectuable => {
             info!("Compiling executable");
+            let rootdir = get_root_dir();
+            args.push(
+                rootdir
+                    .join("lib")
+                    .join("entry.s")
+                    .to_string_lossy()
+                    .to_string(),
+            );
             args.push(format!("-o{}", buildcfg.outfile));
             cmd("gcc", &args)?;
         }

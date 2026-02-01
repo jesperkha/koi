@@ -141,6 +141,10 @@ impl Module {
         self.modpath.name()
     }
 
+    pub fn is_main(&self) -> bool {
+        self.modpath.path() == "main"
+    }
+
     /// Reports whether this module should be built (produce IR/codegen) or not.
     pub fn should_be_built(&self) -> bool {
         !self.is_header
@@ -171,7 +175,7 @@ pub struct ModuleGraph {
     /// Indecies in modules vec
     cache: HashMap<String, ModuleId>,
     /// id of main module
-    main_id: ModuleId,
+    main_id: Option<ModuleId>,
 }
 
 impl ModuleGraph {
@@ -179,7 +183,7 @@ impl ModuleGraph {
         ModuleGraph {
             modules: Vec::new(),
             cache: HashMap::new(),
-            main_id: 0,
+            main_id: None,
         }
     }
 
@@ -202,7 +206,7 @@ impl ModuleGraph {
         self.cache.insert(module.modpath.path().to_owned(), id);
 
         if module.modpath.path() == "main" {
-            self.main_id = id;
+            self.main_id = Some(id);
         }
 
         module
@@ -222,10 +226,9 @@ impl ModuleGraph {
             })
     }
 
-    /// Get main module
-    pub fn main(&self) -> &Module {
-        // main module should always exist if used
-        self.get(self.main_id).expect("no main module")
+    /// Get main module if any
+    pub fn main(&self) -> Option<&Module> {
+        self.main_id.and_then(|id| self.get(id))
     }
 
     pub fn modules(&self) -> &Vec<Module> {

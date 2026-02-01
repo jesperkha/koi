@@ -50,6 +50,8 @@ pub struct Project {
     /// in the compilation process.
     #[serde(rename = "type")]
     pub project_type: ProjectType,
+    /// Additional include paths for package exports
+    pub includes: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]

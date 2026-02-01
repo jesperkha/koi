@@ -278,6 +278,8 @@ impl<'a> Checker<'a> {
             is_exported,
         };
 
+        debug!("declaring function: {}", symbol);
+
         let _ = self.symbols.add(symbol).map_err(|err| {
             let sym = self.symbols.get(&name.to_string()).unwrap();
             return self.error_token(&err, name).with_info(&format!(

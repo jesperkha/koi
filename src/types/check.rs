@@ -18,6 +18,12 @@ pub fn type_check<'a>(
     ctx: &mut TypeContext,
     config: &Config,
 ) -> Res<&'a Module> {
+    info!(
+        "Type checking {} files in module {}",
+        fs.files.len(),
+        fs.modpath.path()
+    );
+
     let mut syms = SymbolList::new();
     let mut nsl = NamespaceList::new();
 
@@ -80,6 +86,7 @@ fn global_pass(
 ) -> Result<(), ErrorSet> {
     let mut errs = ErrorSet::new();
     for file in &fs.files {
+        info!("Running global pass for file {}", file.src.filepath);
         Checker::new(&fs.modpath, &file.src, ctx, syms, nsl, config)
             .global_pass(&file.ast.decls)
             .map_or_else(|e| errs.join(e), |_| {});
@@ -99,6 +106,7 @@ fn resolve_imports(
     let mut errs = ErrorSet::new();
 
     for file in &fs.files {
+        info!("Resolving imports for file {}", file.src.filepath);
         for import in &file.ast.imports {
             // Join the imported names into an import path
             let import_path = ModulePath::new(
@@ -175,11 +183,6 @@ fn emit_typed_ast(
     nsl: &mut NamespaceList,
     config: &Config,
 ) -> Result<TypedAst, ErrorSet> {
-    info!(
-        "Type checking {} files in module {}",
-        files.len(),
-        modpath.path()
-    );
     assert!(files.len() > 0, "no files to type check");
 
     let mut errs = ErrorSet::new();
