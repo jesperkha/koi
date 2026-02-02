@@ -6,7 +6,8 @@ use crate::{
         CreateModule, Module, ModuleGraph, ModuleKind, ModulePath, Namespace, NamespaceList,
         SymbolList, invalid_mod_id,
     },
-    types::{Checker, TypeContext, TypedAst},
+    typecheck::Checker,
+    types::{TypeContext, TypedAst},
 };
 use tracing::info;
 

@@ -7,5 +7,6 @@ pub mod ir;
 pub mod module;
 pub mod parser;
 pub mod token;
+pub mod typecheck;
 pub mod types;
 pub mod util;

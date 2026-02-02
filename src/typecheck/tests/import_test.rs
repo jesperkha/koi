@@ -4,7 +4,8 @@ use crate::{
     error::ErrorSet,
     module::{ModuleGraph, ModulePath},
     parser::sort_by_dependency_graph,
-    types::{TypeContext, type_check},
+    typecheck::type_check,
+    types::TypeContext,
     util::{must, parse_string},
 };
 

@@ -6,7 +6,8 @@ use crate::{
     module::{Module, ModuleGraph, ModulePath},
     parser::parse,
     token::{Source, Token, scan},
-    types::{TypeContext, type_check},
+    typecheck::type_check,
+    types::TypeContext,
 };
 
 pub fn compare_string_lines_or_panic(ina: String, inb: String) {
