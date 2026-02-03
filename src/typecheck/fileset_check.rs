@@ -4,7 +4,7 @@ use crate::{
     error::{Error, ErrorSet, Res},
     module::{
         CreateModule, ModuleGraph, ModuleId, ModuleKind, ModulePath, Namespace, NamespaceList,
-        SymbolList, invalid_mod_id,
+        SymbolList, UserModule,
     },
     typecheck::FileChecker,
     types::{TypeContext, TypedAst},
@@ -53,18 +53,19 @@ impl<'a> FilesetChecker<'a> {
         self.global_pass(&fs, &mut syms, &mut nsl)?;
 
         // Emit typed AST
-        let typed_ast = self.emit_typed_ast(&fs.modpath, fs.files, &mut syms, &mut nsl)?;
+        let typed_ast = self.emit_typed_ast(&fs.modpath, fs.files, &mut syms, &nsl)?;
 
         let create_mod = CreateModule {
-            namespaces: nsl,
             symbols: syms,
             modpath: fs.modpath,
-            filepath: fs.path,
-            ast: typed_ast,
-            kind: ModuleKind::User,
+            kind: ModuleKind::User(UserModule {
+                path: fs.path,
+                namespaces: nsl,
+                ast: typed_ast,
+            }),
         };
 
-        let module = self.mg.add(create_mod, invalid_mod_id());
+        let module = self.mg.add(create_mod);
         Ok(module.id)
     }
 
@@ -172,7 +173,7 @@ impl<'a> FilesetChecker<'a> {
         modpath: &ModulePath,
         files: Vec<File>,
         syms: &mut SymbolList,
-        nsl: &mut NamespaceList,
+        nsl: &NamespaceList,
     ) -> Result<TypedAst, ErrorSet> {
         assert!(files.len() > 0, "no files to type check");
 

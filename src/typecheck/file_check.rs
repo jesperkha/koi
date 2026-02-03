@@ -28,7 +28,7 @@ pub struct FileChecker<'a> {
     // Dependencies
     ctx: &'a mut TypeContext,
     symbols: &'a mut SymbolList,
-    nsl: &'a mut NamespaceList,
+    nsl: &'a NamespaceList,
     src: &'a Source,
     _config: &'a Config,
     modpath: &'a ModulePath,
@@ -50,7 +50,7 @@ impl<'a> FileChecker<'a> {
         src: &'a Source,
         ctx: &'a mut TypeContext,
         symbols: &'a mut SymbolList,
-        nsl: &'a mut NamespaceList,
+        nsl: &'a NamespaceList,
         config: &'a Config,
     ) -> Self {
         Self {

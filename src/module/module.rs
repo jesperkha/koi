@@ -5,23 +5,40 @@ use crate::{
     types::TypedAst,
 };
 
+pub type ModuleId = usize;
+
+pub fn invalid_mod_id() -> ModuleId {
+    return usize::MAX;
+}
+
 /// A Module is a self-contained compilation unit. It contains the combined
 /// typed AST of all files in the module and all exported symbols.
 pub struct Module {
     pub id: ModuleId,
-    /// The id of this modules parent. 0 means this is root.
-    pub parent: ModuleId,
+    /// What type of module this is.
+    pub kind: ModuleKind,
     /// The module path, eg. app.some.mod
     /// The module name can be fetched from the module path.
     pub modpath: ModulePath,
+    /// List of symbols declared and used within this module.
+    pub symbols: SymbolList,
+}
+
+pub enum ModuleKind {
+    /// User module are created from the source code of the current project.
+    /// These modules are built into the final executable/library.
+    User(UserModule),
+
+    /// Package modules are external libraries, such as the standard library,
+    /// and are skipped when building, as they are pre-compiled.
+    Package,
+}
+
+pub struct UserModule {
     /// The relative path from src to this module.
     pub path: String,
     /// The fully typed AST generated from files in this module.
     pub ast: TypedAst,
-    /// What type of module this is.
-    pub kind: ModuleKind,
-    /// List of symbols declared and used within this module.
-    pub symbols: SymbolList,
     /// List of namespaces imported into this module.
     pub namespaces: NamespaceList,
 }
@@ -58,22 +75,6 @@ impl Module {
             })
             .collect::<_>()
     }
-}
-
-pub enum ModuleKind {
-    /// User module are created from the source code of the current project.
-    /// These modules are built into the final executable/library.
-    User,
-
-    /// Package modules are external libraries, such as the standard library,
-    /// and are skipped when building, as they are pre-compiled.
-    Package,
-}
-
-pub type ModuleId = usize;
-
-pub fn invalid_mod_id() -> ModuleId {
-    return usize::MAX;
 }
 
 /// Module path wraps a string module path (app.foo.bar) and provides methods
@@ -164,11 +165,8 @@ impl ModulePath {
 
 pub struct CreateModule {
     pub modpath: ModulePath,
-    pub filepath: String,
-    pub ast: TypedAst,
     pub kind: ModuleKind,
     pub symbols: SymbolList,
-    pub namespaces: NamespaceList,
 }
 
 pub struct ModuleGraph {
@@ -189,17 +187,13 @@ impl ModuleGraph {
     }
 
     /// Create a new module and add it to the graph.
-    pub fn add(&mut self, m: CreateModule, parent: ModuleId) -> &Module {
+    pub fn add(&mut self, m: CreateModule) -> &Module {
         let id = self.modules.len();
         self.modules.push(Module {
             id,
-            parent,
             modpath: m.modpath,
-            path: m.filepath,
-            ast: m.ast,
             kind: m.kind,
             symbols: m.symbols,
-            namespaces: m.namespaces,
         });
 
         let module = &self.modules[id];
