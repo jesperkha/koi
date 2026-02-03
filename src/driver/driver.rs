@@ -54,7 +54,10 @@ pub fn compile() -> Res<()> {
 
     // Type check all file sets, turning them into Modules, and put
     // them in a ModuleGraph.
-    type_check_and_create_modules(sorted_filesets, &mut module_graph, &mut ctx, &config)?;
+    let mut checker = FilesetChecker::new(&mut module_graph, &mut ctx, &config);
+    checker
+        .check_filesets(sorted_filesets)
+        .map_err(|err| err.to_string())?;
 
     // High level passes are checks done after the main parsing and type checking
     // steps and are instead performed on the project as a whole.
@@ -160,21 +163,6 @@ fn parse_files_in_directory(sources: Vec<Source>, config: &Config) -> Res<Vec<Fi
     } else {
         Ok(files)
     }
-}
-
-/// Type check all file sets, turning them into Modules, and put them in the ModuleGraph.
-fn type_check_and_create_modules(
-    sorted_sets: Vec<FileSet>,
-    mg: &mut ModuleGraph,
-    ctx: &mut TypeContext,
-    config: &Config,
-) -> Res<()> {
-    let mut checker = FilesetChecker::new(mg, ctx, config);
-    for fs in sorted_sets {
-        checker.check(fs).map_err(|errs| errs.to_string())?;
-    }
-
-    Ok(())
 }
 
 /// Shorthand for emitting a module to IR and converting error to string.

@@ -1,6 +1,6 @@
-mod check;
-mod checker;
+mod file_check;
+mod fileset_check;
 mod tests;
 
-pub use check::FilesetChecker;
-pub use checker::FileChecker;
+pub use file_check::FileChecker;
+pub use fileset_check::FilesetChecker;

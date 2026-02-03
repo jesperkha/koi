@@ -24,6 +24,14 @@ impl<'a> FilesetChecker<'a> {
         Self { mg, ctx, config }
     }
 
+    /// Type check multiple filesets.
+    pub fn check_filesets(&mut self, fss: Vec<FileSet>) -> Res<()> {
+        for fs in fss {
+            self.check(fs)?;
+        }
+        Ok(())
+    }
+
     /// Type check a fileset and produce a typed module.
     pub fn check(&mut self, fs: FileSet) -> Res<ModuleId> {
         info!(
