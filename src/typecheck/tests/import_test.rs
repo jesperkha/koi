@@ -4,7 +4,7 @@ use crate::{
     error::ErrorSet,
     module::{ModuleGraph, ModulePath},
     parser::sort_by_dependency_graph,
-    typecheck::type_check,
+    typecheck::FilesetChecker,
     types::TypeContext,
     util::{must, parse_string},
 };
@@ -35,7 +35,8 @@ fn check_files(files: &[TestFile]) -> Result<(), ErrorSet> {
     let config = Config::test();
 
     for fs in sorted {
-        let _ = type_check(fs, &mut mg, &mut ctx, &config)?;
+        let mut checker = FilesetChecker::new(&mut mg, &mut ctx, &config);
+        let _ = checker.check(fs)?;
     }
 
     Ok(())

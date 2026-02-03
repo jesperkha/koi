@@ -16,7 +16,7 @@ use crate::{
     module::{Module, ModuleGraph, ModulePath, create_header_file},
     parser::{parse, sort_by_dependency_graph},
     token::{Source, scan},
-    typecheck::type_check,
+    typecheck::FilesetChecker,
     types::TypeContext,
     util::{create_dir_if_not_exist, get_root_dir, write_file},
 };
@@ -169,8 +169,9 @@ fn type_check_and_create_modules(
     ctx: &mut TypeContext,
     config: &Config,
 ) -> Res<()> {
+    let mut checker = FilesetChecker::new(mg, ctx, config);
     for fs in sorted_sets {
-        type_check(fs, mg, ctx, config).map_err(|errs| errs.to_string())?;
+        checker.check(fs).map_err(|errs| errs.to_string())?;
     }
 
     Ok(())

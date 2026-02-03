@@ -6,7 +6,7 @@ use crate::{
     module::{Module, ModuleGraph, ModulePath},
     parser::parse,
     token::{Source, Token, scan},
-    typecheck::type_check,
+    typecheck::FilesetChecker,
     types::TypeContext,
 };
 
@@ -49,7 +49,9 @@ pub fn check_string<'a>(
 ) -> Res<&'a Module> {
     let config = Config::test();
     let fs = FileSet::new(ModulePath::new_str("main"), vec![parse_string(src)?]);
-    type_check(fs, mg, ctx, &config)
+    let mut checker = FilesetChecker::new(mg, ctx, &config);
+    let id = checker.check(fs)?;
+    Ok(mg.get(id).unwrap())
 }
 
 pub fn emit_string(src: &str) -> Res<Unit> {

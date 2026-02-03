@@ -21,7 +21,10 @@ struct Binding {
     pos: Pos,
 }
 
-pub struct Checker<'a> {
+/// The FileChecker performs type checking on a single source file AST,
+/// producing a typed AST. The types and symbols are stored in the provided
+/// context and symbol table.
+pub struct FileChecker<'a> {
     // Dependencies
     ctx: &'a mut TypeContext,
     symbols: &'a mut SymbolList,
@@ -41,7 +44,7 @@ pub struct Checker<'a> {
     has_returned: bool,
 }
 
-impl<'a> Checker<'a> {
+impl<'a> FileChecker<'a> {
     pub fn new(
         modpath: &'a ModulePath,
         src: &'a Source,
