@@ -48,9 +48,9 @@ pub fn compile() -> Res<()> {
     let (module_graph, ctx) =
         check_filesets(sorted_filesets, &config).map_err(|err| err.to_string())?;
 
-    // High level passes are checks done after the main parsing and type checking
-    // steps and are instead performed on the project as a whole.
-    do_high_level_passes(&module_graph, &ctx, &project, &config)?;
+    // Do some high level passes at a module level before lowering
+    check_main_function_present(&module_graph, &project)?;
+    dump_debug_info(&ctx, &module_graph, &project, &config)?;
 
     // Create header files for package
     if matches!(project.project_type, ProjectType::Package) {
@@ -274,15 +274,8 @@ fn pathbuf_to_module_path(path: &PathBuf, source_dir: &str) -> String {
         .replace("/", ".")
 }
 
-/// High level passes are checks done after the main parsing and type checking
-/// steps and are instead performed on the project as a whole.
-fn do_high_level_passes(
-    modgraph: &ModuleGraph,
-    ctx: &TypeContext,
-    project: &Project,
-    config: &Config,
-) -> Result<(), String> {
-    // Check if main function is present and if it should be
+/// Check if main function is present and if it should be
+fn check_main_function_present(modgraph: &ModuleGraph, project: &Project) -> Res<()> {
     let has_main = modgraph
         .main()
         .map(|m| m.symbols.get("main"))
@@ -295,6 +288,16 @@ fn do_high_level_passes(
         return error_str("package project cannot have a main function");
     }
 
+    Ok(())
+}
+
+/// Print debug info if configured.
+fn dump_debug_info(
+    ctx: &TypeContext,
+    modgraph: &ModuleGraph,
+    project: &Project,
+    config: &Config,
+) -> Res<()> {
     if config.dump_type_context {
         let path = format!("{}/types.txt", project.bin);
         info!("Writing type info to {}", path);
