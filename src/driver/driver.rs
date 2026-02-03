@@ -16,7 +16,7 @@ use crate::{
     module::{Module, ModuleGraph, ModulePath, create_header_file},
     parser::{parse, sort_by_dependency_graph},
     token::{Source, scan},
-    typecheck::FilesetChecker,
+    typecheck::check_filesets,
     types::TypeContext,
     util::{create_dir_if_not_exist, get_root_dir, write_file},
 };
@@ -36,28 +36,17 @@ pub fn compile() -> Res<()> {
     // Recursively search the given source directory for files and
     // return a list of FileSet of all source files found.
     let filesets = find_and_parse_all_source_files(&project.src, &config)?;
-    if filesets.len() == 0 {
-        return Err(format!("no source files in '{}'", project.src));
-    }
 
     // Create a dependency graph and sort it, returning a list of
     // filesets in correct type checking order. FileSets are sorted
     // based on their imports.
     let sorted_filesets = sort_by_dependency_graph(filesets)?;
 
-    // Create global type context. This stores all types created and
-    // used in all modules and lets us reference them by numeric IDs.
-    let mut ctx = TypeContext::new();
-
-    // Create module graph to hold all modules in the project.
-    let mut module_graph = ModuleGraph::new();
-
     // Type check all file sets, turning them into Modules, and put
-    // them in a ModuleGraph.
-    let mut checker = FilesetChecker::new(&mut module_graph, &mut ctx, &config);
-    checker
-        .check_filesets(sorted_filesets)
-        .map_err(|err| err.to_string())?;
+    // them in a ModuleGraph. The generated TypeContext containing all
+    // type information is also returned.
+    let (module_graph, ctx) =
+        check_filesets(sorted_filesets, &config).map_err(|err| err.to_string())?;
 
     // High level passes are checks done after the main parsing and type checking
     // steps and are instead performed on the project as a whole.
@@ -138,6 +127,10 @@ fn find_and_parse_all_source_files(source_dir: &str, config: &Config) -> Res<Vec
         }
 
         filesets.push(FileSet::new(ModulePath::new(module_path), files));
+    }
+
+    if filesets.len() == 0 {
+        return Err(format!("no source files in '{}'", source_dir));
     }
 
     Ok(filesets)

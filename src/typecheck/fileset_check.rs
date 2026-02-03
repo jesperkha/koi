@@ -11,6 +11,19 @@ use crate::{
 };
 use tracing::info;
 
+/// Type check a list of filesets, producing a module graph and type context.
+pub fn check_filesets(filesets: Vec<FileSet>, config: &Config) -> Res<(ModuleGraph, TypeContext)> {
+    let mut mg = ModuleGraph::new();
+    let mut ctx = TypeContext::new();
+    let mut checker = FilesetChecker::new(&mut mg, &mut ctx, config);
+
+    for fs in filesets {
+        checker.check(fs)?;
+    }
+
+    Ok((mg, ctx))
+}
+
 /// The FilesetChecker is responsible for type checking an entire fileset,
 /// producing a typed module that is added to the module graph.
 pub struct FilesetChecker<'a> {
@@ -22,14 +35,6 @@ pub struct FilesetChecker<'a> {
 impl<'a> FilesetChecker<'a> {
     pub fn new(mg: &'a mut ModuleGraph, ctx: &'a mut TypeContext, config: &'a Config) -> Self {
         Self { mg, ctx, config }
-    }
-
-    /// Type check multiple filesets.
-    pub fn check_filesets(&mut self, fss: Vec<FileSet>) -> Res<()> {
-        for fs in fss {
-            self.check(fs)?;
-        }
-        Ok(())
     }
 
     /// Type check a fileset and produce a typed module.

@@ -3,4 +3,4 @@ mod fileset_check;
 mod tests;
 
 pub use file_check::FileChecker;
-pub use fileset_check::FilesetChecker;
+pub use fileset_check::{FilesetChecker, check_filesets};
