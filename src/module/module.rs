@@ -5,6 +5,61 @@ use crate::{
     types::TypedAst,
 };
 
+/// A Module is a self-contained compilation unit. It contains the combined
+/// typed AST of all files in the module and all exported symbols.
+pub struct Module {
+    pub id: ModuleId,
+    /// The id of this modules parent. 0 means this is root.
+    pub parent: ModuleId,
+    /// The module path, eg. app.some.mod
+    /// The module name can be fetched from the module path.
+    pub modpath: ModulePath,
+    /// The relative path from src to this module.
+    pub path: String,
+    /// The fully typed AST generated from files in this module.
+    pub ast: TypedAst,
+    /// What type of module this is.
+    pub kind: ModuleKind,
+    /// List of symbols declared and used within this module.
+    pub symbols: SymbolList,
+    /// List of namespaces imported into this module.
+    pub namespaces: NamespaceList,
+}
+
+impl Module {
+    pub fn name(&self) -> &str {
+        self.modpath.name()
+    }
+
+    pub fn is_main(&self) -> bool {
+        self.modpath.path() == "main"
+    }
+
+    /// Reports whether this module should be built (produce IR/codegen) or not.
+    pub fn should_be_built(&self) -> bool {
+        !matches!(self.kind, ModuleKind::Package)
+    }
+
+    /// Collect all exported symbols from this module.
+    pub fn exports(&self) -> HashMap<&String, &Symbol> {
+        self.symbols
+            .symbols()
+            .iter()
+            .filter(|s| {
+                // Is it exported?
+                if !s.1.is_exported {
+                    return false;
+                }
+
+                match &s.1.origin {
+                    SymbolOrigin::Module(modpath) => &self.modpath == modpath,
+                    SymbolOrigin::Extern(modpath) => &self.modpath == modpath,
+                }
+            })
+            .collect::<_>()
+    }
+}
+
 pub enum ModuleKind {
     /// User module are created from the source code of the current project.
     /// These modules are built into the final executable/library.
@@ -114,61 +169,6 @@ pub struct CreateModule {
     pub kind: ModuleKind,
     pub symbols: SymbolList,
     pub namespaces: NamespaceList,
-}
-
-/// A Module is a self-contained compilation unit. It contains the combined
-/// typed AST of all files in the module and all exported symbols.
-pub struct Module {
-    pub id: ModuleId,
-    /// The id of this modules parent. 0 means this is root.
-    pub parent: ModuleId,
-    /// The module path, eg. app.some.mod
-    /// The module name can be fetched from the module path.
-    pub modpath: ModulePath,
-    /// The relative path from src to this module.
-    pub path: String,
-    /// The fully typed AST generated from files in this module.
-    pub ast: TypedAst,
-    /// What type of module this is.
-    pub kind: ModuleKind,
-    /// List of symbols declared and used within this module.
-    pub symbols: SymbolList,
-    /// List of namespaces imported into this module.
-    pub namespaces: NamespaceList,
-}
-
-impl Module {
-    pub fn name(&self) -> &str {
-        self.modpath.name()
-    }
-
-    pub fn is_main(&self) -> bool {
-        self.modpath.path() == "main"
-    }
-
-    /// Reports whether this module should be built (produce IR/codegen) or not.
-    pub fn should_be_built(&self) -> bool {
-        !matches!(self.kind, ModuleKind::Package)
-    }
-
-    /// Collect all exported symbols from this module.
-    pub fn exports(&self) -> HashMap<&String, &Symbol> {
-        self.symbols
-            .symbols()
-            .iter()
-            .filter(|s| {
-                // Is it exported?
-                if !s.1.is_exported {
-                    return false;
-                }
-
-                match &s.1.origin {
-                    SymbolOrigin::Module(modpath) => &self.modpath == modpath,
-                    SymbolOrigin::Extern(modpath) => &self.modpath == modpath,
-                }
-            })
-            .collect::<_>()
-    }
 }
 
 pub struct ModuleGraph {
