@@ -1,10 +1,13 @@
 use tracing::{debug, info};
 
 use crate::{
-    ast::{self, Field, Node, TypeNode},
+    ast::{self, Field, File, Node, TypeNode},
     config::Config,
-    error::{Error, ErrorSet},
-    module::{FuncSymbol, ModulePath, NamespaceList, Symbol, SymbolKind, SymbolList, SymbolOrigin},
+    error::{Error, ErrorSet, Res},
+    module::{
+        CreateModule, FuncSymbol, ModuleKind, ModulePath, NamespaceList, Symbol, SymbolKind,
+        SymbolList, SymbolOrigin,
+    },
     token::{Pos, Source, Token, TokenKind},
     types::{
         self, FunctionType, LiteralKind, NodeMeta, PrimitiveType, Type, TypeContext, TypeId,
@@ -12,6 +15,26 @@ use crate::{
     },
     util::VarTable,
 };
+
+/// Type check a header file and return CreateModule with symbols.
+pub fn check_header_file(
+    modpath: &ModulePath,
+    file: File,
+    ctx: &mut TypeContext,
+    config: &Config,
+) -> Res<CreateModule> {
+    let mut symbols = SymbolList::new();
+    let nsl = NamespaceList::new();
+
+    let mut checker = FileChecker::new(modpath, &file.src, ctx, &mut symbols, &nsl, config);
+    checker.emit_ast(file.ast.decls)?;
+
+    Ok(CreateModule {
+        modpath: modpath.clone(),
+        kind: ModuleKind::Package,
+        symbols,
+    })
+}
 
 /// A Binding is either a declared variable or function parameter. Bindings
 /// shadow global symbols like functions and types.

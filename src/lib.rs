@@ -3,6 +3,7 @@ pub mod build;
 pub mod config;
 pub mod driver;
 pub mod error;
+pub mod header;
 pub mod ir;
 pub mod module;
 pub mod parser;

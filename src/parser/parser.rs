@@ -9,9 +9,17 @@ use crate::{
     },
     config::Config,
     error::{Error, ErrorSet, Res},
-    token::{Source, Token, TokenKind},
+    token::{Source, Token, TokenKind, scan},
 };
 
+/// Create anonymous Source and scan input before parsing.
+pub fn scan_and_parse(src: &str, config: &Config) -> Res<File> {
+    let source = Source::new_from_string(src);
+    let tokens = scan(&source, config)?;
+    parse(source, tokens, config)
+}
+
+/// Parse source input into File with AST.
 pub fn parse(src: Source, tokens: Vec<Token>, config: &Config) -> Res<File> {
     let parser = Parser::new(src, tokens, config);
     parser.parse_file()

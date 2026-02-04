@@ -12,8 +12,9 @@ use crate::{
     build::x86,
     config::{Config, PathManager, Project, ProjectType, Target, load_config_file},
     error::{ErrorSet, error_str},
+    header::create_header_file,
     ir::{Ir, Unit, emit_ir},
-    module::{Module, ModuleGraph, ModulePath, create_header_file},
+    module::{Module, ModuleGraph, ModulePath},
     parser::{parse, sort_by_dependency_graph},
     token::{Source, scan},
     typecheck::check_filesets,
@@ -278,8 +279,8 @@ fn pathbuf_to_module_path(path: &PathBuf, source_dir: &str) -> String {
 fn check_main_function_present(modgraph: &ModuleGraph, project: &Project) -> Res<()> {
     let has_main = modgraph
         .main()
-        .map(|m| m.symbols.get("main"))
-        .map_or(false, |_| true);
+        .map(|m| m.symbols.get("main").is_ok())
+        .unwrap_or(false);
 
     if !has_main && matches!(project.project_type, ProjectType::App) {
         return error_str("main module has no main function");

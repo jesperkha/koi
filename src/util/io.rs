@@ -7,7 +7,10 @@ use std::{
 use tracing::{debug, info};
 
 /// Write file at given filepath with content.
-pub fn write_file(filepath: &str, content: &str) -> Result<(), String> {
+pub fn write_file<C>(filepath: &str, content: C) -> Result<(), String>
+where
+    C: AsRef<[u8]>,
+{
     debug!("Writing file: {}", filepath);
     let path = Path::new(filepath);
     if let Err(_) = fs::write(&path, content) {
