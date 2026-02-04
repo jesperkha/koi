@@ -1,5 +1,5 @@
 use crate::{
-    ir::print::ir_to_string,
+    ir::ir_to_string,
     util::{compare_string_lines_or_panic, emit_string, must},
 };
 

@@ -27,6 +27,8 @@ pub struct BuildConfig {
     pub outfile: String,
 }
 
+// TODO: high level assembly tree with string generation
+
 /// Build and compile an x86-64 executable or shared object file.
 pub fn build(
     ir: Ir,

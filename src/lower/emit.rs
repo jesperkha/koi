@@ -7,8 +7,8 @@ use crate::{
     config::Config,
     error::{Error, ErrorSet, Res},
     ir::{
-        AssignIns, ExternFuncInst, FuncInst, IRType, Ins, LValue, StoreIns, StringDataIns,
-        SymTracker, Unit, Value, ir,
+        self, AssignIns, ExternFuncInst, FuncInst, IRType, Ins, LValue, StoreIns, StringDataIns,
+        SymTracker, Unit, Value,
     },
     module::{Module, ModuleKind, ModulePath, NamespaceList, Symbol, SymbolList},
     types::{

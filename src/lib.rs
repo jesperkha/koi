@@ -5,6 +5,7 @@ pub mod driver;
 pub mod error;
 pub mod header;
 pub mod ir;
+pub mod lower;
 pub mod module;
 pub mod parser;
 pub mod token;
