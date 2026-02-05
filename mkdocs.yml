@@ -1,0 +1,16 @@
+site_name: Koi Wiki
+nav:
+    - About: about.md
+    - Getting Started:
+          - Creating a Project: getstarted/create_project.md
+          - Hello World: getstarted/hello_world.md
+    - Documentation:
+          - Main Function: docs/main.md
+    - Examples:
+          - Working with C: examples/work_with_c.md
+theme:
+    name: material
+    features:
+        - content.code.copy
+        - navigation.footer
+
