@@ -22,25 +22,23 @@ pub struct Module {
     pub modpath: ModulePath,
     /// List of symbols declared and used within this module.
     pub symbols: SymbolList,
-}
-
-pub enum ModuleKind {
-    /// User module are created from the source code of the current project.
-    /// These modules are built into the final executable/library.
-    User(UserModule),
-
-    /// Package modules are external libraries, such as the standard library,
-    /// and are skipped when building, as they are pre-compiled.
-    Package,
-}
-
-pub struct UserModule {
     /// The relative path from src to this module.
+    /// For package modules this is the filepath to the linkable object file.
     pub path: String,
     /// The fully typed AST generated from files in this module.
     pub ast: TypedAst,
     /// List of namespaces imported into this module.
     pub namespaces: NamespaceList,
+}
+
+pub enum ModuleKind {
+    /// User module are created from the source code of the current project.
+    /// These modules are built into the final executable/library.
+    User,
+
+    /// Package modules are external libraries, such as the standard library,
+    /// and are skipped when building, as they are pre-compiled.
+    Package,
 }
 
 impl Module {
@@ -167,6 +165,9 @@ pub struct CreateModule {
     pub modpath: ModulePath,
     pub kind: ModuleKind,
     pub symbols: SymbolList,
+    pub path: String,
+    pub ast: TypedAst,
+    pub namespaces: NamespaceList,
 }
 
 pub struct ModuleGraph {
@@ -194,6 +195,9 @@ impl ModuleGraph {
             modpath: m.modpath,
             kind: m.kind,
             symbols: m.symbols,
+            path: m.path,
+            ast: m.ast,
+            namespaces: m.namespaces,
         });
 
         let module = &self.modules[id];

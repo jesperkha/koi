@@ -11,7 +11,7 @@ use crate::{
     token::{Pos, Source, Token, TokenKind},
     types::{
         self, FunctionType, LiteralKind, NodeMeta, PrimitiveType, Type, TypeContext, TypeId,
-        TypeKind, TypedNode, ast_node_to_meta, no_type,
+        TypeKind, TypedAst, TypedNode, ast_node_to_meta, no_type,
     },
     util::VarTable,
 };
@@ -33,6 +33,9 @@ pub fn check_header_file(
         modpath: modpath.clone(),
         kind: ModuleKind::Package,
         symbols,
+        path: file.src.filepath,
+        ast: TypedAst::empty(),
+        namespaces: NamespaceList::new(),
     })
 }
 

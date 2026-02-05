@@ -4,7 +4,7 @@ use crate::{
     error::{Error, ErrorSet, Res},
     module::{
         CreateModule, ModuleGraph, ModuleId, ModuleKind, ModulePath, Namespace, NamespaceList,
-        SymbolList, UserModule,
+        SymbolList,
     },
     typecheck::FileChecker,
     types::{TypeContext, TypedAst},
@@ -58,11 +58,10 @@ impl<'a> FilesetChecker<'a> {
         let create_mod = CreateModule {
             symbols: syms,
             modpath: fs.modpath,
-            kind: ModuleKind::User(UserModule {
-                path: fs.path,
-                namespaces: nsl,
-                ast: typed_ast,
-            }),
+            kind: ModuleKind::User,
+            path: fs.path,
+            namespaces: nsl,
+            ast: typed_ast,
         };
 
         let module = self.mg.add(create_mod);
