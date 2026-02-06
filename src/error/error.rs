@@ -2,13 +2,13 @@ use crate::token::{Pos, Source, SourceId, SourceMap};
 
 pub type Res<T> = Result<T, Diagnostics>;
 
-pub struct Report {
+pub struct Error {
     pub message: String,
     pub pos: Pos,
     pub length: usize,
 }
 
-impl Report {
+impl Error {
     pub fn new(msg: &str, from: &Pos, to: &Pos) -> Self {
         Self {
             message: msg.to_owned(),
@@ -58,7 +58,7 @@ impl Report {
 }
 
 pub struct Diagnostics {
-    reports: Vec<Report>,
+    reports: Vec<Error>,
 }
 
 impl Diagnostics {
@@ -72,7 +72,7 @@ impl Diagnostics {
         self.reports.is_empty()
     }
 
-    pub fn get(&self, index: usize) -> &Report {
+    pub fn get(&self, index: usize) -> &Error {
         &self.reports[index]
     }
 
@@ -80,7 +80,7 @@ impl Diagnostics {
         self.reports.len()
     }
 
-    pub fn add(&mut self, report: Report) {
+    pub fn add(&mut self, report: Error) {
         self.reports.push(report);
     }
 

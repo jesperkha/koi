@@ -3,7 +3,7 @@ use tracing::{debug, info};
 use crate::{
     ast::{self, Field, File, FileSet, Node, TypeNode},
     config::Config,
-    error::{Diagnostics, Report, Res},
+    error::{Diagnostics, Error, Res},
     module::{
         CreateModule, FuncSymbol, ModulePath, NamespaceList, Symbol, SymbolKind, SymbolList,
         SymbolOrigin,
@@ -101,7 +101,7 @@ impl<'a> FileChecker<'a> {
         Ok(())
     }
 
-    fn declare_function_decl(&mut self, node: &ast::FuncDeclNode) -> Result<(), Report> {
+    fn declare_function_decl(&mut self, node: &ast::FuncDeclNode) -> Result<(), Error> {
         self.declare_function_definition(
             &node.name,
             node.public,
@@ -112,7 +112,7 @@ impl<'a> FileChecker<'a> {
         )
     }
 
-    fn declare_function(&mut self, node: &ast::FuncNode) -> Result<(), Report> {
+    fn declare_function(&mut self, node: &ast::FuncNode) -> Result<(), Error> {
         self.declare_function_definition(
             &node.name,
             node.public,
@@ -123,7 +123,7 @@ impl<'a> FileChecker<'a> {
         )
     }
 
-    fn declare_extern(&mut self, node: &ast::FuncDeclNode) -> Result<(), Report> {
+    fn declare_extern(&mut self, node: &ast::FuncDeclNode) -> Result<(), Error> {
         self.declare_function_definition(
             &node.name,
             node.public,
@@ -142,7 +142,7 @@ impl<'a> FileChecker<'a> {
         ret_type: &Option<ast::TypeNode>,
         docs: Vec<String>,
         origin: SymbolOrigin,
-    ) -> Result<(), Report> {
+    ) -> Result<(), Error> {
         // Evaluate return type if any
         let ret = self.eval_optional_type(ret_type)?;
 
@@ -209,7 +209,7 @@ impl<'a> FileChecker<'a> {
         Ok(typed_decls)
     }
 
-    fn emit_decl(&mut self, decl: ast::Decl) -> Result<types::Decl, Report> {
+    fn emit_decl(&mut self, decl: ast::Decl) -> Result<types::Decl, Error> {
         match decl {
             ast::Decl::Func(node) => self.emit_func(node),
             ast::Decl::Extern(node) => self.emit_extern(node),
@@ -217,7 +217,7 @@ impl<'a> FileChecker<'a> {
         }
     }
 
-    fn emit_stmt(&mut self, stmt: ast::Stmt) -> Result<types::Stmt, Report> {
+    fn emit_stmt(&mut self, stmt: ast::Stmt) -> Result<types::Stmt, Error> {
         match stmt {
             ast::Stmt::ExprStmt(node) => Ok(types::Stmt::ExprStmt(self.emit_expr(node)?)),
             ast::Stmt::Return(node) => self.emit_return(node),
@@ -227,7 +227,7 @@ impl<'a> FileChecker<'a> {
         }
     }
 
-    fn emit_expr(&mut self, expr: ast::Expr) -> Result<types::Expr, Report> {
+    fn emit_expr(&mut self, expr: ast::Expr) -> Result<types::Expr, Error> {
         match expr {
             ast::Expr::Literal(tok) => self.emit_literal(tok),
             ast::Expr::Group(node) => self.emit_expr(*node.inner),
@@ -236,7 +236,7 @@ impl<'a> FileChecker<'a> {
         }
     }
 
-    fn emit_func(&mut self, node: ast::FuncNode) -> Result<types::Decl, Report> {
+    fn emit_func(&mut self, node: ast::FuncNode) -> Result<types::Decl, Error> {
         let meta = ast_node_to_meta(&node);
 
         // Get declared function
@@ -292,7 +292,7 @@ impl<'a> FileChecker<'a> {
             .stmts
             .into_iter()
             .map(|s| self.emit_stmt(s))
-            .collect::<Result<Vec<types::Stmt>, Report>>()?;
+            .collect::<Result<Vec<types::Stmt>, Error>>()?;
 
         self.vars.pop_scope();
 
@@ -314,7 +314,7 @@ impl<'a> FileChecker<'a> {
         }))
     }
 
-    fn emit_extern(&mut self, node: ast::FuncDeclNode) -> Result<types::Decl, Report> {
+    fn emit_extern(&mut self, node: ast::FuncDeclNode) -> Result<types::Decl, Error> {
         let meta = ast_node_to_meta(&node);
 
         // let ret = self.eval_optional_type(&node.ret_type)?;
@@ -333,7 +333,7 @@ impl<'a> FileChecker<'a> {
         Ok(types::Decl::Extern(types::ExternNode { ty, meta, name }))
     }
 
-    fn emit_var_assign(&mut self, node: ast::VarAssignNode) -> Result<types::Stmt, Report> {
+    fn emit_var_assign(&mut self, node: ast::VarAssignNode) -> Result<types::Stmt, Error> {
         let meta = ast_node_to_meta(&node);
 
         if self.is_constant(&node.lval) {
@@ -362,7 +362,7 @@ impl<'a> FileChecker<'a> {
         }))
     }
 
-    fn emit_var_decl(&mut self, node: ast::VarDeclNode) -> Result<types::Stmt, Report> {
+    fn emit_var_decl(&mut self, node: ast::VarDeclNode) -> Result<types::Stmt, Error> {
         let meta = ast_node_to_meta(&node);
         let typed_expr = self.emit_expr(node.expr)?;
 
@@ -383,7 +383,7 @@ impl<'a> FileChecker<'a> {
         }))
     }
 
-    fn emit_return(&mut self, node: ast::ReturnNode) -> Result<types::Stmt, Report> {
+    fn emit_return(&mut self, node: ast::ReturnNode) -> Result<types::Stmt, Error> {
         self.has_returned = true;
         let meta = ast_node_to_meta(&node);
 
@@ -424,7 +424,7 @@ impl<'a> FileChecker<'a> {
         }
     }
 
-    fn emit_literal(&mut self, tok: Token) -> Result<types::Expr, Report> {
+    fn emit_literal(&mut self, tok: Token) -> Result<types::Expr, Error> {
         let ty = match &tok.kind {
             TokenKind::IntLit(_) => self.ctx.primitive_type(PrimitiveType::I64),
             TokenKind::FloatLit(_) => self.ctx.primitive_type(PrimitiveType::F64),
@@ -459,7 +459,7 @@ impl<'a> FileChecker<'a> {
         }))
     }
 
-    fn emit_call(&mut self, node: ast::CallExpr) -> Result<types::Expr, Report> {
+    fn emit_call(&mut self, node: ast::CallExpr) -> Result<types::Expr, Error> {
         let meta = ast_node_to_meta(&node);
         let callee = self.emit_expr(*node.callee)?;
 
@@ -515,7 +515,7 @@ impl<'a> FileChecker<'a> {
         Err(self.error("not a function", &callee))
     }
 
-    fn emit_member(&mut self, node: ast::MemberNode) -> Result<types::Expr, Report> {
+    fn emit_member(&mut self, node: ast::MemberNode) -> Result<types::Expr, Error> {
         let meta = ast_node_to_meta(&node);
         let field = node.field.to_string();
 
@@ -554,32 +554,26 @@ impl<'a> FileChecker<'a> {
 
     // ---------------------------- Utility methods ---------------------------- //
 
-    fn error(&self, msg: &str, node: &dyn Node) -> Report {
-        Report::new(msg, node.pos(), node.end())
+    fn error(&self, msg: &str, node: &dyn Node) -> Error {
+        Error::new(msg, node.pos(), node.end())
     }
 
-    fn error_token(&self, msg: &str, tok: &Token) -> Report {
-        Report::new(msg, &tok.pos, &tok.end_pos)
+    fn error_token(&self, msg: &str, tok: &Token) -> Error {
+        Error::new(msg, &tok.pos, &tok.end_pos)
     }
 
-    fn error_from_to(&self, msg: &str, from: &Pos, to: &Pos) -> Report {
-        Report::new(msg, from, to)
+    fn error_from_to(&self, msg: &str, from: &Pos, to: &Pos) -> Error {
+        Error::new(msg, from, to)
     }
 
-    fn error_expected_token(&self, msg: &str, expect: TypeId, tok: &Token) -> Report {
+    fn error_expected_token(&self, msg: &str, expect: TypeId, tok: &Token) -> Error {
         self.error_token(
             format!("{}: expected '{}'", msg, self.ctx.to_string(expect),).as_str(),
             tok,
         )
     }
 
-    fn error_expected_got(
-        &self,
-        msg: &str,
-        expect: TypeId,
-        got: TypeId,
-        node: &dyn Node,
-    ) -> Report {
+    fn error_expected_got(&self, msg: &str, expect: TypeId, got: TypeId, node: &dyn Node) -> Error {
         self.error(
             format!(
                 "{}: expected '{}', got '{}'",
@@ -593,7 +587,7 @@ impl<'a> FileChecker<'a> {
     }
 
     /// Bind a name (token) to a type. Returns same type id or error if already defined.
-    fn bind(&mut self, name: &Token, id: TypeId, constant: bool) -> Result<TypeId, Report> {
+    fn bind(&mut self, name: &Token, id: TypeId, constant: bool) -> Result<TypeId, Error> {
         if !self.vars.bind(
             name.to_string(),
             Binding {
@@ -614,7 +608,7 @@ impl<'a> FileChecker<'a> {
     }
 
     /// Get a declared symbol by a token identifier. Returns "not declared" error if not found.
-    fn get(&self, name: &Token) -> Result<TypeId, Report> {
+    fn get(&self, name: &Token) -> Result<TypeId, Error> {
         let name_str = name.to_string();
         if let Some(var) = self.vars.get(&name_str) {
             return Ok(var.ty);
@@ -626,13 +620,13 @@ impl<'a> FileChecker<'a> {
     }
 
     /// Get the type of a declared symbol
-    fn get_symbol_type(&self, name: &Token) -> Result<&Type, Report> {
+    fn get_symbol_type(&self, name: &Token) -> Result<&Type, Error> {
         let id = self.get(name)?;
         Ok(self.ctx.lookup(id))
     }
 
     /// Collect a list of type ids for each field in the slice.
-    fn _collect_field_types(&mut self, fields: &[Field]) -> Result<Vec<TypeId>, Report> {
+    fn _collect_field_types(&mut self, fields: &[Field]) -> Result<Vec<TypeId>, Error> {
         fields.iter().map(|f| self.eval_type(&f.typ)).collect()
     }
 
@@ -649,7 +643,7 @@ impl<'a> FileChecker<'a> {
     }
 
     /// Evaluate an AST type node to its semantic type id.
-    fn eval_type(&self, node: &TypeNode) -> Result<TypeId, Report> {
+    fn eval_type(&self, node: &TypeNode) -> Result<TypeId, Error> {
         match node {
             TypeNode::Primitive(token) => {
                 let prim = token_to_primitive_type(token);
@@ -662,7 +656,7 @@ impl<'a> FileChecker<'a> {
     }
 
     /// Evaluate an option of a type node. Defaults to void type if not present.
-    fn eval_optional_type(&mut self, v: &Option<TypeNode>) -> Result<TypeId, Report> {
+    fn eval_optional_type(&mut self, v: &Option<TypeNode>) -> Result<TypeId, Error> {
         v.as_ref()
             .map_or(Ok(self.ctx.void()), |r| self.eval_type(r))
     }
