@@ -1,7 +1,37 @@
-use std::fs::read_to_string;
+pub type SourceId = usize;
+
+pub struct SourceMap {
+    sources: Vec<Source>,
+}
+
+impl SourceMap {
+    pub fn new() -> Self {
+        Self {
+            sources: Vec::new(),
+        }
+    }
+
+    pub fn add(&mut self, filepath: String, src: Vec<u8>) {
+        let source = Source::new(self.sources.len(), filepath, src);
+        self.sources.push(source);
+    }
+
+    pub fn add_source(&mut self, source: Source) {
+        self.sources.push(source);
+    }
+
+    pub fn get(&self, id: SourceId) -> Option<&Source> {
+        self.sources.get(id)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.sources.is_empty()
+    }
+}
 
 #[derive(Debug)]
 pub struct Source {
+    pub id: SourceId,
     pub filepath: String,
     /// File contents
     pub src: Vec<u8>,
@@ -13,8 +43,9 @@ pub struct Source {
 
 impl Source {
     /// Create new file object using given source.
-    pub fn new(filepath: String, src: Vec<u8>) -> Source {
+    pub fn new(id: SourceId, filepath: String, src: Vec<u8>) -> Source {
         Source {
+            id,
             filepath,
             lines: Source::get_line_beginnings(src.as_slice()),
             size: src.len(),
@@ -22,15 +53,8 @@ impl Source {
         }
     }
 
-    /// Create new source file, reading the content from named file as source.
-    pub fn new_from_file(filename: &str) -> Result<Source, String> {
-        read_to_string(filename).map_or(Err(format!("failed to read file '{}'", filename)), |f| {
-            Ok(Source::new(filename.to_string(), f.into_bytes()))
-        })
-    }
-
-    pub fn new_from_string(src: &str) -> Source {
-        Source::new("".to_string(), src.to_string().into_bytes())
+    pub fn new_from_string(id: SourceId, src: &str) -> Source {
+        Self::new(id, "".into(), src.to_string().into_bytes())
     }
 
     /// Gets a list of offsets for the first character of each line.

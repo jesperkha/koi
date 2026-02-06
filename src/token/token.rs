@@ -3,6 +3,8 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
+use crate::token::SourceId;
+
 #[derive(Debug, Clone)]
 pub struct Token {
     pub id: usize,
@@ -30,6 +32,7 @@ impl Token {
     /// Create new Token. Sets token flags based on kind.
     pub fn new(kind: TokenKind, length: usize, pos: Pos) -> Token {
         let end_pos = Pos {
+            source_id: pos.source_id,
             row: pos.row,
             col: pos.col + length,
             offset: pos.offset + length,
@@ -75,6 +78,8 @@ pub struct Pos {
     pub offset: usize,
     /// Offset of first character on same line as this Pos
     pub line_begin: usize,
+    /// Index into SourceMap where this pos is located
+    pub source_id: SourceId,
 }
 
 #[derive(Debug, Clone, PartialEq)]

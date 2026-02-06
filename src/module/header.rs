@@ -1,11 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    config::Config,
-    error::ErrorSet,
-    module::{Module, ModuleGraph, ModulePath},
-    parser::scan_and_parse,
-    typecheck::check_header_file,
+    error::Res,
+    module::{Module, ModuleGraph},
     types::TypeContext,
 };
 
@@ -33,16 +30,13 @@ impl HeaderFile {
     }
 
     /// Parse this headers symbols content and create module.
-    pub fn to_module<'a>(
-        &self,
-        mg: &'a mut ModuleGraph,
-        ctx: &mut TypeContext,
-    ) -> Result<&'a Module, ErrorSet> {
-        let config = Config::test();
-        let file = scan_and_parse(&self.symbols, &config)?;
-        let modpath = ModulePath::new(self.name.clone());
-        let createmod = check_header_file(&modpath, file, ctx, &config)?;
-        Ok(mg.add(createmod))
+    pub fn to_module<'a>(&self, mg: &'a mut ModuleGraph, ctx: &mut TypeContext) -> Res<&'a Module> {
+        todo!()
+        // let config = Config::test();
+        // let file = scan_and_parse(&self.symbols, &config)?;
+        // let modpath = ModulePath::new(self.name.clone());
+        // let createmod = check_header_file(&modpath, file, ctx, &config)?;
+        // Ok(mg.add(createmod))
     }
 }
 
@@ -59,6 +53,7 @@ pub fn read_header_file<'a>(
     mg: &'a mut ModuleGraph,
     ctx: &mut TypeContext,
 ) -> Result<&'a Module, String> {
-    let header: HeaderFile = postcard::from_bytes(bytes).map_err(|e| e.to_string())?;
-    header.to_module(mg, ctx).map_err(|e| e.to_string())
+    todo!()
+    // let header: HeaderFile = postcard::from_bytes(bytes).map_err(|e| e.to_string())?;
+    // header.to_module(mg, ctx).map_err(|e| e.to_string())
 }

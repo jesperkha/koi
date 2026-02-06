@@ -8,18 +8,17 @@ use tracing_subscriber::EnvFilter;
 use walkdir::WalkDir;
 
 use crate::{
-    ast::{File, FileSet},
+    ast::FileSet,
     build::x86,
     config::{Config, PathManager, Project, ProjectType, Target, load_config_file},
-    error::{ErrorSet, error_str},
     ir::{Ir, Unit},
     lower::emit_ir,
-    module::{Module, ModuleGraph, ModulePath, create_header_file},
-    parser::{parse, sort_by_dependency_graph},
-    token::{Source, scan},
+    module::{Module, ModuleGraph, create_header_file},
+    parser::{sort_by_dependency_graph, source_map_to_fileset},
+    token::{Source, SourceMap},
     typecheck::check_filesets,
     types::TypeContext,
-    util::{create_dir_if_not_exist, get_root_dir, write_file},
+    util::{create_dir_if_not_exist, get_root_dir, new_source_map, write_file},
 };
 
 /// Result type shorthand used in this file.
@@ -43,11 +42,13 @@ pub fn compile() -> Res<()> {
     // based on their imports.
     let sorted_filesets = sort_by_dependency_graph(filesets)?;
 
+    let map = new_source_map(""); // TODO: remove
+
     // Type check all file sets, turning them into Modules, and put
     // them in a ModuleGraph. The generated TypeContext containing all
     // type information is also returned.
     let (module_graph, ctx) =
-        check_filesets(sorted_filesets, &config).map_err(|err| err.to_string())?;
+        check_filesets(sorted_filesets, &config).map_err(|err| err.render(&map))?;
 
     // Do some high level passes at a module level before lowering
     check_main_function_present(&module_graph, &project)?;
@@ -65,7 +66,7 @@ pub fn compile() -> Res<()> {
         .modules()
         .iter()
         .filter(|module| module.should_be_built())
-        .map(|module| emit_module_ir(module, &ctx, &config))
+        .map(|module| emit_module_ir(&map, module, &ctx, &config))
         .collect::<Result<Vec<Unit>, String>>()?;
 
     // Build the final executable/libary file
@@ -109,8 +110,8 @@ fn find_and_parse_all_source_files(source_dir: &str, config: &Config) -> Res<Vec
     let mut filesets = Vec::new();
 
     for dir in &list_source_directories(source_dir)? {
-        let sources = collect_files_in_directory(dir)?;
-        if sources.is_empty() {
+        let map = collect_files_in_directory(dir)?;
+        if map.is_empty() {
             continue;
         }
 
@@ -120,14 +121,14 @@ fn find_and_parse_all_source_files(source_dir: &str, config: &Config) -> Res<Vec
         }
 
         info!("Parsing module: {}", module_path);
-        let files = parse_files_in_directory(sources, config)?;
+        let fileset = source_map_to_fileset(&map, config).map_err(|err| err.render(&map))?;
 
-        if files.is_empty() {
+        if fileset.is_empty() {
             info!("No input files");
             continue;
         }
 
-        filesets.push(FileSet::new(ModulePath::new(module_path), files));
+        filesets.push(fileset);
     }
 
     if filesets.len() == 0 {
@@ -137,31 +138,9 @@ fn find_and_parse_all_source_files(source_dir: &str, config: &Config) -> Res<Vec
     Ok(filesets)
 }
 
-/// Parse a list of Sources into AST Files, collecting errors into a single string.
-fn parse_files_in_directory(sources: Vec<Source>, config: &Config) -> Res<Vec<File>> {
-    let mut errs = ErrorSet::new();
-    let mut files = Vec::new();
-
-    for src in sources {
-        if src.size == 0 {
-            continue;
-        }
-
-        scan(&src, config)
-            .and_then(|toks| parse(src, toks, config))
-            .map_or_else(|err| errs.join(err), |file| files.push(file));
-    }
-
-    if errs.len() > 0 {
-        Err(errs.to_string())
-    } else {
-        Ok(files)
-    }
-}
-
 /// Shorthand for emitting a module to IR and converting error to string.
-fn emit_module_ir(m: &Module, ctx: &TypeContext, config: &Config) -> Res<Unit> {
-    emit_ir(m, ctx, config).map_err(|errs| errs.to_string())
+fn emit_module_ir(map: &SourceMap, m: &Module, ctx: &TypeContext, config: &Config) -> Res<Unit> {
+    emit_ir(m, ctx, config).map_err(|errs| errs.render(&map))
 }
 
 /// Shorthand for assembling an IR unit and converting error to string.
@@ -229,7 +208,7 @@ fn list_source_directories(path: &str) -> Result<Vec<PathBuf>, String> {
 }
 
 /// Collects all koi files in given directory and returns as a list of sources.
-fn collect_files_in_directory(dir: &PathBuf) -> Res<Vec<Source>> {
+fn collect_files_in_directory(dir: &PathBuf) -> Res<SourceMap> {
     let mut files = Vec::new();
 
     let dirents = match fs::read_dir(dir) {
@@ -254,15 +233,15 @@ fn collect_files_in_directory(dir: &PathBuf) -> Res<Vec<Source>> {
         }
     }
 
-    let mut set = Vec::new();
+    let mut map = SourceMap::new();
     for file in files {
         match fs::read(&file) {
             Err(err) => return Err(format!("failed to read file: {}", err)),
-            Ok(src) => set.push(Source::new(file, src)),
+            Ok(src) => map.add_source(Source::new(0, file, src)),
         }
     }
 
-    Ok(set)
+    Ok(map)
 }
 
 /// Convert foo/bar/faz to foo.bar.faz
@@ -273,6 +252,10 @@ fn pathbuf_to_module_path(path: &PathBuf, source_dir: &str) -> String {
         .trim_start_matches("/")
         .trim_end_matches("/")
         .replace("/", ".")
+}
+
+fn error_str(msg: &str) -> Result<(), String> {
+    Err(format!("error: {}", msg))
 }
 
 /// Check if main function is present and if it should be

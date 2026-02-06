@@ -2,14 +2,15 @@ use std::vec;
 
 use crate::{
     token::{Token, TokenKind},
-    util::{must, scan_string},
+    util::{must, new_source_map, scan_string},
 };
 
 fn scan_and_then<P>(src: &str, pred: P)
 where
     P: Fn(Vec<Token>),
 {
-    pred(must(scan_string(src)));
+    let map = new_source_map(src);
+    pred(must(&map, scan_string(src)));
 }
 
 fn scan_and_error(src: &str) {
@@ -59,12 +60,10 @@ fn test_number() {
         assert_eq!(toks[0].kind, TokenKind::FloatLit(1.23));
     });
 
-    let _ = scan_string("?123?")
-        .map_err(|e| panic!("{:?}", e))
-        .map(|toks| {
-            assert_eq!(toks.len(), 3);
-            assert_eq!(toks[1].kind, TokenKind::IntLit(123));
-        });
+    let _ = scan_and_then("?123?", |toks| {
+        assert_eq!(toks.len(), 3);
+        assert_eq!(toks[1].kind, TokenKind::IntLit(123));
+    });
 
     if scan_string("1.2.3").is_ok() {
         panic!("expected scanner error");

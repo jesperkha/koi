@@ -1,3 +1,3 @@
-mod error;
+mod diagnostic;
 
-pub use error::*;
+pub use diagnostic::*;

@@ -1,13 +1,13 @@
 use crate::{
-    ast::{File, FileSet},
+    ast::{Ast, File, FileSet},
     config::Config,
-    error::{ErrorSet, Res},
+    error::{Diagnostics, Res},
     ir::Unit,
     lower::emit_ir,
     module::{Module, ModuleGraph, ModulePath},
     parser::parse,
-    token::{Source, Token, scan},
-    typecheck::FilesetChecker,
+    token::{Source, SourceMap, Token, scan},
+    typecheck::FileChecker,
     types::TypeContext,
 };
 
@@ -27,20 +27,34 @@ pub fn compare_string_lines_or_panic(ina: String, inb: String) {
     }
 }
 
-pub fn must<T>(res: Result<T, ErrorSet>) -> T {
-    res.unwrap_or_else(|err| panic!("unexpected error: {}", err))
+pub fn new_source_map(src: &str) -> SourceMap {
+    let mut map = SourceMap::new();
+    map.add_source(Source::new_from_string(0, src));
+    map
+}
+
+pub fn new_source_map_from_files(files: &[&str]) -> SourceMap {
+    let mut map = SourceMap::new();
+    for f in files {
+        map.add_source(Source::new_from_string(0, f));
+    }
+    map
+}
+
+pub fn must<T>(map: &SourceMap, res: Result<T, Diagnostics>) -> T {
+    res.unwrap_or_else(|err| panic!("unexpected error: {}", err.render(map)))
 }
 
 pub fn scan_string(src: &str) -> Res<Vec<Token>> {
-    let src = Source::new_from_string(src);
+    let src = Source::new_from_string(0, src);
     let config = Config::test();
     scan(&src, &config)
 }
 
-pub fn parse_string(src: &str) -> Res<File> {
-    let src = Source::new_from_string(src);
+pub fn parse_string(src: &str) -> Res<Ast> {
+    let src = Source::new_from_string(0, src);
     let config = Config::test();
-    scan(&src, &config).and_then(|toks| parse(src, toks, &config))
+    scan(&src, &config).and_then(|toks| parse(toks, &config))
 }
 
 pub fn check_string<'a>(
@@ -49,10 +63,16 @@ pub fn check_string<'a>(
     ctx: &mut TypeContext,
 ) -> Res<&'a Module> {
     let config = Config::test();
-    let fs = FileSet::new(ModulePath::new_str("main"), vec![parse_string(src)?]);
-    let mut checker = FilesetChecker::new(mg, ctx, &config);
-    let id = checker.check(fs)?;
-    Ok(mg.get(id).unwrap())
+    let fs = FileSet::new(
+        ModulePath::new_str("main"),
+        vec![File::new(
+            &Source::new_from_string(0, src),
+            parse_string(src)?,
+        )],
+    );
+    let checker = FileChecker::new(ctx, &config);
+    let create_module = checker.check(fs)?;
+    Ok(mg.add(create_module))
 }
 
 pub fn emit_string(src: &str) -> Res<Unit> {

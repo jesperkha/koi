@@ -2,7 +2,7 @@ use tracing::{debug, info, trace};
 
 use crate::{
     config::Config,
-    error::{Error, ErrorSet, Res},
+    error::{Diagnostics, Report, Res},
     token::{Pos, Source, Token, TokenKind, str_to_token},
 };
 
@@ -12,30 +12,30 @@ pub fn scan(src: &Source, config: &Config) -> Res<Vec<Token>> {
 }
 
 struct Scanner<'a> {
-    file: &'a Source,
+    source: &'a Source,
     pos: usize,
     row: usize,
     col: usize,
     line_begin: usize,
-    errs: ErrorSet,
     _config: &'a Config,
+    diag: Diagnostics,
 }
 
 impl<'a> Scanner<'a> {
-    fn new(file: &'a Source, config: &'a Config) -> Self {
+    fn new(source: &'a Source, config: &'a Config) -> Self {
         Scanner {
             _config: config,
-            file,
+            source,
             pos: 0,
             col: 0,
             row: 0,
             line_begin: 0,
-            errs: ErrorSet::new(),
+            diag: Diagnostics::new(),
         }
     }
 
     fn scan(mut self) -> Res<Vec<Token>> {
-        info!("Scanning file: {}", self.file.filepath);
+        info!("Scanning file: {}", self.source.filepath);
 
         // No input
         if self.eof() {
@@ -48,24 +48,24 @@ impl<'a> Scanner<'a> {
                 // If ok and we did not encounter errors before, return result
                 // Otherwise ignore result as one or more errors have been raised
                 Ok(toks) => {
-                    if self.errs.len() == 0 {
+                    if self.diag.is_empty() {
                         debug!("success: {} tokens", toks.len());
                         return Ok(toks);
                     }
                 }
                 // If error add to set and skip to next 'safe' spot
                 Err(err) => {
-                    self.errs.add(err);
+                    self.diag.add(err);
                     self.pos += self.peek_while(|p| !Scanner::is_whitespace(p))
                 }
             }
         }
 
-        info!("Fail: finished with {} errors", self.errs.len());
-        Err(self.errs)
+        info!("Fail: finished with {} errors", self.diag.num_errors());
+        Err(self.diag)
     }
 
-    fn scan_all(&mut self) -> Result<Vec<Token>, Error> {
+    fn scan_all(&mut self) -> Result<Vec<Token>, Report> {
         let mut tokens = Vec::new();
 
         while !self.eof() {
@@ -79,7 +79,7 @@ impl<'a> Scanner<'a> {
                 // Line comment
                 b'/' if matches!(self.peek(), Some(b'/')) => {
                     let len = self.peek_while(|b| b != b'\n');
-                    let lexeme = self.file.str_range(self.pos, self.pos + len);
+                    let lexeme = self.source.str_range(self.pos, self.pos + len);
                     let tok = Token::new(TokenKind::Comment(lexeme.to_owned()), len, self.pos());
                     (tok, len)
                 }
@@ -107,11 +107,10 @@ impl<'a> Scanner<'a> {
                     }
 
                     if depth != 0 {
-                        return Err(Error::new_syntax(
+                        return Err(Report::new_length(
                             "block comment was not terminated",
                             &self.pos(),
                             2,
-                            self.file,
                         ));
                     }
 
@@ -133,7 +132,7 @@ impl<'a> Scanner<'a> {
                 // Identifier or keyword
                 v if Scanner::is_alpha(v) => {
                     let length = self.peek_while(Scanner::is_alphanum);
-                    let lexeme = self.file.str_range(self.pos, self.pos + length);
+                    let lexeme = self.source.str_range(self.pos, self.pos + length);
 
                     if let Some(k) = str_to_token(lexeme) {
                         (Token::new(k.clone(), length, self.pos()), length)
@@ -148,7 +147,7 @@ impl<'a> Scanner<'a> {
                 // Number
                 v if Scanner::is_number(v) => {
                     let mut length = self.peek_while(Scanner::is_numeric);
-                    let mut lexeme = self.file.str_range(self.pos, self.pos + length);
+                    let mut lexeme = self.source.str_range(self.pos, self.pos + length);
 
                     // Ignore ending period for now, checked by Checker
                     if lexeme.ends_with(".") {
@@ -187,7 +186,7 @@ impl<'a> Scanner<'a> {
                 // Match either one or two tokens (single/double symbol)
                 _ => {
                     let try_match = |len| {
-                        let lexeme = self.file.str_range(self.pos, self.pos + len);
+                        let lexeme = self.source.str_range(self.pos, self.pos + len);
                         str_to_token(&lexeme)
                             .map(|kind| Token::new(kind.to_owned(), len, self.pos()))
                     };
@@ -226,6 +225,7 @@ impl<'a> Scanner<'a> {
 
     fn pos(&self) -> Pos {
         Pos {
+            source_id: self.source.id,
             row: self.row,
             col: self.col,
             offset: self.pos,
@@ -240,7 +240,7 @@ impl<'a> Scanner<'a> {
             pos,
             self.len()
         );
-        self.file.src[pos]
+        self.source.src[pos]
     }
 
     fn peek(&self) -> Option<u8> {
@@ -252,7 +252,7 @@ impl<'a> Scanner<'a> {
     }
 
     fn cur(&self) -> u8 {
-        self.file.src[self.pos]
+        self.source.src[self.pos]
     }
 
     fn eof(&self) -> bool {
@@ -260,11 +260,11 @@ impl<'a> Scanner<'a> {
     }
 
     fn len(&self) -> usize {
-        self.file.src.len()
+        self.source.src.len()
     }
 
-    fn error(&self, msg: &str, length: usize) -> Error {
-        Error::new_syntax(msg, &self.pos(), length, &self.file)
+    fn error(&self, msg: &str, length: usize) -> Report {
+        Report::new_length(msg, &self.pos(), length)
     }
 
     /// Peeks tokens while predicate returns true. Returns number of tokens peeked.
@@ -273,7 +273,7 @@ impl<'a> Scanner<'a> {
         P: Fn(u8) -> bool,
     {
         let mut consumed = 0;
-        while self.pos + consumed < self.len() && predicate(self.file.src[self.pos + consumed]) {
+        while self.pos + consumed < self.len() && predicate(self.source.src[self.pos + consumed]) {
             consumed += 1;
         }
 
@@ -281,7 +281,7 @@ impl<'a> Scanner<'a> {
     }
 
     /// Scans a string literal, starting at the current position.
-    fn scan_string(&mut self, quote: u8) -> Result<(Token, usize), Error> {
+    fn scan_string(&mut self, quote: u8) -> Result<(Token, usize), Report> {
         self.pos += 1;
         let mut length = self.peek_while(|b| b != quote && b != b'\n');
         self.pos -= 1;
@@ -292,11 +292,11 @@ impl<'a> Scanner<'a> {
             let mut pos = self.pos();
             pos.col += check_pos;
             pos.offset += check_pos;
-            return Err(Error::new_syntax("expected end quote", &pos, 1, self.file));
+            return Err(Report::new_length("expected end quote", &pos, 1));
         }
 
         length += 2; // Include start and end quote
-        let lexeme = self.file.str_range(self.pos + 1, self.pos + length - 1);
+        let lexeme = self.source.str_range(self.pos + 1, self.pos + length - 1);
 
         Ok((
             Token::new(TokenKind::StringLit(lexeme.to_string()), length, self.pos()),

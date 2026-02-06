@@ -1,8 +1,8 @@
 use crate::{
     ast::FileSet,
-    module::ModulePath,
-    parser::sort_by_dependency_graph,
-    util::{must, parse_string},
+    config::Config,
+    parser::{parser::source_map_to_fileset, sort_by_dependency_graph},
+    util::new_source_map,
 };
 
 struct TestFile {
@@ -18,13 +18,18 @@ fn file(name: &str, src: &str) -> TestFile {
 }
 
 fn get_ordered_files(files: &[TestFile]) -> Result<Vec<String>, String> {
-    let parsed: Vec<FileSet> = files
+    let p = files
         .iter()
-        .map(|f| (&f.dep_name, must(parse_string(&f.src))))
-        .map(|f| FileSet::new(ModulePath::new(f.0.clone()), vec![f.1]))
-        .collect();
+        .map(|f| {
+            let map = new_source_map(&f.src);
+            let config = Config::test();
+            source_map_to_fileset(&map, &config).map_err(|e| e.render(&map))
+        })
+        .collect::<Vec<_>>();
 
-    let sorted = sort_by_dependency_graph(parsed)?;
+    let parsed: Result<Vec<FileSet>, String> = p.into_iter().collect();
+
+    let sorted = sort_by_dependency_graph(parsed?)?;
     Ok(sorted
         .into_iter()
         .map(|fs| fs.modpath.path().to_owned())
