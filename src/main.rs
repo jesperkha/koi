@@ -49,7 +49,7 @@ fn koi_init() -> Result<(), String> {
     let content = r#"# Koi project configuration
 
 [project]
-type = "app"      # Project type (app|package) 
+type = "app"      # Project type (app|package)
 src = "src"       # Source code directory
 out = "main"      # Filepath of output file
 bin = "bin"       # Output directory for temporary files

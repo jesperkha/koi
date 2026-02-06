@@ -1,6 +1,6 @@
 site_name: Koi Wiki
 nav:
-    - About: about.md
+    - About: index.md
     - Getting Started:
           - Creating a Project: getstarted/create_project.md
           - Hello World: getstarted/hello_world.md
@@ -13,4 +13,3 @@ theme:
     features:
         - content.code.copy
         - navigation.footer
-
