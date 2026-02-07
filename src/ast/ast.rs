@@ -164,7 +164,7 @@ pub struct FuncDeclNode {
     pub ret_type: Option<TypeNode>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FuncNode {
     pub docs: Vec<String>,
     pub public: bool,
@@ -176,6 +176,30 @@ pub struct FuncNode {
     pub body: BlockNode,
 }
 
+impl FuncNode {
+    pub fn to_func_decl_node(&self) -> FuncDeclNode {
+        let Self {
+            docs,
+            public,
+            name,
+            lparen,
+            params,
+            rparen,
+            ret_type,
+            body: _body,
+        } = self.clone();
+        FuncDeclNode {
+            docs,
+            public,
+            name,
+            lparen,
+            params,
+            rparen,
+            ret_type,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct BlockNode {
     pub lbrace: Token,
@@ -183,7 +207,7 @@ pub struct BlockNode {
     pub rbrace: Token,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Field {
     pub name: Token,
     pub typ: TypeNode,

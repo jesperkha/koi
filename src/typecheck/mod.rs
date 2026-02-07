@@ -1,6 +1,4 @@
-mod file_check;
-mod fileset_check;
+mod checker;
 mod tests;
 
-pub use file_check::{FileChecker, check_header_file};
-pub use fileset_check::{FilesetChecker, check_filesets};
+pub use checker::{Checker, Importer, check_filesets};

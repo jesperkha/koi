@@ -1,29 +1,35 @@
 use tracing::{debug, info};
 
 use crate::{
-    ast::{self, Field, File, FileSet, Node, TypeNode},
+    ast::{self, Field, File, FileSet, FuncDeclNode, Node, TypeNode},
     config::Config,
     error::{Diagnostics, Error, Res},
     module::{
-        CreateModule, FuncSymbol, ModulePath, NamespaceList, Symbol, SymbolKind, SymbolList,
-        SymbolOrigin,
+        CreateModule, FuncSymbol, Module, ModuleGraph, ModuleKind, ModulePath, Namespace,
+        NamespaceList, Symbol, SymbolKind, SymbolList, SymbolOrigin,
     },
     token::{Pos, Token, TokenKind},
     types::{
         self, FunctionType, LiteralKind, NodeMeta, PrimitiveType, Type, TypeContext, TypeId,
-        TypeKind, TypedNode, ast_node_to_meta, no_type,
+        TypeKind, TypedAst, TypedNode, ast_node_to_meta, no_type,
     },
     util::VarTable,
 };
 
-/// Type check a header file and return CreateModule with symbols.
-pub fn check_header_file(
-    modpath: &ModulePath,
-    file: File,
-    ctx: &mut TypeContext,
-    config: &Config,
-) -> Res<CreateModule> {
-    todo!()
+/// Type check a list of filesets, producing a module graph and type context.
+pub fn check_filesets(filesets: Vec<FileSet>, config: &Config) -> Res<(ModuleGraph, TypeContext)> {
+    let mut mg = ModuleGraph::new();
+    let mut ctx = TypeContext::new();
+
+    for fs in filesets {
+        let importer = Importer::new(&mg);
+        let checker = Checker::new(&mut ctx, &importer, config);
+        let create_mod = checker.check(fs)?;
+
+        mg.add(create_mod);
+    }
+
+    Ok((mg, ctx))
 }
 
 /// A Binding is either a declared variable or function parameter. Bindings
@@ -37,14 +43,14 @@ struct Binding {
 /// The FileChecker performs type checking on a single source file AST,
 /// producing a typed AST. The types and symbols are stored in the provided
 /// context and symbol table.
-pub struct FileChecker<'a> {
+pub struct Checker<'a> {
     // Dependencies
     ctx: &'a mut TypeContext,
+    importer: &'a Importer<'a>,
     _config: &'a Config,
 
     symbols: SymbolList,
     nsl: NamespaceList,
-    diag: Diagnostics,
 
     /// Locally declared variables for type checking.
     vars: VarTable<Binding>,
@@ -57,97 +63,183 @@ pub struct FileChecker<'a> {
     has_returned: bool,
 }
 
-impl<'a> FileChecker<'a> {
-    pub fn new(ctx: &'a mut TypeContext, config: &'a Config) -> Self {
+pub struct Importer<'a> {
+    mg: &'a ModuleGraph,
+}
+
+impl<'a> Importer<'a> {
+    pub fn new(mg: &'a ModuleGraph) -> Self {
+        Self { mg }
+    }
+
+    pub fn resolve(&self, modpath: &ModulePath) -> Result<&'a Module, String> {
+        self.mg.resolve(modpath)
+    }
+}
+
+impl<'a> Checker<'a> {
+    pub fn new(ctx: &'a mut TypeContext, importer: &'a Importer, config: &'a Config) -> Self {
         Self {
+            importer,
             _config: config,
             ctx,
             nsl: NamespaceList::new(),
             symbols: SymbolList::new(),
             vars: VarTable::new(),
-            diag: Diagnostics::new(),
             rtype: no_type(),
             has_returned: false,
         }
     }
 
     pub fn check(mut self, fs: FileSet) -> Res<CreateModule> {
-        for file in &fs.files {
-            self.global_pass(&file.ast.decls)?;
+        for _ in &fs.files {
+            self.resolve_imports(&fs)?;
         }
 
-        Err(self.diag)
+        for file in &fs.files {
+            self.global_pass(&fs.modpath, &file)?;
+        }
+
+        let mut decls = Vec::new();
+        for file in fs.files {
+            let file_decls = self.emit_ast(file)?;
+            decls.extend(file_decls);
+        }
+
+        Ok(CreateModule {
+            modpath: fs.modpath,
+            kind: ModuleKind::User,
+            symbols: self.symbols,
+            path: fs.path,
+            ast: TypedAst { decls },
+            namespaces: self.nsl,
+        })
     }
 
-    // ---------------------------- Global first pass ---------------------------- //
+    // ---------------------------- Import resolution ---------------------------- //
 
-    pub fn global_pass(&mut self, decls: &Vec<ast::Decl>) -> Res<()> {
-        let diag = Diagnostics::new();
+    fn resolve_imports(&mut self, fs: &FileSet) -> Res<()> {
+        let mut diag = Diagnostics::new();
 
-        for d in decls {
-            let _ = match d {
-                ast::Decl::FuncDecl(node) => self.declare_function_decl(node),
-                ast::Decl::Func(node) => self.declare_function(node),
-                ast::Decl::Extern(node) => self.declare_extern(node),
-                _ => Ok(()),
+        for file in &fs.files {
+            info!("Resolving imports for file {}", file.filepath);
+
+            for import in &file.ast.imports {
+                // Join the imported names into an import path
+                let import_path = ModulePath::new(
+                    import
+                        .names
+                        .iter()
+                        .map(|t| t.to_string())
+                        .collect::<Vec<_>>()
+                        .join("."),
+                );
+
+                // Try to get module
+                let module = match self.importer.resolve(&import_path) {
+                    Ok(module) => module,
+                    Err(err) => {
+                        assert!(import.names.len() > 0, "unchecked missing import name");
+                        diag.add(Error::new(
+                            &err,
+                            &import.names[0].pos,
+                            &import.names.last().unwrap().end_pos,
+                        ));
+                        continue;
+                    }
+                };
+
+                // Get namespace name and which token to highlight when reporting
+                // duplicate definition error.
+                let (name, range) = if let Some(alias) = &import.alias {
+                    (alias.to_string(), (&alias.pos, &alias.end_pos))
+                } else {
+                    (
+                        module.modpath.name().to_owned(),
+                        (&import.names[0].pos, &import.names.last().unwrap().end_pos),
+                    )
+                };
+
+                // Add module as namespace
+                let ns = Namespace::new(name, module);
+                let _ = self.nsl.add(ns).map_err(|err| {
+                    diag.add(Error::new(&err, range.0, range.1));
+                });
+
+                // Put symbols imported by name directly into symbol list
+                for tok in &import.imports {
+                    let symbol_name = tok.to_string();
+
+                    // If the symbol exists we add it to the modules symbol list
+                    if let Some(export_sym) = module.exports().get(&symbol_name) {
+                        let _ = self.symbols.add((*export_sym).clone()).map_err(|err| {
+                            diag.add(Error::new(&err, &tok.pos, &tok.end_pos));
+                        });
+                    } else {
+                        diag.add(Error::new(
+                            &format!("module '{}' has no export '{}'", module.name(), symbol_name),
+                            &tok.pos,
+                            &tok.end_pos,
+                        ));
+                    }
+                }
             }
-            .map_err(|e| self.diag.add(e));
         }
 
-        if !self.diag.is_empty() {
+        if !diag.is_empty() {
             return Err(diag);
         }
 
         Ok(())
     }
 
-    fn declare_function_decl(&mut self, node: &ast::FuncDeclNode) -> Result<(), Error> {
-        self.declare_function_definition(
-            &node.name,
-            node.public,
-            &node.params,
-            &node.ret_type,
-            node.docs.clone(),
-            SymbolOrigin::Module(ModulePath::new_str("")), // TODO: replace with module id
-        )
-    }
+    // ---------------------------- Global pass ---------------------------- //
 
-    fn declare_function(&mut self, node: &ast::FuncNode) -> Result<(), Error> {
-        self.declare_function_definition(
-            &node.name,
-            node.public,
-            &node.params,
-            &node.ret_type,
-            node.docs.clone(),
-            SymbolOrigin::Module(ModulePath::new_str("")), // TODO: replace with module id
-        )
-    }
+    pub fn global_pass(&mut self, modpath: &ModulePath, file: &File) -> Res<()> {
+        let mut diag = Diagnostics::new();
 
-    fn declare_extern(&mut self, node: &ast::FuncDeclNode) -> Result<(), Error> {
-        self.declare_function_definition(
-            &node.name,
-            node.public,
-            &node.params,
-            &node.ret_type,
-            node.docs.clone(),
-            SymbolOrigin::Extern(ModulePath::new_str("")), // TODO: replace with module id
-        )
+        for d in &file.ast.decls {
+            let _ = match d {
+                ast::Decl::FuncDecl(node) => {
+                    let origin = SymbolOrigin::Module(modpath.clone());
+                    self.declare_function_definition(node, origin, &file.filename)
+                }
+                ast::Decl::Func(node) => {
+                    let origin = SymbolOrigin::Module(modpath.clone());
+                    self.declare_function_definition(
+                        &node.to_func_decl_node(),
+                        origin,
+                        &file.filename,
+                    )
+                }
+                ast::Decl::Extern(node) => {
+                    let origin = SymbolOrigin::Extern(modpath.clone());
+                    self.declare_function_definition(node, origin, &file.filename)
+                }
+                _ => Ok(()),
+            }
+            .map_err(|e| diag.add(e));
+        }
+
+        if !diag.is_empty() {
+            return Err(diag);
+        }
+
+        Ok(())
     }
 
     fn declare_function_definition(
         &mut self,
-        name: &Token,
-        is_exported: bool,
-        params: &Vec<ast::Field>,
-        ret_type: &Option<ast::TypeNode>,
-        docs: Vec<String>,
+        node: &FuncDeclNode,
         origin: SymbolOrigin,
+        filepath: &str,
     ) -> Result<(), Error> {
         // Evaluate return type if any
-        let ret = self.eval_optional_type(ret_type)?;
+        let ret = self.eval_optional_type(&node.ret_type)?;
 
         // Get parameter types
-        let param_ids = &params
+        let param_ids = &node
+            .params
             .iter()
             .map(|f| self.eval_type(&f.typ).map(|id| (&f.name, id)))
             .collect::<Result<Vec<_>, _>>()?;
@@ -159,25 +251,25 @@ impl<'a> FileChecker<'a> {
         }));
 
         let symbol = Symbol {
-            filename: "".to_owned(), // self.src.filepath.clone(), TODO: how to get filepath here??
-            name: name.to_string(),
-            pos: name.pos.clone(),
+            filename: filepath.to_owned(),
+            name: node.name.to_string(),
+            pos: node.name.pos.clone(),
             kind: SymbolKind::Function(FuncSymbol {
-                docs,
+                docs: node.docs.clone(),
                 is_inline: false,
                 is_naked: false,
             }),
             no_mangle: false,
             ty,
             origin,
-            is_exported,
+            is_exported: node.public,
         };
 
         debug!("declaring function: {}", symbol);
 
         let _ = self.symbols.add(symbol).map_err(|err| {
-            let sym = self.symbols.get(&name.to_string()).unwrap();
-            return self.error_token(&err, name);
+            let sym = self.symbols.get(&node.name.to_string()).unwrap();
+            return self.error_token(&err, &node.name);
             // TODO: error with info
             // .with_info(&format!( "previously declared in {} line {}",
             //     sym.filename,
@@ -190,11 +282,13 @@ impl<'a> FileChecker<'a> {
 
     // ---------------------------- Generate AST ---------------------------- //
 
-    pub fn emit_ast(&mut self, decls: Vec<ast::Decl>) -> Res<Vec<types::Decl>> {
+    pub fn emit_ast(&mut self, file: File) -> Res<Vec<types::Decl>> {
         let mut diag = Diagnostics::new();
-        // info!("Type check: {}", self.src.filepath); // TODO: uncomment, filepath
+        info!("Type check: {}", file.filepath);
 
-        let typed_decls = decls
+        let typed_decls = file
+            .ast
+            .decls
             .into_iter()
             .map(|d| self.emit_decl(d))
             .map(|s| s.map_err(|e| diag.add(e)))

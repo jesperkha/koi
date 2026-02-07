@@ -5,8 +5,7 @@ use crate::{
     module::ModulePath,
     parser::sort_by_dependency_graph,
     token::Source,
-    typecheck::FileChecker,
-    types::TypeContext,
+    typecheck::check_filesets,
     util::{must, new_source_map, new_source_map_from_files, parse_string},
 };
 
@@ -38,14 +37,8 @@ fn check_files(files: &[TestFile]) -> Result<(), Diagnostics> {
         .collect();
 
     let sorted = sort_by_dependency_graph(parsed).unwrap_or_else(|e| panic!("{}", e));
-
-    let mut ctx = TypeContext::new();
     let config = Config::test();
-
-    for fs in sorted {
-        let checker = FileChecker::new(&mut ctx, &config);
-        checker.check(fs)?;
-    }
+    check_filesets(sorted, &config)?;
 
     Ok(())
 }

@@ -7,7 +7,7 @@ use crate::{
     module::{Module, ModuleGraph, ModulePath},
     parser::parse,
     token::{Source, SourceMap, Token, scan},
-    typecheck::FileChecker,
+    typecheck::{Checker, Importer},
     types::TypeContext,
 };
 
@@ -70,7 +70,8 @@ pub fn check_string<'a>(
             parse_string(src)?,
         )],
     );
-    let checker = FileChecker::new(ctx, &config);
+    let importer = Importer::new(mg);
+    let checker = Checker::new(ctx, &importer, &config);
     let create_module = checker.check(fs)?;
     Ok(mg.add(create_module))
 }
