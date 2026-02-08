@@ -1,9 +1,11 @@
+use core::panic;
+
 use tracing::{debug, info};
 
 use crate::{
     ast::{self, Field, File, FileSet, FuncDeclNode, Node, TypeNode},
     config::Config,
-    error::{Diagnostics, Error, Res},
+    error::{Diagnostics, Report, Res},
     module::{
         CreateModule, FuncSymbol, Module, ModuleGraph, ModuleKind, ModulePath, Namespace,
         NamespaceList, Symbol, SymbolKind, SymbolList, SymbolOrigin,
@@ -61,6 +63,9 @@ pub struct Checker<'a> {
     /// Has returned in the base function scope
     /// Not counting nested scopes as returning there is optional
     has_returned: bool,
+
+    /// Set to true after call to check() if currently checking the main module.
+    is_main: bool,
 }
 
 pub struct Importer<'a> {
@@ -88,10 +93,13 @@ impl<'a> Checker<'a> {
             vars: VarTable::new(),
             rtype: no_type(),
             has_returned: false,
+            is_main: false,
         }
     }
 
     pub fn check(mut self, fs: FileSet) -> Res<CreateModule> {
+        self.is_main = fs.modpath.name() == "main";
+
         for _ in &fs.files {
             self.resolve_imports(&fs)?;
         }
@@ -140,7 +148,7 @@ impl<'a> Checker<'a> {
                     Ok(module) => module,
                     Err(err) => {
                         assert!(import.names.len() > 0, "unchecked missing import name");
-                        diag.add(Error::new(
+                        diag.add(Report::code_error(
                             &err,
                             &import.names[0].pos,
                             &import.names.last().unwrap().end_pos,
@@ -163,7 +171,7 @@ impl<'a> Checker<'a> {
                 // Add module as namespace
                 let ns = Namespace::new(name, module);
                 let _ = self.nsl.add(ns).map_err(|err| {
-                    diag.add(Error::new(&err, range.0, range.1));
+                    diag.add(Report::code_error(&err, range.0, range.1));
                 });
 
                 // Put symbols imported by name directly into symbol list
@@ -173,10 +181,10 @@ impl<'a> Checker<'a> {
                     // If the symbol exists we add it to the modules symbol list
                     if let Some(export_sym) = module.exports().get(&symbol_name) {
                         let _ = self.symbols.add((*export_sym).clone()).map_err(|err| {
-                            diag.add(Error::new(&err, &tok.pos, &tok.end_pos));
+                            diag.add(Report::code_error(&err, &tok.pos, &tok.end_pos));
                         });
                     } else {
-                        diag.add(Error::new(
+                        diag.add(Report::code_error(
                             &format!("module '{}' has no export '{}'", module.name(), symbol_name),
                             &tok.pos,
                             &tok.end_pos,
@@ -195,7 +203,7 @@ impl<'a> Checker<'a> {
 
     // ---------------------------- Global pass ---------------------------- //
 
-    pub fn global_pass(&mut self, modpath: &ModulePath, file: &File) -> Res<()> {
+    fn global_pass(&mut self, modpath: &ModulePath, file: &File) -> Res<()> {
         let mut diag = Diagnostics::new();
 
         for d in &file.ast.decls {
@@ -233,7 +241,7 @@ impl<'a> Checker<'a> {
         node: &FuncDeclNode,
         origin: SymbolOrigin,
         filepath: &str,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Report> {
         // Evaluate return type if any
         let ret = self.eval_optional_type(&node.ret_type)?;
 
@@ -303,7 +311,7 @@ impl<'a> Checker<'a> {
         Ok(typed_decls)
     }
 
-    fn emit_decl(&mut self, decl: ast::Decl) -> Result<types::Decl, Error> {
+    fn emit_decl(&mut self, decl: ast::Decl) -> Result<types::Decl, Report> {
         match decl {
             ast::Decl::Func(node) => self.emit_func(node),
             ast::Decl::Extern(node) => self.emit_extern(node),
@@ -311,7 +319,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn emit_stmt(&mut self, stmt: ast::Stmt) -> Result<types::Stmt, Error> {
+    fn emit_stmt(&mut self, stmt: ast::Stmt) -> Result<types::Stmt, Report> {
         match stmt {
             ast::Stmt::ExprStmt(node) => Ok(types::Stmt::ExprStmt(self.emit_expr(node)?)),
             ast::Stmt::Return(node) => self.emit_return(node),
@@ -321,7 +329,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn emit_expr(&mut self, expr: ast::Expr) -> Result<types::Expr, Error> {
+    fn emit_expr(&mut self, expr: ast::Expr) -> Result<types::Expr, Report> {
         match expr {
             ast::Expr::Literal(tok) => self.emit_literal(tok),
             ast::Expr::Group(node) => self.emit_expr(*node.inner),
@@ -330,7 +338,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn emit_func(&mut self, node: ast::FuncNode) -> Result<types::Decl, Error> {
+    fn emit_func(&mut self, node: ast::FuncNode) -> Result<types::Decl, Report> {
         let meta = ast_node_to_meta(&node);
 
         // Get declared function
@@ -341,33 +349,7 @@ impl<'a> Checker<'a> {
 
         // If this is the main function we do additional checks
         if node.name.to_string() == "main" {
-            // TODO: move main checks to higher level, after module is created
-            // let int_id = self.ctx.primitive(PrimitiveType::I64);
-
-            // // Must be main module
-            // if !self.modpath.name().is_empty() && self.modpath.name() != "main" {
-            //     debug!(
-            //         "module name expected to be main, is {}",
-            //         self.modpath.name()
-            //     );
-            //     return Err(self.error("main function can only be declared in main module", &node));
-            // }
-
-            // // If return type is not int
-            // if !self.ctx.equivalent(f.ret, int_id) {
-            //     let msg = "main function must return 'i64'";
-            //     return Err(node
-            //         .ret_type
-            //         .as_ref()
-            //         .map_or(self.error_token(msg, &node.rparen), |ty_node| {
-            //             self.error(msg, ty_node)
-            //         }));
-            // }
-
-            // // No parameters allowed
-            // if f.params.len() > 0 {
-            //     return Err(self.error("main function must not take any arguments", &node));
-            // }
+            self.check_main_function(f, &node)?;
         }
 
         // Set up function body
@@ -386,7 +368,7 @@ impl<'a> Checker<'a> {
             .stmts
             .into_iter()
             .map(|s| self.emit_stmt(s))
-            .collect::<Result<Vec<types::Stmt>, Error>>()?;
+            .collect::<Result<Vec<types::Stmt>, Report>>()?;
 
         self.vars.pop_scope();
 
@@ -408,7 +390,37 @@ impl<'a> Checker<'a> {
         }))
     }
 
-    fn emit_extern(&mut self, node: ast::FuncDeclNode) -> Result<types::Decl, Error> {
+    fn check_main_function(&self, f: &FunctionType, node: &ast::FuncNode) -> Result<(), Report> {
+        // Must be main module
+        if !self.is_main {
+            return Err(self.error("main function can only be declared in main module", node));
+        }
+
+        // If return type is not int
+        let return_type = self.ctx.primitive(PrimitiveType::I64);
+
+        if !self.ctx.equivalent(f.ret, return_type) {
+            let msg = format!(
+                "main function must return '{}'",
+                self.ctx.to_string(return_type)
+            );
+            return Err(node
+                .ret_type
+                .as_ref()
+                .map_or(self.error_token(&msg, &node.rparen), |ty_node| {
+                    self.error(&msg, ty_node)
+                }));
+        }
+
+        // No parameters allowed
+        if f.params.len() > 0 {
+            return Err(self.error("main function must not take any arguments", node));
+        }
+
+        Ok(())
+    }
+
+    fn emit_extern(&mut self, node: ast::FuncDeclNode) -> Result<types::Decl, Report> {
         let meta = ast_node_to_meta(&node);
 
         // let ret = self.eval_optional_type(&node.ret_type)?;
@@ -427,7 +439,7 @@ impl<'a> Checker<'a> {
         Ok(types::Decl::Extern(types::ExternNode { ty, meta, name }))
     }
 
-    fn emit_var_assign(&mut self, node: ast::VarAssignNode) -> Result<types::Stmt, Error> {
+    fn emit_var_assign(&mut self, node: ast::VarAssignNode) -> Result<types::Stmt, Report> {
         let meta = ast_node_to_meta(&node);
 
         if self.is_constant(&node.lval) {
@@ -456,7 +468,7 @@ impl<'a> Checker<'a> {
         }))
     }
 
-    fn emit_var_decl(&mut self, node: ast::VarDeclNode) -> Result<types::Stmt, Error> {
+    fn emit_var_decl(&mut self, node: ast::VarDeclNode) -> Result<types::Stmt, Report> {
         let meta = ast_node_to_meta(&node);
         let typed_expr = self.emit_expr(node.expr)?;
 
@@ -477,7 +489,7 @@ impl<'a> Checker<'a> {
         }))
     }
 
-    fn emit_return(&mut self, node: ast::ReturnNode) -> Result<types::Stmt, Error> {
+    fn emit_return(&mut self, node: ast::ReturnNode) -> Result<types::Stmt, Report> {
         self.has_returned = true;
         let meta = ast_node_to_meta(&node);
 
@@ -518,7 +530,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn emit_literal(&mut self, tok: Token) -> Result<types::Expr, Error> {
+    fn emit_literal(&mut self, tok: Token) -> Result<types::Expr, Report> {
         let ty = match &tok.kind {
             TokenKind::IntLit(_) => self.ctx.primitive_type(PrimitiveType::I64),
             TokenKind::FloatLit(_) => self.ctx.primitive_type(PrimitiveType::F64),
@@ -553,7 +565,7 @@ impl<'a> Checker<'a> {
         }))
     }
 
-    fn emit_call(&mut self, node: ast::CallExpr) -> Result<types::Expr, Error> {
+    fn emit_call(&mut self, node: ast::CallExpr) -> Result<types::Expr, Report> {
         let meta = ast_node_to_meta(&node);
         let callee = self.emit_expr(*node.callee)?;
 
@@ -609,7 +621,7 @@ impl<'a> Checker<'a> {
         Err(self.error("not a function", &callee))
     }
 
-    fn emit_member(&mut self, node: ast::MemberNode) -> Result<types::Expr, Error> {
+    fn emit_member(&mut self, node: ast::MemberNode) -> Result<types::Expr, Report> {
         let meta = ast_node_to_meta(&node);
         let field = node.field.to_string();
 
@@ -648,26 +660,32 @@ impl<'a> Checker<'a> {
 
     // ---------------------------- Utility methods ---------------------------- //
 
-    fn error(&self, msg: &str, node: &dyn Node) -> Error {
-        Error::new(msg, node.pos(), node.end())
+    fn error(&self, msg: &str, node: &dyn Node) -> Report {
+        Report::code_error(msg, node.pos(), node.end())
     }
 
-    fn error_token(&self, msg: &str, tok: &Token) -> Error {
-        Error::new(msg, &tok.pos, &tok.end_pos)
+    fn error_token(&self, msg: &str, tok: &Token) -> Report {
+        Report::code_error(msg, &tok.pos, &tok.end_pos)
     }
 
-    fn error_from_to(&self, msg: &str, from: &Pos, to: &Pos) -> Error {
-        Error::new(msg, from, to)
+    fn error_from_to(&self, msg: &str, from: &Pos, to: &Pos) -> Report {
+        Report::code_error(msg, from, to)
     }
 
-    fn error_expected_token(&self, msg: &str, expect: TypeId, tok: &Token) -> Error {
+    fn error_expected_token(&self, msg: &str, expect: TypeId, tok: &Token) -> Report {
         self.error_token(
             format!("{}: expected '{}'", msg, self.ctx.to_string(expect),).as_str(),
             tok,
         )
     }
 
-    fn error_expected_got(&self, msg: &str, expect: TypeId, got: TypeId, node: &dyn Node) -> Error {
+    fn error_expected_got(
+        &self,
+        msg: &str,
+        expect: TypeId,
+        got: TypeId,
+        node: &dyn Node,
+    ) -> Report {
         self.error(
             format!(
                 "{}: expected '{}', got '{}'",
@@ -681,7 +699,7 @@ impl<'a> Checker<'a> {
     }
 
     /// Bind a name (token) to a type. Returns same type id or error if already defined.
-    fn bind(&mut self, name: &Token, id: TypeId, constant: bool) -> Result<TypeId, Error> {
+    fn bind(&mut self, name: &Token, id: TypeId, constant: bool) -> Result<TypeId, Report> {
         if !self.vars.bind(
             name.to_string(),
             Binding {
@@ -702,7 +720,7 @@ impl<'a> Checker<'a> {
     }
 
     /// Get a declared symbol by a token identifier. Returns "not declared" error if not found.
-    fn get(&self, name: &Token) -> Result<TypeId, Error> {
+    fn get(&self, name: &Token) -> Result<TypeId, Report> {
         let name_str = name.to_string();
         if let Some(var) = self.vars.get(&name_str) {
             return Ok(var.ty);
@@ -714,13 +732,13 @@ impl<'a> Checker<'a> {
     }
 
     /// Get the type of a declared symbol
-    fn get_symbol_type(&self, name: &Token) -> Result<&Type, Error> {
+    fn get_symbol_type(&self, name: &Token) -> Result<&Type, Report> {
         let id = self.get(name)?;
         Ok(self.ctx.lookup(id))
     }
 
     /// Collect a list of type ids for each field in the slice.
-    fn _collect_field_types(&mut self, fields: &[Field]) -> Result<Vec<TypeId>, Error> {
+    fn _collect_field_types(&mut self, fields: &[Field]) -> Result<Vec<TypeId>, Report> {
         fields.iter().map(|f| self.eval_type(&f.typ)).collect()
     }
 
@@ -737,7 +755,7 @@ impl<'a> Checker<'a> {
     }
 
     /// Evaluate an AST type node to its semantic type id.
-    fn eval_type(&self, node: &TypeNode) -> Result<TypeId, Error> {
+    fn eval_type(&self, node: &TypeNode) -> Result<TypeId, Report> {
         match node {
             TypeNode::Primitive(token) => {
                 let prim = token_to_primitive_type(token);
@@ -750,7 +768,7 @@ impl<'a> Checker<'a> {
     }
 
     /// Evaluate an option of a type node. Defaults to void type if not present.
-    fn eval_optional_type(&mut self, v: &Option<TypeNode>) -> Result<TypeId, Error> {
+    fn eval_optional_type(&mut self, v: &Option<TypeNode>) -> Result<TypeId, Report> {
         v.as_ref()
             .map_or(Ok(self.ctx.void()), |r| self.eval_type(r))
     }

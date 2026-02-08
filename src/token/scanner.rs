@@ -2,7 +2,7 @@ use tracing::{debug, info, trace};
 
 use crate::{
     config::Config,
-    error::{Diagnostics, Error, Res},
+    error::{Diagnostics, Report, Res},
     token::{Pos, Source, Token, TokenKind, str_to_token},
 };
 
@@ -65,7 +65,7 @@ impl<'a> Scanner<'a> {
         Err(self.diag)
     }
 
-    fn scan_all(&mut self) -> Result<Vec<Token>, Error> {
+    fn scan_all(&mut self) -> Result<Vec<Token>, Report> {
         let mut tokens = Vec::new();
 
         while !self.eof() {
@@ -107,7 +107,7 @@ impl<'a> Scanner<'a> {
                     }
 
                     if depth != 0 {
-                        return Err(Error::new_length(
+                        return Err(Report::code_error_len(
                             "block comment was not terminated",
                             &self.pos(),
                             2,
@@ -263,8 +263,8 @@ impl<'a> Scanner<'a> {
         self.source.src.len()
     }
 
-    fn error(&self, msg: &str, length: usize) -> Error {
-        Error::new_length(msg, &self.pos(), length)
+    fn error(&self, msg: &str, length: usize) -> Report {
+        Report::code_error_len(msg, &self.pos(), length)
     }
 
     /// Peeks tokens while predicate returns true. Returns number of tokens peeked.
@@ -281,7 +281,7 @@ impl<'a> Scanner<'a> {
     }
 
     /// Scans a string literal, starting at the current position.
-    fn scan_string(&mut self, quote: u8) -> Result<(Token, usize), Error> {
+    fn scan_string(&mut self, quote: u8) -> Result<(Token, usize), Report> {
         self.pos += 1;
         let mut length = self.peek_while(|b| b != quote && b != b'\n');
         self.pos -= 1;
@@ -292,7 +292,7 @@ impl<'a> Scanner<'a> {
             let mut pos = self.pos();
             pos.col += check_pos;
             pos.offset += check_pos;
-            return Err(Error::new_length("expected end quote", &pos, 1));
+            return Err(Report::code_error_len("expected end quote", &pos, 1));
         }
 
         length += 2; // Include start and end quote

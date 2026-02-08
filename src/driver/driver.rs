@@ -13,7 +13,7 @@ use crate::{
     config::{Config, PathManager, Project, ProjectType, Target, load_config_file},
     ir::{Ir, Unit},
     lower::emit_ir,
-    module::{Module, ModuleGraph, create_header_file},
+    module::{Module, ModuleGraph, ModulePath, create_header_file},
     parser::{sort_by_dependency_graph, source_map_to_fileset},
     token::{Source, SourceMap},
     typecheck::check_filesets,
@@ -42,6 +42,7 @@ pub fn compile() -> Res<()> {
     // based on their imports.
     let sorted_filesets = sort_by_dependency_graph(filesets)?;
 
+    todo!();
     let map = new_source_map(""); // TODO: remove
 
     // Type check all file sets, turning them into Modules, and put
@@ -115,13 +116,15 @@ fn find_and_parse_all_source_files(source_dir: &str, config: &Config) -> Res<Vec
             continue;
         }
 
-        let mut module_path = pathbuf_to_module_path(&dir, source_dir);
-        if module_path.is_empty() {
-            module_path = String::from("main");
+        let mut modpath_str = pathbuf_to_module_path(&dir, source_dir);
+        if modpath_str.is_empty() {
+            modpath_str = String::from("main");
         }
 
-        info!("Parsing module: {}", module_path);
-        let fileset = source_map_to_fileset(&map, config).map_err(|err| err.render(&map))?;
+        info!("Parsing module: {}", modpath_str);
+        let modpath = ModulePath::new(modpath_str);
+        let fileset =
+            source_map_to_fileset(modpath, &map, config).map_err(|err| err.render(&map))?;
 
         if fileset.is_empty() {
             info!("No input files");

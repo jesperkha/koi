@@ -27,6 +27,14 @@ impl SourceMap {
     pub fn is_empty(&self) -> bool {
         self.sources.is_empty()
     }
+
+    pub fn sources(&self) -> &[Source] {
+        &self.sources
+    }
+
+    pub fn extend(&mut self, sources: Vec<Source>) {
+        self.sources.extend(sources);
+    }
 }
 
 #[derive(Debug)]

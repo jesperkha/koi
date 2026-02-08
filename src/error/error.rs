@@ -1,64 +1,83 @@
-use crate::token::{Pos, Source, SourceId, SourceMap};
+use crate::token::{Pos, SourceMap};
 
 pub type Res<T> = Result<T, Diagnostics>;
 
-pub struct Error {
+pub struct Report {
     pub message: String,
-    pub pos: Pos,
-    pub length: usize,
+    pub kind: ReportKind,
 }
 
-impl Error {
-    pub fn new(msg: &str, from: &Pos, to: &Pos) -> Self {
+pub enum ReportKind {
+    Error,
+    CodeError { pos: Pos, length: usize },
+}
+
+impl Report {
+    pub fn error(msg: &str) -> Self {
         Self {
             message: msg.to_owned(),
-            pos: from.clone(),
-            length: to.col - from.col,
+            kind: ReportKind::Error,
         }
     }
 
-    pub fn new_length(msg: &str, from: &Pos, length: usize) -> Self {
+    pub fn code_error(msg: &str, from: &Pos, to: &Pos) -> Self {
         Self {
             message: msg.to_owned(),
-            pos: from.clone(),
-            length,
+            kind: ReportKind::CodeError {
+                pos: from.clone(),
+                length: to.col - from.col,
+            },
         }
     }
 
-    fn source_id(&self) -> SourceId {
-        self.pos.source_id
+    pub fn code_error_len(msg: &str, from: &Pos, length: usize) -> Self {
+        Self {
+            message: msg.to_owned(),
+            kind: ReportKind::CodeError {
+                pos: from.clone(),
+                length,
+            },
+        }
     }
 
-    fn render(&self, source: &Source) -> String {
-        let line = self.pos.row + 1;
-        let info = "";
+    fn render(&self, map: &SourceMap) -> String {
+        match &self.kind {
+            ReportKind::Error => format!("error: {}", self.message),
+            ReportKind::CodeError { pos, length } => {
+                let source = map.get(pos.source_id).unwrap();
 
-        let line_str = source.line(self.pos.row).to_owned();
-        let from = self.pos.col;
+                let line = pos.row + 1;
+                let info = ""; // TODO: error info
+                let length = *length;
 
-        let pad = line_str.len() - line_str.trim_start().len();
-        let point_start = if from < pad { 1 } else { from - pad };
+                let line_str = source.line(pos.row).to_owned();
+                let from = pos.col;
 
-        format!(
-            "{}\nerror: {}\n    |\n{:<3} |    {}\n    |    {}{}\n{}",
-            source.filepath,
-            self.message,
-            line,
-            line_str.trim(),
-            " ".repeat(point_start),
-            "^".repeat(self.length.max(1)),
-            if !info.is_empty() {
-                let info = &info;
-                format!("    |\n    | {}\n", info)
-            } else {
-                "".to_string()
+                let pad = line_str.len() - line_str.trim_start().len();
+                let point_start = if from < pad { 1 } else { from - pad };
+
+                format!(
+                    "{}\nerror: {}\n    |\n{:<3} |    {}\n    |    {}{}\n{}",
+                    source.filepath,
+                    self.message,
+                    line,
+                    line_str.trim(),
+                    " ".repeat(point_start),
+                    "^".repeat(length.max(1)),
+                    if !info.is_empty() {
+                        let info = &info;
+                        format!("    |\n    | {}\n", info)
+                    } else {
+                        "".to_string()
+                    }
+                )
             }
-        )
+        }
     }
 }
 
 pub struct Diagnostics {
-    reports: Vec<Error>,
+    reports: Vec<Report>,
 }
 
 impl Diagnostics {
@@ -72,7 +91,7 @@ impl Diagnostics {
         self.reports.is_empty()
     }
 
-    pub fn get(&self, index: usize) -> &Error {
+    pub fn get(&self, index: usize) -> &Report {
         &self.reports[index]
     }
 
@@ -80,15 +99,14 @@ impl Diagnostics {
         self.reports.len()
     }
 
-    pub fn add(&mut self, report: Error) {
+    pub fn add(&mut self, report: Report) {
         self.reports.push(report);
     }
 
     pub fn render(&self, map: &SourceMap) -> String {
         let mut s = String::new();
         for report in &self.reports {
-            let source = map.get(report.source_id()).unwrap();
-            s += &report.render(source);
+            s += &report.render(map);
         }
 
         s
