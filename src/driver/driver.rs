@@ -10,7 +10,7 @@ use walkdir::WalkDir;
 use crate::{
     ast::FileSet,
     build::x86,
-    config::{Config, PathManager, Project, ProjectType, Target, load_config_file},
+    config::{Config, Options, PathManager, Project, ProjectType, Target},
     ir::{Ir, Unit},
     lower::emit_ir,
     module::{Module, ModuleGraph, ModulePath, create_header_file},
@@ -25,12 +25,8 @@ use crate::{
 type Res<T> = Result<T, String>;
 
 /// Compile the project using the given global config and build configuration.
-pub fn compile() -> Res<()> {
-    let (project, options, config) = load_config_file()?;
-    let pm = PathManager::new(get_root_dir());
-
+pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
     init_logger(options.debug_mode);
-
     create_dir_if_not_exist(&project.bin)?;
 
     // Recursively search the given source directory for files and
@@ -78,6 +74,7 @@ pub fn compile() -> Res<()> {
         .collect::<Result<Vec<Unit>, String>>()?;
 
     // Build the final executable/libary file
+    let pm = PathManager::new(get_root_dir());
     build(Ir::new(units), &config, &project, &pm)
 }
 
