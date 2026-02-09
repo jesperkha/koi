@@ -21,22 +21,27 @@ where
 }
 
 /// Run shell command
-pub fn cmd(command: &str, args: &[String]) -> Result<(), String> {
+pub fn cmd(command: &str, args: &[String]) -> Result<String, String> {
     info!("Cmd: {} {}", command, args.join(" "));
 
-    let status = Command::new(command)
+    let output = Command::new(command)
         .args(args)
-        .status()
-        .or_else(|_| Err(format!("failed to run command: {}", command)))?;
+        .output()
+        .map_err(|_| format!("failed to run command: {}", command))?;
 
-    if !status.success() {
-        Err(format!(
+    if !output.status.success() {
+        return Err(format!(
             "command '{}' exited with a non-success code",
-            command,
-        ))
-    } else {
-        Ok(())
+            command
+        ));
     }
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    if stdout == "" {
+        return Ok(String::from_utf8_lossy(&output.stderr).to_string());
+    }
+
+    Ok(stdout)
 }
 
 pub fn create_dir_if_not_exist(dir: &str) -> Result<(), String> {
@@ -52,13 +57,23 @@ pub fn create_dir_if_not_exist(dir: &str) -> Result<(), String> {
 /// Get the directory of the executable. This is the base installation
 /// directory and all config/runtime files are relative to this.
 pub fn get_root_dir() -> PathBuf {
-    let exec_path = env::current_exe().unwrap();
+    #[cfg(debug_assertions)]
+    {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    }
 
-    let rootdir = if exec_path.ends_with("target/debug/koi") {
-        Path::new(".") // for debug/testing using cargo run
-    } else {
-        exec_path.parent().unwrap().parent().unwrap()
-    };
+    #[cfg(not(debug_assertions))]
+    {
+        // TODO: check if this is correct
+        let exec_path = env::current_exe().unwrap();
+        let rootdir = exec_path
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap();
 
-    rootdir.to_owned()
+        rootdir.to_owned()
+    }
 }

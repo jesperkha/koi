@@ -1,0 +1,11 @@
+# Koi project configuration
+
+[project]
+type = "app"      # Project type (app|package)
+src = "src"       # Source code directory
+out = "bin/main"  # Filepath of output file
+bin = "bin"       # Output directory for temporary files
+target = "x86-64" # Target arch (x86-64)
+
+[options]
+debug-mode = false

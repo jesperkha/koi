@@ -1,5 +1,6 @@
 use serde::Deserialize;
-use std::fs;
+use std::{fs, path::Path};
+use tracing::field;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -97,7 +98,12 @@ impl Config {
 
 /// Load koi.toml file and parse as BuildConfig.
 pub fn load_config_file() -> Result<(Project, Options, Config), String> {
-    let src = fs::read_to_string("koi.toml")
+    load_config_file_ex(".")
+}
+
+pub fn load_config_file_ex(path: &str) -> Result<(Project, Options, Config), String> {
+    let filepath = Path::new(path).join("koi.toml");
+    let src = fs::read_to_string(filepath)
         .map_err(|_| format!("Failed to open koi.toml. Run `koi init` if missing."))?;
     let config_file: ConfigFile = toml::from_str(&src).map_err(|e| e.to_string())?;
 

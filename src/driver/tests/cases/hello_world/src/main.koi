@@ -1,0 +1,6 @@
+extern func puts(s string)
+
+func main() int {
+    puts("Hello world!")
+    return 0
+}
