@@ -31,7 +31,7 @@ fn check_files(files: &[TestFile]) -> Result<(), Diagnostics> {
         .map(|f| {
             FileSet::new(
                 ModulePath::new(f.0.clone()),
-                vec![File::new(&Source::new_from_string(0, f.0), f.1)],
+                vec![File::new(&Source::new_from_string(f.0), f.1)],
             )
         })
         .collect();

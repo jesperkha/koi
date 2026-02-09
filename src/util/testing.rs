@@ -29,14 +29,14 @@ pub fn compare_string_lines_or_panic(ina: String, inb: String) {
 
 pub fn new_source_map(src: &str) -> SourceMap {
     let mut map = SourceMap::new();
-    map.add_source(Source::new_from_string(0, src));
+    map.add(Source::new_from_string(src));
     map
 }
 
 pub fn new_source_map_from_files(files: &[&str]) -> SourceMap {
     let mut map = SourceMap::new();
     for f in files {
-        map.add_source(Source::new_from_string(0, f));
+        map.add(Source::new_from_string(f));
     }
     map
 }
@@ -46,13 +46,13 @@ pub fn must<T>(map: &SourceMap, res: Result<T, Diagnostics>) -> T {
 }
 
 pub fn scan_string(src: &str) -> Res<Vec<Token>> {
-    let src = Source::new_from_string(0, src);
+    let src = Source::new_from_string(src);
     let config = Config::test();
     scan(&src, &config)
 }
 
 pub fn parse_string(src: &str) -> Res<Ast> {
-    let src = Source::new_from_string(0, src);
+    let src = Source::new_from_string(src);
     let config = Config::test();
     scan(&src, &config).and_then(|toks| parse(toks, &config))
 }
@@ -65,10 +65,7 @@ pub fn check_string<'a>(
     let config = Config::test();
     let fs = FileSet::new(
         ModulePath::new_str("main"),
-        vec![File::new(
-            &Source::new_from_string(0, src),
-            parse_string(src)?,
-        )],
+        vec![File::new(&Source::new_from_string(src), parse_string(src)?)],
     );
     let importer = Importer::new(mg);
     let checker = Checker::new(ctx, &importer, &config);

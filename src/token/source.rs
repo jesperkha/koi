@@ -1,39 +1,45 @@
+use std::{
+    collections::{HashMap, hash_map::Values},
+    sync::atomic::{AtomicUsize, Ordering},
+};
+
 pub type SourceId = usize;
 
+static SOURCE_ID: AtomicUsize = AtomicUsize::new(0);
+
+fn next_id() -> usize {
+    SOURCE_ID.fetch_add(1, Ordering::Relaxed)
+}
+
 pub struct SourceMap {
-    sources: Vec<Source>,
+    map: HashMap<SourceId, Source>,
 }
 
 impl SourceMap {
     pub fn new() -> Self {
         Self {
-            sources: Vec::new(),
+            map: HashMap::new(),
         }
     }
 
-    pub fn add(&mut self, filepath: String, src: Vec<u8>) {
-        let source = Source::new(self.sources.len(), filepath, src);
-        self.sources.push(source);
-    }
-
-    pub fn add_source(&mut self, source: Source) {
-        self.sources.push(source);
+    pub fn add(&mut self, source: Source) {
+        self.map.insert(source.id, source);
     }
 
     pub fn get(&self, id: SourceId) -> Option<&Source> {
-        self.sources.get(id)
+        self.map.get(&id)
     }
 
     pub fn is_empty(&self) -> bool {
-        self.sources.is_empty()
+        self.map.is_empty()
     }
 
-    pub fn sources(&self) -> &[Source] {
-        &self.sources
+    pub fn sources(&self) -> Values<'_, usize, Source> {
+        self.map.values()
     }
 
-    pub fn extend(&mut self, sources: Vec<Source>) {
-        self.sources.extend(sources);
+    pub fn join(&mut self, other: SourceMap) {
+        self.map.extend(other.map);
     }
 }
 
@@ -51,9 +57,9 @@ pub struct Source {
 
 impl Source {
     /// Create new file object using given source.
-    pub fn new(id: SourceId, filepath: String, src: Vec<u8>) -> Source {
+    pub fn new(filepath: String, src: Vec<u8>) -> Source {
         Source {
-            id,
+            id: next_id(),
             filepath,
             lines: Source::get_line_beginnings(src.as_slice()),
             size: src.len(),
@@ -61,8 +67,8 @@ impl Source {
         }
     }
 
-    pub fn new_from_string(id: SourceId, src: &str) -> Source {
-        Self::new(id, "".into(), src.to_string().into_bytes())
+    pub fn new_from_string(src: &str) -> Source {
+        Self::new("".into(), src.to_string().into_bytes())
     }
 
     /// Gets a list of offsets for the first character of each line.

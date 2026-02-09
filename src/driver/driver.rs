@@ -18,7 +18,7 @@ use crate::{
     token::{Source, SourceMap},
     typecheck::check_filesets,
     types::TypeContext,
-    util::{create_dir_if_not_exist, get_root_dir, new_source_map, write_file},
+    util::{create_dir_if_not_exist, get_root_dir, write_file},
 };
 
 /// Result type shorthand used in this file.
@@ -34,22 +34,29 @@ pub fn compile() -> Res<()> {
     create_dir_if_not_exist(&project.bin)?;
 
     // Recursively search the given source directory for files and
-    // return a list of FileSet of all source files found.
-    let filesets = find_and_parse_all_source_files(&project.src, &config)?;
+    // return a list of SourceDir of all source files found.
+    let source_dirs = collect_all_source_dirs(&project.src)?;
+
+    // Parse all of the sources and return a list of FileSet.
+    let filesets = parse_source_dirs(&source_dirs, &config)?;
+
+    // Flatten the SourceMaps for error handling.
+    let source_map = source_dirs
+        .into_iter()
+        .fold(SourceMap::new(), |mut map, dir| {
+            map.join(dir.map);
+            map
+        });
 
     // Create a dependency graph and sort it, returning a list of
     // filesets in correct type checking order. FileSets are sorted
     // based on their imports.
     let sorted_filesets = sort_by_dependency_graph(filesets)?;
 
-    todo!();
-    let map = new_source_map(""); // TODO: remove
-
     // Type check all file sets, turning them into Modules, and put
     // them in a ModuleGraph. The generated TypeContext containing all
     // type information is also returned.
-    let (module_graph, ctx) =
-        check_filesets(sorted_filesets, &config).map_err(|err| err.render(&map))?;
+    let (module_graph, ctx) = create_modules(sorted_filesets, &source_map, &config)?;
 
     // Do some high level passes at a module level before lowering
     check_main_function_present(&module_graph, &project)?;
@@ -67,7 +74,7 @@ pub fn compile() -> Res<()> {
         .modules()
         .iter()
         .filter(|module| module.should_be_built())
-        .map(|module| emit_module_ir(&map, module, &ctx, &config))
+        .map(|module| emit_module_ir(&source_map, module, &ctx, &config))
         .collect::<Result<Vec<Unit>, String>>()?;
 
     // Build the final executable/libary file
@@ -104,14 +111,19 @@ fn create_package_headers(
     Ok(())
 }
 
+struct SourceDir {
+    modpath: ModulePath,
+    map: SourceMap,
+}
+
 /// Recursively search the given source directory for files and return a list of FileSet of
 /// all source files found.
-fn find_and_parse_all_source_files(source_dir: &str, config: &Config) -> Res<Vec<FileSet>> {
+fn collect_all_source_dirs(source_dir: &str) -> Res<Vec<SourceDir>> {
     info!("Collecting source files in {}", source_dir);
-    let mut filesets = Vec::new();
+    let mut dirs = Vec::new();
 
     for dir in &list_source_directories(source_dir)? {
-        let map = collect_files_in_directory(dir)?;
+        let map = dir_to_source_map(dir)?;
         if map.is_empty() {
             continue;
         }
@@ -121,10 +133,66 @@ fn find_and_parse_all_source_files(source_dir: &str, config: &Config) -> Res<Vec
             modpath_str = String::from("main");
         }
 
-        info!("Parsing module: {}", modpath_str);
-        let modpath = ModulePath::new(modpath_str);
-        let fileset =
-            source_map_to_fileset(modpath, &map, config).map_err(|err| err.render(&map))?;
+        let dir = SourceDir {
+            modpath: ModulePath::new(modpath_str),
+            map,
+        };
+
+        dirs.push(dir);
+    }
+
+    if dirs.len() == 0 {
+        return Err(format!("no source files in '{}'", source_dir));
+    }
+
+    Ok(dirs)
+}
+
+/// Collects all koi files in given directory and returns as a list of sources.
+fn dir_to_source_map(dir: &PathBuf) -> Res<SourceMap> {
+    let mut files = Vec::new();
+
+    let dirents = match fs::read_dir(dir) {
+        Err(_) => return Err(format!("failed to read directory: '{}'", dir.display())),
+        Ok(ents) => ents,
+    };
+
+    for entry in dirents {
+        let path = match entry {
+            Err(err) => return Err(format!("failed to read file: {}", err)),
+            Ok(ent) => ent.path(),
+        };
+
+        if !path.is_file() {
+            continue;
+        }
+
+        if let Some(ext) = path.extension() {
+            if ext == "koi" {
+                files.push(path.display().to_string());
+            }
+        }
+    }
+
+    let mut map = SourceMap::new();
+    for file in files {
+        match fs::read(&file) {
+            Err(err) => return Err(format!("failed to read file: {}", err)),
+            Ok(src) => map.add(Source::new(file, src)),
+        }
+    }
+
+    Ok(map)
+}
+
+/// Parse all files in each source directory.
+fn parse_source_dirs(dirs: &Vec<SourceDir>, config: &Config) -> Res<Vec<FileSet>> {
+    let mut filesets = Vec::new();
+
+    for dir in dirs {
+        info!("Parsing module: {}", dir.modpath.path());
+        let fileset = source_map_to_fileset(dir.modpath.clone(), &dir.map, config)
+            .map_err(|err| err.render(&dir.map))?;
 
         if fileset.is_empty() {
             info!("No input files");
@@ -134,11 +202,15 @@ fn find_and_parse_all_source_files(source_dir: &str, config: &Config) -> Res<Vec
         filesets.push(fileset);
     }
 
-    if filesets.len() == 0 {
-        return Err(format!("no source files in '{}'", source_dir));
-    }
-
     Ok(filesets)
+}
+
+fn create_modules(
+    filesets: Vec<FileSet>,
+    map: &SourceMap,
+    config: &Config,
+) -> Res<(ModuleGraph, TypeContext)> {
+    check_filesets(filesets, &config).map_err(|err| err.render(&map))
 }
 
 /// Shorthand for emitting a module to IR and converting error to string.
@@ -208,43 +280,6 @@ fn list_source_directories(path: &str) -> Result<Vec<PathBuf>, String> {
     } else {
         Err(errors.join("\n"))
     }
-}
-
-/// Collects all koi files in given directory and returns as a list of sources.
-fn collect_files_in_directory(dir: &PathBuf) -> Res<SourceMap> {
-    let mut files = Vec::new();
-
-    let dirents = match fs::read_dir(dir) {
-        Err(_) => return Err(format!("failed to read directory: '{}'", dir.display())),
-        Ok(ents) => ents,
-    };
-
-    for entry in dirents {
-        let path = match entry {
-            Err(err) => return Err(format!("failed to read file: {}", err)),
-            Ok(ent) => ent.path(),
-        };
-
-        if !path.is_file() {
-            continue;
-        }
-
-        if let Some(ext) = path.extension() {
-            if ext == "koi" {
-                files.push(path.display().to_string());
-            }
-        }
-    }
-
-    let mut map = SourceMap::new();
-    for file in files {
-        match fs::read(&file) {
-            Err(err) => return Err(format!("failed to read file: {}", err)),
-            Ok(src) => map.add_source(Source::new(0, file, src)),
-        }
-    }
-
-    Ok(map)
 }
 
 /// Convert foo/bar/faz to foo.bar.faz
