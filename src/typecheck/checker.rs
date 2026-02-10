@@ -277,12 +277,11 @@ impl<'a> Checker<'a> {
 
         let _ = self.symbols.add(symbol).map_err(|err| {
             let sym = self.symbols.get(&node.name.to_string()).unwrap();
-            return self.error_token(&err, &node.name);
-            // TODO: error with info
-            // .with_info(&format!( "previously declared in {} line {}",
-            //     sym.filename,
-            //     sym.pos.row + 1
-            // ));
+            return self.error_token(&err, &node.name).with_info(&format!(
+                "previously declared in {}, line {}",
+                sym.filename,
+                sym.pos.row + 1
+            ));
         })?;
 
         Ok(())
@@ -577,12 +576,12 @@ impl<'a> Checker<'a> {
                     f.params.len(),
                     node.args.len(),
                 );
-                return Err(self.error_from_to(&msg, callee.pos(), &node.rparen.pos));
-                // TODO: error with info
-                // .with_info(&format!(
-                //     "definition: {}",
-                //     self.ctx.to_string(callee.type_id())
-                // )));
+                return Err(self
+                    .error_from_to(&msg, callee.pos(), &node.rparen.pos)
+                    .with_info(&format!(
+                        "definition: {}",
+                        self.ctx.to_string(callee.type_id())
+                    )));
             }
 
             assert_eq!(
@@ -708,12 +707,12 @@ impl<'a> Checker<'a> {
                 pos: name.pos.clone(),
             },
         ) {
-            Err(self.error_token("already declared", name))
-            // TODO: error with info
-            // .with_info(&format!(
-            //     "previously declared on line {}", // always local to this file
-            //     self.vars.get(&name.to_string()).unwrap().pos.row + 1
-            // )))
+            Err(self
+                .error_token("already declared", name)
+                .with_info(&format!(
+                    "previously declared on line {}", // always local to this file
+                    self.vars.get(&name.to_string()).unwrap().pos.row + 1
+                )))
         } else {
             Ok(id)
         }
