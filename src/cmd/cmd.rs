@@ -2,6 +2,7 @@ use std::{fs, process::exit};
 
 use crate::{config::load_config_file, driver::compile, util::write_file};
 use clap::{CommandFactory, Parser, Subcommand};
+use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -39,6 +40,7 @@ fn run_command(command: Command) -> Result<(), String> {
         Command::Init => koi_init(),
         Command::Build => {
             let (project, options, config) = load_config_file()?;
+            init_logger(options.debug_mode);
             compile(project, options, config)
         }
         Command::Run => todo!(),
@@ -68,4 +70,27 @@ fn koi_init() -> Result<(), String> {
     write_file("koi.toml", DEFAULT_KOI_TOML)?;
     println!("Created koi.toml");
     Ok(())
+}
+
+fn init_logger(debug_mode: bool) {
+    let env_filter = EnvFilter::builder()
+        // Set default level based on debug_mode
+        .with_default_directive(if debug_mode {
+            tracing_subscriber::filter::LevelFilter::INFO.into()
+        } else {
+            tracing_subscriber::filter::LevelFilter::WARN.into()
+        })
+        // Merge with RUST_LOG if present
+        .from_env_lossy(); // reads RUST_LOG if set, otherwise uses default
+
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .with_target(false)
+        .with_thread_ids(false)
+        .with_thread_names(false)
+        .with_file(false)
+        .with_line_number(false)
+        .without_time()
+        .compact()
+        .init();
 }

@@ -47,7 +47,8 @@ pub fn cmd(command: &str, args: &[String]) -> Result<String, String> {
 pub fn create_dir_if_not_exist(dir: &str) -> Result<(), String> {
     if !fs::exists(dir).unwrap_or(false) {
         info!("Creating directory: {}", dir);
-        if let Err(_) = fs::create_dir(dir) {
+        if let Err(err) = fs::create_dir(dir) {
+            println!("mkdir: {}", err);
             return Err(format!("failed to create directory: {}", dir));
         }
     }

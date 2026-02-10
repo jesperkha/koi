@@ -4,7 +4,6 @@ use std::{
 };
 
 use tracing::info;
-use tracing_subscriber::EnvFilter;
 use walkdir::WalkDir;
 
 use crate::{
@@ -25,8 +24,7 @@ use crate::{
 type Res<T> = Result<T, String>;
 
 /// Compile the project using the given global config and build configuration.
-pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
-    init_logger(options.debug_mode);
+pub fn compile(project: Project, _options: Options, config: Config) -> Res<()> {
     create_dir_if_not_exist(&project.bin)?;
 
     // Recursively search the given source directory for files and
@@ -336,27 +334,4 @@ fn dump_debug_info(
     }
 
     Ok(())
-}
-
-fn init_logger(debug_mode: bool) {
-    let env_filter = EnvFilter::builder()
-        // Set default level based on debug_mode
-        .with_default_directive(if debug_mode {
-            tracing_subscriber::filter::LevelFilter::INFO.into()
-        } else {
-            tracing_subscriber::filter::LevelFilter::WARN.into()
-        })
-        // Merge with RUST_LOG if present
-        .from_env_lossy(); // reads RUST_LOG if set, otherwise uses default
-
-    tracing_subscriber::fmt()
-        .with_env_filter(env_filter)
-        .with_target(false)
-        .with_thread_ids(false)
-        .with_thread_names(false)
-        .with_file(false)
-        .with_line_number(false)
-        .without_time()
-        .compact()
-        .init();
 }
