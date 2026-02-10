@@ -31,7 +31,7 @@ pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
 
     // Recursively search the given source directory for files and
     // return a list of SourceDir of all source files found.
-    let source_dirs = collect_all_source_dirs(&project.src)?;
+    let source_dirs = collect_all_source_dirs(&project.src, &project.ignore_dirs)?;
 
     // Parse all of the sources and return a list of FileSet.
     let filesets = parse_source_dirs(&source_dirs, &config)?;
@@ -115,12 +115,13 @@ struct SourceDir {
 
 /// Recursively search the given source directory for files and return a list of FileSet of
 /// all source files found.
-fn collect_all_source_dirs(source_dir: &str) -> Res<Vec<SourceDir>> {
+fn collect_all_source_dirs(source_dir: &str, ignore_dirs: &[String]) -> Res<Vec<SourceDir>> {
     info!("Collecting source files in {}", source_dir);
     let mut dirs = Vec::new();
 
-    for dir in &list_source_directories(source_dir)? {
+    for dir in &list_source_directories(source_dir, ignore_dirs)? {
         let map = dir_to_source_map(dir)?;
+
         if map.is_empty() {
             continue;
         }
@@ -239,23 +240,23 @@ fn proj_type_to_link_mode(mode: &ProjectType) -> x86::LinkMode {
     }
 }
 
-fn is_hidden(entry: &walkdir::DirEntry) -> bool {
-    entry
-        .file_name()
-        .to_str()
-        .map(|s| s.starts_with("."))
-        .unwrap_or(false)
+fn is_hidden(entry: &walkdir::DirEntry, ignore_dirs: &[String]) -> bool {
+    if let Some(file_name) = entry.file_name().to_str() {
+        ignore_dirs.iter().any(|ignored| ignored == file_name)
+    } else {
+        false
+    }
 }
 
 /// List all subdirectories in path, including path. Ignores hidden
 /// directories and ones listed in other ignore lists (config or .gitignore).
-fn list_source_directories(path: &str) -> Result<Vec<PathBuf>, String> {
+fn list_source_directories(path: &str, ignore_dirs: &[String]) -> Result<Vec<PathBuf>, String> {
     let mut dirs = Vec::new();
     let mut errors = Vec::new();
 
     for entry in WalkDir::new(path)
         .into_iter()
-        .filter_entry(|e| !is_hidden(e))
+        .filter_entry(|e| !is_hidden(e, ignore_dirs))
     {
         match entry {
             Ok(e) => {

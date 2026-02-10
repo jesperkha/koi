@@ -53,6 +53,7 @@ src = "src"       # Source code directory
 out = "main"      # Filepath of output file
 bin = "bin"       # Output directory for temporary files
 target = "x86-64" # Target arch (x86-64)
+ignore-dirs = []  # Source directories to ignore
 
 [options]
 debug-mode = false

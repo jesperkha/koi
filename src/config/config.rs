@@ -1,6 +1,5 @@
 use serde::Deserialize;
 use std::{fs, path::Path};
-use tracing::field;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -52,6 +51,9 @@ pub struct Project {
     pub project_type: ProjectType,
     /// Additional include paths for package exports
     pub includes: Option<Vec<String>>,
+    /// Directories to ignore when searching for source files
+    #[serde(default)]
+    pub ignore_dirs: Vec<String>,
 }
 
 #[derive(Deserialize)]
