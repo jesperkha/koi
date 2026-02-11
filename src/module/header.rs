@@ -6,8 +6,6 @@ use crate::{
     types::TypeContext,
 };
 
-// TODO: test headers
-
 #[derive(Debug, Serialize, Deserialize)]
 struct HeaderFile {
     name: String,

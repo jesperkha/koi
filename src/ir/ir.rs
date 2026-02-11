@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::{ir::print::ir_to_string, module::ModulePath};
+use crate::{ir::print::ir_to_string, module::ModulePath, types};
 
 pub struct Ir {
     pub units: Vec<Unit>,
@@ -118,6 +118,27 @@ pub enum Primitive {
     I32,
     I64,
     Str,
+}
+
+impl From<types::PrimitiveType> for Primitive {
+    fn from(value: types::PrimitiveType) -> Self {
+        match value {
+            types::PrimitiveType::Void => Primitive::Void,
+            types::PrimitiveType::I8 => Primitive::I8,
+            types::PrimitiveType::I16 => Primitive::I16,
+            types::PrimitiveType::I32 => Primitive::I32,
+            types::PrimitiveType::I64 => Primitive::I64,
+            types::PrimitiveType::Byte | types::PrimitiveType::Bool | types::PrimitiveType::U8 => {
+                Primitive::U8
+            }
+            types::PrimitiveType::U16 => Primitive::U16,
+            types::PrimitiveType::U32 => Primitive::U32,
+            types::PrimitiveType::U64 => Primitive::U64,
+            types::PrimitiveType::F32 => Primitive::F32,
+            types::PrimitiveType::F64 => Primitive::F64,
+            types::PrimitiveType::String => Primitive::Str,
+        }
+    }
 }
 
 pub trait IRVisitor<T> {

@@ -86,7 +86,7 @@ impl<'a> Emitter<'a> {
         let ty = self.ctx.lookup(id);
 
         match &ty.kind {
-            TypeKind::Primitive(p) => IRType::Primitive(type_primitive_to_ir_primitive(&p)),
+            TypeKind::Primitive(p) => IRType::Primitive(p.clone().into()),
             TypeKind::Function(f) => IRType::Function(
                 f.params.iter().map(|p| self.to_ir_type(*p)).collect(),
                 Box::new(self.to_ir_type(f.ret)),
@@ -304,24 +304,5 @@ impl<'a> Visitor<Result<Value, Report>> for Emitter<'a> {
         }));
 
         Ok(Value::Function(linkname))
-    }
-}
-
-fn type_primitive_to_ir_primitive(p: &types::PrimitiveType) -> ir::Primitive {
-    match p {
-        types::PrimitiveType::Void => ir::Primitive::Void,
-        types::PrimitiveType::I8 => ir::Primitive::I8,
-        types::PrimitiveType::I16 => ir::Primitive::I16,
-        types::PrimitiveType::I32 => ir::Primitive::I32,
-        types::PrimitiveType::I64 => ir::Primitive::I64,
-        types::PrimitiveType::Byte | types::PrimitiveType::Bool | types::PrimitiveType::U8 => {
-            ir::Primitive::U8
-        }
-        types::PrimitiveType::U16 => ir::Primitive::U16,
-        types::PrimitiveType::U32 => ir::Primitive::U32,
-        types::PrimitiveType::U64 => ir::Primitive::U64,
-        types::PrimitiveType::F32 => ir::Primitive::F32,
-        types::PrimitiveType::F64 => ir::Primitive::F64,
-        types::PrimitiveType::String => ir::Primitive::Str,
     }
 }

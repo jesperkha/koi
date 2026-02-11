@@ -214,11 +214,7 @@ impl<'a> Checker<'a> {
                 }
                 ast::Decl::Func(node) => {
                     let origin = SymbolOrigin::Module(modpath.clone());
-                    self.declare_function_definition(
-                        &node.to_func_decl_node(),
-                        origin,
-                        &file.filename,
-                    )
+                    self.declare_function_definition(&node.clone().into(), origin, &file.filename)
                 }
                 ast::Decl::Extern(node) => {
                     let origin = SymbolOrigin::Extern(modpath.clone());
