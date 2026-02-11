@@ -5,7 +5,7 @@ use crate::{
     ir::Unit,
     lower::emit_ir,
     module::{Module, ModuleGraph, ModulePath},
-    parser::parse,
+    parser::parse_source_map,
     token::{Source, SourceMap, Token, scan},
     typecheck::check_fileset,
     types::TypeContext,
@@ -56,9 +56,10 @@ pub fn scan_string(src: &str) -> Res<Vec<Token>> {
 }
 
 pub fn parse_string(src: &str) -> Res<Ast> {
-    let src = new_source(src);
+    let map = new_source_map(src);
     let config = Config::test();
-    scan(&src, &config).and_then(|toks| parse(toks, &config))
+    parse_source_map(ModulePath::new("test".into()), &map, &config)
+        .map(|mut fs| fs.files.pop().unwrap().ast)
 }
 
 pub fn check_string<'a>(

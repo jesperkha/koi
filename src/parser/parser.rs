@@ -14,19 +14,16 @@ use crate::{
     token::{SourceMap, Token, TokenKind, scan},
 };
 
-/// Parse source input into File with AST.
-pub fn parse(tokens: Vec<Token>, config: &Config) -> Result<Ast, Diagnostics> {
-    let parser = Parser::new(tokens, config);
-    parser.parse_file()
-}
-
-// TODO: parse docs
+/// Parse a SourceMap into a FileSet.
 pub fn parse_source_map(modpath: ModulePath, map: &SourceMap, config: &Config) -> Res<FileSet> {
     let mut files = Vec::new();
 
     for src in map.sources() {
         let tokens = scan(src, config)?;
-        let ast = parse(tokens, config)?;
+
+        let parser = Parser::new(tokens, config);
+        let ast = parser.parse_file()?;
+
         let file = File::new(src, ast);
         files.push(file);
     }
