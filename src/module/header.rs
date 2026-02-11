@@ -1,16 +1,18 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    error::Res,
-    module::{Module, ModuleGraph},
+    config::Config,
+    module::{CreateModule, Module, ModuleGraph, ModulePath},
+    parser::parse_source_map,
+    token::{Source, SourceMap},
+    typecheck::check_fileset,
     types::TypeContext,
 };
 
-// TODO: test headers
-
 #[derive(Debug, Serialize, Deserialize)]
 struct HeaderFile {
-    name: String,
+    filename: String,
+    modpath: String,
     symbols: String,
 }
 
@@ -19,7 +21,8 @@ impl HeaderFile {
     /// and types into parseable string representations.
     pub fn from_module(module: &Module, ctx: &TypeContext) -> HeaderFile {
         HeaderFile {
-            name: module.name().to_owned(),
+            filename: module.path.to_owned(),
+            modpath: module.modpath.path().to_owned(),
             symbols: module
                 .exports()
                 .values()
@@ -30,13 +33,17 @@ impl HeaderFile {
     }
 
     /// Parse this headers symbols content and create module.
-    pub fn to_module<'a>(&self, mg: &'a mut ModuleGraph, ctx: &mut TypeContext) -> Res<&'a Module> {
-        todo!()
-        // let config = Config::test();
-        // let file = scan_and_parse(&self.symbols, &config)?;
-        // let modpath = ModulePath::new(self.name.clone());
-        // let createmod = check_header_file(&modpath, file, ctx, &config)?;
-        // Ok(mg.add(createmod))
+    pub fn to_module(
+        self,
+        mg: &ModuleGraph,
+        ctx: &mut TypeContext,
+    ) -> Result<CreateModule, String> {
+        let config = Config::default();
+        let source = Source::new_str(self.filename, self.symbols);
+        let map = SourceMap::one(source);
+        let modpath = ModulePath::new(self.modpath);
+        let fs = parse_source_map(modpath, &map, &config).map_err(|err| err.render(&map))?;
+        check_fileset(fs, mg, ctx, &config).map_err(|err| err.render(&map))
     }
 }
 
@@ -53,7 +60,8 @@ pub fn read_header_file<'a>(
     mg: &'a mut ModuleGraph,
     ctx: &mut TypeContext,
 ) -> Result<&'a Module, String> {
-    todo!()
-    // let header: HeaderFile = postcard::from_bytes(bytes).map_err(|e| e.to_string())?;
-    // header.to_module(mg, ctx).map_err(|e| e.to_string())
+    let header: HeaderFile = postcard::from_bytes(bytes).map_err(|e| e.to_string())?;
+    let create_mod = header.to_module(mg, ctx)?;
+    let module = mg.add(create_mod);
+    Ok(module)
 }

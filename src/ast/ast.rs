@@ -176,26 +176,16 @@ pub struct FuncNode {
     pub body: BlockNode,
 }
 
-impl FuncNode {
-    pub fn to_func_decl_node(&self) -> FuncDeclNode {
-        let Self {
-            docs,
-            public,
-            name,
-            lparen,
-            params,
-            rparen,
-            ret_type,
-            body: _body,
-        } = self.clone();
+impl From<FuncNode> for FuncDeclNode {
+    fn from(f: FuncNode) -> Self {
         FuncDeclNode {
-            docs,
-            public,
-            name,
-            lparen,
-            params,
-            rparen,
-            ret_type,
+            docs: f.docs,
+            public: f.public,
+            name: f.name,
+            lparen: f.lparen,
+            params: f.params,
+            rparen: f.rparen,
+            ret_type: f.ret_type,
         }
     }
 }

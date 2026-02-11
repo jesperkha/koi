@@ -12,8 +12,8 @@ use crate::{
     },
     token::{Pos, Token, TokenKind},
     types::{
-        self, FunctionType, LiteralKind, NodeMeta, PrimitiveType, Type, TypeContext, TypeId,
-        TypeKind, TypedAst, TypedNode, ast_node_to_meta, no_type,
+        self, FunctionType, NodeMeta, PrimitiveType, Type, TypeContext, TypeId, TypeKind, TypedAst,
+        TypedNode, ast_node_to_meta, no_type,
     },
     util::VarTable,
 };
@@ -24,14 +24,24 @@ pub fn check_filesets(filesets: Vec<FileSet>, config: &Config) -> Res<(ModuleGra
     let mut ctx = TypeContext::new();
 
     for fs in filesets {
-        let importer = Importer::new(&mg);
-        let checker = Checker::new(&mut ctx, &importer, config);
-        let create_mod = checker.check(fs)?;
-
+        let create_mod = check_fileset(fs, &mg, &mut ctx, config)?;
         mg.add(create_mod);
     }
 
     Ok((mg, ctx))
+}
+
+/// Type check single FileSet into a module.
+pub fn check_fileset(
+    fs: FileSet,
+    mg: &ModuleGraph,
+    ctx: &mut TypeContext,
+    config: &Config,
+) -> Res<CreateModule> {
+    let importer = Importer::new(&mg);
+    let checker = Checker::new(ctx, &importer, config);
+    let create_mod = checker.check(fs)?;
+    Ok(create_mod)
 }
 
 /// A Binding is either a declared variable or function parameter. Bindings
@@ -45,7 +55,7 @@ struct Binding {
 /// The FileChecker performs type checking on a single source file AST,
 /// producing a typed AST. The types and symbols are stored in the provided
 /// context and symbol table.
-pub struct Checker<'a> {
+struct Checker<'a> {
     // Dependencies
     ctx: &'a mut TypeContext,
     importer: &'a Importer<'a>,
@@ -68,7 +78,7 @@ pub struct Checker<'a> {
     is_main: bool,
 }
 
-pub struct Importer<'a> {
+struct Importer<'a> {
     mg: &'a ModuleGraph,
 }
 
@@ -214,11 +224,7 @@ impl<'a> Checker<'a> {
                 }
                 ast::Decl::Func(node) => {
                     let origin = SymbolOrigin::Module(modpath.clone());
-                    self.declare_function_definition(
-                        &node.to_func_decl_node(),
-                        origin,
-                        &file.filename,
-                    )
+                    self.declare_function_definition(&node.clone().into(), origin, &file.filename)
                 }
                 ast::Decl::Extern(node) => {
                     let origin = SymbolOrigin::Extern(modpath.clone());
@@ -289,7 +295,7 @@ impl<'a> Checker<'a> {
 
     // ---------------------------- Generate AST ---------------------------- //
 
-    pub fn emit_ast(&mut self, file: File) -> Res<Vec<types::Decl>> {
+    fn emit_ast(&mut self, file: File) -> Res<Vec<types::Decl>> {
         let mut diag = Diagnostics::new();
         info!("Type check: {}", file.filepath);
 
@@ -560,7 +566,7 @@ impl<'a> Checker<'a> {
                 end: tok.end_pos,
             },
             ty: ty.clone(),
-            kind: token_kind_to_type_literal_kind(tok.kind),
+            kind: tok.kind.into(),
         }))
     }
 
@@ -757,7 +763,7 @@ impl<'a> Checker<'a> {
     fn eval_type(&self, node: &TypeNode) -> Result<TypeId, Report> {
         match node {
             TypeNode::Primitive(token) => {
-                let prim = token_to_primitive_type(token);
+                let prim = PrimitiveType::from(&token.kind);
                 Ok(self.ctx.primitive(prim))
             }
             TypeNode::Ident(token) => self
@@ -789,35 +795,5 @@ impl<'a> Checker<'a> {
             }
         }
         None
-    }
-}
-
-fn token_to_primitive_type(tok: &Token) -> PrimitiveType {
-    match tok.kind {
-        TokenKind::BoolType => PrimitiveType::Bool,
-        TokenKind::ByteType => PrimitiveType::Byte,
-
-        // Builtin 'aliases'
-        TokenKind::IntType => PrimitiveType::I64,
-        TokenKind::FloatType => PrimitiveType::F64,
-
-        TokenKind::StringType => PrimitiveType::String,
-        TokenKind::Void => PrimitiveType::Void,
-
-        _ => panic!("unknown TypeNode::Primitive kind: {}", tok.kind),
-    }
-}
-
-fn token_kind_to_type_literal_kind(kind: TokenKind) -> LiteralKind {
-    match kind {
-        TokenKind::IdentLit(name) => LiteralKind::Ident(name),
-        TokenKind::IntLit(n) => LiteralKind::Int(n),
-        TokenKind::FloatLit(n) => LiteralKind::Float(n),
-        TokenKind::StringLit(s) => LiteralKind::String(s),
-        TokenKind::CharLit(c) => LiteralKind::Char(c),
-        TokenKind::True => LiteralKind::Bool(true),
-        TokenKind::False => LiteralKind::Bool(false),
-        TokenKind::Null => todo!(),
-        _ => panic!("unhandled token kind in conversion, {:?}", kind),
     }
 }

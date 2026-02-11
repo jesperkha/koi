@@ -1,12 +1,11 @@
 use crate::{
-    ast::{File, FileSet},
+    ast::FileSet,
     config::Config,
     error::Diagnostics,
     module::ModulePath,
-    parser::sort_by_dependency_graph,
-    token::Source,
+    parser::{parse_source_map, sort_by_dependency_graph},
     typecheck::check_filesets,
-    util::{must, new_source_map, new_source_map_from_files, parse_string},
+    util::{must, new_source_map, new_source_map_from_files},
 };
 
 struct TestFile {
@@ -22,16 +21,14 @@ fn file(name: &str, src: &str) -> TestFile {
 }
 
 fn check_files(files: &[TestFile]) -> Result<(), Diagnostics> {
+    let config = Config::test();
     let parsed: Vec<FileSet> = files
         .iter()
         .map(|f| {
             let map = new_source_map(&f.src);
-            (&f.dep_name, must(&map, parse_string(&f.src)))
-        })
-        .map(|f| {
-            FileSet::new(
-                ModulePath::new(f.0.clone()),
-                vec![File::new(&Source::new_from_string(f.0), f.1)],
+            must(
+                &map,
+                parse_source_map(ModulePath::new(f.dep_name.clone()), &map, &config),
             )
         })
         .collect();

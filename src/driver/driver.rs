@@ -13,7 +13,7 @@ use crate::{
     ir::{Ir, Unit},
     lower::emit_ir,
     module::{Module, ModuleGraph, ModulePath, create_header_file},
-    parser::{sort_by_dependency_graph, source_map_to_fileset},
+    parser::{parse_source_map, sort_by_dependency_graph},
     token::{Source, SourceMap},
     typecheck::check_filesets,
     types::TypeContext,
@@ -187,7 +187,7 @@ fn parse_source_dirs(dirs: &Vec<SourceDir>, config: &Config) -> Res<Vec<FileSet>
 
     for dir in dirs {
         info!("Parsing module: {}", dir.modpath.path());
-        let fileset = source_map_to_fileset(dir.modpath.clone(), &dir.map, config)
+        let fileset = parse_source_map(dir.modpath.clone(), &dir.map, config)
             .map_err(|err| err.render(&dir.map))?;
 
         if fileset.is_empty() {
