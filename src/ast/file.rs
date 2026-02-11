@@ -7,44 +7,35 @@ use crate::{
     token::{Source, Token},
 };
 
-#[derive(Debug)]
-pub struct FileMeta {
-    pub filename: String,
-    pub filepath: String,
-}
-
 /// A File represents a parsed source file, containing its AST, source code,
 /// and other metadata about the file itself.
 #[derive(Debug)]
 pub struct File {
+    pub filename: String,
+    pub filepath: String,
     pub empty: bool,
-    pub meta: FileMeta,
     pub ast: Ast,
-    pub src: Source,
 }
 
 impl File {
-    pub fn new(src: Source, ast: Ast) -> Self {
+    pub fn new(source: &Source, ast: Ast) -> Self {
         File {
             empty: ast.decls.is_empty() && ast.imports.is_empty(),
-            meta: FileMeta {
-                filename: String::from(
-                    PathBuf::from(&src.filepath)
-                        .file_name()
-                        .unwrap_or(OsStr::new(""))
-                        .to_string_lossy(),
-                ),
-                filepath: src.filepath.clone(),
-            },
+            filename: String::from(
+                PathBuf::from(&source.filepath)
+                    .file_name()
+                    .unwrap_or(OsStr::new(""))
+                    .to_string_lossy(),
+            ),
+            filepath: source.filepath.clone(),
             ast,
-            src,
         }
     }
 }
 
 impl fmt::Display for File {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Printer::to_string(self))
+        write!(f, "{}", Printer::to_string(&self.ast))
     }
 }
 
@@ -92,12 +83,16 @@ impl FileSet {
             }
         }
 
-        let filepath = files[0].src.filepath.clone();
+        let filepath = files[0].filepath.clone();
         Self {
             modpath,
             path: filepath,
             imports,
             files,
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.files.is_empty()
     }
 }

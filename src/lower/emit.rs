@@ -5,10 +5,10 @@ use tracing::{debug, info};
 
 use crate::{
     config::Config,
-    error::{Error, ErrorSet, Res},
+    error::{Diagnostics, Report, Res},
     ir::{
-        AssignIns, ExternFuncInst, FuncInst, IRType, Ins, LValue, StoreIns, StringDataIns,
-        SymTracker, Unit, Value, ir,
+        self, AssignIns, ExternFuncInst, FuncInst, IRType, Ins, LValue, StoreIns, StringDataIns,
+        SymTracker, Unit, Value,
     },
     module::{Module, ModulePath, NamespaceList, Symbol, SymbolList},
     types::{
@@ -58,21 +58,21 @@ impl<'a> Emitter<'a> {
 
     fn emit(mut self) -> Res<Vec<Ins>> {
         info!("Emitting IR for module: {}", self.modpath.path());
-        let mut errs = ErrorSet::new();
+        let mut diag = Diagnostics::new();
 
         for decl in self.nodes {
             match decl.accept(&mut self) {
                 Ok(_) => {}
-                Err(err) => errs.add(err),
+                Err(err) => diag.add(err),
             }
         }
 
-        if errs.len() == 0 {
+        if diag.num_errors() == 0 {
             debug!("success: {} instructions", self.ins.len());
             Ok(mem::take(&mut self.ins[0]))
         } else {
-            info!("Fail: finished with {} errors", errs.len());
-            Err(errs)
+            info!("Fail: finished with {} errors", diag.num_errors());
+            Err(diag)
         }
     }
 
@@ -125,8 +125,8 @@ impl<'a> Emitter<'a> {
     }
 }
 
-impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
-    fn visit_func(&mut self, node: &types::FuncNode) -> Result<Value, Error> {
+impl<'a> Visitor<Result<Value, Report>> for Emitter<'a> {
+    fn visit_func(&mut self, node: &types::FuncNode) -> Result<Value, Report> {
         let IRType::Function(params, ret) = self.node_to_ir_type(node) else {
             panic!("expected func to be function type, was {:?}", &node.ty);
         };
@@ -175,7 +175,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         Ok(Value::Void)
     }
 
-    fn visit_return(&mut self, node: &types::ReturnNode) -> Result<Value, Error> {
+    fn visit_return(&mut self, node: &types::ReturnNode) -> Result<Value, Report> {
         let ty = self.node_to_ir_type(node);
         let val = node
             .expr
@@ -188,7 +188,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         Ok(Value::Void)
     }
 
-    fn visit_var_assign(&mut self, node: &types::VarAssignNode) -> Result<Value, Error> {
+    fn visit_var_assign(&mut self, node: &types::VarAssignNode) -> Result<Value, Report> {
         let lval = match node.lval.accept(self)? {
             Value::Const(id) => LValue::Const(id),
             Value::Param(id) => LValue::Param(id),
@@ -202,7 +202,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         Ok(Value::Void)
     }
 
-    fn visit_var_decl(&mut self, node: &types::VarDeclNode) -> Result<Value, Error> {
+    fn visit_var_decl(&mut self, node: &types::VarDeclNode) -> Result<Value, Report> {
         let value = node.value.accept(self)?;
         let ty = self.node_to_ir_type(&node.value);
         let id = self.sym.set(node.name.to_string());
@@ -211,7 +211,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         Ok(Value::Void)
     }
 
-    fn visit_literal(&mut self, node: &types::LiteralNode) -> Result<Value, Error> {
+    fn visit_literal(&mut self, node: &types::LiteralNode) -> Result<Value, Report> {
         Ok(match &node.kind {
             LiteralKind::Ident(name) => self.sym.get(name),
             LiteralKind::String(s) => {
@@ -231,7 +231,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         })
     }
 
-    fn visit_extern(&mut self, node: &types::ExternNode) -> Result<Value, Error> {
+    fn visit_extern(&mut self, node: &types::ExternNode) -> Result<Value, Report> {
         let IRType::Function(params, ret) = self.node_to_ir_type(node) else {
             panic!("expected func to be function type, was {:?}", &node.ty);
         };
@@ -244,7 +244,7 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         Ok(Value::Void)
     }
 
-    fn visit_call(&mut self, node: &types::CallNode) -> Result<Value, Error> {
+    fn visit_call(&mut self, node: &types::CallNode) -> Result<Value, Report> {
         let callee = match &*node.callee {
             Expr::Literal(t) => match &t.kind {
                 LiteralKind::Ident(name) => {
@@ -280,14 +280,14 @@ impl<'a> Visitor<Result<Value, Error>> for Emitter<'a> {
         Ok(Value::Const(result))
     }
 
-    fn visit_member(&mut self, _node: &types::MemberNode) -> Result<Value, Error> {
+    fn visit_member(&mut self, _node: &types::MemberNode) -> Result<Value, Report> {
         todo!()
     }
 
     fn visit_namespace_member(
         &mut self,
         node: &types::NamespaceMemberNode,
-    ) -> Result<Value, Error> {
+    ) -> Result<Value, Report> {
         let sym = self.nsl.get(&node.name).unwrap().get(&node.field).unwrap();
         let linkname = self.mangle_symbol_name(sym);
 

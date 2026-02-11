@@ -1,7 +1,51 @@
-use std::fs::read_to_string;
+use std::{
+    collections::{HashMap, hash_map::Values},
+    sync::atomic::{AtomicUsize, Ordering},
+};
+
+pub type SourceId = usize;
+
+static SOURCE_ID: AtomicUsize = AtomicUsize::new(0);
+
+fn next_id() -> usize {
+    SOURCE_ID.fetch_add(1, Ordering::Relaxed)
+}
+
+pub struct SourceMap {
+    map: HashMap<SourceId, Source>,
+}
+
+impl SourceMap {
+    pub fn new() -> Self {
+        Self {
+            map: HashMap::new(),
+        }
+    }
+
+    pub fn add(&mut self, source: Source) {
+        self.map.insert(source.id, source);
+    }
+
+    pub fn get(&self, id: SourceId) -> Option<&Source> {
+        self.map.get(&id)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+
+    pub fn sources(&self) -> Values<'_, usize, Source> {
+        self.map.values()
+    }
+
+    pub fn join(&mut self, other: SourceMap) {
+        self.map.extend(other.map);
+    }
+}
 
 #[derive(Debug)]
 pub struct Source {
+    pub id: SourceId,
     pub filepath: String,
     /// File contents
     pub src: Vec<u8>,
@@ -15,6 +59,7 @@ impl Source {
     /// Create new file object using given source.
     pub fn new(filepath: String, src: Vec<u8>) -> Source {
         Source {
+            id: next_id(),
             filepath,
             lines: Source::get_line_beginnings(src.as_slice()),
             size: src.len(),
@@ -22,15 +67,8 @@ impl Source {
         }
     }
 
-    /// Create new source file, reading the content from named file as source.
-    pub fn new_from_file(filename: &str) -> Result<Source, String> {
-        read_to_string(filename).map_or(Err(format!("failed to read file '{}'", filename)), |f| {
-            Ok(Source::new(filename.to_string(), f.into_bytes()))
-        })
-    }
-
     pub fn new_from_string(src: &str) -> Source {
-        Source::new("".to_string(), src.to_string().into_bytes())
+        Self::new("".into(), src.to_string().into_bytes())
     }
 
     /// Gets a list of offsets for the first character of each line.

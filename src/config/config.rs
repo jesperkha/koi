@@ -1,6 +1,5 @@
-use std::fs;
-
 use serde::Deserialize;
+use std::{fs, path::Path};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -50,14 +49,17 @@ pub struct Project {
     /// in the compilation process.
     #[serde(rename = "type")]
     pub project_type: ProjectType,
+    /// Additional include paths for package exports
+    pub includes: Option<Vec<String>>,
+    /// Directories to ignore when searching for source files
+    #[serde(default)]
+    pub ignore_dirs: Vec<String>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Options {
     pub debug_mode: bool,
-    pub stdlib_path: String,
-    pub thirdparty_path: String,
 }
 
 /// Internal compiler configuration
@@ -98,7 +100,12 @@ impl Config {
 
 /// Load koi.toml file and parse as BuildConfig.
 pub fn load_config_file() -> Result<(Project, Options, Config), String> {
-    let src = fs::read_to_string("koi.toml")
+    load_config_file_ex(".")
+}
+
+pub fn load_config_file_ex(path: &str) -> Result<(Project, Options, Config), String> {
+    let filepath = Path::new(path).join("koi.toml");
+    let src = fs::read_to_string(filepath)
         .map_err(|_| format!("Failed to open koi.toml. Run `koi init` if missing."))?;
     let config_file: ConfigFile = toml::from_str(&src).map_err(|e| e.to_string())?;
 

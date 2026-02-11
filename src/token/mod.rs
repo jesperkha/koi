@@ -3,7 +3,7 @@ mod source;
 mod token;
 
 pub use scanner::scan;
-pub use source::Source;
+pub use source::{Source, SourceId, SourceMap};
 pub use token::*;
 
 #[cfg(test)]

@@ -8,6 +8,8 @@ test:
 
 # Clean up generated and test files
 clean:
-    rm -rf _test target bin
+    rm -rf \_test target bin
     rm -f main koi.toml
 
+todo:
+    todo -pTODO -dsrc

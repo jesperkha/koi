@@ -1,11 +1,12 @@
 use crate::{
-    ast::FileSet,
+    ast::{File, FileSet},
     config::Config,
-    error::ErrorSet,
-    module::{ModuleGraph, ModulePath},
+    error::Diagnostics,
+    module::ModulePath,
     parser::sort_by_dependency_graph,
-    types::{TypeContext, type_check},
-    util::{must, parse_string},
+    token::Source,
+    typecheck::check_filesets,
+    util::{must, new_source_map, new_source_map_from_files, parse_string},
 };
 
 struct TestFile {
@@ -20,28 +21,31 @@ fn file(name: &str, src: &str) -> TestFile {
     }
 }
 
-fn check_files(files: &[TestFile]) -> Result<(), ErrorSet> {
+fn check_files(files: &[TestFile]) -> Result<(), Diagnostics> {
     let parsed: Vec<FileSet> = files
         .iter()
-        .map(|f| (&f.dep_name, must(parse_string(&f.src))))
-        .map(|f| FileSet::new(ModulePath::new(f.0.clone()), vec![f.1]))
+        .map(|f| {
+            let map = new_source_map(&f.src);
+            (&f.dep_name, must(&map, parse_string(&f.src)))
+        })
+        .map(|f| {
+            FileSet::new(
+                ModulePath::new(f.0.clone()),
+                vec![File::new(&Source::new_from_string(f.0), f.1)],
+            )
+        })
         .collect();
 
     let sorted = sort_by_dependency_graph(parsed).unwrap_or_else(|e| panic!("{}", e));
-
-    let mut mg = ModuleGraph::new();
-    let mut ctx = TypeContext::new();
     let config = Config::test();
-
-    for fs in sorted {
-        let _ = type_check(fs, &mut mg, &mut ctx, &config)?;
-    }
+    check_filesets(sorted, &config)?;
 
     Ok(())
 }
 
 fn assert_pass(files: &[TestFile]) {
-    must(check_files(files))
+    let map = new_source_map_from_files(&files.iter().map(|f| f.src.as_str()).collect::<Vec<_>>());
+    must(&map, check_files(files))
 }
 
 fn assert_errors(files: &[TestFile], msgs: &[&str]) {
@@ -49,11 +53,11 @@ fn assert_errors(files: &[TestFile], msgs: &[&str]) {
         Ok(_) => panic!("expected errors: {:?}", msgs),
         Err(errs) => {
             assert_eq!(
-                errs.len(),
+                errs.num_errors(),
                 msgs.len(),
                 "expected {} errors, got {}",
                 msgs.len(),
-                errs.len()
+                errs.num_errors()
             );
             for (i, &expected) in msgs.iter().enumerate() {
                 assert_eq!(errs.get(i).message, expected);

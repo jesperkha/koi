@@ -5,16 +5,74 @@ use crate::{
     types::TypedAst,
 };
 
-pub enum ModuleKind {
-    Stdlib,
-    User,
-    Package,
-}
-
 pub type ModuleId = usize;
 
 pub fn invalid_mod_id() -> ModuleId {
     return usize::MAX;
+}
+
+/// A Module is a self-contained compilation unit. It contains the combined
+/// typed AST of all files in the module and all exported symbols.
+pub struct Module {
+    pub id: ModuleId,
+    /// What type of module this is.
+    pub kind: ModuleKind,
+    /// The module path, eg. app.some.mod
+    /// The module name can be fetched from the module path.
+    pub modpath: ModulePath,
+    /// List of symbols declared and used within this module.
+    pub symbols: SymbolList,
+    /// The relative path from src to this module.
+    /// For package modules this is the filepath to the linkable object file.
+    pub path: String,
+    /// The fully typed AST generated from files in this module.
+    pub ast: TypedAst,
+    /// List of namespaces imported into this module.
+    pub namespaces: NamespaceList,
+}
+
+pub enum ModuleKind {
+    /// User module are created from the source code of the current project.
+    /// These modules are built into the final executable/library.
+    User,
+
+    /// Package modules are external libraries, such as the standard library,
+    /// and are skipped when building, as they are pre-compiled.
+    Package,
+}
+
+impl Module {
+    pub fn name(&self) -> &str {
+        self.modpath.name()
+    }
+
+    pub fn is_main(&self) -> bool {
+        self.modpath.path() == "main"
+    }
+
+    /// Reports whether this module should be built (produce IR/codegen) or not.
+    pub fn should_be_built(&self) -> bool {
+        !matches!(self.kind, ModuleKind::Package)
+    }
+
+    /// Collect all exported symbols from this module.
+    pub fn exports(&self) -> HashMap<&String, &Symbol> {
+        self.symbols
+            .symbols()
+            .iter()
+            .filter(|s| {
+                // Is it exported?
+                if !s.1.is_exported {
+                    return false;
+                }
+
+                match &s.1.origin {
+                    SymbolOrigin::Module(modpath) => &self.modpath == modpath,
+                    SymbolOrigin::Extern(modpath) => &self.modpath == modpath,
+                }
+            })
+            .collect::<_>()
+    }
 }
 
 /// Module path wraps a string module path (app.foo.bar) and provides methods
@@ -44,43 +102,16 @@ impl ModulePath {
     }
 
     /// Check if this module path is part of the standard library.
-    ///
-    /// ```
-    /// use koi::module::ModulePath;
-    ///
-    /// let modpath = ModulePath::new_str("std.io");
-    /// assert!(modpath.is_stdlib());
-    ///
-    /// let modpath2 = ModulePath::new_stdlib("foo");
-    /// assert!(modpath2.is_stdlib());
-    /// ```
     pub fn is_stdlib(&self) -> bool {
         self.0.starts_with("std.")
     }
 
     /// Get only the module name (the last identifier of the path).
-    ///
-    /// ```
-    /// use koi::module::ModulePath;
-    ///
-    /// let modpath = ModulePath::new_str("app.foo.bar");
-    /// assert_eq!(modpath.name(), "bar");
-    ///
-    /// let modpath2 = ModulePath::new_str("main");
-    /// assert_eq!(modpath2.name(), "main");
-    /// ```
     pub fn name(&self) -> &str {
         &self.0.split(".").last().unwrap() // asserted
     }
 
     /// Get the first part of the module path.
-    ///
-    /// ```
-    /// use koi::module::ModulePath;
-    ///
-    /// let modpath = ModulePath::new_str("app.foo.bar");
-    /// assert_eq!(modpath.first(), "app");
-    /// ```
     pub fn first(&self) -> &str {
         &self.0.split(".").next().unwrap() // asserted
     }
@@ -91,13 +122,6 @@ impl ModulePath {
     }
 
     /// Get the module path with underscore (_) separators instead of period (.)
-    ///
-    /// ```
-    /// use koi::module::ModulePath;
-    ///
-    /// let modpath = ModulePath::new_str("app.foo.bar");
-    /// assert_eq!(modpath.path_underscore(), "app_foo_bar");
-    /// ```
     pub fn path_underscore(&self) -> String {
         String::from(&self.0).replace(".", "_")
     }
@@ -105,65 +129,11 @@ impl ModulePath {
 
 pub struct CreateModule {
     pub modpath: ModulePath,
-    pub filepath: String,
-    pub ast: TypedAst,
     pub kind: ModuleKind,
     pub symbols: SymbolList,
-    pub namespaces: NamespaceList,
-    pub is_header: bool,
-}
-
-/// A Module is a self-contained compilation unit. It contains the combined
-/// typed AST of all files in the module and all exported symbols.
-pub struct Module {
-    pub id: ModuleId,
-    /// The id of this modules parent. 0 means this is root.
-    pub parent: ModuleId,
-    /// The module path, eg. app.some.mod
-    /// The module name can be fetched from the module path.
-    pub modpath: ModulePath,
-    /// The relative path from src to this module.
     pub path: String,
-    /// The fully typed AST generated from files in this module.
     pub ast: TypedAst,
-    /// What type of module this is.
-    pub kind: ModuleKind,
-    /// List of symbols declared and used within this module.
-    pub symbols: SymbolList,
-    /// List of namespaces imported into this module.
     pub namespaces: NamespaceList,
-    /// Is this module a header file? If true, do not build it.
-    pub is_header: bool,
-}
-
-impl Module {
-    pub fn name(&self) -> &str {
-        self.modpath.name()
-    }
-
-    /// Reports whether this module should be built (produce IR/codegen) or not.
-    pub fn should_be_built(&self) -> bool {
-        !self.is_header
-    }
-
-    /// Collect all exported symbols from this module.
-    pub fn exports(&self) -> HashMap<&String, &Symbol> {
-        self.symbols
-            .symbols()
-            .iter()
-            .filter(|s| {
-                // Is it exported?
-                if !s.1.is_exported {
-                    return false;
-                }
-
-                match &s.1.origin {
-                    SymbolOrigin::Module(modpath) => &self.modpath == modpath,
-                    SymbolOrigin::Extern(modpath) => &self.modpath == modpath,
-                }
-            })
-            .collect::<_>()
-    }
 }
 
 pub struct ModuleGraph {
@@ -171,7 +141,7 @@ pub struct ModuleGraph {
     /// Indecies in modules vec
     cache: HashMap<String, ModuleId>,
     /// id of main module
-    main_id: ModuleId,
+    main_id: Option<ModuleId>,
 }
 
 impl ModuleGraph {
@@ -179,22 +149,20 @@ impl ModuleGraph {
         ModuleGraph {
             modules: Vec::new(),
             cache: HashMap::new(),
-            main_id: 0,
+            main_id: None,
         }
     }
 
     /// Create a new module and add it to the graph.
-    pub fn add(&mut self, m: CreateModule, parent: ModuleId) -> &Module {
+    pub fn add(&mut self, m: CreateModule) -> &Module {
         let id = self.modules.len();
         self.modules.push(Module {
             id,
-            parent,
             modpath: m.modpath,
-            path: m.filepath,
-            ast: m.ast,
             kind: m.kind,
-            is_header: m.is_header,
             symbols: m.symbols,
+            path: m.path,
+            ast: m.ast,
             namespaces: m.namespaces,
         });
 
@@ -202,7 +170,7 @@ impl ModuleGraph {
         self.cache.insert(module.modpath.path().to_owned(), id);
 
         if module.modpath.path() == "main" {
-            self.main_id = id;
+            self.main_id = Some(id);
         }
 
         module
@@ -222,10 +190,9 @@ impl ModuleGraph {
             })
     }
 
-    /// Get main module
-    pub fn main(&self) -> &Module {
-        // main module should always exist if used
-        self.get(self.main_id).expect("no main module")
+    /// Get main module if any
+    pub fn main(&self) -> Option<&Module> {
+        self.main_id.and_then(|id| self.get(id))
     }
 
     pub fn modules(&self) -> &Vec<Module> {

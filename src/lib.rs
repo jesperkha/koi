@@ -1,11 +1,14 @@
 pub mod ast;
 pub mod build;
+pub mod cmd;
 pub mod config;
 pub mod driver;
 pub mod error;
 pub mod ir;
+pub mod lower;
 pub mod module;
 pub mod parser;
 pub mod token;
+pub mod typecheck;
 pub mod types;
 pub mod util;

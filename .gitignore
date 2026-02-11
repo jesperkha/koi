@@ -24,7 +24,6 @@ go.work.sum
 # env file
 .env
 
-*.koi
 
 bin
 *.asm
@@ -36,5 +35,4 @@ main
 /target
 /_test
 
-/koi
-koi.toml
+/koi.toml

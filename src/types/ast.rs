@@ -32,6 +32,16 @@ pub struct TypedAst {
     pub decls: Vec<Decl>,
 }
 
+impl TypedAst {
+    pub fn new(decls: Vec<Decl>) -> Self {
+        TypedAst { decls }
+    }
+
+    pub fn empty() -> Self {
+        TypedAst { decls: vec![] }
+    }
+}
+
 pub struct NodeMeta {
     pub id: NodeId,
     pub pos: Pos,
