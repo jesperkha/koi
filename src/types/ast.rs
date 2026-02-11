@@ -1,6 +1,6 @@
 use crate::{
     ast::{Node, NodeId},
-    token::Pos,
+    token::{Pos, TokenKind},
     types::{Type, TypeId, TypeKind},
 };
 
@@ -124,6 +124,22 @@ pub enum LiteralKind {
     Float(f64),
     Bool(bool),
     Char(u8),
+}
+
+impl From<TokenKind> for LiteralKind {
+    fn from(kind: TokenKind) -> Self {
+        match kind {
+            TokenKind::IdentLit(name) => LiteralKind::Ident(name),
+            TokenKind::IntLit(n) => LiteralKind::Int(n),
+            TokenKind::FloatLit(n) => LiteralKind::Float(n),
+            TokenKind::StringLit(s) => LiteralKind::String(s),
+            TokenKind::CharLit(c) => LiteralKind::Char(c),
+            TokenKind::True => LiteralKind::Bool(true),
+            TokenKind::False => LiteralKind::Bool(false),
+            TokenKind::Null => todo!(),
+            _ => panic!("unhandled token kind in conversion, {:?}", kind),
+        }
+    }
 }
 
 pub struct VarDeclNode {

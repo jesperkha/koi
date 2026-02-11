@@ -12,8 +12,8 @@ use crate::{
     },
     token::{Pos, Token, TokenKind},
     types::{
-        self, FunctionType, LiteralKind, NodeMeta, PrimitiveType, Type, TypeContext, TypeId,
-        TypeKind, TypedAst, TypedNode, ast_node_to_meta, no_type,
+        self, FunctionType, NodeMeta, PrimitiveType, Type, TypeContext, TypeId, TypeKind, TypedAst,
+        TypedNode, ast_node_to_meta, no_type,
     },
     util::VarTable,
 };
@@ -566,7 +566,7 @@ impl<'a> Checker<'a> {
                 end: tok.end_pos,
             },
             ty: ty.clone(),
-            kind: token_kind_to_type_literal_kind(tok.kind),
+            kind: tok.kind.into(),
         }))
     }
 
@@ -763,7 +763,7 @@ impl<'a> Checker<'a> {
     fn eval_type(&self, node: &TypeNode) -> Result<TypeId, Report> {
         match node {
             TypeNode::Primitive(token) => {
-                let prim = token_to_primitive_type(token);
+                let prim = PrimitiveType::from(&token.kind);
                 Ok(self.ctx.primitive(prim))
             }
             TypeNode::Ident(token) => self
@@ -795,35 +795,5 @@ impl<'a> Checker<'a> {
             }
         }
         None
-    }
-}
-
-fn token_to_primitive_type(tok: &Token) -> PrimitiveType {
-    match tok.kind {
-        TokenKind::BoolType => PrimitiveType::Bool,
-        TokenKind::ByteType => PrimitiveType::Byte,
-
-        // Builtin 'aliases'
-        TokenKind::IntType => PrimitiveType::I64,
-        TokenKind::FloatType => PrimitiveType::F64,
-
-        TokenKind::StringType => PrimitiveType::String,
-        TokenKind::Void => PrimitiveType::Void,
-
-        _ => panic!("unknown TypeNode::Primitive kind: {}", tok.kind),
-    }
-}
-
-fn token_kind_to_type_literal_kind(kind: TokenKind) -> LiteralKind {
-    match kind {
-        TokenKind::IdentLit(name) => LiteralKind::Ident(name),
-        TokenKind::IntLit(n) => LiteralKind::Int(n),
-        TokenKind::FloatLit(n) => LiteralKind::Float(n),
-        TokenKind::StringLit(s) => LiteralKind::String(s),
-        TokenKind::CharLit(c) => LiteralKind::Char(c),
-        TokenKind::True => LiteralKind::Bool(true),
-        TokenKind::False => LiteralKind::Bool(false),
-        TokenKind::Null => todo!(),
-        _ => panic!("unhandled token kind in conversion, {:?}", kind),
     }
 }
