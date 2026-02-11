@@ -13,3 +13,6 @@ mod symbol_test;
 
 #[cfg(test)]
 mod header_test;
+
+#[cfg(test)]
+mod module_test;
