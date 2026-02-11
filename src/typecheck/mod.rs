@@ -1,4 +1,4 @@
 mod checker;
 mod tests;
 
-pub use checker::{Checker, Importer, check_fileset, check_filesets};
+pub use checker::{check_fileset, check_filesets};

@@ -79,11 +79,6 @@ impl Source {
         Self::new(filepath, src.into_bytes())
     }
 
-    // TODO: remove
-    pub fn new_from_string(src: &str) -> Source {
-        Self::new("".into(), src.to_string().into_bytes())
-    }
-
     /// Gets a list of offsets for the first character of each line.
     /// First item will always be 0.
     fn get_line_beginnings(src: &[u8]) -> Vec<usize> {

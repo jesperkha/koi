@@ -55,7 +55,7 @@ struct Binding {
 /// The FileChecker performs type checking on a single source file AST,
 /// producing a typed AST. The types and symbols are stored in the provided
 /// context and symbol table.
-pub struct Checker<'a> {
+struct Checker<'a> {
     // Dependencies
     ctx: &'a mut TypeContext,
     importer: &'a Importer<'a>,
@@ -78,7 +78,7 @@ pub struct Checker<'a> {
     is_main: bool,
 }
 
-pub struct Importer<'a> {
+struct Importer<'a> {
     mg: &'a ModuleGraph,
 }
 
@@ -295,7 +295,7 @@ impl<'a> Checker<'a> {
 
     // ---------------------------- Generate AST ---------------------------- //
 
-    pub fn emit_ast(&mut self, file: File) -> Res<Vec<types::Decl>> {
+    fn emit_ast(&mut self, file: File) -> Res<Vec<types::Decl>> {
         let mut diag = Diagnostics::new();
         info!("Type check: {}", file.filepath);
 
