@@ -24,14 +24,24 @@ pub fn check_filesets(filesets: Vec<FileSet>, config: &Config) -> Res<(ModuleGra
     let mut ctx = TypeContext::new();
 
     for fs in filesets {
-        let importer = Importer::new(&mg);
-        let checker = Checker::new(&mut ctx, &importer, config);
-        let create_mod = checker.check(fs)?;
-
+        let create_mod = check_fileset(fs, &mg, &mut ctx, config)?;
         mg.add(create_mod);
     }
 
     Ok((mg, ctx))
+}
+
+/// Type check single FileSet into a module.
+pub fn check_fileset(
+    fs: FileSet,
+    mg: &ModuleGraph,
+    ctx: &mut TypeContext,
+    config: &Config,
+) -> Res<CreateModule> {
+    let importer = Importer::new(&mg);
+    let checker = Checker::new(ctx, &importer, config);
+    let create_mod = checker.check(fs)?;
+    Ok(create_mod)
 }
 
 /// A Binding is either a declared variable or function parameter. Bindings

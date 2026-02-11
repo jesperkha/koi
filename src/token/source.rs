@@ -22,6 +22,13 @@ impl SourceMap {
         }
     }
 
+    /// Create new SourceMap with a single Source.
+    pub fn one(source: Source) -> Self {
+        let mut map = Self::new();
+        map.add(source);
+        map
+    }
+
     pub fn add(&mut self, source: Source) {
         self.map.insert(source.id, source);
     }
@@ -56,7 +63,7 @@ pub struct Source {
 }
 
 impl Source {
-    /// Create new file object using given source.
+    /// Create new source from byte array.
     pub fn new(filepath: String, src: Vec<u8>) -> Source {
         Source {
             id: next_id(),
@@ -67,6 +74,12 @@ impl Source {
         }
     }
 
+    /// Create new source from string.
+    pub fn new_str(filepath: String, src: String) -> Source {
+        Self::new(filepath, src.into_bytes())
+    }
+
+    // TODO: remove
     pub fn new_from_string(src: &str) -> Source {
         Self::new("".into(), src.to_string().into_bytes())
     }

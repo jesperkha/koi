@@ -20,11 +20,8 @@ pub fn parse(tokens: Vec<Token>, config: &Config) -> Result<Ast, Diagnostics> {
     parser.parse_file()
 }
 
-pub fn source_map_to_fileset(
-    modpath: ModulePath,
-    map: &SourceMap,
-    config: &Config,
-) -> Res<FileSet> {
+// TODO: parse docs
+pub fn parse_source_map(modpath: ModulePath, map: &SourceMap, config: &Config) -> Res<FileSet> {
     let mut files = Vec::new();
 
     for src in map.sources() {
