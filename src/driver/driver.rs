@@ -7,13 +7,13 @@ use tracing::info;
 use walkdir::WalkDir;
 
 use crate::{
-    ast::FileSet,
-    ast::{Source, SourceMap},
+    ast::{FileSet, Source, SourceMap},
     build::x86,
     config::{Config, Options, PathManager, Project, ProjectType, Target},
+    imports::create_header_file,
     ir::{Ir, Unit},
     lower::emit_ir,
-    module::{Module, ModuleGraph, ModulePath, create_header_file},
+    module::{Module, ModuleGraph, ModulePath},
     parser::{parse_source_map, sort_by_dependency_graph},
     typecheck::check_filesets,
     types::TypeContext,
