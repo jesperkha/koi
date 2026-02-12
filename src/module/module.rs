@@ -1,6 +1,7 @@
 use std::{collections::HashMap, hash::Hash};
 
 use crate::{
+    ast::ImportNode,
     module::{NamespaceList, Symbol, SymbolList, SymbolOrigin},
     types::TypedAst,
 };
@@ -22,6 +23,8 @@ pub struct Module {
     pub modpath: ModulePath,
     /// List of symbols declared and used within this module.
     pub symbols: SymbolList,
+    /// List of modules this module depends on.
+    pub deps: Vec<ModuleId>,
 }
 
 pub enum ModuleKind {
@@ -137,10 +140,36 @@ impl ModulePath {
     }
 }
 
+impl From<&str> for ModulePath {
+    fn from(s: &str) -> Self {
+        ModulePath::new(s.to_string())
+    }
+}
+
+impl From<String> for ModulePath {
+    fn from(s: String) -> Self {
+        ModulePath::new(s)
+    }
+}
+
+impl From<&ImportNode> for ModulePath {
+    fn from(import: &ImportNode) -> Self {
+        ModulePath::new(
+            import
+                .names
+                .iter()
+                .map(|t| t.to_string())
+                .collect::<Vec<_>>()
+                .join("."),
+        )
+    }
+}
+
 pub struct CreateModule {
     pub modpath: ModulePath,
     pub kind: ModuleKind,
     pub symbols: SymbolList,
+    pub deps: Vec<ModuleId>,
 }
 
 pub struct ModuleGraph {
@@ -168,6 +197,7 @@ impl ModuleGraph {
             modpath: m.modpath,
             symbols: m.symbols,
             kind: m.kind,
+            deps: m.deps,
         });
 
         let module = &self.modules[id];

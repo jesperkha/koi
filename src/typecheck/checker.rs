@@ -3,11 +3,11 @@ use core::panic;
 use tracing::{debug, info};
 
 use crate::{
-    ast::{self, Field, File, FileSet, FuncDeclNode, Node, TypeNode},
+    ast::{self, Field, File, FileSet, FuncDeclNode, ImportNode, Node, TypeNode},
     config::Config,
     error::{Diagnostics, Report, Res},
     module::{
-        CreateModule, FuncSymbol, Module, ModuleGraph, ModuleKind, ModulePath, Namespace,
+        CreateModule, FuncSymbol, Module, ModuleGraph, ModuleId, ModuleKind, ModulePath, Namespace,
         NamespaceList, SourceModule, Symbol, SymbolKind, SymbolList, SymbolOrigin,
     },
     token::{Pos, Token, TokenKind},
@@ -66,16 +66,15 @@ struct Checker<'a> {
 
     /// Locally declared variables for type checking.
     vars: VarTable<Binding>,
-
     /// Return type in current scope
     rtype: TypeId,
-
     /// Has returned in the base function scope
     /// Not counting nested scopes as returning there is optional
     has_returned: bool,
-
     /// Set to true after call to check() if currently checking the main module.
     is_main: bool,
+    /// Accumulative list of modules this depends on.
+    deps: Vec<ModuleId>,
 }
 
 struct Importer<'a> {
@@ -104,6 +103,7 @@ impl<'a> Checker<'a> {
             rtype: no_type(),
             has_returned: false,
             is_main: false,
+            deps: Vec::new(),
         }
     }
 
@@ -132,6 +132,7 @@ impl<'a> Checker<'a> {
                 namespaces: self.nsl,
             }),
             symbols: self.symbols,
+            deps: self.deps,
         })
     }
 
@@ -142,66 +143,8 @@ impl<'a> Checker<'a> {
 
         for file in &fs.files {
             info!("Resolving imports for file {}", file.filepath);
-
             for import in &file.ast.imports {
-                // Join the imported names into an import path
-                let import_path = ModulePath::new(
-                    import
-                        .names
-                        .iter()
-                        .map(|t| t.to_string())
-                        .collect::<Vec<_>>()
-                        .join("."),
-                );
-
-                // Try to get module
-                let module = match self.importer.resolve(&import_path) {
-                    Ok(module) => module,
-                    Err(err) => {
-                        assert!(import.names.len() > 0, "unchecked missing import name");
-                        diag.add(Report::code_error(
-                            &err,
-                            &import.names[0].pos,
-                            &import.names.last().unwrap().end_pos,
-                        ));
-                        continue;
-                    }
-                };
-
-                // Get namespace name and which token to highlight when reporting
-                // duplicate definition error.
-                let (name, range) = if let Some(alias) = &import.alias {
-                    (alias.to_string(), (&alias.pos, &alias.end_pos))
-                } else {
-                    (
-                        module.modpath.name().to_owned(),
-                        (&import.names[0].pos, &import.names.last().unwrap().end_pos),
-                    )
-                };
-
-                // Add module as namespace
-                let ns = Namespace::new(name, module);
-                let _ = self.nsl.add(ns).map_err(|err| {
-                    diag.add(Report::code_error(&err, range.0, range.1));
-                });
-
-                // Put symbols imported by name directly into symbol list
-                for tok in &import.imports {
-                    let symbol_name = tok.to_string();
-
-                    // If the symbol exists we add it to the modules symbol list
-                    if let Some(export_sym) = module.exports().get(&symbol_name) {
-                        let _ = self.symbols.add((*export_sym).clone()).map_err(|err| {
-                            diag.add(Report::code_error(&err, &tok.pos, &tok.end_pos));
-                        });
-                    } else {
-                        diag.add(Report::code_error(
-                            &format!("module '{}' has no export '{}'", module.name(), symbol_name),
-                            &tok.pos,
-                            &tok.end_pos,
-                        ));
-                    }
-                }
+                self.resove_import(import, &mut diag);
             }
         }
 
@@ -210,6 +153,63 @@ impl<'a> Checker<'a> {
         }
 
         Ok(())
+    }
+
+    fn resove_import(&mut self, import: &ImportNode, diag: &mut Diagnostics) {
+        let modpath = ModulePath::from(import);
+
+        // Try to get module
+        let module = match self.importer.resolve(&modpath) {
+            Ok(module) => module,
+            Err(err) => {
+                assert!(import.names.len() > 0, "unchecked missing import name");
+                diag.add(Report::code_error(
+                    &err,
+                    // TODO: add span trait to nodes for error reporting
+                    &import.names[0].pos,
+                    &import.names.last().unwrap().end_pos,
+                ));
+                return;
+            }
+        };
+
+        // Add as dependency
+        self.deps.push(module.id);
+
+        // Get namespace name and which token to highlight when reporting
+        // duplicate definition error.
+        let (namespace_name, range) = if let Some(alias) = &import.alias {
+            (alias.to_string(), (&alias.pos, &alias.end_pos))
+        } else {
+            (
+                module.modpath.name().to_owned(),
+                (&import.names[0].pos, &import.names.last().unwrap().end_pos),
+            )
+        };
+
+        // Add module as namespace
+        let ns = Namespace::new(namespace_name, module);
+        let _ = self.nsl.add(ns).map_err(|err| {
+            diag.add(Report::code_error(&err, range.0, range.1));
+        });
+
+        // Put symbols imported by name directly into symbol list
+        for tok in &import.imports {
+            let symbol_name = tok.to_string();
+
+            // If the symbol exists we add it to the modules symbol list
+            if let Some(export_sym) = module.exports().get(&symbol_name) {
+                let _ = self.symbols.add((*export_sym).clone()).map_err(|err| {
+                    diag.add(Report::code_error(&err, &tok.pos, &tok.end_pos));
+                });
+            } else {
+                diag.add(Report::code_error(
+                    &format!("module '{}' has no export '{}'", module.name(), symbol_name),
+                    &tok.pos,
+                    &tok.end_pos,
+                ));
+            }
+        }
     }
 
     // ---------------------------- Global pass ---------------------------- //

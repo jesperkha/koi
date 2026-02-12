@@ -41,7 +41,7 @@ impl HeaderFile {
         let config = Config::default();
         let source = Source::new_str(self.filename, self.symbols);
         let map = SourceMap::one(source);
-        let modpath = ModulePath::new(self.modpath);
+        let modpath = self.modpath.into();
         let fs = parse_source_map(modpath, &map, &config).map_err(|err| err.render(&map))?;
         check_fileset(fs, mg, ctx, &config).map_err(|err| err.render(&map))
     }

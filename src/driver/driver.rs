@@ -130,7 +130,7 @@ fn collect_all_source_dirs(source_dir: &str, ignore_dirs: &[String]) -> Res<Vec<
         }
 
         let dir = SourceDir {
-            modpath: ModulePath::new(modpath_str),
+            modpath: modpath_str.into(),
             map,
         };
 
