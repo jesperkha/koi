@@ -1,9 +1,9 @@
 use tracing::{debug, info, trace};
 
 use crate::{
+    ast::{Pos, Source, Token, TokenKind, str_to_token},
     config::Config,
     error::{Diagnostics, Report, Res},
-    token::{Pos, Source, Token, TokenKind, str_to_token},
 };
 
 pub fn scan(src: &Source, config: &Config) -> Res<Vec<Token>> {

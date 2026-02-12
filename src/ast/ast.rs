@@ -1,6 +1,6 @@
 use core::panic;
 
-use crate::token::{Pos, Token};
+use crate::ast::{Pos, Token};
 
 pub type NodeId = usize;
 

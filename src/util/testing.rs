@@ -1,12 +1,12 @@
 use crate::{
-    ast::{Ast, File, FileSet},
+    ast::{Ast, File, FileSet, Source, SourceMap, Token},
     config::Config,
     error::{Diagnostics, Res},
     ir::Unit,
     lower::emit_ir,
     module::{Module, ModuleGraph, ModulePath},
     parser::parse_source_map,
-    token::{Source, SourceMap, Token, scan},
+    scanner::scan,
     typecheck::check_fileset,
     types::TypeContext,
 };

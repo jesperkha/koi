@@ -1,4 +1,4 @@
-use crate::token::{Pos, SourceMap};
+use crate::ast::{Pos, SourceMap};
 
 pub type Res<T> = Result<T, Diagnostics>;
 

@@ -2,9 +2,8 @@ use core::fmt;
 use std::{collections::HashSet, ffi::OsStr, path::PathBuf};
 
 use crate::{
-    ast::{Ast, Printer},
+    ast::{Ast, Printer, Source, Token},
     module::ModulePath,
-    token::{Source, Token},
 };
 
 /// A File represents a parsed source file, containing its AST, source code,

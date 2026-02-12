@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    ast::{Source, SourceMap},
     config::Config,
-    module::{CreateModule, Module, ModuleGraph, ModulePath},
+    module::{CreateModule, Module, ModuleGraph},
     parser::parse_source_map,
-    token::{Source, SourceMap},
     typecheck::check_fileset,
     types::TypeContext,
 };

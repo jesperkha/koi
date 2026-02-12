@@ -1,7 +1,4 @@
-use crate::{
-    ast::{Ast, BlockNode, FuncNode, ReturnNode, Stmt, TypeNode, Visitable, Visitor},
-    token::Token,
-};
+use crate::ast::{Ast, BlockNode, FuncNode, ReturnNode, Stmt, Token, TypeNode, Visitable, Visitor};
 
 pub struct Printer {
     s: String,

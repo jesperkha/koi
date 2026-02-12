@@ -8,13 +8,13 @@ use walkdir::WalkDir;
 
 use crate::{
     ast::FileSet,
+    ast::{Source, SourceMap},
     build::x86,
     config::{Config, Options, PathManager, Project, ProjectType, Target},
     ir::{Ir, Unit},
     lower::emit_ir,
     module::{Module, ModuleGraph, ModulePath, create_header_file},
     parser::{parse_source_map, sort_by_dependency_graph},
-    token::{Source, SourceMap},
     typecheck::check_filesets,
     types::TypeContext,
     util::{create_dir_if_not_exist, get_root_dir, write_file},

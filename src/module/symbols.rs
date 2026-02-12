@@ -2,8 +2,8 @@ use core::fmt;
 use std::collections::HashMap;
 
 use crate::{
+    ast::Pos,
     module::ModulePath,
-    token::Pos,
     types::{TypeContext, TypeId},
 };
 

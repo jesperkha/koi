@@ -1,7 +1,7 @@
 use std::vec;
 
 use crate::{
-    token::{Token, TokenKind},
+    ast::{Token, TokenKind},
     util::{must, new_source_map, scan_string},
 };
 

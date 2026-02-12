@@ -3,14 +3,15 @@ use core::panic;
 use tracing::{debug, info};
 
 use crate::{
-    ast::{self, Field, File, FileSet, FuncDeclNode, ImportNode, Node, TypeNode},
+    ast::{
+        self, Field, File, FileSet, FuncDeclNode, ImportNode, Node, Pos, Token, TokenKind, TypeNode,
+    },
     config::Config,
     error::{Diagnostics, Report, Res},
     module::{
         CreateModule, FuncSymbol, Module, ModuleGraph, ModuleId, ModuleKind, ModulePath, Namespace,
         NamespaceList, SourceModule, Symbol, SymbolKind, SymbolList, SymbolOrigin,
     },
-    token::{Pos, Token, TokenKind},
     types::{
         self, FunctionType, NodeMeta, PrimitiveType, Type, TypeContext, TypeId, TypeKind, TypedAst,
         TypedNode, ast_node_to_meta, no_type,

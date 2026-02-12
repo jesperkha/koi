@@ -8,7 +8,7 @@ pub mod ir;
 pub mod lower;
 pub mod module;
 pub mod parser;
-pub mod token;
+pub mod scanner;
 pub mod typecheck;
 pub mod types;
 pub mod util;

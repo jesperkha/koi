@@ -1,6 +1,6 @@
 use crate::{
+    ast::Pos,
     module::{FuncSymbol, ModulePath, Symbol, SymbolKind, SymbolOrigin},
-    token::Pos,
 };
 
 #[test]
