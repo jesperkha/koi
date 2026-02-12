@@ -10,7 +10,7 @@ use crate::{
         self, AssignIns, ExternFuncInst, FuncInst, IRType, Ins, LValue, StoreIns, StringDataIns,
         SymTracker, Unit, Value,
     },
-    module::{Module, ModulePath, NamespaceList, Symbol, SymbolList},
+    module::{Module, ModuleKind, ModulePath, NamespaceList, Symbol, SymbolList},
     types::{
         self, Decl, Expr, LiteralKind, TypeContext, TypeId, TypeKind, TypedNode, Visitable, Visitor,
     },
@@ -40,14 +40,17 @@ struct Emitter<'a> {
 }
 
 impl<'a> Emitter<'a> {
-    fn new(m: &'a Module, ctx: &'a TypeContext, config: &'a Config) -> Self {
+    fn new(module: &'a Module, ctx: &'a TypeContext, config: &'a Config) -> Self {
+        let ModuleKind::Source(kind) = &module.kind else {
+            panic!("attempt to emit IR for non-source module");
+        };
         Self {
-            modpath: &m.modpath,
-            nsl: &m.namespaces,
-            syms: &m.symbols,
+            modpath: &module.modpath,
+            nsl: &kind.namespaces,
+            syms: &module.symbols,
             config,
             ctx,
-            nodes: &m.ast.decls,
+            nodes: &kind.ast.decls,
             sym: SymTracker::new(),
             has_returned: false,
             ins: vec![Vec::new()],

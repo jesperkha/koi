@@ -21,7 +21,7 @@ impl HeaderFile {
     /// and types into parseable string representations.
     pub fn from_module(module: &Module, ctx: &TypeContext) -> HeaderFile {
         HeaderFile {
-            filename: module.path.to_owned(),
+            filename: module.name().to_owned(),
             modpath: module.modpath.path().to_owned(),
             symbols: module
                 .exports()

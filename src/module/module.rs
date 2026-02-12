@@ -22,6 +22,19 @@ pub struct Module {
     pub modpath: ModulePath,
     /// List of symbols declared and used within this module.
     pub symbols: SymbolList,
+}
+
+pub enum ModuleKind {
+    /// Source module are created from the source code of the current project.
+    /// These modules are built into the final executable/library.
+    Source(SourceModule),
+
+    /// External modules are external libraries, such as the standard library,
+    /// and are skipped when building, as they are pre-compiled.
+    External(ExternalModule),
+}
+
+pub struct SourceModule {
     /// The relative path from src to this module.
     /// For package modules this is the filepath to the linkable object file.
     pub path: String,
@@ -31,14 +44,11 @@ pub struct Module {
     pub namespaces: NamespaceList,
 }
 
-pub enum ModuleKind {
-    /// User module are created from the source code of the current project.
-    /// These modules are built into the final executable/library.
-    User,
-
-    /// Package modules are external libraries, such as the standard library,
-    /// and are skipped when building, as they are pre-compiled.
-    Package,
+pub struct ExternalModule {
+    /// Full filepath to this modules header file.
+    pub header_path: String,
+    /// Full fileapth to this modules archive file.
+    pub archive_path: String,
 }
 
 impl Module {
@@ -52,7 +62,7 @@ impl Module {
 
     /// Reports whether this module should be built (produce IR/codegen) or not.
     pub fn should_be_built(&self) -> bool {
-        !matches!(self.kind, ModuleKind::Package)
+        matches!(self.kind, ModuleKind::Source(_))
     }
 
     /// Collect all exported symbols from this module.
@@ -131,9 +141,6 @@ pub struct CreateModule {
     pub modpath: ModulePath,
     pub kind: ModuleKind,
     pub symbols: SymbolList,
-    pub path: String,
-    pub ast: TypedAst,
-    pub namespaces: NamespaceList,
 }
 
 pub struct ModuleGraph {
@@ -159,11 +166,8 @@ impl ModuleGraph {
         self.modules.push(Module {
             id,
             modpath: m.modpath,
-            kind: m.kind,
             symbols: m.symbols,
-            path: m.path,
-            ast: m.ast,
-            namespaces: m.namespaces,
+            kind: m.kind,
         });
 
         let module = &self.modules[id];

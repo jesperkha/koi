@@ -8,7 +8,7 @@ use crate::{
     error::{Diagnostics, Report, Res},
     module::{
         CreateModule, FuncSymbol, Module, ModuleGraph, ModuleKind, ModulePath, Namespace,
-        NamespaceList, Symbol, SymbolKind, SymbolList, SymbolOrigin,
+        NamespaceList, SourceModule, Symbol, SymbolKind, SymbolList, SymbolOrigin,
     },
     token::{Pos, Token, TokenKind},
     types::{
@@ -126,11 +126,12 @@ impl<'a> Checker<'a> {
 
         Ok(CreateModule {
             modpath: fs.modpath,
-            kind: ModuleKind::User,
+            kind: ModuleKind::Source(SourceModule {
+                path: fs.path,
+                ast: TypedAst { decls },
+                namespaces: self.nsl,
+            }),
             symbols: self.symbols,
-            path: fs.path,
-            ast: TypedAst { decls },
-            namespaces: self.nsl,
         })
     }
 
