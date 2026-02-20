@@ -1,10 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
     module::{CreateModule, Module, SymbolKind},
-    types::{TypeContext, TypeKind},
+    types::{PrimitiveType, TypeContext, TypeId, TypeKind},
 };
 
 /// Return header file contents for a given module. All exported symbols of
@@ -22,17 +22,50 @@ pub fn read_header_file(bytes: &[u8], ctx: &mut TypeContext) -> Result<CreateMod
 
 #[derive(Debug, Serialize, Deserialize)]
 struct HeaderFile {
-    filename: String,
     modpath: String,
     symbols: Vec<HeaderSymbol>,
-    typemap: HashMap<HeaderTypeId, TypeKind>,
+    types: Vec<HeaderTypeKind>,
 }
 
 impl HeaderFile {
     /// Convert module to header file by extracting all exported symbols
     /// and types into parseable string representations.
     pub fn from_module(module: &Module, ctx: &TypeContext) -> HeaderFile {
-        todo!()
+        let mut mappings = HashMap::new();
+        let mut types = Vec::new();
+
+        let all_types_ids = module
+            .exports()
+            .values()
+            .map(|symbol| ctx.get_all_references(symbol.ty))
+            .flatten()
+            .collect::<HashSet<_>>();
+
+        for ty in all_types_ids {
+            let kind = real_to_header(&ctx.lookup(ty).kind, ctx);
+            let id = types.len();
+            types.push(kind);
+            mappings.insert(ty, id);
+        }
+
+        let mut header_symbols = Vec::new();
+        for symbol in module.exports().values() {
+            let header_symbol = HeaderSymbol {
+                name: symbol.name.clone(),
+                ty: *mappings
+                    .get(&symbol.ty)
+                    .expect("all types should be mapped"),
+                kind: symbol.kind.clone(),
+                no_mangle: symbol.no_mangle,
+            };
+            header_symbols.push(header_symbol);
+        }
+
+        HeaderFile {
+            modpath: module.modpath.path().to_owned(),
+            symbols: header_symbols,
+            types,
+        }
     }
 
     /// Parse this headers symbols content and create module.
@@ -41,17 +74,128 @@ impl HeaderFile {
     }
 }
 
-type HeaderTypeId = usize;
-
-// TODO: (current) header files
-// 1. Create new smaller type context from symbol types
-// 2. When reading the header back in, put the type kinds
-//    into TypeContext and map the updated TypeId to the Symbol.
-
 #[derive(Debug, Serialize, Deserialize)]
 struct HeaderSymbol {
     name: String,
-    ty: HeaderTypeId,
+    ty: usize,
     kind: SymbolKind,
     no_mangle: bool,
+}
+
+/// Convert real type kind into header type kind.
+fn real_to_header(kind: &TypeKind, ctx: &TypeContext) -> HeaderTypeKind {
+    match kind {
+        TypeKind::Primitive(p) => HeaderTypeKind::Primitive(p.into()),
+        TypeKind::Array(id) => {
+            HeaderTypeKind::Array(Box::new(real_to_header(&ctx.lookup(*id).kind, ctx)))
+        }
+        TypeKind::Pointer(id) => {
+            HeaderTypeKind::Pointer(Box::new(real_to_header(&ctx.lookup(*id).kind, ctx)))
+        }
+        TypeKind::Alias(id) => {
+            HeaderTypeKind::Alias(Box::new(real_to_header(&ctx.lookup(*id).kind, ctx)))
+        }
+        TypeKind::Unique(id) => {
+            HeaderTypeKind::Unique(Box::new(real_to_header(&ctx.lookup(*id).kind, ctx)))
+        }
+        TypeKind::Function(func) => {
+            let params = func
+                .params
+                .iter()
+                .map(|id| real_to_header(&ctx.lookup(*id).kind, ctx))
+                .collect();
+            let ret = Box::new(real_to_header(&ctx.lookup(func.ret).kind, ctx));
+            HeaderTypeKind::Function(params, ret)
+        }
+    }
+}
+
+/// Convert header type kind to real type kinds id.
+fn header_to_real(kind: &HeaderTypeKind, ctx: &mut TypeContext) -> TypeId {
+    let typekind = match kind {
+        HeaderTypeKind::Primitive(p) => TypeKind::Primitive(p.into()),
+        HeaderTypeKind::Array(inner) => TypeKind::Array(header_to_real(inner, ctx)),
+        HeaderTypeKind::Pointer(inner) => TypeKind::Pointer(header_to_real(inner, ctx)),
+        HeaderTypeKind::Alias(inner) => TypeKind::Alias(header_to_real(inner, ctx)),
+        HeaderTypeKind::Unique(inner) => TypeKind::Unique(header_to_real(inner, ctx)),
+        HeaderTypeKind::Function(params, ret) => {
+            let param_ids = params.iter().map(|p| header_to_real(p, ctx)).collect();
+            let ret_id = header_to_real(ret, ctx);
+            TypeKind::Function(crate::types::FunctionType {
+                params: param_ids,
+                ret: ret_id,
+            })
+        }
+    };
+    ctx.get_or_intern(typekind)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+enum HeaderTypeKind {
+    Primitive(HeaderPrimitiveType),
+    Array(Box<HeaderTypeKind>),
+    Pointer(Box<HeaderTypeKind>),
+    Alias(Box<HeaderTypeKind>),
+    Unique(Box<HeaderTypeKind>),
+    Function(Vec<HeaderTypeKind>, Box<HeaderTypeKind>),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+enum HeaderPrimitiveType {
+    Void,
+    I8,
+    I16,
+    I32,
+    I64,
+    U8,
+    U16,
+    U32,
+    U64,
+    F32,
+    F64,
+    Bool,
+    Byte,
+    String,
+}
+
+impl From<&PrimitiveType> for HeaderPrimitiveType {
+    fn from(p: &PrimitiveType) -> Self {
+        match p {
+            PrimitiveType::Void => HeaderPrimitiveType::Void,
+            PrimitiveType::I8 => HeaderPrimitiveType::I8,
+            PrimitiveType::I16 => HeaderPrimitiveType::I16,
+            PrimitiveType::I32 => HeaderPrimitiveType::I32,
+            PrimitiveType::I64 => HeaderPrimitiveType::I64,
+            PrimitiveType::U8 => HeaderPrimitiveType::U8,
+            PrimitiveType::U16 => HeaderPrimitiveType::U16,
+            PrimitiveType::U32 => HeaderPrimitiveType::U32,
+            PrimitiveType::U64 => HeaderPrimitiveType::U64,
+            PrimitiveType::F32 => HeaderPrimitiveType::F32,
+            PrimitiveType::F64 => HeaderPrimitiveType::F64,
+            PrimitiveType::Bool => HeaderPrimitiveType::Bool,
+            PrimitiveType::Byte => HeaderPrimitiveType::Byte,
+            PrimitiveType::String => HeaderPrimitiveType::String,
+        }
+    }
+}
+
+impl From<&HeaderPrimitiveType> for PrimitiveType {
+    fn from(p: &HeaderPrimitiveType) -> Self {
+        match p {
+            HeaderPrimitiveType::Void => PrimitiveType::Void,
+            HeaderPrimitiveType::I8 => PrimitiveType::I8,
+            HeaderPrimitiveType::I16 => PrimitiveType::I16,
+            HeaderPrimitiveType::I32 => PrimitiveType::I32,
+            HeaderPrimitiveType::I64 => PrimitiveType::I64,
+            HeaderPrimitiveType::U8 => PrimitiveType::U8,
+            HeaderPrimitiveType::U16 => PrimitiveType::U16,
+            HeaderPrimitiveType::U32 => PrimitiveType::U32,
+            HeaderPrimitiveType::U64 => PrimitiveType::U64,
+            HeaderPrimitiveType::F32 => PrimitiveType::F32,
+            HeaderPrimitiveType::F64 => PrimitiveType::F64,
+            HeaderPrimitiveType::Bool => PrimitiveType::Bool,
+            HeaderPrimitiveType::Byte => PrimitiveType::Byte,
+            HeaderPrimitiveType::String => PrimitiveType::String,
+        }
+    }
 }

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use strum::IntoEnumIterator;
 
 use crate::types::{PrimitiveType, Type, TypeId, TypeKind, no_type};
@@ -112,6 +112,37 @@ impl TypeContext {
             kind: TypeKind::Primitive(PrimitiveType::Void),
             id: self.primitive(PrimitiveType::Void),
         }
+    }
+
+    /// Returns a list of all type ids constructing this one.
+    pub fn get_all_references(&self, ty: TypeId) -> HashSet<TypeId> {
+        let mut refs = HashSet::new();
+        let mut stack = vec![ty];
+
+        while let Some(current) = stack.pop() {
+            if refs.contains(&current) {
+                continue;
+            }
+
+            refs.insert(current);
+            match &self.lookup(current).kind {
+                TypeKind::Array(inner)
+                | TypeKind::Pointer(inner)
+                | TypeKind::Alias(inner)
+                | TypeKind::Unique(inner) => stack.push(*inner),
+                TypeKind::Function(func) => {
+                    for param in &func.params {
+                        stack.push(*param);
+                    }
+                    stack.push(func.ret);
+                }
+                TypeKind::Primitive(p) => {
+                    refs.insert(self.primitive(p.clone()));
+                }
+            }
+        }
+
+        refs
     }
 
     /// Get the string representation of a type for errors or logging.
