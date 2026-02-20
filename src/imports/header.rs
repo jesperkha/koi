@@ -11,22 +11,24 @@ use crate::{
     types::{PrimitiveType, TypeContext, TypeId, TypeKind},
 };
 
-/// Return header file contents for a given module. All exported symbols of
-/// the given module are included and neatly formatted with docs.
+/// Create a header file from a module's exported symbols and types.
 pub fn create_header_file(module: &Module, ctx: &TypeContext) -> Result<Vec<u8>, String> {
     let header = HeaderFile::from_module(module, ctx);
     postcard::to_stdvec(&header).map_err(|e| e.to_string())
 }
 
-/// Parse and type check a header file from source string, adding it to the module graph.
-pub fn read_header_file(bytes: &[u8], ctx: &mut TypeContext) -> Result<CreateModule, String> {
+/// Parse header file and intern types in context. Return the created module.
+pub fn read_header_file(
+    modpath: ModulePath,
+    bytes: &[u8],
+    ctx: &mut TypeContext,
+) -> Result<CreateModule, String> {
     let header: HeaderFile = postcard::from_bytes(bytes).map_err(|e| e.to_string())?;
-    header.to_module(ctx)
+    header.to_module(modpath, ctx)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct HeaderFile {
-    modpath: String,
     symbols: Vec<HeaderSymbol>,
     types: Vec<HeaderTypeKind>,
 }
@@ -66,21 +68,22 @@ impl HeaderFile {
         }
 
         HeaderFile {
-            modpath: module.modpath.path().to_owned(),
             symbols: header_symbols,
             types,
         }
     }
 
     /// Parse this headers symbols content and create module.
-    pub fn to_module(self, ctx: &mut TypeContext) -> Result<CreateModule, String> {
+    pub fn to_module(
+        self,
+        modpath: ModulePath,
+        ctx: &mut TypeContext,
+    ) -> Result<CreateModule, String> {
         let mut mappings = HashMap::new();
         for (header_id, header_kind) in self.types.iter().enumerate() {
             let real_id = header_to_real(header_kind, ctx);
             mappings.insert(header_id, real_id);
         }
-
-        let modpath = ModulePath::new(self.modpath);
 
         let symbols = self
             .symbols

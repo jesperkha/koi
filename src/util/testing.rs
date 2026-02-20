@@ -37,7 +37,7 @@ impl From<Diagnostics> for ErrorStream {
             .reports()
             .iter()
             .map(|report| Error {
-                message: report.message.clone(),
+                message: format!("{}", report.message),
             })
             .collect();
         ErrorStream { errors }
