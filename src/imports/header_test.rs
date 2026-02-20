@@ -13,7 +13,7 @@ fn test_create_and_read_header() {
     let module = must(check_string(src, &mut mg, &mut ctx));
 
     let header = must(create_header_file(module, &ctx));
-    let create_mod = must(read_header_file(&header, &mut mg, &mut ctx));
+    let create_mod = must(read_header_file(&header, &mut ctx));
 
     assert!(matches!(create_mod.kind, ModuleKind::External(_)));
 }
@@ -35,7 +35,7 @@ fn test_read_header_file() {
     let module = must(check_string(src, &mut mg, &mut ctx));
 
     let header = must(create_header_file(module, &ctx));
-    let create_mod = must(read_header_file(&header, &mut mg, &mut ctx));
+    let create_mod = must(read_header_file(&header, &mut ctx));
 
     // TODO: assert symbol info
 

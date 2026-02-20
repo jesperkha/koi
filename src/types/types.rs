@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::{fmt, hash::Hash};
 use strum_macros::EnumIter;
 
@@ -16,7 +17,7 @@ pub struct Type {
     pub id: TypeId, // Unique identifier for interning/comparison
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TypeKind {
     Primitive(PrimitiveType),
     Array(TypeId),
@@ -29,7 +30,7 @@ pub enum TypeKind {
     Function(FunctionType),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, EnumIter)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, EnumIter, Serialize, Deserialize)]
 pub enum PrimitiveType {
     Void,
     I8,
@@ -65,7 +66,7 @@ impl From<&TokenKind> for PrimitiveType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FunctionType {
     pub params: Vec<TypeId>,
     pub ret: TypeId,

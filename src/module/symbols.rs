@@ -1,6 +1,8 @@
 use core::fmt;
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     ast::Pos,
     module::ModulePath,
@@ -78,12 +80,12 @@ pub enum SymbolOrigin {
     Extern(ModulePath), // Contains origin of declaration
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum SymbolKind {
     Function(FuncSymbol),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FuncSymbol {
     /// Function doc comments with leading double slash and no newline.
     pub docs: Vec<String>,
