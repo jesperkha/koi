@@ -3,7 +3,11 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    module::{CreateModule, Module, SymbolKind},
+    ast::Pos,
+    module::{
+        CreateModule, ExternalModule, Module, ModuleKind, ModulePath, Symbol, SymbolKind,
+        SymbolList, SymbolOrigin,
+    },
     types::{PrimitiveType, TypeContext, TypeId, TypeKind},
 };
 
@@ -70,7 +74,38 @@ impl HeaderFile {
 
     /// Parse this headers symbols content and create module.
     pub fn to_module(self, ctx: &mut TypeContext) -> Result<CreateModule, String> {
-        todo!()
+        let mut mappings = HashMap::new();
+        for (header_id, header_kind) in self.types.iter().enumerate() {
+            let real_id = header_to_real(header_kind, ctx);
+            mappings.insert(header_id, real_id);
+        }
+
+        let modpath = ModulePath::new(self.modpath);
+
+        let symbols = self
+            .symbols
+            .into_iter()
+            .map(|s| Symbol {
+                filename: "".into(),
+                kind: s.kind,
+                name: s.name,
+                no_mangle: s.no_mangle,
+                is_exported: true,   // Always true for imported symbols
+                pos: Pos::default(), // Not used outside of type checking local modules anyways. TODO: remove pos from Symbol
+                ty: *mappings.get(&s.ty).expect("mapping not found"),
+                origin: SymbolOrigin::Extern(modpath.clone()), // Extern since we are linking
+            })
+            .collect::<Vec<_>>();
+
+        Ok(CreateModule {
+            modpath,
+            kind: ModuleKind::External(ExternalModule {
+                header_path: "".into(),
+                archive_path: "".into(),
+            }),
+            symbols: SymbolList::new_from_list(symbols),
+            deps: Vec::new(),
+        })
     }
 }
 

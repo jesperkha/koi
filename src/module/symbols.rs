@@ -107,6 +107,12 @@ impl SymbolList {
         }
     }
 
+    pub fn new_from_list(symbols: Vec<Symbol>) -> Self {
+        Self {
+            symbols: symbols.into_iter().map(|s| (s.name.clone(), s)).collect(),
+        }
+    }
+
     pub fn add(&mut self, sym: Symbol) -> Result<(), String> {
         if self.symbols.contains_key(&sym.name) {
             return Err("already declared".to_string());
