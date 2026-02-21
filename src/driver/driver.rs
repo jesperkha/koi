@@ -91,7 +91,7 @@ fn create_package_headers(
 
     for module in exported_modules {
         let filename = format!(
-            "{}.mod",
+            "{}.koi.h",
             if module.is_main() {
                 &project.out
             } else {

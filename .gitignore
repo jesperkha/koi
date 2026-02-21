@@ -36,3 +36,4 @@ main
 /_test
 
 /koi.toml
+*.koi.h

@@ -100,16 +100,18 @@ pub struct SymbolList {
     symbols: HashMap<String, Symbol>,
 }
 
+impl From<Vec<Symbol>> for SymbolList {
+    fn from(symbols: Vec<Symbol>) -> Self {
+        Self {
+            symbols: symbols.into_iter().map(|s| (s.name.clone(), s)).collect(),
+        }
+    }
+}
+
 impl SymbolList {
     pub fn new() -> Self {
         Self {
             symbols: HashMap::new(),
-        }
-    }
-
-    pub fn new_from_list(symbols: Vec<Symbol>) -> Self {
-        Self {
-            symbols: symbols.into_iter().map(|s| (s.name.clone(), s)).collect(),
         }
     }
 
