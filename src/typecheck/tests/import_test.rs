@@ -1,9 +1,10 @@
 use crate::{
     ast::FileSet,
     config::Config,
-    module::ModulePath,
+    module::{ModuleGraph, ModulePath},
     parser::{parse_source_map, sort_by_dependency_graph},
     typecheck::check_filesets,
+    types::TypeContext,
     util::{ErrorStream, must, new_source_map},
 };
 
@@ -34,7 +35,9 @@ fn check_files(files: &[TestFile]) -> Result<(), ErrorStream> {
 
     let result = sort_by_dependency_graph(parsed).unwrap_or_else(|e| panic!("{}", e));
     let config = Config::test();
-    check_filesets(result.sets, &config)?;
+    let mut mg = ModuleGraph::new();
+    let mut ctx = TypeContext::new();
+    check_filesets(result.sets, &mut mg, &mut ctx, &config)?;
 
     Ok(())
 }
@@ -127,7 +130,7 @@ fn test_bad_import_path() {
             }
         "#,
         )],
-        "could not resolve module path",
+        "could not resolve module import",
     );
     assert_error(
         &vec![
@@ -147,7 +150,7 @@ fn test_bad_import_path() {
             "#,
             ),
         ],
-        "could not resolve module path",
+        "could not resolve module import",
     );
 }
 

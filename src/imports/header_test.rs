@@ -2,7 +2,7 @@ use std::vec;
 
 use crate::{
     imports::{create_header_file, read_header_file},
-    module::{CreateModule, ExternalModule, ModuleGraph, ModulePath},
+    module::{CreateModule, ModuleGraph, ModulePath},
     types::{FunctionType, PrimitiveType, TypeContext, TypeId, TypeKind},
     util::{check_string, must},
 };
@@ -15,15 +15,7 @@ fn create_header_module(
 ) -> CreateModule {
     let module = must(check_string(src, mg, ctx));
     let header = must(create_header_file(module, &ctx));
-    must(read_header_file(
-        modpath,
-        ExternalModule {
-            header_path: "".into(),
-            archive_path: "".into(),
-        },
-        &header,
-        ctx,
-    ))
+    must(read_header_file(modpath, &header, ctx))
 }
 
 fn func_type_id(ctx: &mut TypeContext, params: &[PrimitiveType], ret: PrimitiveType) -> TypeId {

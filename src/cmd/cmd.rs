@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
-    config::load_config_file, driver::compile, imports::read_header_file, module::ExternalModule,
-    types::TypeContext, util::write_file,
+    config::load_config_file, driver::compile, imports::read_header_file, types::TypeContext,
+    util::write_file,
 };
 use clap::{CommandFactory, Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
@@ -57,10 +57,6 @@ fn run_command(command: Command) -> Result<(), String> {
             let mut ctx = TypeContext::new();
             let create_mod = read_header_file(
                 filename.trim_end_matches(".koi.h").into(),
-                ExternalModule {
-                    header_path: "".into(),
-                    archive_path: "".into(),
-                },
                 &contents,
                 &mut ctx,
             )?;

@@ -1,5 +1,5 @@
 use std::{
-    fs::{self},
+    fs::{self, read},
     path::{Path, PathBuf},
 };
 
@@ -10,11 +10,11 @@ use crate::{
     ast::{FileSet, Source, SourceMap},
     build::x86,
     config::{Config, Options, PathManager, Project, ProjectType, Target},
-    imports::create_header_file,
+    imports::{LibrarySet, create_header_file, read_header_file},
     ir::{Ir, Unit},
     lower::emit_ir,
     module::{Module, ModuleGraph, ModulePath},
-    parser::{parse_source_map, sort_by_dependency_graph},
+    parser::{SortResult, parse_source_map, sort_by_dependency_graph, validate_imports},
     typecheck::check_filesets,
     types::TypeContext,
     util::{create_dir_if_not_exist, get_root_dir, write_file},
@@ -25,6 +25,7 @@ type Res<T> = Result<T, String>;
 
 /// Compile the project using the given global config and build configuration.
 pub fn compile(project: Project, _options: Options, config: Config) -> Res<()> {
+    let pm = PathManager::new(get_root_dir());
     create_dir_if_not_exist(&project.bin)?;
 
     // Recursively search the given source directory for files and
@@ -42,6 +43,11 @@ pub fn compile(project: Project, _options: Options, config: Config) -> Res<()> {
             map
         });
 
+    let libset = LibrarySet::new();
+
+    // Check that external and std imports actually exist
+    validate_external_imports(&filesets, &source_map, &libset)?;
+
     // Create a dependency graph and sort it, returning a list of
     // filesets in correct type checking order. FileSets are sorted
     // based on their imports.
@@ -50,7 +56,7 @@ pub fn compile(project: Project, _options: Options, config: Config) -> Res<()> {
     // Type check all file sets, turning them into Modules, and put
     // them in a ModuleGraph. The generated TypeContext containing all
     // type information is also returned.
-    let (module_graph, ctx) = create_modules(sort_result.sets, &source_map, &config)?;
+    let (module_graph, ctx) = create_modules(sort_result, &source_map, &libset, &config)?;
 
     // Do some high level passes at a module level before lowering
     check_main_function_present(&module_graph, &project)?;
@@ -72,8 +78,19 @@ pub fn compile(project: Project, _options: Options, config: Config) -> Res<()> {
         .collect::<Result<Vec<Unit>, String>>()?;
 
     // Build the final executable/libary file
-    let pm = PathManager::new(get_root_dir());
     build(Ir::new(units), &config, &project, &pm)
+}
+
+fn validate_external_imports(
+    filesets: &[FileSet],
+    map: &SourceMap,
+    libset: &LibrarySet,
+) -> Res<()> {
+    for fs in filesets {
+        validate_imports(fs, libset.modpaths()).map_err(|err| err.render(map))?;
+    }
+
+    Ok(())
 }
 
 /// Create header files for main module and all modules listed in project include list.
@@ -205,11 +222,28 @@ fn parse_source_dirs(dirs: &Vec<SourceDir>, config: &Config) -> Res<Vec<FileSet>
 }
 
 fn create_modules(
-    filesets: Vec<FileSet>,
+    sort_result: SortResult,
     map: &SourceMap,
+    libset: &LibrarySet,
     config: &Config,
 ) -> Res<(ModuleGraph, TypeContext)> {
-    check_filesets(filesets, &config).map_err(|err| err.render(&map))
+    let mut ctx = TypeContext::new();
+    let mut mg = ModuleGraph::new();
+
+    for modpath in sort_result.external_imports {
+        let path = &libset
+            .get_header_path(&modpath)
+            .expect("should have been validated");
+
+        let content =
+            read(path).map_err(|_| format!("error: failed to read header file: '{:?}'", path))?;
+
+        let create_mod = read_header_file(modpath, &content, &mut ctx)?;
+        mg.add(create_mod);
+    }
+
+    check_filesets(sort_result.sets, &mut mg, &mut ctx, &config).map_err(|err| err.render(&map))?;
+    Ok((mg, ctx))
 }
 
 /// Shorthand for emitting a module to IR and converting error to string.

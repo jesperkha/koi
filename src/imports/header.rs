@@ -5,8 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     ast::Pos,
     module::{
-        CreateModule, ExternalModule, Module, ModuleKind, ModulePath, Symbol, SymbolKind,
-        SymbolList, SymbolOrigin,
+        CreateModule, Module, ModuleKind, ModulePath, Symbol, SymbolKind, SymbolList, SymbolOrigin,
     },
     types::{PrimitiveType, TypeContext, TypeId, TypeKind},
 };
@@ -20,12 +19,11 @@ pub fn create_header_file(module: &Module, ctx: &TypeContext) -> Result<Vec<u8>,
 /// Parse header file and intern types in context. Return the created module.
 pub fn read_header_file(
     modpath: ModulePath,
-    modkind: ExternalModule,
     bytes: &[u8],
     ctx: &mut TypeContext,
 ) -> Result<CreateModule, String> {
     let header: HeaderFile = postcard::from_bytes(bytes).map_err(|e| e.to_string())?;
-    header.to_module(modpath, modkind, ctx)
+    header.to_module(modpath, ctx)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -78,7 +76,6 @@ impl HeaderFile {
     pub fn to_module(
         self,
         modpath: ModulePath,
-        modkind: ExternalModule,
         ctx: &mut TypeContext,
     ) -> Result<CreateModule, String> {
         // Create map of header id to real id (HeaderTypeId -> TypeId)
@@ -94,20 +91,20 @@ impl HeaderFile {
             .symbols
             .into_iter()
             .map(|s| Symbol {
-                filename: modkind.header_path.clone(),
+                filename: "".into(), // TODO: resolve filename for header module
                 kind: s.kind,
                 name: s.name,
                 no_mangle: s.no_mangle,
                 is_exported: true,   // Always true for imported symbols
                 pos: Pos::default(), // Not used outside of type checking local modules anyways. TODO: remove pos from Symbol
                 ty: *mappings.get(&s.ty).expect("mapping not found"),
-                origin: SymbolOrigin::Extern(modpath.clone()), // Extern since we are linking
+                origin: SymbolOrigin::Module(modpath.clone()), // Module since we use mangling
             })
             .collect::<Vec<_>>();
 
         Ok(CreateModule {
             modpath,
-            kind: ModuleKind::External(modkind),
+            kind: ModuleKind::External,
             symbols: SymbolList::from(symbols),
             deps: Vec::new(),
         })

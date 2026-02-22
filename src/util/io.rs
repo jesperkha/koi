@@ -1,5 +1,6 @@
 use std::{
-    env, fs,
+    env,
+    fs::{self, read_dir},
     path::{Path, PathBuf},
     process::Command,
 };
@@ -18,6 +19,17 @@ where
     };
 
     Ok(())
+}
+
+pub fn list_dir(dir: &PathBuf) -> Result<Vec<String>, String> {
+    let entries =
+        read_dir(dir).map_err(|_| format!("error: failed to read directory {:?}", dir))?;
+    Ok(entries
+        .into_iter()
+        .filter_map(Result::ok)
+        .map(|entry| entry.file_name().into_string())
+        .filter_map(Result::ok)
+        .collect())
 }
 
 /// Run shell command

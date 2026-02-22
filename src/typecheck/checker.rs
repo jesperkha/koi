@@ -20,16 +20,17 @@ use crate::{
 };
 
 /// Type check a list of filesets, producing a module graph and type context.
-pub fn check_filesets(filesets: Vec<FileSet>, config: &Config) -> Res<(ModuleGraph, TypeContext)> {
-    let mut mg = ModuleGraph::new();
-    let mut ctx = TypeContext::new();
-
+pub fn check_filesets(
+    filesets: Vec<FileSet>,
+    mg: &mut ModuleGraph,
+    ctx: &mut TypeContext,
+    config: &Config,
+) -> Res<()> {
     for fs in filesets {
-        let create_mod = check_fileset(fs, &mg, &mut ctx, config)?;
+        let create_mod = check_fileset(fs, mg, ctx, config)?;
         mg.add(create_mod);
     }
-
-    Ok((mg, ctx))
+    Ok(())
 }
 
 /// Type check single FileSet into a module.

@@ -35,7 +35,7 @@ pub enum ModuleKind {
 
     /// External modules are external libraries, such as the standard library,
     /// and are skipped when building, as they are pre-compiled.
-    External(ExternalModule),
+    External,
 }
 
 pub struct SourceModule {
@@ -46,13 +46,6 @@ pub struct SourceModule {
     pub ast: TypedAst,
     /// List of namespaces imported into this module.
     pub namespaces: NamespaceList,
-}
-
-pub struct ExternalModule {
-    /// Full filepath to this modules header file.
-    pub header_path: String,
-    /// Full fileapth to this modules archive file.
-    pub archive_path: String,
 }
 
 impl Module {
@@ -118,6 +111,11 @@ impl ModulePath {
     /// Check if this module path is part of the standard library.
     pub fn is_stdlib(&self) -> bool {
         self.0.starts_with("std.")
+    }
+
+    /// Check if this module path is an external library.
+    pub fn is_library(&self) -> bool {
+        self.0.starts_with("lib.")
     }
 
     /// Get only the module name (the last identifier of the path).
@@ -220,7 +218,7 @@ impl ModuleGraph {
     pub fn resolve(&self, modpath: &ModulePath) -> Result<&Module, String> {
         self.cache
             .get(modpath.path())
-            .map_or(Err(format!("could not resolve module path")), |id| {
+            .map_or(Err(format!("could not resolve module import")), |id| {
                 Ok(&self.modules[*id])
             })
     }

@@ -128,4 +128,9 @@ impl Diagnostics {
     pub fn reports(&self) -> &[Report] {
         &self.reports
     }
+
+    /// Returns self if containing errors, otherwise v.
+    pub fn err_or<T>(self, v: T) -> Result<T, Diagnostics> {
+        if !self.is_empty() { Err(self) } else { Ok(v) }
+    }
 }
