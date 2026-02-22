@@ -272,7 +272,6 @@ impl<'a> Checker<'a> {
             name: node.name.to_string(),
             pos: node.name.pos.clone(),
             kind: SymbolKind::Function(FuncSymbol {
-                docs: node.docs.clone(),
                 is_inline: false,
                 is_naked: false,
             }),

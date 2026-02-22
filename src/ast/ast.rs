@@ -155,7 +155,6 @@ pub struct ReturnNode {
 
 #[derive(Debug)]
 pub struct FuncDeclNode {
-    pub docs: Vec<String>,
     pub public: bool,
     pub name: Token,
     pub lparen: Token,
@@ -166,7 +165,6 @@ pub struct FuncDeclNode {
 
 #[derive(Debug, Clone)]
 pub struct FuncNode {
-    pub docs: Vec<String>,
     pub public: bool,
     pub name: Token,
     pub lparen: Token,
@@ -179,7 +177,6 @@ pub struct FuncNode {
 impl From<FuncNode> for FuncDeclNode {
     fn from(f: FuncNode) -> Self {
         FuncDeclNode {
-            docs: f.docs,
             public: f.public,
             name: f.name,
             lparen: f.lparen,

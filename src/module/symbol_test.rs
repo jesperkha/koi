@@ -10,7 +10,6 @@ fn test_symbol_link_name_module() {
         filename: String::from("test/test.rs"),
         pos: Pos::default(),
         kind: SymbolKind::Function(FuncSymbol {
-            docs: vec![],
             is_inline: false,
             is_naked: false,
         }),
@@ -31,7 +30,6 @@ fn test_symbol_link_name_extern() {
         filename: String::from("test/test.rs"),
         pos: Pos::default(),
         kind: SymbolKind::Function(FuncSymbol {
-            docs: vec![],
             is_inline: false,
             is_naked: false,
         }),
@@ -51,7 +49,6 @@ fn test_symbol_link_name_main() {
         filename: String::from("test/test.rs"),
         pos: Pos::default(),
         kind: SymbolKind::Function(FuncSymbol {
-            docs: vec![],
             is_inline: false,
             is_naked: false,
         }),

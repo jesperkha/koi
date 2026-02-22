@@ -3,11 +3,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    ast::Pos,
-    module::ModulePath,
-    types::{TypeContext, TypeId},
-};
+use crate::{ast::Pos, module::ModulePath, types::TypeId};
 
 #[derive(Clone, Debug)]
 pub struct Symbol {
@@ -49,27 +45,9 @@ impl Symbol {
         }
         match &self.origin {
             SymbolOrigin::Module(modpath) => {
-                format!("_{}_{}", modpath.path().replace(".", "_"), self.name)
+                format!("_{}_{}", modpath.path_underscore(), self.name)
             }
             SymbolOrigin::Extern(_) => self.name.clone(),
-        }
-    }
-
-    /// Format the symbol as it would appear in a header file.
-    pub fn to_header_format(&self, ctx: &TypeContext) -> String {
-        match &self.kind {
-            SymbolKind::Function(func) => {
-                format!(
-                    "{}\n{}{}\n\n",
-                    func.docs.join("\n"),
-                    if self.is_extern() { "extern " } else { "" },
-                    format!(
-                        "func {}{}",
-                        self.name,
-                        ctx.to_string(self.ty).trim_start_matches("func ")
-                    )
-                )
-            }
         }
     }
 }
@@ -87,8 +65,6 @@ pub enum SymbolKind {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FuncSymbol {
-    /// Function doc comments with leading double slash and no newline.
-    pub docs: Vec<String>,
     /// If the function body should be inlined.
     pub is_inline: bool,
     /// If the function body should be naked (no entry/exit protocol or additional

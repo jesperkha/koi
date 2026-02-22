@@ -306,7 +306,6 @@ impl<'a> Parser<'a> {
         };
 
         Ok(FuncDeclNode {
-            docs: self.comments.clone(),
             public,
             name,
             lparen,
@@ -328,7 +327,6 @@ impl<'a> Parser<'a> {
         let body = self.parse_block()?;
 
         Ok(Decl::Func(FuncNode {
-            docs: self.comments.clone(),
             public,
             name: decl.name,
             lparen: decl.lparen,
