@@ -233,8 +233,8 @@ fn build(ir: Ir, config: &Config, build_cfg: &Project, pm: &PathManager) -> Res<
 /// Report which x86 link mode to use for which compilation mode.
 fn proj_type_to_link_mode(mode: &ProjectType) -> x86::LinkMode {
     match mode {
-        ProjectType::App => x86::LinkMode::Exectuable,
-        ProjectType::Package => x86::LinkMode::SharedObject,
+        ProjectType::App => x86::LinkMode::Executable,
+        ProjectType::Package => x86::LinkMode::Library,
     }
 }
 

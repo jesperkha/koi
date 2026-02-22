@@ -14,9 +14,9 @@ use crate::{
 
 pub enum LinkMode {
     /// Link as executable ELF file
-    Exectuable,
-    /// Link to shared object file (.so)
-    SharedObject,
+    Executable,
+    /// Link to static library file (.a)
+    Library,
 }
 
 pub struct BuildConfig {
@@ -58,23 +58,28 @@ pub fn build(
     args.push("-nostartfiles".into());
 
     match buildcfg.linkmode {
-        LinkMode::Exectuable => {
+        LinkMode::Executable => {
             info!("Compiling executable");
-            args.push(
-                pm.library_path()
-                    .join("entry.s")
-                    .to_string_lossy()
-                    .to_string(),
-            );
+
+            let entry_file = pm
+                .library_path()
+                .join("entry.s")
+                .to_string_lossy()
+                .to_string();
+            args.push(entry_file);
             args.push(format!("-o{}", buildcfg.outfile));
             cmd("gcc", &args)?;
         }
-        LinkMode::SharedObject => {
-            info!("Compiling shared library");
-            args.push(format!("-olib{}.so", buildcfg.outfile));
-            args.push("-shared".into());
-            args.push("-fPIE".into());
+        LinkMode::Library => {
+            info!("Compiling static library");
+
+            let objfile = format!("{}/{}.o", buildcfg.tmpdir, buildcfg.outfile);
+            args.push(format!("-o{}", objfile));
+            args.push("-c".into());
             cmd("gcc", &args)?;
+
+            let libfile = format!("lib{}.a", buildcfg.outfile);
+            cmd("ar", &["rcs".into(), libfile, objfile])?;
         }
     }
 
