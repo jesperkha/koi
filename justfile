@@ -10,6 +10,8 @@ test:
 clean:
     rm -rf \_test target bin
     rm -f main koi.toml
+    rm *.koi.h
+    rm *.a
 
 todo:
     todo -pTODO -dsrc

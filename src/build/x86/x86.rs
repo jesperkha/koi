@@ -54,12 +54,12 @@ pub fn build(
         asm_files.push(filepath);
     }
 
-    let mut args = asm_files;
-    args.push("-nostartfiles".into());
-
     match buildcfg.linkmode {
         LinkMode::Executable => {
             info!("Compiling executable");
+
+            let mut args = asm_files;
+            args.push("-nostartfiles".into());
 
             let entry_file = pm
                 .library_path()
@@ -73,13 +73,24 @@ pub fn build(
         LinkMode::Library => {
             info!("Compiling static library");
 
-            let objfile = format!("{}/{}.o", buildcfg.tmpdir, buildcfg.outfile);
-            args.push(format!("-o{}", objfile));
-            args.push("-c".into());
-            cmd("gcc", &args)?;
+            let mut objfiles = Vec::new();
+            for asmfile in &asm_files {
+                let objfile = asmfile.replace(".s", ".o");
+                cmd(
+                    "gcc",
+                    &[
+                        "-nostartfiles".into(),
+                        "-c".into(),
+                        asmfile.into(),
+                        format!("-o{}", objfile),
+                    ],
+                )?;
+                objfiles.push(objfile);
+            }
 
-            let libfile = format!("lib{}.a", buildcfg.outfile);
-            cmd("ar", &["rcs".into(), libfile, objfile])?;
+            let mut args = vec!["rcs".into(), format!("lib{}.a", buildcfg.outfile)];
+            args.extend_from_slice(&objfiles);
+            cmd("ar", &args)?;
         }
     }
 

@@ -29,7 +29,7 @@ pub fn compile(project: Project, _options: Options, config: Config) -> Res<()> {
 
     // Recursively search the given source directory for files and
     // return a list of SourceDir of all source files found.
-    let source_dirs = collect_all_source_dirs(&project.src, &project.ignore_dirs)?;
+    let source_dirs = collect_all_source_dirs(&project.src, &project.ignore_dirs, &project)?;
 
     // Parse all of the sources and return a list of FileSet.
     let filesets = parse_source_dirs(&source_dirs, &config)?;
@@ -86,19 +86,14 @@ fn create_package_headers(
     let exported_modules = modgraph
         .modules()
         .iter()
-        .filter(|m| m.is_main() || includes.iter().any(|include| include == m.modpath.path()))
+        .filter(|m| {
+            m.modpath.path() == project.name
+                || includes.iter().any(|include| include == m.modpath.path())
+        })
         .collect::<Vec<&Module>>();
 
     for module in exported_modules {
-        let filename = format!(
-            "{}.koi.h",
-            if module.is_main() {
-                &project.out
-            } else {
-                module.modpath.path()
-            }
-        );
-
+        let filename = format!("{}.koi.h", module.modpath.path());
         let content = create_header_file(module, &ctx)?;
         write_file(&filename, &content)?;
     }
@@ -113,7 +108,11 @@ struct SourceDir {
 
 /// Recursively search the given source directory for files and return a list of FileSet of
 /// all source files found.
-fn collect_all_source_dirs(source_dir: &str, ignore_dirs: &[String]) -> Res<Vec<SourceDir>> {
+fn collect_all_source_dirs(
+    source_dir: &str,
+    ignore_dirs: &[String],
+    project: &Project,
+) -> Res<Vec<SourceDir>> {
     info!("Collecting source files in {}", source_dir);
     let mut dirs = Vec::new();
 
@@ -126,7 +125,11 @@ fn collect_all_source_dirs(source_dir: &str, ignore_dirs: &[String]) -> Res<Vec<
 
         let mut modpath_str = pathbuf_to_module_path(&dir, source_dir);
         if modpath_str.is_empty() {
-            modpath_str = String::from("main");
+            if matches!(project.project_type, ProjectType::Package) {
+                modpath_str = project.name.clone();
+            } else {
+                modpath_str = String::from("main");
+            }
         }
 
         let dir = SourceDir {
@@ -222,7 +225,7 @@ fn build(ir: Ir, config: &Config, build_cfg: &Project, pm: &PathManager) -> Res<
             x86::BuildConfig {
                 linkmode: proj_type_to_link_mode(&build_cfg.project_type),
                 tmpdir: build_cfg.bin.clone(),
-                outfile: build_cfg.out.clone(),
+                outfile: build_cfg.name.clone(),
             },
             config,
             pm,

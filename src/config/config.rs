@@ -37,10 +37,12 @@ pub enum ProjectType {
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Project {
+    /// Project name.
+    /// When compiling an executable this is the output filename.
+    /// When compiling a library this is the library name and prefix.
+    pub name: String,
     /// Directory for assembly and object file output
     pub bin: String,
-    /// Name of target executable
-    pub out: String,
     /// Root directory of Koi project
     pub src: String,
     /// Target architecture

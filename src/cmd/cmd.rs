@@ -1,6 +1,12 @@
-use std::{fs, process::exit};
+use std::{
+    fs::{self, read},
+    process::exit,
+};
 
-use crate::{config::load_config_file, driver::compile, util::write_file};
+use crate::{
+    config::load_config_file, driver::compile, imports::read_header_file, module::ExternalModule,
+    types::TypeContext, util::write_file,
+};
 use clap::{CommandFactory, Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 
@@ -19,6 +25,8 @@ enum Command {
     Run,
     /// Build project
     Build,
+    /// Read the contents of a header file
+    Read { filename: String },
 }
 
 pub fn run() {
@@ -44,15 +52,30 @@ fn run_command(command: Command) -> Result<(), String> {
             compile(project, options, config)
         }
         Command::Run => todo!(),
+        Command::Read { filename } => {
+            let contents = read(&filename).map_err(|e| e.to_string())?;
+            let mut ctx = TypeContext::new();
+            let create_mod = read_header_file(
+                filename.trim_end_matches(".koi.h").into(),
+                ExternalModule {
+                    header_path: "".into(),
+                    archive_path: "".into(),
+                },
+                &contents,
+                &mut ctx,
+            )?;
+            println!("{}", create_mod.symbols.dump(&filename));
+            Ok(())
+        }
     }
 }
 
 static DEFAULT_KOI_TOML: &str = r#"# Koi project configuration
 
 [project]
+name = "myApp"    # Project name
 type = "app"      # Project type (app|package)
 src = "src"       # Source code directory
-out = "main"      # Filepath of output file
 bin = "bin"       # Output directory for temporary files
 target = "x86-64" # Target arch (x86-64)
 ignore-dirs = []  # Source directories to ignore
