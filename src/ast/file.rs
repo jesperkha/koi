@@ -2,9 +2,8 @@ use core::fmt;
 use std::{collections::HashSet, ffi::OsStr, path::PathBuf};
 
 use crate::{
-    ast::{Ast, Printer},
+    ast::{Ast, Printer, Source, Token},
     module::ModulePath,
-    token::{Source, Token},
 };
 
 /// A File represents a parsed source file, containing its AST, source code,
@@ -76,7 +75,7 @@ impl FileSet {
                     .join(".");
 
                 imports.insert(Import {
-                    modpath: ModulePath::new(import_path),
+                    modpath: import_path.into(),
                     symbols: imp.imports.iter().map(Token::to_string).collect(),
                     alias: imp.alias.as_ref().map(|t| t.to_string()),
                 });

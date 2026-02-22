@@ -5,13 +5,13 @@ use tracing::info;
 use crate::{
     ast::{
         Ast, BlockNode, CallExpr, Decl, Expr, Field, File, FileSet, FuncDeclNode, FuncNode,
-        GroupExpr, ImportNode, MemberNode, Node, ReturnNode, Stmt, TypeNode, VarAssignNode,
-        VarDeclNode,
+        GroupExpr, ImportNode, MemberNode, Node, ReturnNode, SourceMap, Stmt, Token, TokenKind,
+        TypeNode, VarAssignNode, VarDeclNode,
     },
     config::Config,
     error::{Diagnostics, Report, Res},
     module::ModulePath,
-    token::{SourceMap, Token, TokenKind, scan},
+    scanner::scan,
 };
 
 /// Parse a SourceMap into a FileSet.

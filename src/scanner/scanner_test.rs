@@ -1,16 +1,15 @@
 use std::vec;
 
 use crate::{
-    token::{Token, TokenKind},
-    util::{must, new_source_map, scan_string},
+    ast::{Token, TokenKind},
+    util::{must, scan_string},
 };
 
 fn scan_and_then<P>(src: &str, pred: P)
 where
     P: Fn(Vec<Token>),
 {
-    let map = new_source_map(src);
-    pred(must(&map, scan_string(src)));
+    pred(must(scan_string(src)));
 }
 
 fn scan_and_error(src: &str) {

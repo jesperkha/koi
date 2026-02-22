@@ -1,4 +1,4 @@
-use crate::token::{Pos, SourceMap};
+use crate::ast::{Pos, SourceMap};
 
 pub type Res<T> = Result<T, Diagnostics>;
 
@@ -125,7 +125,7 @@ impl Diagnostics {
         s
     }
 
-    pub fn report(&self, map: &SourceMap) -> Result<(), String> {
-        Err(self.render(map))
+    pub fn reports(&self) -> &[Report] {
+        &self.reports
     }
 }

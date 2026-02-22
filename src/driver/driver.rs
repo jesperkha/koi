@@ -7,14 +7,14 @@ use tracing::info;
 use walkdir::WalkDir;
 
 use crate::{
-    ast::FileSet,
+    ast::{FileSet, Source, SourceMap},
     build::x86,
     config::{Config, Options, PathManager, Project, ProjectType, Target},
+    imports::create_header_file,
     ir::{Ir, Unit},
     lower::emit_ir,
-    module::{Module, ModuleGraph, ModulePath, create_header_file},
+    module::{Module, ModuleGraph, ModulePath},
     parser::{parse_source_map, sort_by_dependency_graph},
-    token::{Source, SourceMap},
     typecheck::check_filesets,
     types::TypeContext,
     util::{create_dir_if_not_exist, get_root_dir, write_file},
@@ -91,7 +91,7 @@ fn create_package_headers(
 
     for module in exported_modules {
         let filename = format!(
-            "{}.mod",
+            "{}.koi.h",
             if module.is_main() {
                 &project.out
             } else {
@@ -130,7 +130,7 @@ fn collect_all_source_dirs(source_dir: &str, ignore_dirs: &[String]) -> Res<Vec<
         }
 
         let dir = SourceDir {
-            modpath: ModulePath::new(modpath_str),
+            modpath: modpath_str.into(),
             map,
         };
 

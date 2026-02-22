@@ -1,21 +1,19 @@
 use crate::ast::Printer;
-use crate::util::{compare_string_lines_or_panic, must, new_source_map, parse_string};
+use crate::util::{compare_string_lines_or_panic, must, parse_string};
 
 fn compare_string(src: &str) {
-    let map = new_source_map(src);
-    let ast = must(&map, parse_string(src));
+    let ast = must(parse_string(src));
     let pstr = Printer::to_string(&ast);
     compare_string_lines_or_panic(pstr, src.to_string());
 }
 
 fn assert_pass(src: &str) {
-    let map = new_source_map(src);
-    let _ = must(&map, parse_string(src));
+    let _ = must(parse_string(src));
 }
 
 fn expect_error(src: &str, error: &str) {
     if let Err(e) = parse_string(src) {
-        assert_eq!(e.num_errors(), 1);
+        assert_eq!(e.len(), 1);
         assert_eq!(e.get(0).message, error);
     } else {
         panic!("expected error");
@@ -472,7 +470,7 @@ fn test_recovery_reports_errors_but_continues() {
     "#;
     match parse_string(src) {
         Ok(_) => panic!("expected parse errors"),
-        Err(errs) => assert!(errs.num_errors() >= 1),
+        Err(errs) => assert!(errs.len() >= 1),
     }
 }
 
@@ -483,7 +481,7 @@ fn test_param_list_missing_comma_reports_error() {
     "#;
     match parse_string(src) {
         Ok(_) => panic!("expected parse errors"),
-        Err(errs) => assert!(errs.num_errors() >= 1),
+        Err(errs) => assert!(errs.len() >= 1),
     }
 }
 
@@ -496,7 +494,7 @@ fn test_unclosed_group_reports_error() {
     "#;
     match parse_string(src) {
         Ok(_) => panic!("expected parse errors"),
-        Err(errs) => assert!(errs.num_errors() >= 1),
+        Err(errs) => assert!(errs.len() >= 1),
     }
 }
 
@@ -511,7 +509,7 @@ fn test_pub_alone_reports_error_and_recovers() {
         Ok(_) => panic!("expected parse errors"),
         Err(errs) => {
             // Should report at least one error but still attempt recovery
-            assert!(errs.num_errors() >= 1);
+            assert!(errs.len() >= 1);
         }
     }
 }
@@ -526,6 +524,6 @@ fn test_malformed_import_reports_error() {
     "#;
     match parse_string(src) {
         Ok(_) => panic!("expected parse errors"),
-        Err(errs) => assert!(errs.num_errors() >= 1),
+        Err(errs) => assert!(errs.len() >= 1),
     }
 }

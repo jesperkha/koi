@@ -1,7 +1,7 @@
 use std::{fmt, hash::Hash};
 use strum_macros::EnumIter;
 
-use crate::token::TokenKind;
+use crate::ast::TokenKind;
 
 pub type TypeId = usize; // Unique identifier
 

@@ -1,11 +1,10 @@
 use crate::{
     ast::FileSet,
     config::Config,
-    error::Diagnostics,
     module::ModulePath,
     parser::{parse_source_map, sort_by_dependency_graph},
     typecheck::check_filesets,
-    util::{must, new_source_map, new_source_map_from_files},
+    util::{ErrorStream, must, new_source_map},
 };
 
 struct TestFile {
@@ -20,15 +19,15 @@ fn file(name: &str, src: &str) -> TestFile {
     }
 }
 
-fn check_files(files: &[TestFile]) -> Result<(), Diagnostics> {
+fn check_files(files: &[TestFile]) -> Result<(), ErrorStream> {
     let config = Config::test();
     let parsed: Vec<FileSet> = files
         .iter()
         .map(|f| {
             let map = new_source_map(&f.src);
             must(
-                &map,
-                parse_source_map(ModulePath::new(f.dep_name.clone()), &map, &config),
+                parse_source_map(ModulePath::new(f.dep_name.clone()), &map, &config)
+                    .map_err(|e| ErrorStream::from(e)),
             )
         })
         .collect();
@@ -41,8 +40,7 @@ fn check_files(files: &[TestFile]) -> Result<(), Diagnostics> {
 }
 
 fn assert_pass(files: &[TestFile]) {
-    let map = new_source_map_from_files(&files.iter().map(|f| f.src.as_str()).collect::<Vec<_>>());
-    must(&map, check_files(files))
+    must(check_files(files))
 }
 
 fn assert_errors(files: &[TestFile], msgs: &[&str]) {
@@ -50,11 +48,11 @@ fn assert_errors(files: &[TestFile], msgs: &[&str]) {
         Ok(_) => panic!("expected errors: {:?}", msgs),
         Err(errs) => {
             assert_eq!(
-                errs.num_errors(),
+                errs.len(),
                 msgs.len(),
                 "expected {} errors, got {}",
                 msgs.len(),
-                errs.num_errors()
+                errs.len()
             );
             for (i, &expected) in msgs.iter().enumerate() {
                 assert_eq!(errs.get(i).message, expected);

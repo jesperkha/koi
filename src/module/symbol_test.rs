@@ -1,6 +1,6 @@
 use crate::{
+    ast::Pos,
     module::{FuncSymbol, ModulePath, Symbol, SymbolKind, SymbolOrigin},
-    token::Pos,
 };
 
 #[test]
@@ -57,7 +57,7 @@ fn test_symbol_link_name_main() {
         }),
         ty: 0,
         name: String::from("main"),
-        origin: SymbolOrigin::Module(ModulePath::new_str("app")),
+        origin: SymbolOrigin::Module("app".into()),
         is_exported: true,
         no_mangle: false,
     };
