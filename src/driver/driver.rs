@@ -45,12 +45,12 @@ pub fn compile(project: Project, _options: Options, config: Config) -> Res<()> {
     // Create a dependency graph and sort it, returning a list of
     // filesets in correct type checking order. FileSets are sorted
     // based on their imports.
-    let sorted_filesets = sort_by_dependency_graph(filesets)?;
+    let sort_result = sort_by_dependency_graph(filesets)?;
 
     // Type check all file sets, turning them into Modules, and put
     // them in a ModuleGraph. The generated TypeContext containing all
     // type information is also returned.
-    let (module_graph, ctx) = create_modules(sorted_filesets, &source_map, &config)?;
+    let (module_graph, ctx) = create_modules(sort_result.sets, &source_map, &config)?;
 
     // Do some high level passes at a module level before lowering
     check_main_function_present(&module_graph, &project)?;

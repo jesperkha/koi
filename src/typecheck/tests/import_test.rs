@@ -32,9 +32,9 @@ fn check_files(files: &[TestFile]) -> Result<(), ErrorStream> {
         })
         .collect();
 
-    let sorted = sort_by_dependency_graph(parsed).unwrap_or_else(|e| panic!("{}", e));
+    let result = sort_by_dependency_graph(parsed).unwrap_or_else(|e| panic!("{}", e));
     let config = Config::test();
-    check_filesets(sorted, &config)?;
+    check_filesets(result.sets, &config)?;
 
     Ok(())
 }

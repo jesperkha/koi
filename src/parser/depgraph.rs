@@ -6,18 +6,24 @@ use petgraph::{
 };
 use tracing::info;
 
-use crate::ast::FileSet;
+use crate::{ast::FileSet, module::ModulePath};
 
-fn is_stdlib(id: &str) -> bool {
-    vec![].contains(&id)
+pub struct SortResult {
+    pub sets: Vec<FileSet>,
+    pub stdlib_imports: Vec<ModulePath>,
+    pub external_imports: Vec<ModulePath>,
 }
 
 /// Sort list of FileSets based on their imports by creating a dependency graph.
-/// The first element in the returned list is the least depended on module
+/// The first element in the returned ordered list is the least depended on module
 /// and must be type checked first.
-pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, String> {
+pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<SortResult, String> {
     if sets.len() == 0 {
-        return Ok(sets);
+        return Ok(SortResult {
+            sets: Vec::new(),
+            stdlib_imports: Vec::new(),
+            external_imports: Vec::new(),
+        });
     }
 
     let mut index = HashMap::new();
@@ -29,6 +35,9 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, Stri
         dag.add_node(id);
     }
 
+    let mut stdlib_imports = Vec::new();
+    let mut external_imports = Vec::new();
+
     for fs in &sets {
         for import in &fs.imports {
             let import_path = import.modpath.path();
@@ -38,7 +47,14 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, Stri
                 return Err(format!("import cycle detected"));
             }
 
+            // Stdlib and external imports are resolved elsewhere and are
+            // guaranteed to be present when type checking the source code.
             if is_stdlib(import_path) {
+                stdlib_imports.push(import_path.into());
+                continue;
+            }
+            if is_external(import_path) {
+                external_imports.push(import_path.into());
                 continue;
             }
 
@@ -65,19 +81,31 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<Vec<FileSet>, Stri
         id_to_fileset.insert(id, fs);
     }
 
-    let sorted_sets: Vec<FileSet> = sorted_ids
+    let ordered: Vec<FileSet> = sorted_ids
         .into_iter()
         .map(|id| id_to_fileset.remove(&id).unwrap())
         .collect();
 
     info!(
         "Final ordered module dependency list: {}",
-        sorted_sets
+        ordered
             .iter()
             .map(|s| s.modpath.path().to_owned())
             .collect::<Vec<_>>()
             .join(" -> ")
     );
 
-    Ok(sorted_sets)
+    Ok(SortResult {
+        sets: ordered,
+        stdlib_imports,
+        external_imports,
+    })
+}
+
+fn is_stdlib(id: &str) -> bool {
+    id.starts_with("std.")
+}
+
+fn is_external(id: &str) -> bool {
+    id.starts_with("lib.")
 }

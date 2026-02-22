@@ -31,8 +31,9 @@ fn get_ordered_files(files: &[TestFile]) -> Result<Vec<String>, String> {
 
     let parsed: Result<Vec<FileSet>, String> = p.into_iter().collect();
 
-    let sorted = sort_by_dependency_graph(parsed?)?;
-    Ok(sorted
+    let result = sort_by_dependency_graph(parsed?)?;
+    Ok(result
+        .sets
         .into_iter()
         .map(|fs| fs.modpath.path().to_owned())
         .collect())
