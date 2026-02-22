@@ -1,4 +1,4 @@
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap, fmt::Display, hash::Hash, path::PathBuf};
 
 use crate::{
     ast::ImportNode,
@@ -93,19 +93,14 @@ impl ModulePath {
         Self(s)
     }
 
-    pub fn new_str(s: &str) -> Self {
-        assert!(!s.is_empty(), "cannot have empty module path");
-        Self(s.to_owned())
+    /// Create new standard library module path
+    pub fn to_std(self) -> ModulePath {
+        ModulePath(format!("std.{}", self.0))
     }
 
-    pub fn new_package(name: &str) -> Self {
-        assert!(!name.is_empty(), "cannot have empty module path");
-        Self(format!("lib.{}", name))
-    }
-
-    pub fn new_stdlib(name: &str) -> Self {
-        assert!(!name.is_empty(), "cannot have empty module path");
-        Self(format!("std.{}", name))
+    /// Create new external library module path
+    pub fn to_lib(self) -> ModulePath {
+        ModulePath(format!("lib.{}", self.0))
     }
 
     /// Check if this module path is part of the standard library.
@@ -139,6 +134,12 @@ impl ModulePath {
     }
 }
 
+impl Display for ModulePath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl From<&str> for ModulePath {
     fn from(s: &str) -> Self {
         ModulePath::new(s.to_string())
@@ -161,6 +162,17 @@ impl From<&ImportNode> for ModulePath {
                 .collect::<Vec<_>>()
                 .join("."),
         )
+    }
+}
+
+impl From<&PathBuf> for ModulePath {
+    fn from(p: &PathBuf) -> Self {
+        p.file_name()
+            .expect("must be file")
+            .to_string_lossy()
+            .trim_end_matches(".h")
+            .trim_end_matches(".koi")
+            .into()
     }
 }
 

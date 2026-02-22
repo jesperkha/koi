@@ -298,7 +298,7 @@ fn test_duplicate_symbol_2() {
         "#,
             ),
         ],
-        "already declared",
+        "duplicate namespace 'foo'",
     );
 }
 
@@ -426,7 +426,7 @@ fn test_duplicate_alias() {
             "#,
             ),
         ],
-        "already declared",
+        "duplicate namespace 'faz'",
     );
 }
 
@@ -453,7 +453,7 @@ fn test_duplicate_explicit_imports() {
             "#,
             ),
         ],
-        &vec!["already declared", "already declared"],
+        &vec!["duplicate namespace 'foo'", "already declared"],
     );
 }
 

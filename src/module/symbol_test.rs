@@ -5,7 +5,7 @@ use crate::{
 
 #[test]
 fn test_symbol_link_name_module() {
-    let modpath = ModulePath::new_str("app.utils");
+    let modpath = ModulePath::from("app.utils");
     let symbol = Symbol {
         filename: String::from("test/test.rs"),
         pos: Pos::default(),
@@ -26,7 +26,7 @@ fn test_symbol_link_name_module() {
 
 #[test]
 fn test_symbol_link_name_extern() {
-    let modpath = ModulePath::new_str("app.utils");
+    let modpath = ModulePath::from("app.utils");
     let extern_symbol = Symbol {
         filename: String::from("test/test.rs"),
         pos: Pos::default(),

@@ -24,7 +24,7 @@ fn get_ordered_files(files: &[TestFile]) -> Result<Vec<String>, String> {
         .map(|f| {
             let map = new_source_map(&f.src);
             let config = Config::test();
-            parse_source_map(ModulePath::new_str(&f.dep_name), &map, &config)
+            parse_source_map(ModulePath::from(f.dep_name.as_str()), &map, &config)
                 .map_err(|e| e.render(&map))
         })
         .collect::<Vec<_>>();

@@ -43,7 +43,8 @@ pub fn compile(project: Project, _options: Options, config: Config) -> Res<()> {
             map
         });
 
-    let libset = LibrarySet::new();
+    let mut libset = LibrarySet::new();
+    libset.read_dir(&pm.library_path())?;
 
     // Check that external and std imports actually exist
     validate_external_imports(&filesets, &source_map, &libset)?;
