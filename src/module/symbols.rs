@@ -32,6 +32,11 @@ impl Symbol {
         matches!(self.origin, SymbolOrigin::Extern(_))
     }
 
+    // TODO: (doing) some form of prefix for libaries
+    // to not collide accidently with user code
+    // 1. In emit, take in the project type and prefix all user symbols
+    // 2. In match below, add the library prefix
+
     /// The mangled link name (prefixed with module path etc).
     /// For any symbol named 'main' it will return 'main'.
     /// For any extern symbol it will return the unaltered name.
@@ -48,6 +53,7 @@ impl Symbol {
                 format!("_{}_{}", modpath.path_underscore(), self.name)
             }
             SymbolOrigin::Extern(_) => self.name.clone(),
+            SymbolOrigin::Library(_) => todo!(),
         }
     }
 }
@@ -56,6 +62,7 @@ impl Symbol {
 pub enum SymbolOrigin {
     Module(ModulePath),
     Extern(ModulePath), // Contains origin of declaration
+    Library(String),    // Contains the library name
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -143,8 +150,9 @@ impl fmt::Display for SymbolOrigin {
             f,
             "{}",
             match self {
-                SymbolOrigin::Module(modpath) => format!("module({})", modpath.path()),
-                SymbolOrigin::Extern(modpath) => format!("extern({})", modpath.path()),
+                SymbolOrigin::Module(modpath) => format!("module({})", modpath),
+                SymbolOrigin::Extern(modpath) => format!("extern({})", modpath),
+                SymbolOrigin::Library(libname) => format!("library({})", libname),
             }
         )
     }

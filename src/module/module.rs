@@ -23,7 +23,8 @@ pub struct Module {
     pub modpath: ModulePath,
     /// List of symbols declared and used within this module.
     pub symbols: SymbolList,
-    // TODO: make separate list of symbols imported by name to not make .exports() dependent on anything
+    // TODO: make separate list of symbols imported by name
+    // to not make .exports() dependent on anything
     /// List of modules this module depends on.
     pub deps: Vec<ModuleId>,
 }
@@ -76,6 +77,8 @@ impl Module {
                 match &s.1.origin {
                     SymbolOrigin::Module(modpath) => &self.modpath == modpath,
                     SymbolOrigin::Extern(modpath) => &self.modpath == modpath,
+                    // A library symbol should not be part of a modules symbol list
+                    SymbolOrigin::Library(_) => unreachable!(),
                 }
             })
             .collect::<_>()
