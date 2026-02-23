@@ -45,6 +45,8 @@ pub struct Project {
     pub bin: String,
     /// Root directory of Koi project
     pub src: String,
+    /// Output dir for target
+    pub out: String,
     /// Target architecture
     pub target: Target,
     /// Project type determines which steps are done and/or excluded

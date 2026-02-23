@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    path::PathBuf,
     process::{Command, Stdio},
 };
 
@@ -24,7 +25,9 @@ pub struct BuildConfig {
     /// Where to output temp files (.s .o)
     pub tmpdir: String,
     /// Filepath out output executable/object file
-    pub outfile: String,
+    pub target_name: String,
+    /// Directory to output target file(s)
+    pub outdir: String,
 }
 
 // TODO: high level assembly tree with string generation
@@ -36,7 +39,7 @@ pub fn build(
     config: &Config,
     pm: &PathManager,
 ) -> Result<(), String> {
-    info!("Building for x86-64. Output: {}", buildcfg.outfile);
+    info!("Building for x86-64. Output: {}", buildcfg.target_name);
 
     if !gcc_available() {
         return Err("Failed to run gcc. Make sure it's installed and in PATH.".into());
@@ -67,7 +70,11 @@ pub fn build(
                 .to_string_lossy()
                 .to_string();
             args.push(entry_file);
-            args.push(format!("-o{}", buildcfg.outfile));
+            let target_path = PathBuf::from(&buildcfg.outdir)
+                .join(&buildcfg.target_name)
+                .to_string_lossy()
+                .to_string();
+            args.push(format!("-o{}", target_path));
             cmd("gcc", &args)?;
         }
         LinkMode::Library => {
@@ -87,8 +94,12 @@ pub fn build(
                 )?;
                 objfiles.push(objfile);
             }
+            let target_path = PathBuf::from(&buildcfg.outdir)
+                .join(format!("lib{}.a", buildcfg.target_name))
+                .to_string_lossy()
+                .to_string();
 
-            let mut args = vec!["rcs".into(), format!("lib{}.a", buildcfg.outfile)];
+            let mut args = vec!["rcs".into(), target_path];
             args.extend_from_slice(&objfiles);
             cmd("ar", &args)?;
         }

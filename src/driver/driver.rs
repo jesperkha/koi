@@ -112,8 +112,13 @@ fn create_package_headers(
 
     for module in exported_modules {
         let filename = format!("{}.koi.h", module.modpath.path());
+        // TODO: new FilePath object to wrap PathBuf and add utility methods
+        let outfile = PathBuf::from(&project.out)
+            .join(filename)
+            .to_string_lossy()
+            .to_string();
         let content = create_header_file(module, &ctx)?;
-        write_file(&filename, &content)?;
+        write_file(&outfile, &content)?;
     }
 
     Ok(())
@@ -260,7 +265,8 @@ fn build(ir: Ir, config: &Config, build_cfg: &Project, pm: &PathManager) -> Res<
             x86::BuildConfig {
                 linkmode: proj_type_to_link_mode(&build_cfg.project_type),
                 tmpdir: build_cfg.bin.clone(),
-                outfile: build_cfg.name.clone(),
+                target_name: build_cfg.name.clone(),
+                outdir: build_cfg.out.clone(),
             },
             config,
             pm,

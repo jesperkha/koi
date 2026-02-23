@@ -1,12 +1,13 @@
 # Koi project configuration
 
 [project]
-name = "stdlib"   # Project name
-type = "package"  # Project type (app|package)
-src = "src"       # Source code directory
-bin = "bin"       # Output directory for temporary files
-target = "x86-64" # Target arch (x86-64)
-ignore-dirs = []  # Source directories to ignore
+name = "stdlib"              # Project name
+type = "package"             # Project type (app|package)
+src = "src"                  # Source code directory
+out = "../../koi/lib/stdlib"
+bin = "bin"                  # Output directory for temporary files
+target = "x86-64"            # Target arch (x86-64)
+ignore-dirs = []             # Source directories to ignore
 includes = ["c"]
 
 [options]
