@@ -14,6 +14,11 @@ struct Header {
     archive_idx: usize,
 }
 
+pub enum LibraryKind {
+    Stdlib,
+    External,
+}
+
 pub struct LibrarySet {
     archives: Vec<PathBuf>,
     libs: HashMap<ModulePath, Header>,
@@ -29,7 +34,7 @@ impl LibrarySet {
 
     /// Read a given directory and collect all libraries.
     /// Header files are mapped to their corresponding archive file.
-    pub fn read_dir(&mut self, dir: &PathBuf) -> Result<(), String> {
+    pub fn read_dir(&mut self, dir: &PathBuf, kind: LibraryKind) -> Result<(), String> {
         let libs = find_libraries(dir)?;
 
         for lib in libs {
@@ -37,7 +42,11 @@ impl LibrarySet {
             self.archives.push(lib.archive);
 
             for header_path in lib.headers {
-                let modpath = ModulePath::from(&header_path).to_lib();
+                let modpath = match kind {
+                    LibraryKind::Stdlib => ModulePath::from(&header_path).to_std(),
+                    LibraryKind::External => ModulePath::from(&header_path).to_lib(),
+                };
+
                 let header = Header {
                     header_path,
                     archive_idx: archive_id,

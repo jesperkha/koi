@@ -10,7 +10,6 @@ use crate::{ast::FileSet, module::ModulePath};
 
 pub struct SortResult {
     pub sets: Vec<FileSet>,
-    pub stdlib_imports: Vec<ModulePath>,
     pub external_imports: Vec<ModulePath>,
 }
 
@@ -21,7 +20,6 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<SortResult, String
     if sets.len() == 0 {
         return Ok(SortResult {
             sets: Vec::new(),
-            stdlib_imports: Vec::new(),
             external_imports: Vec::new(),
         });
     }
@@ -35,7 +33,6 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<SortResult, String
         dag.add_node(id);
     }
 
-    let mut stdlib_imports = Vec::new();
     let mut external_imports = Vec::new();
 
     for fs in &sets {
@@ -49,11 +46,7 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<SortResult, String
 
             // Stdlib and external imports are resolved elsewhere and are
             // guaranteed to be present when type checking the source code.
-            if is_stdlib(import_path) {
-                stdlib_imports.push(import_path.into());
-                continue;
-            }
-            if is_external(import_path) {
+            if is_stdlib(import_path) || is_external(import_path) {
                 external_imports.push(import_path.into());
                 continue;
             }
@@ -97,7 +90,6 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<SortResult, String
 
     Ok(SortResult {
         sets: ordered,
-        stdlib_imports,
         external_imports,
     })
 }

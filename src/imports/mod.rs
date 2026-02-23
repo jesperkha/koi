@@ -2,7 +2,7 @@ mod header;
 mod libraries;
 
 pub use header::{create_header_file, read_header_file};
-pub use libraries::LibrarySet;
+pub use libraries::{LibraryKind, LibrarySet};
 
 #[cfg(test)]
 mod header_test;

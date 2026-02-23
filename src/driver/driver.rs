@@ -10,7 +10,7 @@ use crate::{
     ast::{FileSet, Source, SourceMap},
     build::x86,
     config::{Config, Options, PathManager, Project, ProjectType, Target},
-    imports::{LibrarySet, create_header_file, read_header_file},
+    imports::{LibraryKind, LibrarySet, create_header_file, read_header_file},
     ir::{Ir, Unit},
     lower::emit_ir,
     module::{Module, ModuleGraph, ModulePath},
@@ -44,7 +44,7 @@ pub fn compile(project: Project, _options: Options, config: Config) -> Res<()> {
         });
 
     let mut libset = LibrarySet::new();
-    libset.read_dir(&pm.library_path())?;
+    libset.read_dir(&pm.library_path(), LibraryKind::Stdlib)?;
 
     // Check that external and std imports actually exist
     validate_external_imports(&filesets, &source_map, &libset)?;
