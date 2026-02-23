@@ -24,7 +24,7 @@ go.work.sum
 # env file
 .env
 
-
+# Bin dir and output files
 bin
 *.asm
 *.o
@@ -36,5 +36,9 @@ main
 /target
 /_test
 
+# Koi config
 /koi.toml
+
+# Installation dir
+/koi
 *.koi.h

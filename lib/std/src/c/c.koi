@@ -1,0 +1,2 @@
+// Print string to standard output with newline at the end.
+pub extern func puts(s string)

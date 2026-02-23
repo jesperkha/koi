@@ -72,7 +72,7 @@ pub fn create_dir_if_not_exist(dir: &str) -> Result<(), String> {
 pub fn get_root_dir() -> PathBuf {
     #[cfg(debug_assertions)]
     {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("koi")
     }
 
     #[cfg(not(debug_assertions))]
