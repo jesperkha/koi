@@ -9,8 +9,9 @@ use crate::{
     config::Config,
     error::{Diagnostics, Report, Res},
     module::{
-        CreateModule, FuncSymbol, Module, ModuleGraph, ModuleId, ModuleKind, ModulePath, Namespace,
-        NamespaceList, SourceModule, Symbol, SymbolKind, SymbolList, SymbolOrigin,
+        CreateModule, FuncSymbol, ImportPath, Module, ModuleGraph, ModuleId, ModuleKind,
+        ModulePath, Namespace, NamespaceList, SourceModule, Symbol, SymbolKind, SymbolList,
+        SymbolOrigin,
     },
     types::{
         self, FunctionType, NodeMeta, PrimitiveType, Type, TypeContext, TypeId, TypeKind, TypedAst,
@@ -88,8 +89,8 @@ impl<'a> Importer<'a> {
         Self { mg }
     }
 
-    pub fn resolve(&self, modpath: &ModulePath) -> Result<&'a Module, String> {
-        self.mg.resolve(modpath)
+    pub fn resolve(&self, impath: &ImportPath) -> Result<&'a Module, String> {
+        self.mg.resolve(impath)
     }
 }
 
@@ -110,7 +111,9 @@ impl<'a> Checker<'a> {
     }
 
     pub fn check(mut self, fs: FileSet) -> Res<CreateModule> {
-        self.is_main = fs.modpath.name() == "main";
+        //self.is_main = fs.modpath.path().is_empty();
+        // TODO: actually check for main module somehow
+        self.is_main = true;
 
         for _ in &fs.files {
             self.resolve_imports(&fs)?;
@@ -158,10 +161,10 @@ impl<'a> Checker<'a> {
     }
 
     fn resove_import(&mut self, import: &ImportNode, diag: &mut Diagnostics) {
-        let modpath = ModulePath::from(import);
+        let impath = ImportPath::from(import);
 
         // Try to get module
-        let module = match self.importer.resolve(&modpath) {
+        let module = match self.importer.resolve(&impath) {
             Ok(module) => module,
             Err(err) => {
                 assert!(import.names.len() > 0, "unchecked missing import name");
@@ -184,7 +187,7 @@ impl<'a> Checker<'a> {
             (alias.to_string(), (&alias.pos, &alias.end_pos))
         } else {
             (
-                module.modpath.name().to_owned(),
+                impath.name().to_owned(),
                 (&import.names[0].pos, &import.names.last().unwrap().end_pos),
             )
         };
@@ -645,7 +648,7 @@ impl<'a> Checker<'a> {
 
                 return Ok(types::Expr::NamespaceMember(types::NamespaceMemberNode {
                     ty: self.ctx.lookup(symbol.ty).clone(),
-                    name: ns.modpath().name().to_owned(),
+                    name: name.to_owned(),
                     meta,
                     field,
                 }));

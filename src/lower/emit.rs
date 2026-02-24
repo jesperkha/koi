@@ -120,10 +120,10 @@ impl<'a> Emitter<'a> {
     }
 
     fn mangle_symbol_name(&self, sym: &Symbol) -> String {
-        if self.config.no_mangle_names {
+        if self.config.no_mangle_names || sym.no_mangle || sym.is_extern() {
             sym.name.clone()
         } else {
-            sym.link_name()
+            format!("_{}_{}", self.modpath.to_underscore(), sym.name)
         }
     }
 }

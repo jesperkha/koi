@@ -45,6 +45,7 @@ pub fn compile(project: Project, _options: Options, config: Config) -> Res<()> {
 
     let mut libset = LibrarySet::new();
     libset.read_dir(&pm.library_path(), LibraryKind::Stdlib)?;
+    libset.read_dir(&pm.external_library_path(), LibraryKind::External)?;
 
     // Check that external and std imports actually exist
     validate_external_imports(&filesets, &source_map, &libset)?;
@@ -88,7 +89,7 @@ fn validate_external_imports(
     libset: &LibrarySet,
 ) -> Res<()> {
     for fs in filesets {
-        validate_imports(fs, libset.modpaths()).map_err(|err| err.render(map))?;
+        validate_imports(fs, libset.import_paths()).map_err(|err| err.render(map))?;
     }
 
     Ok(())
@@ -111,7 +112,12 @@ fn create_package_headers(
         .collect::<Vec<&Module>>();
 
     for module in exported_modules {
-        let filename = format!("{}.koi.h", module.modpath.path());
+        let filename = if module.modpath.path() == project.name {
+            format!("{}.koi.h", module.modpath.path())
+        } else {
+            format!("{}.{}.koi.h", project.name, module.modpath.path())
+        };
+
         // TODO: new FilePath object to wrap PathBuf and add utility methods
         let outfile = PathBuf::from(&project.out)
             .join(filename)
@@ -146,20 +152,23 @@ fn collect_all_source_dirs(
             continue;
         }
 
-        let mut modpath_str = pathbuf_to_module_path(&dir, source_dir);
-        if modpath_str.is_empty() {
-            if matches!(project.project_type, ProjectType::Package) {
-                modpath_str = project.name.clone();
-            } else {
-                modpath_str = String::from("main");
-            }
-        }
-
-        let dir = SourceDir {
-            modpath: modpath_str.into(),
-            map,
+        let path = pathbuf_to_module_path(&dir, source_dir);
+        let prefix = if matches!(project.project_type, ProjectType::Package) {
+            "lib".into()
+        } else {
+            "".into()
         };
+        let modpath = ModulePath::new(prefix, project.name.clone(), path);
 
+        // if modpath_str.is_empty() {
+        //     if matches!(project.project_type, ProjectType::Package) {
+        //         modpath_str = project.name.clone();
+        //     } else {
+        //         modpath_str = String::from("main");
+        //     }
+        // }
+
+        let dir = SourceDir { modpath, map };
         dirs.push(dir);
     }
 
@@ -236,7 +245,8 @@ fn create_modules(
     let mut ctx = TypeContext::new();
     let mut mg = ModuleGraph::new();
 
-    for modpath in sort_result.external_imports {
+    for impath in sort_result.external_imports {
+        let modpath = ModulePath::from(impath);
         let path = &libset
             .get_header_path(&modpath)
             .expect("should have been validated");
@@ -244,7 +254,9 @@ fn create_modules(
         let content =
             read(path).map_err(|_| format!("error: failed to read header file: '{:?}'", path))?;
 
-        let create_mod = read_header_file(modpath, &content, &mut ctx)?;
+        let create_mod = read_header_file(modpath, &content, &mut ctx)
+            .map_err(|e| format!("error: failed to read header file: {}", e))?;
+
         mg.add(create_mod);
     }
 

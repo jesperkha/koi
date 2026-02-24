@@ -51,7 +51,7 @@ pub struct SourceModule {
 
 impl Module {
     pub fn name(&self) -> &str {
-        self.modpath.name()
+        self.modpath.path() // always non-empty in usecases
     }
 
     pub fn is_main(&self) -> bool {
@@ -77,8 +77,6 @@ impl Module {
                 match &s.1.origin {
                     SymbolOrigin::Module(modpath) => &self.modpath == modpath,
                     SymbolOrigin::Extern(modpath) => &self.modpath == modpath,
-                    // A library symbol should not be part of a modules symbol list
-                    SymbolOrigin::Library(_) => unreachable!(),
                 }
             })
             .collect::<_>()
@@ -88,93 +86,188 @@ impl Module {
 /// Module path wraps a string module path (app.foo.bar) and provides methods
 /// to get the path itself or the module name (the last name in the path).
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
-pub struct ModulePath(String);
+pub struct ModulePath {
+    // Examples values for the full module path lib.socket.common.util
+    prefix: String,  // lib
+    package: String, // socket
+    path: String,    // common.util
+}
 
 impl ModulePath {
-    pub fn new(s: String) -> Self {
-        assert!(!s.is_empty(), "cannot have empty module path");
-        Self(s)
+    pub fn new(prefix: String, package: String, path: String) -> Self {
+        if !prefix.is_empty() {
+            assert!(
+                !package.is_empty(),
+                "cannot have empty package name if prefix is non-empty",
+            );
+        }
+        Self {
+            prefix,
+            package,
+            path,
+        }
     }
 
     /// Create new standard library module path
     pub fn to_std(self) -> ModulePath {
-        ModulePath(format!("std.{}", self.0))
+        ModulePath::new("std".into(), self.package, self.path)
     }
 
     /// Create new external library module path
     pub fn to_lib(self) -> ModulePath {
-        ModulePath(format!("lib.{}", self.0))
+        ModulePath::new("lib".into(), self.package, self.path)
+    }
+
+    pub fn prefix(&self) -> &str {
+        &self.prefix
+    }
+
+    pub fn package(&self) -> &str {
+        &self.package
+    }
+
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    pub fn package_path(&self) -> String {
+        format!("{}.{}", self.package, self.path)
+    }
+
+    pub fn prefixed_package_path(&self) -> String {
+        format!("{}.{}.{}", self.prefix, self.package, self.path)
+    }
+
+    pub fn import_path(&self) -> ImportPath {
+        if !self.prefix.is_empty() {
+            ImportPath::new(
+                std::iter::once(self.prefix.as_str())
+                    .chain(std::iter::once(self.package.as_str()))
+                    .chain(self.path.split('.'))
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>()
+                    .join("."),
+            )
+        } else {
+            ImportPath::from(self.path.as_str())
+        }
     }
 
     /// Check if this module path is part of the standard library.
     pub fn is_stdlib(&self) -> bool {
-        self.0.starts_with("std.")
+        self.prefix == "std"
     }
 
     /// Check if this module path is an external library.
     pub fn is_library(&self) -> bool {
-        self.0.starts_with("lib.")
-    }
-
-    /// Get only the module name (the last identifier of the path).
-    pub fn name(&self) -> &str {
-        &self.0.split(".").last().unwrap() // asserted
-    }
-
-    /// Get the first part of the module path.
-    pub fn first(&self) -> &str {
-        &self.0.split(".").next().unwrap() // asserted
-    }
-
-    /// Get the full module path.
-    pub fn path(&self) -> &str {
-        &self.0
+        self.prefix == "lib"
     }
 
     /// Get the module path with underscore (_) separators instead of period (.)
-    pub fn path_underscore(&self) -> String {
-        String::from(&self.0).replace(".", "_")
+    pub fn to_underscore(&self) -> String {
+        self.prefixed_package_path().replace(".", "_")
+    }
+}
+
+impl From<&PathBuf> for ModulePath {
+    // Convert header path to module path
+    // /lib/external/mylib.util.koi.h -> mylib.util
+    fn from(p: &PathBuf) -> Self {
+        let p = p.file_name().expect("expected filepath");
+        let s = p.to_string_lossy().to_string();
+        let s = s.trim_end_matches(".koi.h");
+        let mut iter = s.split(".");
+        let package = iter.next().expect("bad filepath");
+        let path = iter.collect::<Vec<_>>().join(".");
+        ModulePath::new("".into(), package.into(), path)
+    }
+}
+
+impl From<ImportPath> for ModulePath {
+    // Turns import path into module path
+    // lib.mylib.core.util -> lib, mylib, core.util
+    // server.router -> <empty>, <empty>, server.router
+    fn from(impath: ImportPath) -> Self {
+        if impath.is_library() || impath.is_stdlib() {
+            let mut split = impath.path().split(".");
+            let prefix = split.next().unwrap();
+            let package = split
+                .next()
+                .expect("prefix without package name not allowed");
+            let path = split.collect::<Vec<_>>().join(".");
+            ModulePath::new(prefix.into(), package.into(), path)
+        } else {
+            ModulePath::new("".into(), "".into(), impath.path)
+        }
     }
 }
 
 impl Display for ModulePath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.prefixed_package_path())
     }
 }
 
-impl From<&str> for ModulePath {
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub struct ImportPath {
+    path: String,
+}
+
+impl ImportPath {
+    pub fn new(path: String) -> Self {
+        Self { path }
+    }
+
+    /// Get only the module name (the last identifier of the path).
+    pub fn name(&self) -> &str {
+        &self
+            .path
+            .split(".")
+            .last()
+            .expect("called name on a non-import path")
+    }
+
+    /// Check if this module path is part of the standard library.
+    pub fn is_stdlib(&self) -> bool {
+        self.path.starts_with("std.")
+    }
+
+    /// Check if this module path is an external library.
+    pub fn is_library(&self) -> bool {
+        self.path.starts_with("lib.")
+    }
+
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+}
+
+impl From<&str> for ImportPath {
     fn from(s: &str) -> Self {
-        ModulePath::new(s.to_string())
+        Self::new(s.into())
     }
 }
 
-impl From<String> for ModulePath {
+impl From<String> for ImportPath {
     fn from(s: String) -> Self {
-        ModulePath::new(s)
+        Self::new(s)
     }
 }
 
-impl From<&ImportNode> for ModulePath {
+impl From<&ModulePath> for ImportPath {
+    fn from(modpath: &ModulePath) -> Self {
+        modpath.import_path()
+    }
+}
+
+impl From<&ImportNode> for ImportPath {
     fn from(import: &ImportNode) -> Self {
-        ModulePath::new(
-            import
-                .names
-                .iter()
-                .map(|t| t.to_string())
-                .collect::<Vec<_>>()
-                .join("."),
-        )
-    }
-}
-
-impl From<&PathBuf> for ModulePath {
-    fn from(p: &PathBuf) -> Self {
-        p.file_name()
-            .expect("must be file")
-            .to_string_lossy()
-            .trim_end_matches(".h")
-            .trim_end_matches(".koi")
+        import
+            .names
+            .iter()
+            .map(|t| t.to_string())
+            .collect::<Vec<_>>()
+            .join(".")
             .into()
     }
 }
@@ -230,9 +323,9 @@ impl ModuleGraph {
     }
 
     /// Resolve a module path to a Module, referenced from the internal array.
-    pub fn resolve(&self, modpath: &ModulePath) -> Result<&Module, String> {
+    pub fn resolve(&self, impath: &ImportPath) -> Result<&Module, String> {
         self.cache
-            .get(modpath.path())
+            .get(impath.path())
             .map_or(Err(format!("could not resolve module import")), |id| {
                 Ok(&self.modules[*id])
             })

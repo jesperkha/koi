@@ -66,6 +66,7 @@ impl HeaderFile {
                     .expect("all types should be mapped"),
                 kind: symbol.kind.clone(),
                 no_mangle: symbol.no_mangle,
+                is_extern: symbol.is_extern(),
             })
             .collect();
 
@@ -98,7 +99,10 @@ impl HeaderFile {
                 is_exported: true,   // Always true for imported symbols
                 pos: Pos::default(), // Not used outside of type checking local modules anyways. TODO: remove pos from Symbol
                 ty: *mappings.get(&s.ty).expect("mapping not found"),
-                origin: SymbolOrigin::Module(modpath.clone()), // Module since we use mangling
+                origin: match s.is_extern {
+                    true => SymbolOrigin::Extern(modpath.clone()),
+                    false => SymbolOrigin::Module(modpath.clone()),
+                },
             })
             .collect::<Vec<_>>();
 
@@ -121,6 +125,9 @@ struct HeaderSymbol {
     ty: usize,
     kind: SymbolKind,
     no_mangle: bool,
+    // If this symbols is external it needs to be kept that way to
+    // not mangle the symbol name when loading this module.
+    is_extern: bool,
 }
 
 /// HeaderTypeKind is the header representation of a TypeKind from the type context.

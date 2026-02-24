@@ -7,7 +7,7 @@ use std::{
 
 use tracing::info;
 
-use crate::module::ModulePath;
+use crate::module::{ImportPath, ModulePath};
 
 struct Header {
     header_path: PathBuf,
@@ -70,8 +70,8 @@ impl LibrarySet {
             .map(|lib| &self.archives[lib.archive_idx])
     }
 
-    pub fn modpaths(&self) -> HashSet<&ModulePath> {
-        self.libs.keys().collect()
+    pub fn import_paths(&self) -> HashSet<ImportPath> {
+        self.libs.keys().map(|k| k.into()).collect()
     }
 }
 

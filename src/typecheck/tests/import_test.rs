@@ -1,11 +1,11 @@
 use crate::{
     ast::FileSet,
     config::Config,
-    module::{ModuleGraph, ModulePath},
+    module::ModuleGraph,
     parser::{parse_source_map, sort_by_dependency_graph},
     typecheck::check_filesets,
     types::TypeContext,
-    util::{ErrorStream, must, new_source_map},
+    util::{ErrorStream, must, new_modpath, new_source_map},
 };
 
 struct TestFile {
@@ -27,7 +27,7 @@ fn check_files(files: &[TestFile]) -> Result<(), ErrorStream> {
         .map(|f| {
             let map = new_source_map(&f.src);
             must(
-                parse_source_map(ModulePath::new(f.dep_name.clone()), &map, &config)
+                parse_source_map(new_modpath(&f.dep_name), &map, &config)
                     .map_err(|e| ErrorStream::from(e)),
             )
         })

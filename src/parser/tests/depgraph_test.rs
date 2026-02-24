@@ -1,9 +1,8 @@
 use crate::{
     ast::FileSet,
     config::Config,
-    module::ModulePath,
     parser::{parser::parse_source_map, sort_by_dependency_graph},
-    util::new_source_map,
+    util::{new_modpath, new_source_map},
 };
 
 struct TestFile {
@@ -24,7 +23,7 @@ fn get_ordered_files(files: &[TestFile]) -> Result<Vec<String>, String> {
         .map(|f| {
             let map = new_source_map(&f.src);
             let config = Config::test();
-            parse_source_map(ModulePath::from(f.dep_name.as_str()), &map, &config)
+            parse_source_map(new_modpath(f.dep_name.as_str()), &map, &config)
                 .map_err(|e| e.render(&map))
         })
         .collect::<Vec<_>>();

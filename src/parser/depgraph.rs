@@ -6,11 +6,11 @@ use petgraph::{
 };
 use tracing::info;
 
-use crate::{ast::FileSet, module::ModulePath};
+use crate::{ast::FileSet, module::ImportPath};
 
 pub struct SortResult {
     pub sets: Vec<FileSet>,
-    pub external_imports: Vec<ModulePath>,
+    pub external_imports: Vec<ImportPath>,
 }
 
 /// Sort list of FileSets based on their imports by creating a dependency graph.
@@ -37,7 +37,7 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<SortResult, String
 
     for fs in &sets {
         for import in &fs.imports {
-            let import_path = import.modpath.path();
+            let import_path = import.impath.path();
             let fs_path = fs.modpath.path();
 
             if import_path == fs_path {
@@ -46,7 +46,7 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<SortResult, String
 
             // Stdlib and external imports are resolved elsewhere and are
             // guaranteed to be present when type checking the source code.
-            if is_stdlib(import_path) || is_external(import_path) {
+            if import.impath.is_library() || import.impath.is_stdlib() {
                 external_imports.push(import_path.into());
                 continue;
             }
@@ -92,12 +92,4 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<SortResult, String
         sets: ordered,
         external_imports,
     })
-}
-
-fn is_stdlib(id: &str) -> bool {
-    id.starts_with("std.")
-}
-
-fn is_external(id: &str) -> bool {
-    id.starts_with("lib.")
 }

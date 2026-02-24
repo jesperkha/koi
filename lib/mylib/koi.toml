@@ -1,12 +1,12 @@
 [project]
-name = "stdlib"
+name = "mylib"
 type = "package"
 src = "src"
-out = "../../koi/external"
+out = "../../koi/external/mylib"
 bin = "bin"
 target = "x86-64"
 ignore-dirs = []
-includes = ["c", "io"]
+includes = ["util"]
 
 [options]
 debug-mode = true

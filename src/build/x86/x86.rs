@@ -49,7 +49,7 @@ pub fn build(
 
     for unit in ir.units {
         info!("Assembling module {}", unit.modpath.path());
-        let filepath = format!("{}/{}.s", buildcfg.tmpdir, unit.modpath.path_underscore());
+        let filepath = format!("{}/{}.s", buildcfg.tmpdir, unit.modpath.to_underscore());
         let source = X86Builder::new(config).build(unit)?;
 
         info!("Writing file {}", filepath);

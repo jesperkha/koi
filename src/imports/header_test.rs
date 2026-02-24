@@ -4,7 +4,7 @@ use crate::{
     imports::{create_header_file, read_header_file},
     module::{CreateModule, ModuleGraph, ModulePath},
     types::{FunctionType, PrimitiveType, TypeContext, TypeId, TypeKind},
-    util::{check_string, must},
+    util::{check_string, must, new_modpath},
 };
 
 fn create_header_module(
@@ -40,7 +40,7 @@ fn test_read_header_file() {
     "#;
     let mut mg = ModuleGraph::new();
     let mut ctx = TypeContext::new();
-    let create_mod = create_header_module(src, "test".into(), &mut mg, &mut ctx);
+    let create_mod = create_header_module(src, new_modpath("lib.test"), &mut mg, &mut ctx);
 
     let foo = must(create_mod.symbols.get("foo"));
     assert_eq!(foo.ty, func_type_id(&mut ctx, &vec![], PrimitiveType::I64));
@@ -68,7 +68,7 @@ fn test_loading_header_module() {
     "#;
     let mut mg = ModuleGraph::new();
     let mut ctx = TypeContext::new();
-    let create_mod = create_header_module(src, "foo".into(), &mut mg, &mut ctx);
+    let create_mod = create_header_module(src, new_modpath("foo"), &mut mg, &mut ctx);
 
     let foo = must(create_mod.symbols.get("doFoo"));
     assert_eq!(foo.ty, func_type_id(&mut ctx, &vec![], PrimitiveType::I64));
@@ -102,8 +102,8 @@ fn test_multiple_modules() {
 
     let mut mg = ModuleGraph::new();
     let mut ctx = TypeContext::new();
-    let create_mod1 = create_header_module(src1, "foo".into(), &mut mg, &mut ctx);
-    let create_mod2 = create_header_module(src2, "bar".into(), &mut mg, &mut ctx);
+    let create_mod1 = create_header_module(src1, new_modpath("foo"), &mut mg, &mut ctx);
+    let create_mod2 = create_header_module(src2, new_modpath("bar"), &mut mg, &mut ctx);
 
     let do_foo = must(create_mod1.symbols.get("doFoo")).ty;
     let do_bar = must(create_mod2.symbols.get("doBar")).ty;

@@ -17,7 +17,7 @@ pub enum Target {
     X86_64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub enum ProjectType {
     /// In app mode the source directory is compiled to a single

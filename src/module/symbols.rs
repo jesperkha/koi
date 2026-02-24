@@ -31,38 +31,13 @@ impl Symbol {
     pub fn is_extern(&self) -> bool {
         matches!(self.origin, SymbolOrigin::Extern(_))
     }
-
-    // TODO: (doing) some form of prefix for libaries
-    // to not collide accidently with user code
-    // 1. In emit, take in the project type and prefix all user symbols
-    // 2. In match below, add the library prefix
-
-    /// The mangled link name (prefixed with module path etc).
-    /// For any symbol named 'main' it will return 'main'.
-    /// For any extern symbol it will return the unaltered name.
-    /// If no_mangle is true the unaltered symbol name is returned.
-    pub fn link_name(&self) -> String {
-        if self.name == "main" {
-            return String::from("main");
-        }
-        if self.no_mangle {
-            return self.name.clone();
-        }
-        match &self.origin {
-            SymbolOrigin::Module(modpath) => {
-                format!("_{}_{}", modpath.path_underscore(), self.name)
-            }
-            SymbolOrigin::Extern(_) => self.name.clone(),
-            SymbolOrigin::Library(_) => todo!(),
-        }
-    }
 }
 
+// TODO: use module id or something else
 #[derive(Clone, Debug)]
 pub enum SymbolOrigin {
     Module(ModulePath),
     Extern(ModulePath), // Contains origin of declaration
-    Library(String),    // Contains the library name
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -152,7 +127,6 @@ impl fmt::Display for SymbolOrigin {
             match self {
                 SymbolOrigin::Module(modpath) => format!("module({})", modpath),
                 SymbolOrigin::Extern(modpath) => format!("extern({})", modpath),
-                SymbolOrigin::Library(libname) => format!("library({})", libname),
             }
         )
     }
