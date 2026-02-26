@@ -1,11 +1,15 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    fs::read,
+};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
     ast::Pos,
     module::{
-        CreateModule, Module, ModuleKind, ModulePath, Symbol, SymbolKind, SymbolList, SymbolOrigin,
+        CreateModule, ImportPath, Module, ModuleKind, ModulePath, Symbol, SymbolKind, SymbolList,
+        SymbolOrigin,
     },
     types::{PrimitiveType, TypeContext, TypeId, TypeKind},
 };
@@ -24,6 +28,14 @@ pub fn read_header_file(
 ) -> Result<CreateModule, String> {
     let header: HeaderFile = postcard::from_bytes(bytes).map_err(|e| e.to_string())?;
     header.to_module(modpath, ctx)
+}
+
+pub fn dump_header_symbols(filepath: &str) -> Result<String, String> {
+    let modpath = ModulePath::from(ImportPath::from("header"));
+    let bytes = read(filepath).map_err(|e| format!("failed to read header file: {}", e))?;
+    let mut ctx = TypeContext::new();
+    let module = read_header_file(modpath, &bytes, &mut ctx)?;
+    Ok(module.symbols.dump(filepath))
 }
 
 #[derive(Debug, Serialize, Deserialize)]

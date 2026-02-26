@@ -17,7 +17,7 @@ pub struct Symbol {
     pub origin: SymbolOrigin,
     /// If this symbol is exported from its origin module.
     pub is_exported: bool,
-    /// True if the symbol name should not be mangled (link_name).
+    /// True if the symbol name should not be mangled when linking
     pub no_mangle: bool,
     /// Position of symbol declaration.
     pub pos: Pos,
@@ -97,7 +97,7 @@ impl SymbolList {
         s += &format!("| Symbols in {}\n", module);
         s += &format!("| ----------------------\n");
         for (name, sym) in &self.symbols {
-            s += &format!("| {:<10} {}\n", name, sym)
+            s += &format!("| {:<20} {}\n", name, sym)
         }
         s
     }
@@ -105,16 +105,34 @@ impl SymbolList {
 
 impl fmt::Display for Symbol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut specs = vec![];
+        if self.is_exported {
+            specs.push("exported");
+        }
+        if !self.no_mangle {
+            specs.push("mangled");
+        }
+        if self.is_extern() {
+            specs.push("extern");
+        }
+        match &self.kind {
+            SymbolKind::Function(func) => {
+                if func.is_inline {
+                    specs.push("inline");
+                }
+                if func.is_naked {
+                    specs.push("naked");
+                }
+            }
+        }
         write!(
             f,
-            "Symbol(name={}, kind={}, origin={}, typeid={}, exported={}, mangled={}, extern={})",
-            self.name,
+            "[{} {} origin={} typeid={} {}]",
             self.kind,
+            self.name,
             self.origin,
             self.ty,
-            self.is_exported,
-            !self.no_mangle,
-            self.is_extern(),
+            specs.join(" "),
         )
     }
 }
@@ -138,8 +156,7 @@ impl fmt::Display for SymbolKind {
             f,
             "{}",
             match self {
-                SymbolKind::Function(s) =>
-                    format!("Func(inline={}, naked={})", s.is_inline, s.is_naked),
+                SymbolKind::Function(_) => "function",
             }
         )
     }

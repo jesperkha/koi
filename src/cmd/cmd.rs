@@ -3,7 +3,9 @@ use std::{
     process::exit,
 };
 
-use crate::{config::load_config_file, driver::compile, util::write_file};
+use crate::{
+    config::load_config_file, driver::compile, imports::dump_header_symbols, util::write_file,
+};
 use clap::{CommandFactory, Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 
@@ -49,17 +51,9 @@ fn run_command(command: Command) -> Result<(), String> {
             compile(project, options, config)
         }
         Command::Run => todo!(),
-        Command::Read {
-            filename: _filename,
-        } => {
-            // let contents = read(&filename).map_err(|e| e.to_string())?;
-            // let mut ctx = TypeContext::new();
-            // let create_mod = read_header_file(
-            //     filename.trim_end_matches(".koi.h").into(),
-            //     &contents,
-            //     &mut ctx,
-            // )?;
-            // println!("{}", create_mod.symbols.dump(&filename));
+        Command::Read { filename } => {
+            let s = dump_header_symbols(&filename).unwrap();
+            println!("{}", s);
             Ok(())
         }
     }

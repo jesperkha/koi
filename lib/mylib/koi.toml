@@ -6,7 +6,7 @@ out = "../../koi/external/mylib"
 bin = "bin"
 target = "x86-64"
 ignore-dirs = []
-includes = ["util"]
+includes = []
 
 [options]
 debug-mode = true

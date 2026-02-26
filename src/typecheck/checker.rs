@@ -268,6 +268,9 @@ impl<'a> Checker<'a> {
             ret,
         }));
 
+        let is_extern = matches!(origin, SymbolOrigin::Extern(_));
+        let no_mangle = is_extern;
+
         let symbol = Symbol {
             filename: filepath.to_owned(),
             name: node.name.to_string(),
@@ -276,7 +279,7 @@ impl<'a> Checker<'a> {
                 is_inline: false,
                 is_naked: false,
             }),
-            no_mangle: false,
+            no_mangle,
             ty,
             origin,
             is_exported: node.public,
