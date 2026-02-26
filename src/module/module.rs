@@ -91,6 +91,7 @@ pub struct ModulePath {
     prefix: String,  // lib
     package: String, // socket
     path: String,    // common.util
+    is_main: bool,
 }
 
 impl ModulePath {
@@ -101,10 +102,23 @@ impl ModulePath {
                 "cannot have empty package name if prefix is non-empty",
             );
         }
+        if prefix.is_empty() && package.is_empty() && path.is_empty() {
+            panic!("empty module path");
+        }
         Self {
             prefix,
             package,
             path,
+            is_main: false,
+        }
+    }
+
+    pub fn to_main(self) -> Self {
+        Self {
+            prefix: self.prefix,
+            package: self.package,
+            path: self.path,
+            is_main: true,
         }
     }
 
@@ -130,12 +144,8 @@ impl ModulePath {
         &self.path
     }
 
-    pub fn package_path(&self) -> String {
-        format!("{}.{}", self.package, self.path)
-    }
-
-    pub fn prefixed_package_path(&self) -> String {
-        format!("{}.{}.{}", self.prefix, self.package, self.path)
+    pub fn is_main(&self) -> bool {
+        self.is_main
     }
 
     pub fn import_path(&self) -> ImportPath {
@@ -165,7 +175,12 @@ impl ModulePath {
 
     /// Get the module path with underscore (_) separators instead of period (.)
     pub fn to_underscore(&self) -> String {
-        self.prefixed_package_path().replace(".", "_")
+        std::iter::once(self.prefix.as_str())
+            .chain(std::iter::once(self.package.as_str()))
+            .chain(self.path.split('.'))
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("_")
     }
 }
 
@@ -204,13 +219,19 @@ impl From<ImportPath> for ModulePath {
 
 impl Display for ModulePath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.prefixed_package_path())
+        write!(f, "{}", self.import_path())
     }
 }
 
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct ImportPath {
     path: String,
+}
+
+impl Display for ImportPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.path)
+    }
 }
 
 impl ImportPath {
@@ -310,7 +331,7 @@ impl ModuleGraph {
         let module = &self.modules[id];
         self.cache.insert(module.modpath.path().to_owned(), id);
 
-        if module.modpath.path() == "main" {
+        if module.modpath.is_main() {
             self.main_id = Some(id);
         }
 

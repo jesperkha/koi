@@ -111,9 +111,7 @@ impl<'a> Checker<'a> {
     }
 
     pub fn check(mut self, fs: FileSet) -> Res<CreateModule> {
-        //self.is_main = fs.modpath.path().is_empty();
-        // TODO: actually check for main module somehow
-        self.is_main = true;
+        self.is_main = fs.modpath.is_main();
 
         for _ in &fs.files {
             self.resolve_imports(&fs)?;

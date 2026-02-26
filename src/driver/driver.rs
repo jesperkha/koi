@@ -152,22 +152,7 @@ fn collect_all_source_dirs(
             continue;
         }
 
-        let path = pathbuf_to_module_path(&dir, source_dir);
-        let prefix = if matches!(project.project_type, ProjectType::Package) {
-            "lib".into()
-        } else {
-            "".into()
-        };
-        let modpath = ModulePath::new(prefix, project.name.clone(), path);
-
-        // if modpath_str.is_empty() {
-        //     if matches!(project.project_type, ProjectType::Package) {
-        //         modpath_str = project.name.clone();
-        //     } else {
-        //         modpath_str = String::from("main");
-        //     }
-        // }
-
+        let modpath = pathbuf_to_module_path(&dir, source_dir, project);
         let dir = SourceDir { modpath, map };
         dirs.push(dir);
     }
@@ -221,7 +206,7 @@ fn parse_source_dirs(dirs: &Vec<SourceDir>, config: &Config) -> Res<Vec<FileSet>
     let mut filesets = Vec::new();
 
     for dir in dirs {
-        info!("Parsing module: {}", dir.modpath.path());
+        info!("Parsing module: {}", dir.modpath.to_underscore());
         let fileset = parse_source_map(dir.modpath.clone(), &dir.map, config)
             .map_err(|err| err.render(&dir.map))?;
 
@@ -335,13 +320,27 @@ fn list_source_directories(path: &str, ignore_dirs: &[String]) -> Result<Vec<Pat
 }
 
 /// Convert foo/bar/faz to foo.bar.faz
-fn pathbuf_to_module_path(path: &PathBuf, source_dir: &str) -> String {
-    path.display()
+fn pathbuf_to_module_path(path: &PathBuf, source_dir: &str, project: &Project) -> ModulePath {
+    let path = path
+        .display()
         .to_string()
         .trim_start_matches(source_dir)
         .trim_start_matches("/")
         .trim_end_matches("/")
-        .replace("/", ".")
+        .replace("/", ".");
+
+    let prefix = if matches!(project.project_type, ProjectType::Package) {
+        "lib".into()
+    } else {
+        "".into()
+    };
+
+    let mut modpath = ModulePath::new(prefix, project.name.clone(), path);
+    if modpath.path().is_empty() {
+        modpath = modpath.to_main()
+    }
+
+    modpath
 }
 
 fn error_str(msg: &str) -> Result<(), String> {

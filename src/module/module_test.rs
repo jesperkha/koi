@@ -32,12 +32,32 @@ fn test_impath_from_modpath() {
 }
 
 #[test]
+fn test_modpath_underscore() {
+    let modpath = ModulePath::new("".into(), "test".into(), "".into());
+    assert_eq!(modpath.to_underscore(), "test");
+
+    let modpath = ModulePath::new("lib".into(), "mylib".into(), "".into());
+    assert_eq!(modpath.to_underscore(), "lib_mylib");
+
+    let modpath = ModulePath::new("".into(), "".into(), "pkg.util".into());
+    assert_eq!(modpath.to_underscore(), "pkg_util");
+
+    let modpath = ModulePath::new("std".into(), "os".into(), "pkg.util".into());
+    assert_eq!(modpath.to_underscore(), "std_os_pkg_util");
+}
+
+#[test]
 fn test_modpath_is_x() {
     let modpath = ModulePath::new("lib".into(), "test".into(), "".into());
     assert!(modpath.is_library());
 
     let modpath = ModulePath::new("std".into(), "test".into(), "".into());
     assert!(modpath.is_stdlib());
+
+    let modpath = ModulePath::new("".into(), "app".into(), "".into());
+    assert!(!modpath.is_main());
+    let modpath = modpath.to_main();
+    assert!(modpath.is_main());
 }
 
 #[test]

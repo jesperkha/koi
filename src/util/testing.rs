@@ -103,7 +103,12 @@ pub fn scan_string(src: &str) -> Result<Vec<Token>, ErrorStream> {
 }
 
 pub fn new_modpath(path: &str) -> ModulePath {
-    ImportPath::from(path).into()
+    let modpath: ModulePath = ImportPath::from(path).into();
+    if path == "main" {
+        modpath.to_main()
+    } else {
+        modpath
+    }
 }
 
 pub fn parse_string(src: &str) -> Result<Ast, ErrorStream> {

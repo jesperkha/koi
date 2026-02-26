@@ -10,7 +10,7 @@ use crate::{
         self, AssignIns, ExternFuncInst, FuncInst, IRType, Ins, LValue, StoreIns, StringDataIns,
         SymTracker, Unit, Value,
     },
-    module::{Module, ModuleKind, ModulePath, NamespaceList, Symbol, SymbolList},
+    module::{Module, ModuleKind, ModulePath, NamespaceList, Symbol, SymbolList, SymbolOrigin},
     types::{
         self, Decl, Expr, LiteralKind, TypeContext, TypeId, TypeKind, TypedNode, Visitable, Visitor,
     },
@@ -120,10 +120,14 @@ impl<'a> Emitter<'a> {
     }
 
     fn mangle_symbol_name(&self, sym: &Symbol) -> String {
-        if self.config.no_mangle_names || sym.no_mangle || sym.is_extern() {
+        if self.config.no_mangle_names || sym.no_mangle || sym.is_extern() || sym.name == "main" {
             sym.name.clone()
         } else {
-            format!("_{}_{}", self.modpath.to_underscore(), sym.name)
+            let modpath = match &sym.origin {
+                SymbolOrigin::Module(modpath) => modpath,
+                _ => unreachable!(),
+            };
+            format!("_{}_{}", modpath.to_underscore(), sym.name)
         }
     }
 }
