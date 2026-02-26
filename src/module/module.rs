@@ -182,6 +182,14 @@ impl ModulePath {
             .collect::<Vec<_>>()
             .join("_")
     }
+
+    pub fn to_header_format(&self) -> String {
+        if self.path.is_empty() {
+            self.package.clone()
+        } else {
+            format!("{}.{}", self.package, self.path)
+        }
+    }
 }
 
 impl From<&PathBuf> for ModulePath {
@@ -329,7 +337,7 @@ impl ModuleGraph {
         });
 
         let module = &self.modules[id];
-        self.cache.insert(module.modpath.path().to_owned(), id);
+        self.cache.insert(module.modpath.to_string(), id);
 
         if module.modpath.is_main() {
             self.main_id = Some(id);

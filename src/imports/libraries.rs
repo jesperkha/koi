@@ -5,7 +5,7 @@ use std::{
     path::PathBuf,
 };
 
-use tracing::info;
+use tracing::debug;
 
 use crate::module::{ImportPath, ModulePath};
 
@@ -52,7 +52,7 @@ impl LibrarySet {
                     archive_idx: archive_id,
                 };
 
-                info!("Using header: {} at {:?}", modpath, header.header_path);
+                debug!("Using header: {} at {:?}", modpath, header.header_path);
                 self.libs.insert(modpath, header);
             }
         }

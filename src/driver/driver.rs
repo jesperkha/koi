@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use tracing::info;
+use tracing::{debug, info};
 use walkdir::WalkDir;
 
 use crate::{
@@ -106,17 +106,12 @@ fn create_package_headers(
         .modules()
         .iter()
         .filter(|m| {
-            m.modpath.path() == project.name
-                || includes.iter().any(|include| include == m.modpath.path())
+            m.modpath.is_main() || includes.iter().any(|include| include == m.modpath.path())
         })
         .collect::<Vec<&Module>>();
 
     for module in exported_modules {
-        let filename = if module.modpath.path() == project.name {
-            format!("{}.koi.h", module.modpath.path())
-        } else {
-            format!("{}.{}.koi.h", project.name, module.modpath.path())
-        };
+        let filename = format!("{}.koi.h", module.modpath.to_header_format());
 
         // TODO: new FilePath object to wrap PathBuf and add utility methods
         let outfile = PathBuf::from(&project.out)
@@ -242,6 +237,7 @@ fn create_modules(
         let create_mod = read_header_file(modpath, &content, &mut ctx)
             .map_err(|e| format!("error: failed to read header file: {}", e))?;
 
+        info!("Loading external module: {}", create_mod.modpath);
         mg.add(create_mod);
     }
 
@@ -373,7 +369,7 @@ fn dump_debug_info(
 ) -> Res<()> {
     if config.dump_type_context {
         let path = format!("{}/types.txt", project.bin);
-        info!("Writing type info to {}", path);
+        debug!("Writing type info to {}", path);
         write_file(&path, &ctx.dump_context_string())?;
     }
 
@@ -384,7 +380,7 @@ fn dump_debug_info(
         }
 
         let path = format!("{}/symbols.txt", project.bin);
-        info!("Writing symbol info to {}", path);
+        debug!("Writing symbol info to {}", path);
         write_file(&path, &s)?;
     }
 
