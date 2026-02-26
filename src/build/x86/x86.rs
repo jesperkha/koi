@@ -9,6 +9,7 @@ use tracing::info;
 use crate::{
     build::x86::reg_alloc::RegAllocator,
     config::{Config, PathManager},
+    imports::LibrarySet,
     ir::{AssignIns, ConstId, IRType, IRVisitor, Ir, LValue, StoreIns, Unit, Value},
     util::{cmd, write_file},
 };
@@ -38,6 +39,7 @@ pub fn build(
     buildcfg: BuildConfig,
     config: &Config,
     pm: &PathManager,
+    libset: &LibrarySet,
 ) -> Result<(), String> {
     info!("Building for x86-64. Output: {}", buildcfg.target_name);
 
@@ -55,6 +57,11 @@ pub fn build(
         info!("Writing file {}", filepath);
         write_file(&filepath, &source)?;
         asm_files.push(filepath);
+    }
+
+    let mut linker_flags = vec![];
+    for lib in libset.archives() {
+        linker_flags.push(format!("{}", lib.to_string_lossy()));
     }
 
     match buildcfg.linkmode {
@@ -75,6 +82,7 @@ pub fn build(
                 .to_string_lossy()
                 .to_string();
             args.push(format!("-o{}", target_path));
+            args.extend_from_slice(&linker_flags);
             cmd("gcc", &args)?;
         }
         LinkMode::Library => {
@@ -101,6 +109,7 @@ pub fn build(
 
             let mut args = vec!["rcs".into(), target_path];
             args.extend_from_slice(&objfiles);
+            args.extend_from_slice(&linker_flags);
             cmd("ar", &args)?;
         }
     }

@@ -64,6 +64,8 @@ pub struct Project {
 #[serde(rename_all = "kebab-case")]
 pub struct Options {
     pub debug_mode: bool,
+    /// Custom path to installation directory
+    pub install_dir: Option<String>,
 }
 
 /// Internal compiler configuration

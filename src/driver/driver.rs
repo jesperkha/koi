@@ -24,8 +24,13 @@ use crate::{
 type Res<T> = Result<T, String>;
 
 /// Compile the project using the given global config and build configuration.
-pub fn compile(project: Project, _options: Options, config: Config) -> Res<()> {
-    let pm = PathManager::new(get_root_dir());
+pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
+    let pm = PathManager::new(
+        options
+            .install_dir
+            .map_or(get_root_dir(), |s| PathBuf::from(s)),
+    );
+
     create_dir_if_not_exist(&project.bin)?;
 
     // Recursively search the given source directory for files and
@@ -80,7 +85,7 @@ pub fn compile(project: Project, _options: Options, config: Config) -> Res<()> {
         .collect::<Result<Vec<Unit>, String>>()?;
 
     // Build the final executable/libary file
-    build(Ir::new(units), &config, &project, &pm)
+    build(Ir::new(units), &config, &project, &pm, &libset)
 }
 
 fn validate_external_imports(
@@ -251,7 +256,13 @@ fn emit_module_ir(map: &SourceMap, m: &Module, ctx: &TypeContext, config: &Confi
 }
 
 /// Shorthand for assembling an IR unit and converting error to string.
-fn build(ir: Ir, config: &Config, build_cfg: &Project, pm: &PathManager) -> Res<()> {
+fn build(
+    ir: Ir,
+    config: &Config,
+    build_cfg: &Project,
+    pm: &PathManager,
+    libset: &LibrarySet,
+) -> Res<()> {
     match build_cfg.target {
         Target::X86_64 => x86::build(
             ir,
@@ -263,6 +274,7 @@ fn build(ir: Ir, config: &Config, build_cfg: &Project, pm: &PathManager) -> Res<
             },
             config,
             pm,
+            libset,
         ),
     }
 }

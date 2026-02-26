@@ -73,6 +73,10 @@ impl LibrarySet {
     pub fn import_paths(&self) -> HashSet<ImportPath> {
         self.libs.keys().map(|k| k.into()).collect()
     }
+
+    pub fn archives(&self) -> &[PathBuf] {
+        &self.archives
+    }
 }
 
 struct Library {
