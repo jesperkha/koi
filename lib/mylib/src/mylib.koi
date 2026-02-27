@@ -1,4 +1,4 @@
-pub extern func puts(s string)
+import util { puts }
 
 pub func doSomething() {
     puts("Doing something...")

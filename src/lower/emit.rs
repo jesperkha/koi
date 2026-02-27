@@ -71,7 +71,7 @@ impl<'a> Emitter<'a> {
         }
 
         if diag.num_errors() == 0 {
-            debug!("success: {} instructions", self.ins.len());
+            debug!("Success: {} instructions", self.ins.len());
             Ok(mem::take(&mut self.ins[0]))
         } else {
             info!("Fail: finished with {} errors", diag.num_errors());

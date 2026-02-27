@@ -1,4 +1,4 @@
-extern func puts(s string)
+pub extern func puts(s string)
 
 pub func utilFunction() {
     puts("Doing util stuff...")

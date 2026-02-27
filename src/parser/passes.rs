@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 
+use tracing::debug;
+
 use crate::{
     ast::{FileSet, Node},
     error::{Diagnostics, Report, Res},
@@ -20,8 +22,17 @@ pub fn validate_imports(fs: &FileSet, libraries: HashSet<ImportPath>) -> Res<()>
                 continue;
             }
 
+            debug!("ImportPath={:?}", impath);
+            debug!(
+                "Available=[{}]",
+                libraries
+                    .iter()
+                    .map(|i| i.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
             diag.add(Report::code_error(
-                "could not resolve library import", // TODO: better error message?
+                "could not resolve library import",
                 import.pos(),
                 import.end(),
             ));

@@ -1,5 +1,7 @@
 use std::{collections::HashMap, fmt::Display, hash::Hash, path::PathBuf};
 
+use tracing::debug;
+
 use crate::{
     ast::ImportNode,
     module::{NamespaceList, Symbol, SymbolList, SymbolOrigin},
@@ -328,6 +330,21 @@ impl ModuleGraph {
     /// Create a new module and add it to the graph.
     pub fn add(&mut self, m: CreateModule) -> &Module {
         let id = self.modules.len();
+
+        let key = match &m.kind {
+            // For source modules the import path should have the prefix and package name removed
+            // (eg. myapp.util -> util). This is purely for convenience.
+            ModuleKind::Source(_) => m.modpath.path().to_string(),
+            // For external modules the full import path is used to preserve the prefix and package
+            // name (eg. lib.mylib.foo).
+            ModuleKind::External => m.modpath.import_path().to_string(),
+        };
+
+        if m.modpath.is_main() {
+            self.main_id = Some(id);
+        }
+
+        self.cache.insert(key, id);
         self.modules.push(Module {
             id,
             modpath: m.modpath,
@@ -336,14 +353,7 @@ impl ModuleGraph {
             deps: m.deps,
         });
 
-        let module = &self.modules[id];
-        self.cache.insert(module.modpath.to_string(), id);
-
-        if module.modpath.is_main() {
-            self.main_id = Some(id);
-        }
-
-        module
+        &self.modules[id]
     }
 
     pub fn get(&self, id: ModuleId) -> Option<&Module> {
@@ -353,11 +363,21 @@ impl ModuleGraph {
 
     /// Resolve a module path to a Module, referenced from the internal array.
     pub fn resolve(&self, impath: &ImportPath) -> Result<&Module, String> {
-        self.cache
-            .get(impath.path())
-            .map_or(Err(format!("could not resolve module import")), |id| {
-                Ok(&self.modules[*id])
-            })
+        self.cache.get(impath.path()).map_or_else(
+            || {
+                debug!("ImportPath={:?}", impath);
+                debug!(
+                    "Available=[{}]",
+                    self.cache
+                        .keys()
+                        .map(|k| k.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                Err(format!("could not resolve module import"))
+            },
+            |id| Ok(&self.modules[*id]),
+        )
     }
 
     /// Get main module if any
