@@ -1,0 +1,10 @@
+extern func strlen(s string) int
+
+func myFunction(a int, b bool, c string) int {
+    return strlen(c)
+}
+
+func main() int {
+    n := myFunction(0, false, "123")
+    return n
+}

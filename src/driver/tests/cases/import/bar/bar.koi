@@ -1,0 +1,5 @@
+import bar.faz
+
+pub func barFunc() int {
+    return faz.fazFunc()
+}
