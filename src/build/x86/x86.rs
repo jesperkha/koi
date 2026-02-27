@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    path::PathBuf,
     process::{Command, Stdio},
 };
 
@@ -11,7 +10,7 @@ use crate::{
     config::{Config, PathManager},
     imports::LibrarySet,
     ir::{AssignIns, ConstId, IRType, IRVisitor, Ir, LValue, StoreIns, Unit, Value},
-    util::{cmd, write_file},
+    util::{FilePath, cmd, write_file},
 };
 
 pub enum LinkMode {
@@ -55,13 +54,13 @@ pub fn build(
         let source = X86Builder::new(config).build(unit)?;
 
         info!("Writing file {}", filepath);
-        write_file(&filepath, &source)?;
+        write_file(&filepath.as_str().into(), &source)?;
         asm_files.push(filepath);
     }
 
     let mut linker_flags = vec![];
     for lib in libset.archives() {
-        linker_flags.push(format!("{}", lib.to_string_lossy()));
+        linker_flags.push(format!("{}", lib));
     }
 
     match buildcfg.linkmode {
@@ -71,16 +70,9 @@ pub fn build(
             let mut args = asm_files;
             args.push("-nostartfiles".into());
 
-            let entry_file = pm
-                .library_path()
-                .join("entry.s")
-                .to_string_lossy()
-                .to_string();
-            args.push(entry_file);
-            let target_path = PathBuf::from(&buildcfg.outdir)
-                .join(&buildcfg.target_name)
-                .to_string_lossy()
-                .to_string();
+            let entry_file = pm.library_path().join("entry.s");
+            args.push(entry_file.to_string());
+            let target_path = FilePath::from(&buildcfg.outdir).join(&buildcfg.target_name);
             args.push(format!("-o{}", target_path));
             args.extend_from_slice(&linker_flags);
             cmd("gcc", &args)?;
@@ -102,12 +94,10 @@ pub fn build(
                 )?;
                 objfiles.push(objfile);
             }
-            let target_path = PathBuf::from(&buildcfg.outdir)
-                .join(format!("lib{}.a", buildcfg.target_name))
-                .to_string_lossy()
-                .to_string();
+            let target_path =
+                FilePath::from(&buildcfg.outdir).join(&format!("lib{}.a", buildcfg.target_name));
 
-            let mut args = vec!["rcs".into(), target_path];
+            let mut args = vec!["rcs".into(), target_path.to_string()];
             args.extend_from_slice(&objfiles);
             args.extend_from_slice(&linker_flags);
             cmd("ar", &args)?;

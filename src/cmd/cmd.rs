@@ -80,7 +80,7 @@ fn koi_init() -> Result<(), String> {
         return Ok(());
     }
 
-    write_file("koi.toml", DEFAULT_KOI_TOML)?;
+    write_file(&"koi.toml".into(), DEFAULT_KOI_TOML)?;
     println!("Created koi.toml");
     Ok(())
 }

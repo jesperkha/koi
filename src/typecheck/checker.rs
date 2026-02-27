@@ -130,7 +130,7 @@ impl<'a> Checker<'a> {
         Ok(CreateModule {
             modpath: fs.modpath,
             kind: ModuleKind::Source(SourceModule {
-                path: fs.path,
+                filepath: fs.filepath,
                 ast: TypedAst { decls },
                 namespaces: self.nsl,
             }),
