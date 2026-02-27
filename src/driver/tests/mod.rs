@@ -37,7 +37,7 @@ fn case_dir(case: &str) -> FilePath {
     root_dir().join("src/driver/tests/cases").join(case)
 }
 
-fn new_config(case: &str, install_dir: Option<String>) -> (Project, Options, Config) {
+fn new_config(case: &str) -> (Project, Options, Config) {
     init_logger();
     let project = Project {
         name: case.into(),
@@ -52,7 +52,7 @@ fn new_config(case: &str, install_dir: Option<String>) -> (Project, Options, Con
 
     let options = Options {
         debug_mode: true,
-        install_dir,
+        install_dir: None,
     };
 
     let config = Config {
@@ -106,13 +106,13 @@ fn expect_status(case: &str, status: i32) {
 }
 
 fn run_case_with_status(case: &str, status: i32) {
-    let (project, options, config) = new_config(case, None);
+    let (project, options, config) = new_config(case);
     compile(project, options, config).unwrap();
     expect_status(case, status);
 }
 
 fn run_case_with_error(case: &str, error: &str) {
-    let (project, options, config) = new_config(case, None);
+    let (project, options, config) = new_config(case);
     match compile(project, options, config) {
         Ok(_) => panic!("expected error, got none"),
         Err(e) => assert_eq!(e, error),
@@ -170,9 +170,18 @@ fn test_library() {
     compile(project, options, config).unwrap();
 
     // Compile test module
-    let (project, options, config) = new_config("library", Some(install_dir.to_string()));
+    let (project, mut options, config) = new_config("library");
+    options.install_dir = Some(install_dir.to_string());
     compile(project, options, config).unwrap();
     expect_status("library", 44);
+}
+
+#[test]
+fn test_excludes() {
+    let (mut project, options, config) = new_config("excludes");
+    project.ignore_dirs = vec!["excluded".into()];
+    compile(project, options, config).unwrap();
+    expect_status("excludes", 0);
 }
 
 #[test]

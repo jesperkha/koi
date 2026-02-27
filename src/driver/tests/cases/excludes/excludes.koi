@@ -1,0 +1,6 @@
+import foo { doFoo }
+
+func main() int {
+    doFoo()
+    return 0
+}
