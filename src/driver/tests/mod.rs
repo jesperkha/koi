@@ -33,6 +33,10 @@ fn root_dir() -> FilePath {
     FilePath::from(env!("CARGO_MANIFEST_DIR"))
 }
 
+fn installation_dir() -> FilePath {
+    root_dir().join("src/driver/tests/installation")
+}
+
 fn case_dir(case: &str) -> FilePath {
     root_dir().join("src/driver/tests/cases").join(case)
 }
@@ -52,7 +56,7 @@ fn new_config(case: &str) -> (Project, Options, Config) {
 
     let options = Options {
         debug_mode: true,
-        install_dir: None,
+        install_dir: Some(installation_dir().to_string()),
     };
 
     let config = Config {
@@ -84,7 +88,7 @@ fn library_config(
 
     let options = Options {
         debug_mode: true,
-        install_dir: None,
+        install_dir: Some(installation_dir().to_string()),
     };
 
     let config = Config {
