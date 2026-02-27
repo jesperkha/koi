@@ -42,3 +42,6 @@ main
 # Installation dir
 /koi
 *.koi.h
+
+# Test library
+/lib/mylib
