@@ -1,5 +1,0 @@
-import c
-
-pub func println(s string) {
-    c.puts(s)
-}
