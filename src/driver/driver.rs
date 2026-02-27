@@ -1,6 +1,6 @@
 use std::{
     fs::{self, read},
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use tracing::{debug, info};
@@ -17,7 +17,7 @@ use crate::{
     parser::{SortResult, parse_source_map, sort_by_dependency_graph, validate_imports},
     typecheck::check_filesets,
     types::TypeContext,
-    util::{create_dir_if_not_exist, get_root_dir, write_file},
+    util::{FilePath, create_dir_if_not_exist, get_root_dir, write_file},
 };
 
 /// Result type shorthand used in this file.
@@ -28,7 +28,7 @@ pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
     let pm = PathManager::new(
         options
             .install_dir
-            .map_or(get_root_dir(), |s| PathBuf::from(s)),
+            .map_or(get_root_dir(), |s| FilePath::from(s)),
     );
 
     create_dir_if_not_exist(&project.bin)?;
@@ -118,11 +118,7 @@ fn create_package_headers(
     for module in exported_modules {
         let filename = format!("{}.koi.h", module.modpath.to_header_format());
 
-        // TODO: new FilePath object to wrap PathBuf and add utility methods
-        let outfile = PathBuf::from(&project.out)
-            .join(filename)
-            .to_string_lossy()
-            .to_string();
+        let outfile = FilePath::from(&project.out).join(&filename);
         let content = create_header_file(module, &ctx)?;
         write_file(&outfile, &content)?;
     }
@@ -152,7 +148,7 @@ fn collect_all_source_dirs(
             continue;
         }
 
-        let modpath = pathbuf_to_module_path(&dir, source_dir, project);
+        let modpath = filepath_to_module_path(&dir, source_dir, project);
         let dir = SourceDir { modpath, map };
         dirs.push(dir);
     }
@@ -165,11 +161,11 @@ fn collect_all_source_dirs(
 }
 
 /// Collects all koi files in given directory and returns as a list of sources.
-fn dir_to_source_map(dir: &PathBuf) -> Res<SourceMap> {
-    let mut files = Vec::new();
+fn dir_to_source_map(dir: &FilePath) -> Res<SourceMap> {
+    let mut files: Vec<FilePath> = Vec::new();
 
-    let dirents = match fs::read_dir(dir) {
-        Err(_) => return Err(format!("failed to read directory: '{}'", dir.display())),
+    let dirents = match fs::read_dir(dir.path_buf()) {
+        Err(_) => return Err(format!("failed to read directory: '{}'", dir)),
         Ok(ents) => ents,
     };
 
@@ -185,14 +181,14 @@ fn dir_to_source_map(dir: &PathBuf) -> Res<SourceMap> {
 
         if let Some(ext) = path.extension() {
             if ext == "koi" {
-                files.push(path.display().to_string());
+                files.push(path.into());
             }
         }
     }
 
     let mut map = SourceMap::new();
     for file in files {
-        match fs::read(&file) {
+        match fs::read(file.path_buf()) {
             Err(err) => return Err(format!("failed to read file: {}", err)),
             Ok(src) => map.add(Source::new(file, src)),
         }
@@ -232,12 +228,12 @@ fn create_modules(
 
     for impath in sort_result.external_imports {
         let modpath = ModulePath::from(impath);
-        let path = &libset
+        let path = libset
             .get_header_path(&modpath)
             .expect("should have been validated");
 
-        let content =
-            read(path).map_err(|_| format!("error: failed to read header file: '{:?}'", path))?;
+        let content = read(path.path_buf())
+            .map_err(|_| format!("error: failed to read header file: '{:?}'", path))?;
 
         let create_mod = read_header_file(modpath, &content, &mut ctx)
             .map_err(|e| format!("error: failed to read header file: {}", e))?;
@@ -297,7 +293,7 @@ fn is_hidden(entry: &walkdir::DirEntry, ignore_dirs: &[String]) -> bool {
 
 /// List all subdirectories in path, including path. Ignores hidden
 /// directories and ones listed in other ignore lists (config or .gitignore).
-fn list_source_directories(path: &str, ignore_dirs: &[String]) -> Result<Vec<PathBuf>, String> {
+fn list_source_directories(path: &str, ignore_dirs: &[String]) -> Result<Vec<FilePath>, String> {
     let mut dirs = Vec::new();
     let mut errors = Vec::new();
 
@@ -308,7 +304,7 @@ fn list_source_directories(path: &str, ignore_dirs: &[String]) -> Result<Vec<Pat
         match entry {
             Ok(e) => {
                 if e.file_type().is_dir() {
-                    dirs.push(e.path().to_path_buf());
+                    dirs.push(e.path().to_path_buf().into());
                 }
             }
             Err(err) => {
@@ -328,9 +324,8 @@ fn list_source_directories(path: &str, ignore_dirs: &[String]) -> Result<Vec<Pat
 }
 
 /// Convert foo/bar/faz to foo.bar.faz
-fn pathbuf_to_module_path(path: &PathBuf, source_dir: &str, project: &Project) -> ModulePath {
+fn filepath_to_module_path(path: &FilePath, source_dir: &str, project: &Project) -> ModulePath {
     let path = path
-        .display()
         .to_string()
         .trim_start_matches(source_dir)
         .trim_start_matches("/")
@@ -382,7 +377,7 @@ fn dump_debug_info(
     if config.dump_type_context {
         let path = format!("{}/types.txt", project.bin);
         debug!("Writing type info to {}", path);
-        write_file(&path, &ctx.dump_context_string())?;
+        write_file(&path.into(), &ctx.dump_context_string())?;
     }
 
     if config.print_symbol_tables {
@@ -393,7 +388,7 @@ fn dump_debug_info(
 
         let path = format!("{}/symbols.txt", project.bin);
         debug!("Writing symbol info to {}", path);
-        write_file(&path, &s)?;
+        write_file(&path.into(), &s)?;
     }
 
     Ok(())

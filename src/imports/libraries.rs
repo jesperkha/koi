@@ -2,15 +2,17 @@ use std::{
     collections::{HashMap, HashSet},
     fs::{self, DirEntry, ReadDir},
     io::Error,
-    path::PathBuf,
 };
 
 use tracing::debug;
 
-use crate::module::{ImportPath, ModulePath};
+use crate::{
+    module::{ImportPath, ModulePath},
+    util::FilePath,
+};
 
 struct Header {
-    header_path: PathBuf,
+    header_path: FilePath,
     archive_idx: usize,
 }
 
@@ -20,7 +22,7 @@ pub enum LibraryKind {
 }
 
 pub struct LibrarySet {
-    archives: Vec<PathBuf>,
+    archives: Vec<FilePath>,
     libs: HashMap<ModulePath, Header>,
 }
 
@@ -34,7 +36,7 @@ impl LibrarySet {
 
     /// Read a given directory and collect all libraries.
     /// Header files are mapped to their corresponding archive file.
-    pub fn read_dir(&mut self, dir: &PathBuf, kind: LibraryKind) -> Result<(), String> {
+    pub fn read_dir(&mut self, dir: &FilePath, kind: LibraryKind) -> Result<(), String> {
         let libs = find_libraries(dir)?;
 
         for lib in libs {
@@ -60,11 +62,11 @@ impl LibrarySet {
         Ok(())
     }
 
-    pub fn get_header_path(&self, modpath: &ModulePath) -> Option<&PathBuf> {
+    pub fn get_header_path(&self, modpath: &ModulePath) -> Option<&FilePath> {
         self.libs.get(modpath).map(|lib| &lib.header_path)
     }
 
-    pub fn get_archive_path(&self, modpath: &ModulePath) -> Option<&PathBuf> {
+    pub fn get_archive_path(&self, modpath: &ModulePath) -> Option<&FilePath> {
         self.libs
             .get(modpath)
             .map(|lib| &self.archives[lib.archive_idx])
@@ -74,25 +76,25 @@ impl LibrarySet {
         self.libs.keys().map(|k| k.into()).collect()
     }
 
-    pub fn archives(&self) -> &[PathBuf] {
+    pub fn archives(&self) -> &[FilePath] {
         &self.archives
     }
 }
 
 struct Library {
-    headers: Vec<PathBuf>,
-    archive: PathBuf,
+    headers: Vec<FilePath>,
+    archive: FilePath,
 }
 
-fn read_dir(dir: &PathBuf) -> Result<ReadDir, String> {
-    fs::read_dir(dir).map_err(|_| format!("error: failed to read directory {:?}", dir))
+fn read_dir(dir: &FilePath) -> Result<ReadDir, String> {
+    fs::read_dir(dir.path_buf()).map_err(|_| format!("error: failed to read directory {:?}", dir))
 }
 
 fn get_entry(res: Result<DirEntry, Error>) -> Result<DirEntry, String> {
     res.map_err(|e| format!("error: failed to read entry: {}", e))
 }
 
-fn find_libraries(source_dir: &PathBuf) -> Result<Vec<Library>, String> {
+fn find_libraries(source_dir: &FilePath) -> Result<Vec<Library>, String> {
     let mut libraries = Vec::new();
 
     let entries = read_dir(source_dir)?;
@@ -104,17 +106,17 @@ fn find_libraries(source_dir: &PathBuf) -> Result<Vec<Library>, String> {
             continue;
         }
 
-        let mut headers: Vec<PathBuf> = Vec::new();
-        let mut archive: Option<PathBuf> = None;
+        let mut headers: Vec<FilePath> = Vec::new();
+        let mut archive: Option<FilePath> = None;
 
-        let sub_entries = read_dir(&path)?;
+        let sub_entries = read_dir(&path.into())?;
         for file in sub_entries {
             let file = get_entry(file)?;
             let file_path = file.path();
 
             match file_path.extension().and_then(|e| e.to_str()) {
-                Some("h") => headers.push(file_path),
-                Some("a") => archive = Some(file_path),
+                Some("h") => headers.push(file_path.into()),
+                Some("a") => archive = Some(file_path.into()),
                 _ => {}
             }
         }

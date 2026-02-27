@@ -1,29 +1,29 @@
 use std::{
     env,
+    fmt::Display,
     fs::{self, read_dir},
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::Command,
 };
 
 use tracing::{debug, info};
 
 /// Write file at given filepath with content.
-pub fn write_file<C>(filepath: &str, content: C) -> Result<(), String>
+pub fn write_file<C>(filepath: &FilePath, content: C) -> Result<(), String>
 where
     C: AsRef<[u8]>,
 {
     debug!("Writing file: {}", filepath);
-    let path = Path::new(filepath);
-    if let Err(_) = fs::write(&path, content) {
+    if let Err(_) = fs::write(filepath.path_buf(), content) {
         return Err(format!("error: failed to write file {}", filepath));
     };
 
     Ok(())
 }
 
-pub fn list_dir(dir: &PathBuf) -> Result<Vec<String>, String> {
-    let entries =
-        read_dir(dir).map_err(|_| format!("error: failed to read directory {:?}", dir))?;
+pub fn list_dir(dir: &FilePath) -> Result<Vec<String>, String> {
+    let entries = read_dir(dir.path_buf())
+        .map_err(|_| format!("error: failed to read directory {:?}", dir))?;
     Ok(entries
         .into_iter()
         .filter_map(Result::ok)
@@ -69,10 +69,10 @@ pub fn create_dir_if_not_exist(dir: &str) -> Result<(), String> {
 
 /// Get the directory of the executable. This is the base installation
 /// directory and all config/runtime files are relative to this.
-pub fn get_root_dir() -> PathBuf {
+pub fn get_root_dir() -> FilePath {
     #[cfg(debug_assertions)]
     {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("koi")
+        FilePath::from(env!("CARGO_MANIFEST_DIR")).join("koi")
     }
 
     #[cfg(not(debug_assertions))]
@@ -88,5 +88,62 @@ pub fn get_root_dir() -> PathBuf {
             .unwrap();
 
         rootdir.to_owned()
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct FilePath {
+    pb: PathBuf,
+}
+
+impl FilePath {
+    pub fn filename(&self) -> Option<String> {
+        self.pb.file_name().map(|f| f.to_string_lossy().to_string())
+    }
+
+    pub fn join(&self, path: &str) -> FilePath {
+        FilePath {
+            pb: self.pb.join(path),
+        }
+    }
+
+    pub fn path_buf(&self) -> &PathBuf {
+        &self.pb
+    }
+}
+
+impl From<PathBuf> for FilePath {
+    fn from(pb: PathBuf) -> Self {
+        FilePath { pb }
+    }
+}
+
+impl From<&str> for FilePath {
+    fn from(s: &str) -> Self {
+        FilePath {
+            pb: PathBuf::from(s),
+        }
+    }
+}
+
+impl From<&String> for FilePath {
+    fn from(s: &String) -> Self {
+        FilePath {
+            pb: PathBuf::from(s),
+        }
+    }
+}
+
+impl From<String> for FilePath {
+    fn from(s: String) -> Self {
+        FilePath {
+            pb: PathBuf::from(s),
+        }
+    }
+}
+
+impl Display for FilePath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.pb.to_string_lossy())
     }
 }

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display, hash::Hash, path::PathBuf};
+use std::{collections::HashMap, fmt::Display, hash::Hash};
 
 use tracing::debug;
 
@@ -6,6 +6,7 @@ use crate::{
     ast::ImportNode,
     module::{NamespaceList, Symbol, SymbolList, SymbolOrigin},
     types::TypedAst,
+    util::FilePath,
 };
 
 pub type ModuleId = usize;
@@ -44,7 +45,7 @@ pub enum ModuleKind {
 pub struct SourceModule {
     /// The relative path from src to this module.
     /// For package modules this is the filepath to the linkable object file.
-    pub path: String,
+    pub filepath: FilePath,
     /// The fully typed AST generated from files in this module.
     pub ast: TypedAst,
     /// List of namespaces imported into this module.
@@ -194,12 +195,12 @@ impl ModulePath {
     }
 }
 
-impl From<&PathBuf> for ModulePath {
+impl From<&FilePath> for ModulePath {
     // Convert header path to module path
     // /lib/external/mylib.util.koi.h -> mylib.util
-    fn from(p: &PathBuf) -> Self {
-        let p = p.file_name().expect("expected filepath");
-        let s = p.to_string_lossy().to_string();
+    fn from(p: &FilePath) -> Self {
+        let p = p.filename().expect("expected filepath");
+        let s = p.to_string();
         let s = s.trim_end_matches(".koi.h");
         let mut iter = s.split(".");
         let package = iter.next().expect("bad filepath");

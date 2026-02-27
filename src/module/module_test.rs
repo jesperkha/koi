@@ -1,6 +1,7 @@
-use std::path::PathBuf;
-
-use crate::module::{ImportPath, ModulePath};
+use crate::{
+    module::{ImportPath, ModulePath},
+    util::FilePath,
+};
 
 #[test]
 fn test_impath_is_x() {
@@ -61,13 +62,13 @@ fn test_modpath_is_x() {
 }
 
 #[test]
-fn test_modpath_from_pathbuf() {
-    let modpath = ModulePath::from(&PathBuf::from("/home/john/koi/external/mylib.util.koi.h"));
+fn test_modpath_from_filepath() {
+    let modpath = ModulePath::from(&FilePath::from("/home/john/koi/external/mylib.util.koi.h"));
     assert_eq!(modpath.prefix(), "");
     assert_eq!(modpath.package(), "mylib");
     assert_eq!(modpath.path(), "util");
 
-    let modpath = ModulePath::from(&PathBuf::from("mylib.koi.h"));
+    let modpath = ModulePath::from(&FilePath::from("mylib.koi.h"));
     assert_eq!(modpath.prefix(), "");
     assert_eq!(modpath.package(), "mylib");
     assert_eq!(modpath.path(), "");

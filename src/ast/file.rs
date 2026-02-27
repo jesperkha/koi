@@ -1,9 +1,10 @@
 use core::fmt;
-use std::{collections::HashSet, ffi::OsStr, path::PathBuf};
+use std::collections::HashSet;
 
 use crate::{
     ast::{Ast, Printer, Source, Token},
     module::{ImportPath, ModulePath},
+    util::FilePath,
 };
 
 /// A File represents a parsed source file, containing its AST, source code,
@@ -11,7 +12,7 @@ use crate::{
 #[derive(Debug)]
 pub struct File {
     pub filename: String,
-    pub filepath: String,
+    pub filepath: FilePath,
     pub empty: bool,
     pub ast: Ast,
 }
@@ -20,12 +21,7 @@ impl File {
     pub fn new(source: &Source, ast: Ast) -> Self {
         File {
             empty: ast.decls.is_empty() && ast.imports.is_empty(),
-            filename: String::from(
-                PathBuf::from(&source.filepath)
-                    .file_name()
-                    .unwrap_or(OsStr::new(""))
-                    .to_string_lossy(),
-            ),
+            filename: source.filepath.filename().unwrap_or("".into()),
             filepath: source.filepath.clone(),
             ast,
         }
@@ -51,8 +47,7 @@ pub struct Import {
 /// set is a list of all imports across all source files in the set. These
 /// must be type checked before this fileset can be processed further.
 pub struct FileSet {
-    /// Path to this fileset from root.
-    pub path: String,
+    pub filepath: FilePath,
     pub modpath: ModulePath,
     pub imports: HashSet<Import>,
     pub files: Vec<File>,
@@ -78,7 +73,7 @@ impl FileSet {
         let filepath = files[0].filepath.clone();
         Self {
             modpath,
-            path: filepath,
+            filepath,
             imports,
             files,
         }

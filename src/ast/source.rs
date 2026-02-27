@@ -3,6 +3,8 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
+use crate::util::FilePath;
+
 pub type SourceId = usize;
 
 static SOURCE_ID: AtomicUsize = AtomicUsize::new(0);
@@ -53,7 +55,7 @@ impl SourceMap {
 #[derive(Debug)]
 pub struct Source {
     pub id: SourceId,
-    pub filepath: String,
+    pub filepath: FilePath,
     /// File contents
     pub src: Vec<u8>,
     /// File size in bytes
@@ -64,7 +66,7 @@ pub struct Source {
 
 impl Source {
     /// Create new source from byte array.
-    pub fn new(filepath: String, src: Vec<u8>) -> Source {
+    pub fn new(filepath: FilePath, src: Vec<u8>) -> Source {
         Source {
             id: next_id(),
             filepath,
@@ -76,7 +78,7 @@ impl Source {
 
     /// Create new source from string.
     pub fn new_str(filepath: String, src: String) -> Source {
-        Self::new(filepath, src.into_bytes())
+        Self::new(filepath.into(), src.into_bytes())
     }
 
     /// Gets a list of offsets for the first character of each line.
