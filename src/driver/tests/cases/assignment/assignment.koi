@@ -1,0 +1,11 @@
+extern func strlen(s string) int
+
+func main() int {
+    s := "12345"
+    ss := s
+    s = ss
+
+    ss = "123"
+
+    return strlen(s)
+}

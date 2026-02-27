@@ -1,0 +1,5 @@
+import bar { barFunc }
+
+pub func fooFunc() int {
+    return barFunc()
+}

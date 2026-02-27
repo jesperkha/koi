@@ -1,0 +1,6 @@
+extern func strlen(s string) int
+
+func main() int {
+    s := "Hello world"
+    return strlen(s)
+}

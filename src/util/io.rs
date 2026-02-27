@@ -2,6 +2,7 @@ use std::{
     env,
     fmt::Display,
     fs::{self, read_dir},
+    io,
     path::PathBuf,
     process::Command,
 };
@@ -57,11 +58,18 @@ pub fn cmd(command: &str, args: &[String]) -> Result<String, String> {
 }
 
 pub fn create_dir_if_not_exist(dir: &str) -> Result<(), String> {
-    if !fs::exists(dir).unwrap_or(false) {
+    let Ok(exists) = fs::exists(dir) else {
+        return Ok(());
+    };
+
+    if !exists {
         info!("Creating directory: {}", dir);
         if let Err(err) = fs::create_dir(dir) {
-            println!("mkdir: {}", err);
-            return Err(format!("failed to create directory: {}", dir));
+            if matches!(err.kind(), io::ErrorKind::AlreadyExists) {
+                // Already exists, ignore.
+            } else {
+                return Err(format!("failed to create directory: {}", dir));
+            }
         }
     }
     Ok(())

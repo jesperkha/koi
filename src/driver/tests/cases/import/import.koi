@@ -1,0 +1,7 @@
+import bar.faz
+import foo
+
+func main() int {
+    faz.fazFunc()
+    return foo.fooFunc()
+}
