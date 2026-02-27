@@ -24,10 +24,11 @@ go.work.sum
 # env file
 .env
 
-
+# Bin dir and output files
 bin
 *.asm
 *.o
+*.a
 main
 
 # Added by cargo
@@ -35,5 +36,12 @@ main
 /target
 /_test
 
+# Koi config
 /koi.toml
+
+# Installation dir
+/koi
 *.koi.h
+
+# Test library
+/lib/mylib

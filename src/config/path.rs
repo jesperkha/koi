@@ -24,13 +24,13 @@ impl PathManager {
         &self.root
     }
 
-    /// Path to library directory containing compiled shared libraries.
+    /// Path to library directory containing koi builtin libraries.
     pub fn library_path(&self) -> PathBuf {
         self.root().join("lib")
     }
 
-    /// Path to include directory containing module header files.
-    pub fn include_path(&self) -> PathBuf {
-        self.root().join("include")
+    /// Path to library directory containing external libraries.
+    pub fn external_library_path(&self) -> PathBuf {
+        self.root().join("external")
     }
 }

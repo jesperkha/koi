@@ -9,8 +9,9 @@ use crate::{
     config::Config,
     error::{Diagnostics, Report, Res},
     module::{
-        CreateModule, FuncSymbol, Module, ModuleGraph, ModuleId, ModuleKind, ModulePath, Namespace,
-        NamespaceList, SourceModule, Symbol, SymbolKind, SymbolList, SymbolOrigin,
+        CreateModule, FuncSymbol, ImportPath, Module, ModuleGraph, ModuleId, ModuleKind,
+        ModulePath, Namespace, NamespaceList, SourceModule, Symbol, SymbolKind, SymbolList,
+        SymbolOrigin,
     },
     types::{
         self, FunctionType, NodeMeta, PrimitiveType, Type, TypeContext, TypeId, TypeKind, TypedAst,
@@ -20,16 +21,17 @@ use crate::{
 };
 
 /// Type check a list of filesets, producing a module graph and type context.
-pub fn check_filesets(filesets: Vec<FileSet>, config: &Config) -> Res<(ModuleGraph, TypeContext)> {
-    let mut mg = ModuleGraph::new();
-    let mut ctx = TypeContext::new();
-
+pub fn check_filesets(
+    filesets: Vec<FileSet>,
+    mg: &mut ModuleGraph,
+    ctx: &mut TypeContext,
+    config: &Config,
+) -> Res<()> {
     for fs in filesets {
-        let create_mod = check_fileset(fs, &mg, &mut ctx, config)?;
+        let create_mod = check_fileset(fs, mg, ctx, config)?;
         mg.add(create_mod);
     }
-
-    Ok((mg, ctx))
+    Ok(())
 }
 
 /// Type check single FileSet into a module.
@@ -87,8 +89,8 @@ impl<'a> Importer<'a> {
         Self { mg }
     }
 
-    pub fn resolve(&self, modpath: &ModulePath) -> Result<&'a Module, String> {
-        self.mg.resolve(modpath)
+    pub fn resolve(&self, impath: &ImportPath) -> Result<&'a Module, String> {
+        self.mg.resolve(impath)
     }
 }
 
@@ -109,7 +111,7 @@ impl<'a> Checker<'a> {
     }
 
     pub fn check(mut self, fs: FileSet) -> Res<CreateModule> {
-        self.is_main = fs.modpath.name() == "main";
+        self.is_main = fs.modpath.is_main();
 
         for _ in &fs.files {
             self.resolve_imports(&fs)?;
@@ -157,10 +159,10 @@ impl<'a> Checker<'a> {
     }
 
     fn resove_import(&mut self, import: &ImportNode, diag: &mut Diagnostics) {
-        let modpath = ModulePath::from(import);
+        let impath = ImportPath::from(import);
 
         // Try to get module
-        let module = match self.importer.resolve(&modpath) {
+        let module = match self.importer.resolve(&impath) {
             Ok(module) => module,
             Err(err) => {
                 assert!(import.names.len() > 0, "unchecked missing import name");
@@ -183,7 +185,7 @@ impl<'a> Checker<'a> {
             (alias.to_string(), (&alias.pos, &alias.end_pos))
         } else {
             (
-                module.modpath.name().to_owned(),
+                impath.name().to_owned(),
                 (&import.names[0].pos, &import.names.last().unwrap().end_pos),
             )
         };
@@ -266,16 +268,18 @@ impl<'a> Checker<'a> {
             ret,
         }));
 
+        let is_extern = matches!(origin, SymbolOrigin::Extern(_));
+        let no_mangle = is_extern;
+
         let symbol = Symbol {
             filename: filepath.to_owned(),
             name: node.name.to_string(),
             pos: node.name.pos.clone(),
             kind: SymbolKind::Function(FuncSymbol {
-                docs: node.docs.clone(),
                 is_inline: false,
                 is_naked: false,
             }),
-            no_mangle: false,
+            no_mangle,
             ty,
             origin,
             is_exported: node.public,
@@ -645,7 +649,7 @@ impl<'a> Checker<'a> {
 
                 return Ok(types::Expr::NamespaceMember(types::NamespaceMemberNode {
                     ty: self.ctx.lookup(symbol.ty).clone(),
-                    name: ns.modpath().name().to_owned(),
+                    name: name.to_owned(),
                     meta,
                     field,
                 }));

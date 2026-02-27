@@ -1,20 +1,20 @@
 use std::{
-    fs::{self},
+    fs::{self, read},
     path::{Path, PathBuf},
 };
 
-use tracing::info;
+use tracing::{debug, info};
 use walkdir::WalkDir;
 
 use crate::{
     ast::{FileSet, Source, SourceMap},
     build::x86,
     config::{Config, Options, PathManager, Project, ProjectType, Target},
-    imports::create_header_file,
+    imports::{LibraryKind, LibrarySet, create_header_file, read_header_file},
     ir::{Ir, Unit},
     lower::emit_ir,
     module::{Module, ModuleGraph, ModulePath},
-    parser::{parse_source_map, sort_by_dependency_graph},
+    parser::{SortResult, parse_source_map, sort_by_dependency_graph, validate_imports},
     typecheck::check_filesets,
     types::TypeContext,
     util::{create_dir_if_not_exist, get_root_dir, write_file},
@@ -24,12 +24,18 @@ use crate::{
 type Res<T> = Result<T, String>;
 
 /// Compile the project using the given global config and build configuration.
-pub fn compile(project: Project, _options: Options, config: Config) -> Res<()> {
+pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
+    let pm = PathManager::new(
+        options
+            .install_dir
+            .map_or(get_root_dir(), |s| PathBuf::from(s)),
+    );
+
     create_dir_if_not_exist(&project.bin)?;
 
     // Recursively search the given source directory for files and
     // return a list of SourceDir of all source files found.
-    let source_dirs = collect_all_source_dirs(&project.src, &project.ignore_dirs)?;
+    let source_dirs = collect_all_source_dirs(&project.src, &project.ignore_dirs, &project)?;
 
     // Parse all of the sources and return a list of FileSet.
     let filesets = parse_source_dirs(&source_dirs, &config)?;
@@ -42,15 +48,22 @@ pub fn compile(project: Project, _options: Options, config: Config) -> Res<()> {
             map
         });
 
+    let mut libset = LibrarySet::new();
+    libset.read_dir(&pm.library_path(), LibraryKind::Stdlib)?;
+    libset.read_dir(&pm.external_library_path(), LibraryKind::External)?;
+
+    // Check that external and std imports actually exist
+    validate_external_imports(&filesets, &source_map, &libset)?;
+
     // Create a dependency graph and sort it, returning a list of
     // filesets in correct type checking order. FileSets are sorted
     // based on their imports.
-    let sorted_filesets = sort_by_dependency_graph(filesets)?;
+    let sort_result = sort_by_dependency_graph(filesets)?;
 
     // Type check all file sets, turning them into Modules, and put
     // them in a ModuleGraph. The generated TypeContext containing all
     // type information is also returned.
-    let (module_graph, ctx) = create_modules(sorted_filesets, &source_map, &config)?;
+    let (module_graph, ctx) = create_modules(sort_result, &source_map, &libset, &config)?;
 
     // Do some high level passes at a module level before lowering
     check_main_function_present(&module_graph, &project)?;
@@ -72,8 +85,19 @@ pub fn compile(project: Project, _options: Options, config: Config) -> Res<()> {
         .collect::<Result<Vec<Unit>, String>>()?;
 
     // Build the final executable/libary file
-    let pm = PathManager::new(get_root_dir());
-    build(Ir::new(units), &config, &project, &pm)
+    build(Ir::new(units), &config, &project, &pm, &libset)
+}
+
+fn validate_external_imports(
+    filesets: &[FileSet],
+    map: &SourceMap,
+    libset: &LibrarySet,
+) -> Res<()> {
+    for fs in filesets {
+        validate_imports(fs, libset.import_paths()).map_err(|err| err.render(map))?;
+    }
+
+    Ok(())
 }
 
 /// Create header files for main module and all modules listed in project include list.
@@ -86,21 +110,21 @@ fn create_package_headers(
     let exported_modules = modgraph
         .modules()
         .iter()
-        .filter(|m| m.is_main() || includes.iter().any(|include| include == m.modpath.path()))
+        .filter(|m| {
+            m.modpath.is_main() || includes.iter().any(|include| include == m.modpath.path())
+        })
         .collect::<Vec<&Module>>();
 
     for module in exported_modules {
-        let filename = format!(
-            "{}.koi.h",
-            if module.is_main() {
-                &project.out
-            } else {
-                module.modpath.path()
-            }
-        );
+        let filename = format!("{}.koi.h", module.modpath.to_header_format());
 
+        // TODO: new FilePath object to wrap PathBuf and add utility methods
+        let outfile = PathBuf::from(&project.out)
+            .join(filename)
+            .to_string_lossy()
+            .to_string();
         let content = create_header_file(module, &ctx)?;
-        write_file(&filename, &content)?;
+        write_file(&outfile, &content)?;
     }
 
     Ok(())
@@ -113,7 +137,11 @@ struct SourceDir {
 
 /// Recursively search the given source directory for files and return a list of FileSet of
 /// all source files found.
-fn collect_all_source_dirs(source_dir: &str, ignore_dirs: &[String]) -> Res<Vec<SourceDir>> {
+fn collect_all_source_dirs(
+    source_dir: &str,
+    ignore_dirs: &[String],
+    project: &Project,
+) -> Res<Vec<SourceDir>> {
     info!("Collecting source files in {}", source_dir);
     let mut dirs = Vec::new();
 
@@ -124,16 +152,8 @@ fn collect_all_source_dirs(source_dir: &str, ignore_dirs: &[String]) -> Res<Vec<
             continue;
         }
 
-        let mut modpath_str = pathbuf_to_module_path(&dir, source_dir);
-        if modpath_str.is_empty() {
-            modpath_str = String::from("main");
-        }
-
-        let dir = SourceDir {
-            modpath: modpath_str.into(),
-            map,
-        };
-
+        let modpath = pathbuf_to_module_path(&dir, source_dir, project);
+        let dir = SourceDir { modpath, map };
         dirs.push(dir);
     }
 
@@ -186,7 +206,7 @@ fn parse_source_dirs(dirs: &Vec<SourceDir>, config: &Config) -> Res<Vec<FileSet>
     let mut filesets = Vec::new();
 
     for dir in dirs {
-        info!("Parsing module: {}", dir.modpath.path());
+        info!("Parsing module: {}", dir.modpath.to_underscore());
         let fileset = parse_source_map(dir.modpath.clone(), &dir.map, config)
             .map_err(|err| err.render(&dir.map))?;
 
@@ -202,11 +222,32 @@ fn parse_source_dirs(dirs: &Vec<SourceDir>, config: &Config) -> Res<Vec<FileSet>
 }
 
 fn create_modules(
-    filesets: Vec<FileSet>,
+    sort_result: SortResult,
     map: &SourceMap,
+    libset: &LibrarySet,
     config: &Config,
 ) -> Res<(ModuleGraph, TypeContext)> {
-    check_filesets(filesets, &config).map_err(|err| err.render(&map))
+    let mut ctx = TypeContext::new();
+    let mut mg = ModuleGraph::new();
+
+    for impath in sort_result.external_imports {
+        let modpath = ModulePath::from(impath);
+        let path = &libset
+            .get_header_path(&modpath)
+            .expect("should have been validated");
+
+        let content =
+            read(path).map_err(|_| format!("error: failed to read header file: '{:?}'", path))?;
+
+        let create_mod = read_header_file(modpath, &content, &mut ctx)
+            .map_err(|e| format!("error: failed to read header file: {}", e))?;
+
+        info!("Loading external module: {}", create_mod.modpath);
+        mg.add(create_mod);
+    }
+
+    check_filesets(sort_result.sets, &mut mg, &mut ctx, &config).map_err(|err| err.render(&map))?;
+    Ok((mg, ctx))
 }
 
 /// Shorthand for emitting a module to IR and converting error to string.
@@ -215,17 +256,25 @@ fn emit_module_ir(map: &SourceMap, m: &Module, ctx: &TypeContext, config: &Confi
 }
 
 /// Shorthand for assembling an IR unit and converting error to string.
-fn build(ir: Ir, config: &Config, build_cfg: &Project, pm: &PathManager) -> Res<()> {
+fn build(
+    ir: Ir,
+    config: &Config,
+    build_cfg: &Project,
+    pm: &PathManager,
+    libset: &LibrarySet,
+) -> Res<()> {
     match build_cfg.target {
         Target::X86_64 => x86::build(
             ir,
             x86::BuildConfig {
                 linkmode: proj_type_to_link_mode(&build_cfg.project_type),
                 tmpdir: build_cfg.bin.clone(),
-                outfile: build_cfg.out.clone(),
+                target_name: build_cfg.name.clone(),
+                outdir: build_cfg.out.clone(),
             },
             config,
             pm,
+            libset,
         ),
     }
 }
@@ -233,8 +282,8 @@ fn build(ir: Ir, config: &Config, build_cfg: &Project, pm: &PathManager) -> Res<
 /// Report which x86 link mode to use for which compilation mode.
 fn proj_type_to_link_mode(mode: &ProjectType) -> x86::LinkMode {
     match mode {
-        ProjectType::App => x86::LinkMode::Exectuable,
-        ProjectType::Package => x86::LinkMode::SharedObject,
+        ProjectType::App => x86::LinkMode::Executable,
+        ProjectType::Package => x86::LinkMode::Library,
     }
 }
 
@@ -279,13 +328,27 @@ fn list_source_directories(path: &str, ignore_dirs: &[String]) -> Result<Vec<Pat
 }
 
 /// Convert foo/bar/faz to foo.bar.faz
-fn pathbuf_to_module_path(path: &PathBuf, source_dir: &str) -> String {
-    path.display()
+fn pathbuf_to_module_path(path: &PathBuf, source_dir: &str, project: &Project) -> ModulePath {
+    let path = path
+        .display()
         .to_string()
         .trim_start_matches(source_dir)
         .trim_start_matches("/")
         .trim_end_matches("/")
-        .replace("/", ".")
+        .replace("/", ".");
+
+    let prefix = if matches!(project.project_type, ProjectType::Package) {
+        "lib".into()
+    } else {
+        "".into()
+    };
+
+    let mut modpath = ModulePath::new(prefix, project.name.clone(), path);
+    if modpath.path().is_empty() {
+        modpath = modpath.to_main()
+    }
+
+    modpath
 }
 
 fn error_str(msg: &str) -> Result<(), String> {
@@ -318,7 +381,7 @@ fn dump_debug_info(
 ) -> Res<()> {
     if config.dump_type_context {
         let path = format!("{}/types.txt", project.bin);
-        info!("Writing type info to {}", path);
+        debug!("Writing type info to {}", path);
         write_file(&path, &ctx.dump_context_string())?;
     }
 
@@ -329,7 +392,7 @@ fn dump_debug_info(
         }
 
         let path = format!("{}/symbols.txt", project.bin);
-        info!("Writing symbol info to {}", path);
+        debug!("Writing symbol info to {}", path);
         write_file(&path, &s)?;
     }
 

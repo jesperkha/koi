@@ -6,7 +6,7 @@ use crate::{
     error::Diagnostics,
     ir::Unit,
     lower::emit_ir,
-    module::{Module, ModuleGraph},
+    module::{ImportPath, Module, ModuleGraph, ModulePath},
     parser::parse_source_map,
     scanner::scan,
     typecheck::check_fileset,
@@ -102,10 +102,19 @@ pub fn scan_string(src: &str) -> Result<Vec<Token>, ErrorStream> {
     scan(map.sources().last().unwrap(), &config).map_err(|e| e.into())
 }
 
+pub fn new_modpath(path: &str) -> ModulePath {
+    let modpath: ModulePath = ImportPath::from(path).into();
+    if path == "main" {
+        modpath.to_main()
+    } else {
+        modpath
+    }
+}
+
 pub fn parse_string(src: &str) -> Result<Ast, ErrorStream> {
     let map = new_source_map(src);
     let config = Config::test();
-    parse_source_map("main".into(), &map, &config)
+    parse_source_map(new_modpath("main"), &map, &config)
         .map(|mut fs| fs.files.pop().unwrap().ast)
         .map_err(|e| e.into())
 }
@@ -117,7 +126,8 @@ pub fn check_string<'a>(
 ) -> Result<&'a Module, ErrorStream> {
     let config = Config::test();
     let map = new_source_map(src);
-    let fs = parse_source_map("main".into(), &map, &config).map_err(|e| ErrorStream::from(e))?;
+    let fs =
+        parse_source_map(new_modpath("main"), &map, &config).map_err(|e| ErrorStream::from(e))?;
     let create_module = check_fileset(fs, mg, ctx, &config).map_err(|e| ErrorStream::from(e))?;
     Ok(mg.add(create_module))
 }

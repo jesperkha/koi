@@ -1,10 +1,11 @@
 use crate::{
     ast::FileSet,
     config::Config,
-    module::ModulePath,
+    module::ModuleGraph,
     parser::{parse_source_map, sort_by_dependency_graph},
     typecheck::check_filesets,
-    util::{ErrorStream, must, new_source_map},
+    types::TypeContext,
+    util::{ErrorStream, must, new_modpath, new_source_map},
 };
 
 struct TestFile {
@@ -26,15 +27,17 @@ fn check_files(files: &[TestFile]) -> Result<(), ErrorStream> {
         .map(|f| {
             let map = new_source_map(&f.src);
             must(
-                parse_source_map(ModulePath::new(f.dep_name.clone()), &map, &config)
+                parse_source_map(new_modpath(&f.dep_name), &map, &config)
                     .map_err(|e| ErrorStream::from(e)),
             )
         })
         .collect();
 
-    let sorted = sort_by_dependency_graph(parsed).unwrap_or_else(|e| panic!("{}", e));
+    let result = sort_by_dependency_graph(parsed).unwrap_or_else(|e| panic!("{}", e));
     let config = Config::test();
-    check_filesets(sorted, &config)?;
+    let mut mg = ModuleGraph::new();
+    let mut ctx = TypeContext::new();
+    check_filesets(result.sets, &mut mg, &mut ctx, &config)?;
 
     Ok(())
 }
@@ -127,7 +130,7 @@ fn test_bad_import_path() {
             }
         "#,
         )],
-        "could not resolve module path",
+        "could not resolve module import",
     );
     assert_error(
         &vec![
@@ -147,7 +150,7 @@ fn test_bad_import_path() {
             "#,
             ),
         ],
-        "could not resolve module path",
+        "could not resolve module import",
     );
 }
 
@@ -295,7 +298,7 @@ fn test_duplicate_symbol_2() {
         "#,
             ),
         ],
-        "already declared",
+        "duplicate namespace 'foo'",
     );
 }
 
@@ -423,7 +426,7 @@ fn test_duplicate_alias() {
             "#,
             ),
         ],
-        "already declared",
+        "duplicate namespace 'faz'",
     );
 }
 
@@ -450,7 +453,7 @@ fn test_duplicate_explicit_imports() {
             "#,
             ),
         ],
-        &vec!["already declared", "already declared"],
+        &vec!["duplicate namespace 'foo'", "already declared"],
     );
 }
 

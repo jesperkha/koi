@@ -49,7 +49,7 @@ impl<'a> Scanner<'a> {
                 // Otherwise ignore result as one or more errors have been raised
                 Ok(toks) => {
                     if self.diag.is_empty() {
-                        debug!("success: {} tokens", toks.len());
+                        debug!("Success: {} tokens", toks.len());
                         return Ok(toks);
                     }
                 }

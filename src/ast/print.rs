@@ -48,11 +48,6 @@ impl Visitor<()> for Printer {
     }
 
     fn visit_func(&mut self, node: &FuncNode) {
-        for doc in &node.docs {
-            self.s.push_str(&doc);
-            self.s.push('\n');
-        }
-
         self.s.push_str("func ");
         self.token(&node.name);
         self.s.push('(');

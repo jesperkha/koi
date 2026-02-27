@@ -3,7 +3,7 @@ use std::{collections::HashSet, ffi::OsStr, path::PathBuf};
 
 use crate::{
     ast::{Ast, Printer, Source, Token},
-    module::ModulePath,
+    module::{ImportPath, ModulePath},
 };
 
 /// A File represents a parsed source file, containing its AST, source code,
@@ -42,7 +42,7 @@ impl fmt::Display for File {
 /// path, the symbols imported, and the alias it should be bound to.
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct Import {
-    pub modpath: ModulePath,
+    pub impath: ImportPath,
     pub symbols: Vec<String>,
     pub alias: Option<String>,
 }
@@ -67,15 +67,8 @@ impl FileSet {
 
         for file in &files {
             for imp in &file.ast.imports {
-                let import_path = imp
-                    .names
-                    .iter()
-                    .map(|t| t.to_string())
-                    .collect::<Vec<String>>()
-                    .join(".");
-
                 imports.insert(Import {
-                    modpath: import_path.into(),
+                    impath: imp.into(),
                     symbols: imp.imports.iter().map(Token::to_string).collect(),
                     alias: imp.alias.as_ref().map(|t| t.to_string()),
                 });

@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    path::PathBuf,
     process::{Command, Stdio},
 };
 
@@ -8,15 +9,16 @@ use tracing::info;
 use crate::{
     build::x86::reg_alloc::RegAllocator,
     config::{Config, PathManager},
+    imports::LibrarySet,
     ir::{AssignIns, ConstId, IRType, IRVisitor, Ir, LValue, StoreIns, Unit, Value},
     util::{cmd, write_file},
 };
 
 pub enum LinkMode {
     /// Link as executable ELF file
-    Exectuable,
-    /// Link to shared object file (.so)
-    SharedObject,
+    Executable,
+    /// Link to static library file (.a)
+    Library,
 }
 
 pub struct BuildConfig {
@@ -24,7 +26,9 @@ pub struct BuildConfig {
     /// Where to output temp files (.s .o)
     pub tmpdir: String,
     /// Filepath out output executable/object file
-    pub outfile: String,
+    pub target_name: String,
+    /// Directory to output target file(s)
+    pub outdir: String,
 }
 
 // TODO: high level assembly tree with string generation
@@ -35,8 +39,9 @@ pub fn build(
     buildcfg: BuildConfig,
     config: &Config,
     pm: &PathManager,
+    libset: &LibrarySet,
 ) -> Result<(), String> {
-    info!("Building for x86-64. Output: {}", buildcfg.outfile);
+    info!("Building for x86-64. Output: {}", buildcfg.target_name);
 
     if !gcc_available() {
         return Err("Failed to run gcc. Make sure it's installed and in PATH.".into());
@@ -46,7 +51,7 @@ pub fn build(
 
     for unit in ir.units {
         info!("Assembling module {}", unit.modpath.path());
-        let filepath = format!("{}/{}.s", buildcfg.tmpdir, unit.modpath.path_underscore());
+        let filepath = format!("{}/{}.s", buildcfg.tmpdir, unit.modpath.to_underscore());
         let source = X86Builder::new(config).build(unit)?;
 
         info!("Writing file {}", filepath);
@@ -54,27 +59,58 @@ pub fn build(
         asm_files.push(filepath);
     }
 
-    let mut args = asm_files;
-    args.push("-nostartfiles".into());
+    let mut linker_flags = vec![];
+    for lib in libset.archives() {
+        linker_flags.push(format!("{}", lib.to_string_lossy()));
+    }
 
     match buildcfg.linkmode {
-        LinkMode::Exectuable => {
+        LinkMode::Executable => {
             info!("Compiling executable");
-            args.push(
-                pm.library_path()
-                    .join("entry.s")
-                    .to_string_lossy()
-                    .to_string(),
-            );
-            args.push(format!("-o{}", buildcfg.outfile));
+
+            let mut args = asm_files;
+            args.push("-nostartfiles".into());
+
+            let entry_file = pm
+                .library_path()
+                .join("entry.s")
+                .to_string_lossy()
+                .to_string();
+            args.push(entry_file);
+            let target_path = PathBuf::from(&buildcfg.outdir)
+                .join(&buildcfg.target_name)
+                .to_string_lossy()
+                .to_string();
+            args.push(format!("-o{}", target_path));
+            args.extend_from_slice(&linker_flags);
             cmd("gcc", &args)?;
         }
-        LinkMode::SharedObject => {
-            info!("Compiling shared library");
-            args.push(format!("-olib{}.so", buildcfg.outfile));
-            args.push("-shared".into());
-            args.push("-fPIE".into());
-            cmd("gcc", &args)?;
+        LinkMode::Library => {
+            info!("Compiling static library");
+
+            let mut objfiles = Vec::new();
+            for asmfile in &asm_files {
+                let objfile = asmfile.replace(".s", ".o");
+                cmd(
+                    "gcc",
+                    &[
+                        "-nostartfiles".into(),
+                        "-c".into(),
+                        asmfile.into(),
+                        format!("-o{}", objfile),
+                    ],
+                )?;
+                objfiles.push(objfile);
+            }
+            let target_path = PathBuf::from(&buildcfg.outdir)
+                .join(format!("lib{}.a", buildcfg.target_name))
+                .to_string_lossy()
+                .to_string();
+
+            let mut args = vec!["rcs".into(), target_path];
+            args.extend_from_slice(&objfiles);
+            args.extend_from_slice(&linker_flags);
+            cmd("ar", &args)?;
         }
     }
 

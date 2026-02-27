@@ -17,7 +17,7 @@ pub enum Target {
     X86_64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub enum ProjectType {
     /// In app mode the source directory is compiled to a single
@@ -37,12 +37,16 @@ pub enum ProjectType {
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Project {
+    /// Project name.
+    /// When compiling an executable this is the output filename.
+    /// When compiling a library this is the library name and prefix.
+    pub name: String,
     /// Directory for assembly and object file output
     pub bin: String,
-    /// Name of target executable
-    pub out: String,
     /// Root directory of Koi project
     pub src: String,
+    /// Output dir for target
+    pub out: String,
     /// Target architecture
     pub target: Target,
     /// Project type determines which steps are done and/or excluded
@@ -60,6 +64,8 @@ pub struct Project {
 #[serde(rename_all = "kebab-case")]
 pub struct Options {
     pub debug_mode: bool,
+    /// Custom path to installation directory
+    pub install_dir: Option<String>,
 }
 
 /// Internal compiler configuration

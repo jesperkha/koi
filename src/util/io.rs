@@ -1,5 +1,6 @@
 use std::{
-    env, fs,
+    env,
+    fs::{self, read_dir},
     path::{Path, PathBuf},
     process::Command,
 };
@@ -18,6 +19,17 @@ where
     };
 
     Ok(())
+}
+
+pub fn list_dir(dir: &PathBuf) -> Result<Vec<String>, String> {
+    let entries =
+        read_dir(dir).map_err(|_| format!("error: failed to read directory {:?}", dir))?;
+    Ok(entries
+        .into_iter()
+        .filter_map(Result::ok)
+        .map(|entry| entry.file_name().into_string())
+        .filter_map(Result::ok)
+        .collect())
 }
 
 /// Run shell command
@@ -60,7 +72,7 @@ pub fn create_dir_if_not_exist(dir: &str) -> Result<(), String> {
 pub fn get_root_dir() -> PathBuf {
     #[cfg(debug_assertions)]
     {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("koi")
     }
 
     #[cfg(not(debug_assertions))]

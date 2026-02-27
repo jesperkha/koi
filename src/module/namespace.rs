@@ -56,9 +56,9 @@ impl NamespaceList {
 
     /// Add a namespace to the list.
     pub fn add(&mut self, ns: Namespace) -> Result<(), String> {
-        self.ns
-            .insert(ns.name.clone(), ns)
-            .map_or(Ok(()), |_| Err(format!("already declared")))
+        self.ns.insert(ns.name.clone(), ns).map_or(Ok(()), |ns| {
+            Err(format!("duplicate namespace '{}'", ns.name))
+        })
     }
 
     /// Get a namespace by name.
