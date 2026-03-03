@@ -1,9 +1,11 @@
 mod module;
 mod namespace;
+mod path;
 mod symbols;
 
-pub use module::*;
+pub use module::{Module, ModuleId, ModuleKind, SourceModule};
 pub use namespace::*;
+pub use path::{ImportPath, ModulePath};
 pub use symbols::*;
 
 #[cfg(test)]
