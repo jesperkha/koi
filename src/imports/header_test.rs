@@ -1,27 +1,27 @@
 use std::vec;
 
 use crate::{
+    config::Config,
+    context::{Context, CreateModule},
     imports::{create_header_file, read_header_file},
-    module::{CreateModule, ModuleGraph, ModulePath},
-    types::{FunctionType, PrimitiveType, TypeContext, TypeId, TypeKind},
+    module::ModulePath,
+    types::{FunctionType, PrimitiveType, TypeId, TypeKind},
     util::{check_string, must, new_modpath},
 };
 
-fn create_header_module(
-    src: &str,
-    modpath: ModulePath,
-    mg: &mut ModuleGraph,
-    ctx: &mut TypeContext,
-) -> CreateModule {
-    let module = must(check_string(src, mg, ctx));
-    let header = must(create_header_file(module, &ctx));
-    must(read_header_file(modpath, &header, ctx))
+fn create_header_module<'a>(ctx: &'a mut Context, src: &str, modpath: ModulePath) -> CreateModule {
+    let id = must(check_string(ctx, src));
+    let header = must(create_header_file(ctx, id));
+    must(read_header_file(ctx, modpath, &header))
 }
 
-fn func_type_id(ctx: &mut TypeContext, params: &[PrimitiveType], ret: PrimitiveType) -> TypeId {
-    ctx.get_or_intern(TypeKind::Function(FunctionType {
-        params: params.iter().map(|p| ctx.primitive(p.clone())).collect(),
-        ret: ctx.primitive(ret),
+fn func_type_id(ctx: &mut Context, params: &[PrimitiveType], ret: PrimitiveType) -> TypeId {
+    ctx.types.get_or_intern(TypeKind::Function(FunctionType {
+        params: params
+            .iter()
+            .map(|p| ctx.types.primitive(p.clone()))
+            .collect(),
+        ret: ctx.types.primitive(ret),
     }))
 }
 
@@ -38,9 +38,8 @@ fn test_read_header_file() {
 
     pub func faz() {}
     "#;
-    let mut mg = ModuleGraph::new();
-    let mut ctx = TypeContext::new();
-    let create_mod = create_header_module(src, new_modpath("lib.test"), &mut mg, &mut ctx);
+    let mut ctx = Context::new(Config::default());
+    let create_mod = create_header_module(&mut ctx, src, new_modpath("lib.test"));
 
     let foo = must(create_mod.symbols.get("foo"));
     assert_eq!(foo.ty, func_type_id(&mut ctx, &vec![], PrimitiveType::I64));
@@ -66,14 +65,13 @@ fn test_loading_header_module() {
         return 0
     }
     "#;
-    let mut mg = ModuleGraph::new();
-    let mut ctx = TypeContext::new();
-    let create_mod = create_header_module(src, new_modpath("foo"), &mut mg, &mut ctx);
+    let mut ctx = Context::new(Config::test());
+    let create_mod = create_header_module(&mut ctx, src, new_modpath("foo"));
 
     let foo = must(create_mod.symbols.get("doFoo"));
     assert_eq!(foo.ty, func_type_id(&mut ctx, &vec![], PrimitiveType::I64));
 
-    mg.add(create_mod);
+    ctx.modules.add(create_mod);
 
     let src2 = r#"
     import foo
@@ -84,7 +82,7 @@ fn test_loading_header_module() {
     }
     "#;
 
-    must(check_string(src2, &mut mg, &mut ctx));
+    must(check_string(&mut ctx, src2));
 }
 
 #[test]
@@ -100,16 +98,15 @@ fn test_multiple_modules() {
     }
     "#;
 
-    let mut mg = ModuleGraph::new();
-    let mut ctx = TypeContext::new();
-    let create_mod1 = create_header_module(src1, new_modpath("foo"), &mut mg, &mut ctx);
-    let create_mod2 = create_header_module(src2, new_modpath("bar"), &mut mg, &mut ctx);
+    let mut ctx = Context::new(Config::test());
+    let create_mod1 = create_header_module(&mut ctx, src1, new_modpath("foo"));
+    let create_mod2 = create_header_module(&mut ctx, src2, new_modpath("bar"));
 
     let do_foo = must(create_mod1.symbols.get("doFoo")).ty;
     let do_bar = must(create_mod2.symbols.get("doBar")).ty;
 
-    mg.add(create_mod1);
-    mg.add(create_mod2);
+    ctx.modules.add(create_mod1);
+    ctx.modules.add(create_mod2);
 
     let src3 = r#"
     import foo
@@ -126,7 +123,8 @@ fn test_multiple_modules() {
     }
     "#;
 
-    let module3 = must(check_string(src3, &mut mg, &mut ctx));
+    let mod3id = must(check_string(&mut ctx, src3));
+    let module3 = ctx.modules.get(mod3id).unwrap();
     let do_faz = must(module3.symbols.get("doFaz")).ty;
 
     assert_eq!(do_foo, do_bar);

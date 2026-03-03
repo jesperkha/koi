@@ -1,19 +1,17 @@
 use crate::{
-    module::ModuleGraph,
-    types::TypeContext,
+    config::Config,
+    context::Context,
     util::{check_string, must},
 };
 
 fn assert_pass(src: &str) {
-    let mut mg = ModuleGraph::new();
-    let mut ctx = TypeContext::new();
-    must(check_string(src, &mut mg, &mut ctx));
+    let mut ctx = Context::new(Config::test());
+    must(check_string(&mut ctx, src));
 }
 
 fn assert_error(src: &str, msg: &str) {
-    let mut mg = ModuleGraph::new();
-    let mut ctx = TypeContext::new();
-    match check_string(src, &mut mg, &mut ctx) {
+    let mut ctx = Context::new(Config::test());
+    match check_string(&mut ctx, src) {
         Ok(_) => panic!("expected error: '{}'", msg),
         Err(errs) => {
             assert_eq!(errs.get(0).message, msg);

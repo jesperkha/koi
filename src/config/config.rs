@@ -70,8 +70,8 @@ pub struct Options {
 
 /// Internal compiler configuration
 pub struct Config {
-    /// Print TypeContext after type checking.
-    pub dump_type_context: bool,
+    /// Print type info after type checking.
+    pub dump_types: bool,
     /// Print symbol tables after type checking.
     pub print_symbol_tables: bool,
     /// Dont mangle any symbol names, used primarily for testing.
@@ -81,7 +81,7 @@ pub struct Config {
 impl Config {
     pub fn default() -> Self {
         Self {
-            dump_type_context: false,
+            dump_types: false,
             no_mangle_names: false,
             print_symbol_tables: false,
         }
@@ -89,7 +89,7 @@ impl Config {
 
     pub fn test() -> Self {
         Self {
-            dump_type_context: false,
+            dump_types: false,
             no_mangle_names: true,
             print_symbol_tables: false,
         }
@@ -97,7 +97,7 @@ impl Config {
 
     pub fn debug() -> Self {
         Self {
-            dump_type_context: true,
+            dump_types: true,
             no_mangle_names: false,
             print_symbol_tables: true,
         }

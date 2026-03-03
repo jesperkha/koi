@@ -6,43 +6,31 @@ use crate::{
     ast::{
         self, Field, File, FileSet, FuncDeclNode, ImportNode, Node, Pos, Token, TokenKind, TypeNode,
     },
-    config::Config,
+    context::{Context, CreateModule},
     error::{Diagnostics, Report, Res},
     module::{
-        CreateModule, FuncSymbol, ImportPath, Module, ModuleGraph, ModuleId, ModuleKind,
-        ModulePath, Namespace, NamespaceList, SourceModule, Symbol, SymbolKind, SymbolList,
-        SymbolOrigin,
+        FuncSymbol, ImportPath, ModuleId, ModuleKind, ModulePath, Namespace, NamespaceList,
+        SourceModule, Symbol, SymbolKind, SymbolList, SymbolOrigin,
     },
     types::{
-        self, FunctionType, NodeMeta, PrimitiveType, Type, TypeContext, TypeId, TypeKind, TypedAst,
-        TypedNode, ast_node_to_meta, no_type,
+        self, FunctionType, NO_TYPE, NodeMeta, PrimitiveType, Type, TypeId, TypeKind, TypedAst,
+        TypedNode, ast_node_to_meta,
     },
     util::VarTable,
 };
 
 /// Type check a list of filesets, producing a module graph and type context.
-pub fn check_filesets(
-    filesets: Vec<FileSet>,
-    mg: &mut ModuleGraph,
-    ctx: &mut TypeContext,
-    config: &Config,
-) -> Res<()> {
+pub fn check_filesets(ctx: &mut Context, filesets: Vec<FileSet>) -> Res<()> {
     for fs in filesets {
-        let create_mod = check_fileset(fs, mg, ctx, config)?;
-        mg.add(create_mod);
+        let create_mod = check_fileset(ctx, fs)?;
+        ctx.modules.add(create_mod);
     }
     Ok(())
 }
 
 /// Type check single FileSet into a module.
-pub fn check_fileset(
-    fs: FileSet,
-    mg: &ModuleGraph,
-    ctx: &mut TypeContext,
-    config: &Config,
-) -> Res<CreateModule> {
-    let importer = Importer::new(&mg);
-    let checker = Checker::new(ctx, &importer, config);
+pub fn check_fileset(ctx: &mut Context, fs: FileSet) -> Res<CreateModule> {
+    let checker = Checker::new(ctx);
     let create_mod = checker.check(fs)?;
     Ok(create_mod)
 }
@@ -60,9 +48,7 @@ struct Binding {
 /// context and symbol table.
 struct Checker<'a> {
     // Dependencies
-    ctx: &'a mut TypeContext,
-    importer: &'a Importer<'a>,
-    _config: &'a Config,
+    ctx: &'a mut Context,
 
     symbols: SymbolList,
     nsl: NamespaceList,
@@ -80,30 +66,14 @@ struct Checker<'a> {
     deps: Vec<ModuleId>,
 }
 
-struct Importer<'a> {
-    mg: &'a ModuleGraph,
-}
-
-impl<'a> Importer<'a> {
-    pub fn new(mg: &'a ModuleGraph) -> Self {
-        Self { mg }
-    }
-
-    pub fn resolve(&self, impath: &ImportPath) -> Result<&'a Module, String> {
-        self.mg.resolve(impath)
-    }
-}
-
 impl<'a> Checker<'a> {
-    pub fn new(ctx: &'a mut TypeContext, importer: &'a Importer, config: &'a Config) -> Self {
+    pub fn new(ctx: &'a mut Context) -> Self {
         Self {
-            importer,
-            _config: config,
             ctx,
             nsl: NamespaceList::new(),
             symbols: SymbolList::new(),
             vars: VarTable::new(),
-            rtype: no_type(),
+            rtype: NO_TYPE,
             has_returned: false,
             is_main: false,
             deps: Vec::new(),
@@ -162,7 +132,7 @@ impl<'a> Checker<'a> {
         let impath = ImportPath::from(import);
 
         // Try to get module
-        let module = match self.importer.resolve(&impath) {
+        let module = match self.ctx.modules.resolve(&impath) {
             Ok(module) => module,
             Err(err) => {
                 assert!(import.names.len() > 0, "unchecked missing import name");
@@ -263,10 +233,13 @@ impl<'a> Checker<'a> {
             .collect::<Result<Vec<_>, _>>()?;
 
         // Declare function in context
-        let ty = self.ctx.get_or_intern(TypeKind::Function(FunctionType {
-            params: param_ids.iter().map(|v| v.1).collect(),
-            ret,
-        }));
+        let ty = self
+            .ctx
+            .types
+            .get_or_intern(TypeKind::Function(FunctionType {
+                params: param_ids.iter().map(|v| v.1).collect(),
+                ret,
+            }));
 
         let is_extern = matches!(origin, SymbolOrigin::Extern(_));
         let no_mangle = is_extern;
@@ -384,7 +357,7 @@ impl<'a> Checker<'a> {
         self.vars.pop_scope();
 
         // There was no return when there should have been
-        if !self.has_returned && f.ret != self.ctx.void() {
+        if !self.has_returned && f.ret != self.ctx.types.void() {
             return Err(self.error_token(
                 format!("missing return in function '{}'", node.name.kind).as_str(),
                 &node.body.rbrace,
@@ -408,12 +381,12 @@ impl<'a> Checker<'a> {
         }
 
         // If return type is not int
-        let return_type = self.ctx.primitive(PrimitiveType::I64);
+        let return_type = self.ctx.types.primitive(PrimitiveType::I64);
 
-        if !self.ctx.equivalent(f.ret, return_type) {
+        if !self.ctx.types.equivalent(f.ret, return_type) {
             let msg = format!(
                 "main function must return '{}'",
-                self.ctx.to_string(return_type)
+                self.ctx.types.type_to_string(return_type)
             );
             return Err(node
                 .ret_type
@@ -446,7 +419,7 @@ impl<'a> Checker<'a> {
             .get(&name)
             .expect("should have been declared in global pass");
 
-        let ty = self.ctx.lookup(sym.ty).clone();
+        let ty = self.ctx.types.lookup(sym.ty).clone();
         Ok(types::Decl::Extern(types::ExternNode { ty, meta, name }))
     }
 
@@ -464,8 +437,8 @@ impl<'a> Checker<'a> {
             return Err(self.error(
                 &format!(
                     "mismatched types in assignment. expected '{}', got '{}'",
-                    self.ctx.to_string(lval.type_id()),
-                    self.ctx.to_string(rval.type_id())
+                    self.ctx.types.type_to_string(lval.type_id()),
+                    self.ctx.types.type_to_string(rval.type_id())
                 ),
                 &rval,
             ));
@@ -473,7 +446,7 @@ impl<'a> Checker<'a> {
 
         Ok(types::Stmt::VarAssign(types::VarAssignNode {
             meta,
-            ty: self.ctx.void_type(),
+            ty: self.ctx.types.void_type(),
             lval,
             rval,
         }))
@@ -483,7 +456,7 @@ impl<'a> Checker<'a> {
         let meta = ast_node_to_meta(&node);
         let typed_expr = self.emit_expr(node.expr)?;
 
-        if typed_expr.type_id() == self.ctx.void() {
+        if typed_expr.type_id() == self.ctx.types.void() {
             return Err(self.error("cannot assign void type to variable", &typed_expr));
         }
 
@@ -494,7 +467,7 @@ impl<'a> Checker<'a> {
         let id = self.bind(&node.name, typed_expr.type_id(), node.constant)?;
         Ok(types::Stmt::VarDecl(types::VarDeclNode {
             meta,
-            ty: self.ctx.lookup(id).clone(),
+            ty: self.ctx.types.lookup(id).clone(),
             name: node.name.to_string(),
             value: typed_expr,
         }))
@@ -530,23 +503,25 @@ impl<'a> Checker<'a> {
 
         // If there is no return expression
         // Check if current scope has no return type
-        if self.rtype != self.ctx.void() {
+        if self.rtype != self.ctx.types.void() {
             Err(self.error_expected_token("incorrect return type", self.rtype, &node.kw))
         } else {
             Ok(types::Stmt::Return(types::ReturnNode {
                 meta,
                 expr: None,
-                ty: self.ctx.void_type(),
+                ty: self.ctx.types.void_type(),
             }))
         }
     }
 
     fn emit_literal(&mut self, tok: Token) -> Result<types::Expr, Report> {
         let ty = match &tok.kind {
-            TokenKind::IntLit(_) => self.ctx.primitive_type(PrimitiveType::I64),
-            TokenKind::FloatLit(_) => self.ctx.primitive_type(PrimitiveType::F64),
-            TokenKind::StringLit(_) => self.ctx.primitive_type(PrimitiveType::String),
-            TokenKind::True | TokenKind::False => self.ctx.primitive_type(PrimitiveType::Bool),
+            TokenKind::IntLit(_) => self.ctx.types.primitive_type(PrimitiveType::I64),
+            TokenKind::FloatLit(_) => self.ctx.types.primitive_type(PrimitiveType::F64),
+            TokenKind::StringLit(_) => self.ctx.types.primitive_type(PrimitiveType::String),
+            TokenKind::True | TokenKind::False => {
+                self.ctx.types.primitive_type(PrimitiveType::Bool)
+            }
             TokenKind::IdentLit(name) => {
                 let ty_id = match self.get(&tok) {
                     Err(err) => {
@@ -559,7 +534,7 @@ impl<'a> Checker<'a> {
                     }
                     Ok(id) => id,
                 };
-                let t = self.ctx.lookup(ty_id);
+                let t = self.ctx.types.lookup(ty_id);
                 t
             }
             _ => todo!(),
@@ -592,7 +567,7 @@ impl<'a> Checker<'a> {
                     .error_from_to(&msg, callee.pos(), &node.rparen.pos)
                     .with_info(&format!(
                         "definition: {}",
-                        self.ctx.to_string(callee.type_id())
+                        self.ctx.types.type_to_string(callee.type_id())
                     )));
             }
 
@@ -611,8 +586,8 @@ impl<'a> Checker<'a> {
                 if arg_id != param_id {
                     let msg = format!(
                         "mismatched types in function call. expected '{}', got '{}'",
-                        self.ctx.to_string(param_id),
-                        self.ctx.to_string(arg_id)
+                        self.ctx.types.type_to_string(param_id),
+                        self.ctx.types.type_to_string(arg_id)
                     );
                     return Err(self.error(&msg, &typed_arg));
                 }
@@ -622,7 +597,7 @@ impl<'a> Checker<'a> {
 
             return Ok(types::Expr::Call(types::CallNode {
                 meta,
-                ty: self.ctx.lookup(f.ret).clone(),
+                ty: self.ctx.types.lookup(f.ret).clone(),
                 callee: Box::new(callee),
                 args,
             }));
@@ -648,7 +623,7 @@ impl<'a> Checker<'a> {
                 };
 
                 return Ok(types::Expr::NamespaceMember(types::NamespaceMemberNode {
-                    ty: self.ctx.lookup(symbol.ty).clone(),
+                    ty: self.ctx.types.lookup(symbol.ty).clone(),
                     name: name.to_owned(),
                     meta,
                     field,
@@ -663,7 +638,7 @@ impl<'a> Checker<'a> {
         return Err(self.error(
             &format!(
                 "type '{}' has no fields",
-                self.ctx.to_string(expr.type_id())
+                self.ctx.types.type_to_string(expr.type_id())
             ),
             &expr,
         ));
@@ -685,7 +660,12 @@ impl<'a> Checker<'a> {
 
     fn error_expected_token(&self, msg: &str, expect: TypeId, tok: &Token) -> Report {
         self.error_token(
-            format!("{}: expected '{}'", msg, self.ctx.to_string(expect),).as_str(),
+            format!(
+                "{}: expected '{}'",
+                msg,
+                self.ctx.types.type_to_string(expect),
+            )
+            .as_str(),
             tok,
         )
     }
@@ -701,8 +681,8 @@ impl<'a> Checker<'a> {
             format!(
                 "{}: expected '{}', got '{}'",
                 msg,
-                self.ctx.to_string(expect),
-                self.ctx.to_string(got)
+                self.ctx.types.type_to_string(expect),
+                self.ctx.types.type_to_string(got)
             )
             .as_str(),
             node,
@@ -745,7 +725,7 @@ impl<'a> Checker<'a> {
     /// Get the type of a declared symbol
     fn get_symbol_type(&self, name: &Token) -> Result<&Type, Report> {
         let id = self.get(name)?;
-        Ok(self.ctx.lookup(id))
+        Ok(self.ctx.types.lookup(id))
     }
 
     /// Collect a list of type ids for each field in the slice.
@@ -770,7 +750,7 @@ impl<'a> Checker<'a> {
         match node {
             TypeNode::Primitive(token) => {
                 let prim = PrimitiveType::from(&token.kind);
-                Ok(self.ctx.primitive(prim))
+                Ok(self.ctx.types.primitive(prim))
             }
             TypeNode::Ident(token) => self
                 .get(token)
@@ -781,14 +761,14 @@ impl<'a> Checker<'a> {
     /// Evaluate an option of a type node. Defaults to void type if not present.
     fn eval_optional_type(&mut self, v: &Option<TypeNode>) -> Result<TypeId, Report> {
         v.as_ref()
-            .map_or(Ok(self.ctx.void()), |r| self.eval_type(r))
+            .map_or(Ok(self.ctx.types.void()), |r| self.eval_type(r))
     }
 
     /// Check if the expression is an identifier and return the corresponding type.
     fn _if_identifier_get_type(&self, expr: &ast::Expr) -> Option<&Type> {
         if let Some(name) = self.if_identifier_get_name(expr) {
             if let Ok(sym) = self.symbols.get(name) {
-                return Some(self.ctx.lookup(sym.ty));
+                return Some(self.ctx.types.lookup(sym.ty));
             }
         }
         None

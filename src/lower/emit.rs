@@ -4,30 +4,33 @@ use std::mem;
 use tracing::{debug, info};
 
 use crate::{
-    config::Config,
+    context::Context,
     error::{Diagnostics, Report, Res},
     ir::{
         self, AssignIns, ExternFuncInst, FuncInst, IRType, Ins, LValue, StoreIns, StringDataIns,
         SymTracker, Unit, Value,
     },
-    module::{Module, ModuleKind, ModulePath, NamespaceList, Symbol, SymbolList, SymbolOrigin},
-    types::{
-        self, Decl, Expr, LiteralKind, TypeContext, TypeId, TypeKind, TypedNode, Visitable, Visitor,
+    module::{
+        Module, ModuleId, ModuleKind, ModulePath, NamespaceList, Symbol, SymbolList, SymbolOrigin,
     },
+    types::{self, Decl, Expr, LiteralKind, TypeId, TypeKind, TypedNode, Visitable, Visitor},
 };
 
-pub fn emit_ir(m: &Module, ctx: &TypeContext, config: &Config) -> Res<Unit> {
-    let emitter = Emitter::new(m, ctx, config);
-    emitter.emit().map(|ins| Unit::new(m.modpath.clone(), ins))
+// TODO: use module id?
+pub fn emit_ir(ctx: &Context, id: ModuleId) -> Res<Unit> {
+    let module = ctx.modules.get(id).unwrap(); // TODO: handle
+    let emitter = Emitter::new(ctx, module);
+    emitter
+        .emit()
+        .map(|ins| Unit::new(module.modpath.clone(), ins))
 }
 
 struct Emitter<'a> {
+    ctx: &'a Context,
     modpath: &'a ModulePath,
-    ctx: &'a TypeContext,
     syms: &'a SymbolList,
     nsl: &'a NamespaceList,
     nodes: &'a [Decl],
-    config: &'a Config,
 
     sym: SymTracker,
     ins: Vec<Vec<Ins>>,
@@ -40,16 +43,15 @@ struct Emitter<'a> {
 }
 
 impl<'a> Emitter<'a> {
-    fn new(module: &'a Module, ctx: &'a TypeContext, config: &'a Config) -> Self {
+    fn new(ctx: &'a Context, module: &'a Module) -> Self {
         let ModuleKind::Source(kind) = &module.kind else {
             panic!("attempt to emit IR for non-source module");
         };
         Self {
+            ctx,
             modpath: &module.modpath,
             nsl: &kind.namespaces,
             syms: &module.symbols,
-            config,
-            ctx,
             nodes: &kind.ast.decls,
             sym: SymTracker::new(),
             has_returned: false,
@@ -85,8 +87,8 @@ impl<'a> Emitter<'a> {
 
     /// Convert semantic type to IR type, lowering to primitive or union type.
     fn to_ir_type(&self, id: TypeId) -> IRType {
-        let id = self.ctx.deep_resolve(id);
-        let ty = self.ctx.lookup(id);
+        let id = self.ctx.types.deep_resolve(id);
+        let ty = self.ctx.types.lookup(id);
 
         match &ty.kind {
             TypeKind::Primitive(p) => IRType::Primitive(p.clone().into()),
@@ -120,7 +122,8 @@ impl<'a> Emitter<'a> {
     }
 
     fn mangle_symbol_name(&self, sym: &Symbol) -> String {
-        if self.config.no_mangle_names || sym.no_mangle || sym.is_extern() || sym.name == "main" {
+        if self.ctx.config.no_mangle_names || sym.no_mangle || sym.is_extern() || sym.name == "main"
+        {
             sym.name.clone()
         } else {
             let modpath = match &sym.origin {
