@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use tracing::debug;
 
-use crate::module::{ImportPath, Module, ModuleId, ModuleKind, ModulePath, SymbolList};
+use crate::module::{ImportPath, Module, ModuleId, ModuleKind, ModulePath, ModuleSymbol};
 
 pub const INVALID_MOD_ID: ModuleId = usize::MAX;
 
 pub struct CreateModule {
     pub modpath: ModulePath,
     pub kind: ModuleKind,
-    pub symbols: SymbolList,
+    pub symbols: HashMap<String, ModuleSymbol>, // TODO: make this own type?
     pub deps: Vec<ModuleId>,
 }
 
@@ -59,8 +59,18 @@ impl ModuleInterner {
         id
     }
 
-    pub fn get(&self, id: ModuleId) -> Option<&Module> {
+    /// Get a module by ID. Panics if the ID is invalid.
+    /// Use this when you know the ID came from this interner.
+    pub fn get(&self, id: ModuleId) -> &Module {
         assert!(id != INVALID_MOD_ID, "invalid mod id");
+        &self.modules[id]
+    }
+
+    /// Try to get a module by ID, returning None if out of bounds.
+    pub fn try_get(&self, id: ModuleId) -> Option<&Module> {
+        if id == INVALID_MOD_ID {
+            return None;
+        }
         self.modules.get(id)
     }
 
@@ -85,7 +95,7 @@ impl ModuleInterner {
 
     /// Get main module if any
     pub fn main(&self) -> Option<&Module> {
-        self.main_id.and_then(|id| self.get(id))
+        self.main_id.map(|id| self.get(id))
     }
 
     pub fn modules(&self) -> &[Module] {

@@ -1,4 +1,5 @@
 use core::panic;
+use std::collections::HashMap;
 
 use tracing::{debug, info};
 
@@ -6,11 +7,11 @@ use crate::{
     ast::{
         self, Field, File, FileSet, FuncDeclNode, ImportNode, Node, Pos, Token, TokenKind, TypeNode,
     },
-    context::{Context, CreateModule},
+    context::{Context, CreateModule, CreateSymbol},
     error::{Diagnostics, Report, Res},
     module::{
-        FuncSymbol, ImportPath, ModuleId, ModuleKind, ModulePath, Namespace, NamespaceList,
-        SourceModule, Symbol, SymbolKind, SymbolList, SymbolOrigin,
+        FuncSymbol, ImportPath, ModuleId, ModuleKind, ModulePath, ModuleSymbol, Namespace,
+        NamespaceList, SourceModule, Symbol, SymbolKind, SymbolOrigin,
     },
     types::{
         self, FunctionType, NO_TYPE, NodeMeta, PrimitiveType, Type, TypeId, TypeKind, TypedAst,
@@ -50,7 +51,6 @@ struct Checker<'a> {
     // Dependencies
     ctx: &'a mut Context,
 
-    symbols: SymbolList,
     nsl: NamespaceList,
 
     /// Locally declared variables for type checking.
@@ -64,14 +64,16 @@ struct Checker<'a> {
     is_main: bool,
     /// Accumulative list of modules this depends on.
     deps: Vec<ModuleId>,
+
+    symbols: HashMap<String, ModuleSymbol>,
 }
 
 impl<'a> Checker<'a> {
     pub fn new(ctx: &'a mut Context) -> Self {
         Self {
             ctx,
+            symbols: HashMap::new(), // TODO: own object?
             nsl: NamespaceList::new(),
-            symbols: SymbolList::new(),
             vars: VarTable::new(),
             rtype: NO_TYPE,
             has_returned: false,
@@ -166,16 +168,32 @@ impl<'a> Checker<'a> {
             diag.add(Report::code_error(&err, range.0, range.1));
         });
 
-        // Put symbols imported by name directly into symbol list
+        let module_exports = module.exports();
+
+        // Go through each named imported symbol and add it to the cache
         for tok in &import.imports {
             let symbol_name = tok.to_string();
 
-            // If the symbol exists we add it to the modules symbol list
-            if let Some(export_sym) = module.exports().get(&symbol_name) {
-                let _ = self.symbols.add((*export_sym).clone()).map_err(|err| {
-                    diag.add(Report::code_error(&err, &tok.pos, &tok.end_pos));
-                });
+            // Check if the symbol exists
+            if let Some(id) = module_exports.get(&symbol_name) {
+                // If it was already declared, add error
+                if let Ok(_) = self.get_symbol(&symbol_name) {
+                    diag.add(Report::code_error(
+                        "already declared",
+                        &tok.pos,
+                        &tok.end_pos,
+                    ));
+                } else {
+                    self.symbols.insert(
+                        symbol_name,
+                        ModuleSymbol {
+                            id: *id,
+                            exported: false, // Imported symbols should not be re-exported
+                        },
+                    );
+                }
             } else {
+                // Module did not contain the symbol
                 diag.add(Report::code_error(
                     &format!("module '{}' has no export '{}'", module.name(), symbol_name),
                     &tok.pos,
@@ -244,7 +262,7 @@ impl<'a> Checker<'a> {
         let is_extern = matches!(origin, SymbolOrigin::Extern(_));
         let no_mangle = is_extern;
 
-        let symbol = Symbol {
+        let symbol = CreateSymbol {
             filename: filepath.to_owned(),
             name: node.name.to_string(),
             pos: node.name.pos.clone(),
@@ -258,17 +276,20 @@ impl<'a> Checker<'a> {
             is_exported: node.public,
         };
 
-        debug!("declaring function: {}", symbol);
+        debug!("declaring function: {:?}", symbol);
 
-        let _ = self.symbols.add(symbol).map_err(|err| {
-            let sym = self.symbols.get(&node.name.to_string()).unwrap();
-            return self.error_token(&err, &node.name).with_info(&format!(
-                "previously declared in {}, line {}",
-                sym.filename,
-                sym.pos.row + 1
-            ));
-        })?;
+        // If symbol already exists, return error
+        if let Ok(sym) = self.get_symbol(&symbol.name) {
+            return Err(self
+                .error_token("already declared", &node.name)
+                .with_info(&format!(
+                    "previously declared in {}, line {}",
+                    sym.filename,
+                    sym.pos.row + 1
+                )));
+        };
 
+        self.set_symbol(symbol);
         Ok(())
     }
 
@@ -406,17 +427,9 @@ impl<'a> Checker<'a> {
 
     fn emit_extern(&mut self, node: ast::FuncDeclNode) -> Result<types::Decl, Report> {
         let meta = ast_node_to_meta(&node);
-
-        // let ret = self.eval_optional_type(&node.ret_type)?;
-        // let params = self.collect_field_types(&node.params)?;
-        // let kind = TypeKind::Function(FunctionType { params, ret, origin:  });
-        // let id = self.ctx.get_or_intern(kind.clone());
-        // self.bind(&node.name, id, true)?;
-
         let name = node.name.to_string();
         let sym = self
-            .symbols
-            .get(&name)
+            .get_symbol(&name)
             .expect("should have been declared in global pass");
 
         let ty = self.ctx.types.lookup(sym.ty).clone();
@@ -615,12 +628,14 @@ impl<'a> Checker<'a> {
         if let Some(name) = self.if_identifier_get_name(&*node.expr) {
             if let Ok(ns) = self.nsl.get(name) {
                 // Get symbol from field
-                let Ok(symbol) = ns.get(&field) else {
+                let Some(id) = ns.get(&field) else {
                     return Err(self.error_token(
                         &format!("namespace '{}' has no member '{}'", ns.name(), &field),
                         &node.field,
                     ));
                 };
+
+                let symbol = self.ctx.symbols.get(id);
 
                 return Ok(types::Expr::NamespaceMember(types::NamespaceMemberNode {
                     ty: self.ctx.types.lookup(symbol.ty).clone(),
@@ -716,7 +731,7 @@ impl<'a> Checker<'a> {
         if let Some(var) = self.vars.get(&name_str) {
             return Ok(var.ty);
         }
-        if let Ok(sym) = self.symbols.get(&name_str) {
+        if let Ok(sym) = self.get_symbol(&name_str) {
             return Ok(sym.ty);
         }
         Err(self.error_token("not declared", name))
@@ -767,7 +782,7 @@ impl<'a> Checker<'a> {
     /// Check if the expression is an identifier and return the corresponding type.
     fn _if_identifier_get_type(&self, expr: &ast::Expr) -> Option<&Type> {
         if let Some(name) = self.if_identifier_get_name(expr) {
-            if let Ok(sym) = self.symbols.get(name) {
+            if let Ok(sym) = self.get_symbol(name) {
                 return Some(self.ctx.types.lookup(sym.ty));
             }
         }
@@ -781,5 +796,22 @@ impl<'a> Checker<'a> {
             }
         }
         None
+    }
+
+    fn get_symbol(&self, name: &str) -> Result<&Symbol, String> {
+        self.symbols
+            .get(name)
+            .map_or(Err(format!("not declared")), |sym| {
+                Ok(self.ctx.symbols.get(sym.id))
+            })
+    }
+
+    fn set_symbol(&mut self, sym: CreateSymbol) -> Result<(), String> {
+        // TODO: err if exists
+        let name = sym.name.clone();
+        let exported = sym.is_exported;
+        let id = self.ctx.symbols.add(sym);
+        self.symbols.insert(name, ModuleSymbol { id, exported });
+        Ok(())
     }
 }

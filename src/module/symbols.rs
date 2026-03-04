@@ -1,12 +1,15 @@
 use core::fmt;
-use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
 use crate::{ast::Pos, module::ModulePath, types::TypeId};
 
+pub type SymbolId = usize;
+
 #[derive(Clone, Debug)]
 pub struct Symbol {
+    /// Unique identifier
+    pub id: SymbolId,
     /// Symbol kind contains additional, more specific, symbol information.
     pub kind: SymbolKind,
     /// The symbols type.
@@ -30,76 +33,6 @@ impl Symbol {
     /// If this is true, then 'link_name' should be the same as 'name'.
     pub fn is_extern(&self) -> bool {
         matches!(self.origin, SymbolOrigin::Extern(_))
-    }
-}
-
-// TODO: use module id or something else
-#[derive(Clone, Debug)]
-pub enum SymbolOrigin {
-    Module(ModulePath),
-    Extern(ModulePath), // Contains origin of declaration
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum SymbolKind {
-    Function(FuncSymbol),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FuncSymbol {
-    /// If the function body should be inlined.
-    pub is_inline: bool,
-    /// If the function body should be naked (no entry/exit protocol or additional
-    /// code added by the compiler).
-    pub is_naked: bool,
-}
-
-pub struct SymbolList {
-    symbols: HashMap<String, Symbol>,
-}
-
-impl From<Vec<Symbol>> for SymbolList {
-    fn from(symbols: Vec<Symbol>) -> Self {
-        Self {
-            symbols: symbols.into_iter().map(|s| (s.name.clone(), s)).collect(),
-        }
-    }
-}
-
-impl SymbolList {
-    pub fn new() -> Self {
-        Self {
-            symbols: HashMap::new(),
-        }
-    }
-
-    pub fn add(&mut self, sym: Symbol) -> Result<(), String> {
-        if self.symbols.contains_key(&sym.name) {
-            return Err("already declared".to_string());
-        }
-        self.symbols.insert(sym.name.clone(), sym);
-        Ok(())
-    }
-
-    pub fn get(&self, name: &str) -> Result<&Symbol, String> {
-        self.symbols
-            .get(name)
-            .map_or(Err("not declared".to_string()), |s| Ok(s))
-    }
-
-    pub fn symbols(&self) -> &HashMap<String, Symbol> {
-        &self.symbols
-    }
-
-    /// Create a string dump of all symbols in this module.
-    pub fn dump(&self, module: &str) -> String {
-        let mut s = String::new();
-        s += &format!("| Symbols in {}\n", module);
-        s += &format!("| ----------------------\n");
-        for (name, sym) in &self.symbols {
-            s += &format!("| {:<20} {}\n", name, sym)
-        }
-        s
     }
 }
 
@@ -137,6 +70,13 @@ impl fmt::Display for Symbol {
     }
 }
 
+// TODO: use module id or something else
+#[derive(Clone, Debug)]
+pub enum SymbolOrigin {
+    Module(ModulePath),
+    Extern(ModulePath), // Contains origin of declaration
+}
+
 impl fmt::Display for SymbolOrigin {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -148,6 +88,20 @@ impl fmt::Display for SymbolOrigin {
             }
         )
     }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum SymbolKind {
+    Function(FuncSymbol),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FuncSymbol {
+    /// If the function body should be inlined.
+    pub is_inline: bool,
+    /// If the function body should be naked (no entry/exit protocol or additional
+    /// code added by the compiler).
+    pub is_naked: bool,
 }
 
 impl fmt::Display for SymbolKind {

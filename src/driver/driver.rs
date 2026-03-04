@@ -350,7 +350,7 @@ fn check_main_function_present(ctx: &Context, project: &Project) -> Res<()> {
     let has_main = ctx
         .modules
         .main()
-        .map(|m| m.symbols.get("main").is_ok())
+        .map(|m| m.symbols.get("main").is_some())
         .unwrap_or(false);
 
     if !has_main && matches!(project.project_type, ProjectType::App) {
@@ -372,14 +372,16 @@ fn dump_debug_info(ctx: &Context, project: &Project) -> Res<()> {
     }
 
     if ctx.config.print_symbol_tables {
-        let mut s = String::new();
-        for module in ctx.modules.modules() {
-            s += &module.symbols.dump(module.modpath.path());
-        }
+        // let mut s = String::new();
+        // for module in ctx.modules.modules() {
+        //     s += &module.symbols.dump(module.modpath.path());
+        // }
 
-        let path = format!("{}/symbols.txt", project.bin);
-        debug!("Writing symbol info to {}", path);
-        write_file(&path.into(), &s)?;
+        // let path = format!("{}/symbols.txt", project.bin);
+        // debug!("Writing symbol info to {}", path);
+        // write_file(&path.into(), &s)?;
+        // TODO: debug info
+        todo!()
     }
 
     Ok(())

@@ -1,5 +1,5 @@
 use core::panic;
-use std::mem;
+use std::{collections::HashMap, mem};
 
 use tracing::{debug, info};
 
@@ -11,14 +11,13 @@ use crate::{
         SymTracker, Unit, Value,
     },
     module::{
-        Module, ModuleId, ModuleKind, ModulePath, NamespaceList, Symbol, SymbolList, SymbolOrigin,
+        Module, ModuleId, ModuleKind, ModulePath, ModuleSymbol, NamespaceList, Symbol, SymbolOrigin,
     },
     types::{self, Decl, Expr, LiteralKind, TypeId, TypeKind, TypedNode, Visitable, Visitor},
 };
 
-// TODO: use module id?
 pub fn emit_ir(ctx: &Context, id: ModuleId) -> Res<Unit> {
-    let module = ctx.modules.get(id).unwrap(); // TODO: handle
+    let module = ctx.modules.get(id);
     let emitter = Emitter::new(ctx, module);
     emitter
         .emit()
@@ -28,9 +27,9 @@ pub fn emit_ir(ctx: &Context, id: ModuleId) -> Res<Unit> {
 struct Emitter<'a> {
     ctx: &'a Context,
     modpath: &'a ModulePath,
-    syms: &'a SymbolList,
     nsl: &'a NamespaceList,
     nodes: &'a [Decl],
+    syms: &'a HashMap<String, ModuleSymbol>,
 
     sym: SymTracker,
     ins: Vec<Vec<Ins>>,
@@ -133,6 +132,22 @@ impl<'a> Emitter<'a> {
             format!("_{}_{}", modpath.to_underscore(), sym.name)
         }
     }
+
+    fn get_symbol(&self, name: &str) -> &Symbol {
+        self.ctx
+            .symbols
+            .get(self.syms.get(name).expect("not a symbol").id)
+    }
+
+    fn get_namespace_symbol(&self, namespace: &str, name: &str) -> &Symbol {
+        self.ctx.symbols.get(
+            self.nsl
+                .get(namespace)
+                .expect("not a namespace")
+                .get(name)
+                .expect("not a symbol"),
+        )
+    }
 }
 
 impl<'a> Visitor<Result<Value, Report>> for Emitter<'a> {
@@ -171,7 +186,7 @@ impl<'a> Visitor<Result<Value, Report>> for Emitter<'a> {
             ));
         }
 
-        let sym = self.syms.get(&node.name).expect("not a symbol");
+        let sym = self.get_symbol(&node.name);
 
         self.push(Ins::Func(FuncInst {
             name: self.mangle_symbol_name(sym),
@@ -259,7 +274,7 @@ impl<'a> Visitor<Result<Value, Report>> for Emitter<'a> {
             Expr::Literal(t) => match &t.kind {
                 LiteralKind::Ident(name) => {
                     // Get the function symbol and generate the correct link name
-                    let sym = self.syms.get(name).expect("not a symbol");
+                    let sym = self.get_symbol(name);
                     Value::Function(self.mangle_symbol_name(sym))
                 }
                 _ => panic!("unchecked invalid function call"),
@@ -298,7 +313,7 @@ impl<'a> Visitor<Result<Value, Report>> for Emitter<'a> {
         &mut self,
         node: &types::NamespaceMemberNode,
     ) -> Result<Value, Report> {
-        let sym = self.nsl.get(&node.name).unwrap().get(&node.field).unwrap();
+        let sym = self.get_namespace_symbol(&node.name, &node.field);
         let linkname = self.mangle_symbol_name(sym);
 
         // Declare as extern function

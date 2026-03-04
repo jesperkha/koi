@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 use crate::{
     ast::Pos,
     config::Config,
-    context::{Context, CreateModule},
+    context::{Context, CreateModule, CreateSymbol},
     module::{
-        ImportPath, Module, ModuleId, ModuleKind, ModulePath, Symbol, SymbolKind, SymbolList,
+        ImportPath, Module, ModuleId, ModuleKind, ModulePath, ModuleSymbol, Symbol, SymbolKind,
         SymbolOrigin,
     },
     types::{PrimitiveType, TypeId, TypeKind},
@@ -18,7 +18,7 @@ use crate::{
 
 /// Create a header file from a module's exported symbols and types.
 pub fn create_header_file(ctx: &Context, id: ModuleId) -> Result<Vec<u8>, String> {
-    let module = ctx.modules.get(id).unwrap(); // TODO: fix
+    let module = ctx.modules.get(id);
     let header = HeaderFile::from_module(ctx, module);
     postcard::to_stdvec(&header).map_err(|e| e.to_string())
 }
@@ -34,11 +34,13 @@ pub fn read_header_file(
 }
 
 pub fn dump_header_symbols(filepath: &str) -> Result<String, String> {
-    let modpath = ModulePath::from(ImportPath::from("header"));
-    let bytes = read(filepath).map_err(|e| format!("failed to read header file: {}", e))?;
-    let mut ctx = Context::new(Config::default());
-    let module = read_header_file(&mut ctx, modpath, &bytes)?;
-    Ok(module.symbols.dump(filepath))
+    // TODO: dump header symbols
+    todo!()
+    // let modpath = ModulePath::from(ImportPath::from("header"));
+    // let bytes = read(filepath).map_err(|e| format!("failed to read header file: {}", e))?;
+    // let mut ctx = Context::new(Config::default());
+    // let module = read_header_file(&mut ctx, modpath, &bytes)?;
+    // Ok(module.symbols.dump(filepath))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -58,7 +60,7 @@ impl HeaderFile {
         let all_types_ids = module
             .exports()
             .values()
-            .map(|symbol| ctx.types.get_all_references(symbol.ty))
+            .map(|id| ctx.types.get_all_references(ctx.symbols.get(*id).ty))
             .flatten()
             .collect::<HashSet<_>>();
 
@@ -74,14 +76,18 @@ impl HeaderFile {
         let symbols = module
             .exports()
             .iter()
-            .map(|(_, symbol)| HeaderSymbol {
-                name: symbol.name.clone(),
-                ty: *mappings
-                    .get(&symbol.ty)
-                    .expect("all types should be mapped"),
-                kind: symbol.kind.clone(),
-                no_mangle: symbol.no_mangle,
-                is_extern: symbol.is_extern(),
+            .map(|(_, id)| {
+                let symbol = ctx.symbols.get(*id);
+
+                HeaderSymbol {
+                    name: symbol.name.clone(),
+                    ty: *mappings
+                        .get(&symbol.ty)
+                        .expect("all types should be mapped"),
+                    kind: symbol.kind.clone(),
+                    no_mangle: symbol.no_mangle,
+                    is_extern: symbol.is_extern(),
+                }
             })
             .collect();
 
@@ -102,25 +108,31 @@ impl HeaderFile {
         let symbols = self
             .symbols
             .into_iter()
-            .map(|s| Symbol {
-                filename: "".into(), // TODO: resolve filename for header module
-                kind: s.kind,
-                name: s.name,
-                no_mangle: s.no_mangle,
-                is_exported: true,   // Always true for imported symbols
-                pos: Pos::default(), // Not used outside of type checking local modules anyways. TODO: remove pos from Symbol
-                ty: *mappings.get(&s.ty).expect("mapping not found"),
-                origin: match s.is_extern {
-                    true => SymbolOrigin::Extern(modpath.clone()),
-                    false => SymbolOrigin::Module(modpath.clone()),
-                },
+            .map(|s| {
+                let create_symbol = CreateSymbol {
+                    filename: "".into(), // TODO: resolve filename for header module
+                    kind: s.kind,
+                    name: s.name,
+                    no_mangle: s.no_mangle,
+                    is_exported: true,   // Always true for imported symbols
+                    pos: Pos::default(), // Not used outside of type checking local modules anyways. TODO: remove pos from Symbol
+                    ty: *mappings.get(&s.ty).expect("mapping not found"),
+                    origin: match s.is_extern {
+                        true => SymbolOrigin::Extern(modpath.clone()),
+                        false => SymbolOrigin::Module(modpath.clone()),
+                    },
+                };
+
+                let name = create_symbol.name.clone();
+                let id = ctx.symbols.add(create_symbol);
+                (name, ModuleSymbol { id, exported: true })
             })
-            .collect::<Vec<_>>();
+            .collect::<HashMap<_, _>>();
 
         Ok(CreateModule {
             modpath,
             kind: ModuleKind::External,
-            symbols: SymbolList::from(symbols),
+            symbols: symbols,
             deps: Vec::new(),
         })
     }
