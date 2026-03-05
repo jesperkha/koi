@@ -250,18 +250,19 @@ fn emit_module_ir(ctx: &Context, map: &SourceMap, id: ModuleId) -> Res<Unit> {
 fn build(
     ir: Ir,
     config: &Config,
-    build_cfg: &Project,
+    project: &Project,
     pm: &PathManager,
     libset: &LibrarySet,
 ) -> Res<()> {
-    match build_cfg.target {
+    match project.target {
         Target::X86_64 => x86::build(
             ir,
             x86::BuildConfig {
-                linkmode: proj_type_to_link_mode(&build_cfg.project_type),
-                tmpdir: build_cfg.bin.clone(),
-                target_name: build_cfg.name.clone(),
-                outdir: build_cfg.out.clone(),
+                linkmode: proj_type_to_link_mode(&project.project_type),
+                tmpdir: project.bin.clone(),
+                target_name: project.name.clone(),
+                outdir: project.out.clone(),
+                additional_libraries: project.link_with.clone(),
             },
             config,
             pm,

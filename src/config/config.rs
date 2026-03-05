@@ -11,6 +11,7 @@ bin = "bin"       # Output directory for temporary files
 out = "."         # Output directory of targets
 target = "x86-64" # Target arch (x86-64)
 ignore-dirs = []  # Source directories to ignore
+link-with=[]      # Additional libraries to link with
 
 [options]
 debug-mode = false
@@ -73,6 +74,8 @@ pub struct Project {
     /// Directories to ignore when searching for source files
     #[serde(default)]
     pub ignore_dirs: Vec<String>,
+    /// Additional libraries to link with, full paths.
+    pub link_with: Vec<String>,
 }
 
 #[derive(Deserialize)]

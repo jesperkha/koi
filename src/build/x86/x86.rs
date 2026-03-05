@@ -28,6 +28,7 @@ pub struct BuildConfig {
     pub target_name: String,
     /// Directory to output target file(s)
     pub outdir: String,
+    pub additional_libraries: Vec<String>,
 }
 
 // TODO: high level assembly tree with string generation
@@ -61,6 +62,10 @@ pub fn build(
     let mut linker_flags = vec![];
     for lib in libset.archives() {
         linker_flags.push(format!("{}", lib));
+    }
+
+    for lib in buildcfg.additional_libraries {
+        linker_flags.push(lib);
     }
 
     match buildcfg.linkmode {
