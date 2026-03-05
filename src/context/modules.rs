@@ -10,7 +10,6 @@ pub struct CreateModule {
     pub modpath: ModulePath,
     pub kind: ModuleKind,
     pub symbols: SymbolList,
-    pub deps: Vec<ModuleId>,
 }
 
 pub struct ModuleInterner {
@@ -53,7 +52,6 @@ impl ModuleInterner {
             modpath: m.modpath,
             symbols: m.symbols,
             kind: m.kind,
-            deps: m.deps,
         });
 
         id

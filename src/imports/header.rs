@@ -132,7 +132,6 @@ impl HeaderFile {
             modpath,
             kind: ModuleKind::External,
             symbols,
-            deps: Vec::new(),
         })
     }
 }

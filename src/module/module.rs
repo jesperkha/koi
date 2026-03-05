@@ -19,8 +19,6 @@ pub struct Module {
     pub modpath: ModulePath,
     /// List of symbols declared and used within this module.
     pub symbols: SymbolList,
-    /// List of modules this module depends on.
-    pub deps: Vec<ModuleId>,
 }
 
 pub enum ModuleKind {

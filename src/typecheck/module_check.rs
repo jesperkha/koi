@@ -5,7 +5,7 @@ use crate::{
     context::{Context, CreateModule, CreateSymbol},
     error::{Diagnostics, Report, Res},
     module::{
-        ImportPath, ModuleId, ModuleKind, ModulePath, ModuleSourceFile, ModuleSymbol, Namespace,
+        ImportPath, ModuleKind, ModulePath, ModuleSourceFile, ModuleSymbol, Namespace,
         NamespaceList, Symbol, SymbolId, SymbolKind, SymbolList, SymbolOrigin,
     },
     typecheck::file_check::FileChecker,
@@ -19,7 +19,6 @@ pub(crate) struct ModuleChecker<'a> {
 
     /// Is this the main module?
     is_main: bool,
-    deps: Vec<ModuleId>,
     /// Module-level symbol cache
     symbols: SymbolList,
     /// Per-file namespace lists, indexed by file order.
@@ -32,7 +31,6 @@ impl<'a> ModuleChecker<'a> {
             ctx,
             symbols: SymbolList::new(),
             is_main: false,
-            deps: Vec::new(),
             file_namespaces: Vec::new(),
         }
     }
@@ -61,7 +59,6 @@ impl<'a> ModuleChecker<'a> {
                 files,
             },
             symbols: self.symbols,
-            deps: self.deps,
         })
     }
 
@@ -107,9 +104,6 @@ impl<'a> ModuleChecker<'a> {
                 return;
             }
         };
-
-        // Add as dependency
-        self.deps.push(module.id);
 
         // Get namespace name and which token to highlight when reporting
         // duplicate definition error.
