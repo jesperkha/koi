@@ -34,7 +34,7 @@ pub fn list_dir(dir: &FilePath) -> Result<Vec<String>, String> {
 }
 
 /// Run shell command
-pub fn cmd(command: &str, args: &[String]) -> Result<String, String> {
+pub fn cmd(command: &str, args: &[String]) -> Result<(), String> {
     info!("Cmd: {} {}", command, args.join(" "));
 
     let output = Command::new(command)
@@ -43,18 +43,10 @@ pub fn cmd(command: &str, args: &[String]) -> Result<String, String> {
         .map_err(|_| format!("failed to run command: {}", command))?;
 
     if !output.status.success() {
-        return Err(format!(
-            "command '{}' exited with a non-success code",
-            command
-        ));
+        return Err(String::from_utf8_lossy(&output.stderr).to_string());
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    if stdout == "" {
-        return Ok(String::from_utf8_lossy(&output.stderr).to_string());
-    }
-
-    Ok(stdout)
+    Ok(())
 }
 
 pub fn create_dir_if_not_exist(dir: &str) -> Result<(), String> {

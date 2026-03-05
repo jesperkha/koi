@@ -52,6 +52,7 @@ fn new_config(case: &str) -> (Project, Options, Config) {
         project_type: ProjectType::App,
         includes: None,
         ignore_dirs: vec![],
+        link_with: vec![],
     };
 
     let options = Options {
@@ -84,6 +85,7 @@ fn library_config(
         project_type: ProjectType::Package,
         includes,
         ignore_dirs: vec![],
+        link_with: vec![],
     };
 
     let options = Options {
