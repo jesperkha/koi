@@ -80,6 +80,7 @@ pub fn build(
             let target_path = FilePath::from(&buildcfg.outdir).join(&buildcfg.target_name);
             args.push(format!("-o{}", target_path));
             args.extend_from_slice(&linker_flags);
+            args.push("-lm".into()); // After libraries
             cmd("gcc", &args)?;
         }
         LinkMode::Library => {
