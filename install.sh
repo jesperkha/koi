@@ -1,48 +1,41 @@
 #!/usr/bin/env bash
+#
+# Koi language installer (from source). Builds the compiler and installs it
+# along with runtime files to the given directory.
+#
+# Usage:
+#   bash install.sh [INSTALL_DIR]
+#
+# If INSTALL_DIR is not provided, defaults to $HOME/.local/koi.
+#
 set -euo pipefail
 
 err() { echo "error: $*" >&2; exit 1; }
 
 # --- Pre-flight checks ---
 for cmd in cargo cp mkdir; do
-    if ! command -v "$cmd" &>/dev/null; then
-        err "'$cmd' is required but not found in PATH"
-    fi
+    command -v "$cmd" &>/dev/null || err "'$cmd' is required but not found in PATH"
 done
 
 # --- Determine install directory ---
 default_dir="$HOME/.local/koi"
-
-if [[ $# -ge 1 ]]; then
-    install_dir="$1"
-else
-    echo "Koi Language Installer"
-    echo ""
-    echo "Where should Koi be installed?"
-    read -rp "  Installation directory [$default_dir]: " install_dir
-    install_dir="${install_dir:-$default_dir}"
-fi
-
-# Expand ~ if the user typed it
+install_dir="${1:-$default_dir}"
 install_dir="${install_dir/#\~/$HOME}"
-
-# Resolve to absolute path
 install_dir="$(realpath -m "$install_dir")"
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+echo "Koi Language Installer (from source)"
+echo "Install directory: $install_dir"
 echo ""
-echo "Installing to $install_dir"
 
 # --- Create directory structure ---
 echo "Creating directory structure ..."
 mkdir -p "$install_dir"/{lib,external,bin}
-echo "Created $install_dir/{lib,external,bin}"
 
 # --- Copy runtime files ---
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 echo "Copying runtime files ..."
 cp "$script_dir/lib/entry.s" "$install_dir/lib/entry.s"
-echo "Copied lib/entry.s"
 
 # --- Build release binary ---
 echo "Building koi (release) - this may take a moment ..."
