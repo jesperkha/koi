@@ -85,17 +85,9 @@ pub fn get_root_dir() -> FilePath {
 
     #[cfg(not(debug_assertions))]
     {
-        // TODO: check if this is correct
         let exec_path = env::current_exe().unwrap();
-        let rootdir = exec_path
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap();
-
-        rootdir.to_owned()
+        let rootdir = exec_path.parent().unwrap().parent().unwrap();
+        FilePath::from(rootdir.to_path_buf())
     }
 }
 

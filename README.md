@@ -13,6 +13,24 @@
 
 ## About
 
+Koi is a very simple systems language. Both the modern syntax and module system makes low level development more enjoyable. Koi compiles to native x86-64 assembly on Linux and links directly with C libraries.
+
 ## Install
 
+Install with a single command:
+
+```sh
+
+```
+
+### Building from source
+
+```sh
+git clone https://github.com/jesperkha/koi.git
+cd koi
+./install.sh
+```
+
 ## Documentation
+
+For language documentation, [refer to the Koi Wiki](https://jesperkha.github.io/koi/).
