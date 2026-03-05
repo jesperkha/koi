@@ -111,28 +111,6 @@ impl<'a> Checker<'a> {
         })
     }
 
-    fn emit_module_files(
-        &mut self,
-        ast_files: Vec<File>,
-    ) -> Result<Vec<ModuleSourceFile>, Diagnostics> {
-        let mut files = Vec::new();
-
-        for file in ast_files {
-            info!("Type check: {}", file.filepath);
-            let namespaces = NamespaceList::new();
-            let decls = self.emit_ast(file.ast)?;
-            let ast = TypedAst { decls };
-
-            files.push(ModuleSourceFile {
-                filename: file.filename,
-                ast,
-                namespaces,
-            });
-        }
-
-        Ok(files)
-    }
-
     // ---------------------------- Import resolution ---------------------------- //
 
     fn resolve_imports(&mut self, fs: &FileSet) -> Res<()> {
@@ -329,6 +307,28 @@ impl<'a> Checker<'a> {
     }
 
     // ---------------------------- Generate AST ---------------------------- //
+
+    fn emit_module_files(
+        &mut self,
+        ast_files: Vec<File>,
+    ) -> Result<Vec<ModuleSourceFile>, Diagnostics> {
+        let mut files = Vec::new();
+
+        for file in ast_files {
+            info!("Type check: {}", file.filepath);
+            let namespaces = NamespaceList::new();
+            let decls = self.emit_ast(file.ast)?;
+            let ast = TypedAst { decls };
+
+            files.push(ModuleSourceFile {
+                filename: file.filename,
+                ast,
+                namespaces,
+            });
+        }
+
+        Ok(files)
+    }
 
     fn emit_ast(&mut self, ast: Ast) -> Res<Vec<types::Decl>> {
         let mut diag = Diagnostics::new();
