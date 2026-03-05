@@ -1,6 +1,9 @@
 mod file_check;
 mod module_check;
 
+#[cfg(test)]
+mod tests;
+
 use module_check::ModuleChecker;
 
 use crate::{
