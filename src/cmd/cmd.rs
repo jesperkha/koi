@@ -4,7 +4,10 @@ use std::{
 };
 
 use crate::{
-    config::load_config_file, driver::compile, imports::dump_header_symbols, util::write_file,
+    config::{DEFAULT_KOI_TOML, load_config_file},
+    driver::compile,
+    imports::dump_header_symbols,
+    util::write_file,
 };
 use clap::{CommandFactory, Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
@@ -58,21 +61,6 @@ fn run_command(command: Command) -> Result<(), String> {
         }
     }
 }
-
-static DEFAULT_KOI_TOML: &str = r#"# Koi project configuration
-
-[project]
-name = "myApp"    # Project name
-type = "app"      # Project type (app|package)
-src = "src"       # Source code directory
-bin = "bin"       # Output directory for temporary files
-out = "."         # Output directory of targets
-target = "x86-64" # Target arch (x86-64)
-ignore-dirs = []  # Source directories to ignore
-
-[options]
-debug-mode = false
-"#;
 
 fn koi_init() -> Result<(), String> {
     if fs::exists("koi.toml").unwrap_or(false) {

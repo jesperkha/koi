@@ -1,6 +1,21 @@
 use serde::Deserialize;
 use std::{fs, path::Path};
 
+pub static DEFAULT_KOI_TOML: &str = r#"# Koi project configuration
+
+[project]
+name = "myApp"    # Project name
+type = "app"      # Project type (app|package)
+src = "src"       # Source code directory
+bin = "bin"       # Output directory for temporary files
+out = "."         # Output directory of targets
+target = "x86-64" # Target arch (x86-64)
+ignore-dirs = []  # Source directories to ignore
+
+[options]
+debug-mode = false
+"#;
+
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConfigFile {
