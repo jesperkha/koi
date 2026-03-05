@@ -1,7 +1,13 @@
 use core::panic;
-use std::{collections::HashMap, mem};
+use std::{
+    collections::HashMap,
+    mem,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 use tracing::{debug, info};
+
+// TODO: (test) string symbols (.S1 etc) are not duplicated across units
 
 use crate::{
     context::Context,
@@ -21,6 +27,7 @@ pub fn emit_ir(ctx: &Context, id: ModuleId) -> Res<Unit> {
     };
 
     let mut ins = Vec::new();
+
     for file in &kind.files {
         let modulefile = ModuleFile {
             modpath: &module.modpath,
@@ -30,7 +37,6 @@ pub fn emit_ir(ctx: &Context, id: ModuleId) -> Res<Unit> {
         };
 
         let emitter = Emitter::new(ctx, modulefile);
-
         let file_ins = emitter.emit()?;
         ins.extend(file_ins);
     }
@@ -39,6 +45,12 @@ pub fn emit_ir(ctx: &Context, id: ModuleId) -> Res<Unit> {
         ins,
         modpath: module.modpath.clone(),
     })
+}
+
+static STRING_ID: AtomicUsize = AtomicUsize::new(0);
+
+fn next_id() -> usize {
+    STRING_ID.fetch_add(1, Ordering::Relaxed)
 }
 
 struct ModuleFile<'a> {
@@ -57,7 +69,6 @@ struct Emitter<'a> {
 
     // Track if void functions have returned or not to add explicit return
     has_returned: bool,
-    curstr: usize,
     stack_size: usize, // Cumulative stack size from declarations
 }
 
@@ -69,7 +80,6 @@ impl<'a> Emitter<'a> {
             sym: SymTracker::new(),
             has_returned: false,
             ins: vec![Vec::new()],
-            curstr: 0,
             stack_size: 0,
         }
     }
@@ -130,8 +140,7 @@ impl<'a> Emitter<'a> {
     }
 
     fn next_string_name(&mut self) -> String {
-        self.curstr += 1;
-        format!("S{}", self.curstr)
+        format!("S{}", next_id())
     }
 
     fn mangle_symbol_name(&self, sym: &Symbol) -> String {

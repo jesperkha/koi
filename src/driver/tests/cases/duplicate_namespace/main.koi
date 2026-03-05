@@ -1,0 +1,7 @@
+import util
+
+func main() int {
+    other()
+    util.puts("Hello from main")
+    return 0
+}

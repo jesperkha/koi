@@ -381,7 +381,6 @@ fn dump_debug_info(ctx: &Context, project: &Project) -> Res<()> {
         // debug!("Writing symbol info to {}", path);
         // write_file(&path.into(), &s)?;
         // TODO: debug info
-        todo!()
     }
 
     Ok(())

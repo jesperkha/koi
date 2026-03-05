@@ -5,8 +5,7 @@ use tracing::{debug, info};
 
 use crate::{
     ast::{
-        self, Ast, Field, File, FileSet, FuncDeclNode, ImportNode, Node, Pos, Token, TokenKind,
-        TypeNode,
+        self, Ast, File, FileSet, FuncDeclNode, ImportNode, Node, Pos, Token, TokenKind, TypeNode,
     },
     context::{Context, CreateModule, CreateSymbol},
     error::{Diagnostics, Report, Res},
@@ -32,70 +31,46 @@ pub fn check_filesets(ctx: &mut Context, filesets: Vec<FileSet>) -> Res<()> {
 
 /// Type check single FileSet into a module.
 pub fn check_fileset(ctx: &mut Context, fs: FileSet) -> Res<CreateModule> {
-    let checker = Checker::new(ctx);
-    let create_mod = checker.check(fs)?;
-    Ok(create_mod)
+    let checker = ModuleChecker::new(ctx);
+    checker.check(fs)
 }
 
-/// A Binding is either a declared variable or function parameter. Bindings
-/// shadow global symbols like functions and types.
-struct Binding {
-    ty: TypeId,
-    is_const: bool,
-    pos: Pos,
-}
-
-/// The FileChecker performs type checking on a single source file AST,
-/// producing a typed AST. The types and symbols are stored in the provided
-/// context and symbol table.
-struct Checker<'a> {
+/// Performs module-level checks: import resolution, global symbol declaration,
+/// and orchestrates per-file type checking.
+struct ModuleChecker<'a> {
     ctx: &'a mut Context,
-
-    /// TODO: namespacelist??
-    nsl: NamespaceList,
-    /// Locally declared variables for type checking.
-    vars: VarTable<Binding>,
-    /// Return type in current scope
-    rtype: TypeId,
-    /// Has returned in the base function scope
-    /// Not counting nested scopes as returning there is optional
-    has_returned: bool,
-    /// Set to true after call to check() if currently checking the main module.
     is_main: bool,
-    /// Accumulative list of modules this depends on.
     deps: Vec<ModuleId>,
-    /// Map of declared and imported module symbols.
     symbols: HashMap<String, ModuleSymbol>,
+    /// Per-file namespace lists, indexed by file order.
+    file_namespaces: Vec<NamespaceList>,
 }
 
-impl<'a> Checker<'a> {
-    pub fn new(ctx: &'a mut Context) -> Self {
+impl<'a> ModuleChecker<'a> {
+    fn new(ctx: &'a mut Context) -> Self {
         Self {
             ctx,
-            symbols: HashMap::new(), // TODO: own object?
-            nsl: NamespaceList::new(),
-            vars: VarTable::new(),
-            rtype: NO_TYPE,
-            has_returned: false,
+            symbols: HashMap::new(),
             is_main: false,
             deps: Vec::new(),
+            file_namespaces: Vec::new(),
         }
     }
 
-    pub fn check(mut self, fs: FileSet) -> Res<CreateModule> {
+    fn check(mut self, fs: FileSet) -> Res<CreateModule> {
         self.is_main = fs.modpath.is_main();
 
         // The first step of type checking is to resolve all imports in this module.
         // Each import is resolved to a source or external module and it is added as
         // a namespace in this module.
-        self.resolve_imports(&fs)?;
+        self.resolve_all_imports(&fs)?;
 
         // The second step is to do a global pass and pre-declare all top-level function- and type
         // definitions. This is to ensure that function bodies can reference symbols declared later
         // in the same file or another file in the same module.
         self.global_pass(&fs)?;
 
-        // TODO: docs
+        // Phase 3: Per-file type checking
         let files = self.emit_module_files(fs.files)?;
 
         let kind = SourceModule {
@@ -111,16 +86,18 @@ impl<'a> Checker<'a> {
         })
     }
 
-    // ---------------------------- Import resolution ---------------------------- //
+    // ----------------------- Import resolution ----------------------- //
 
-    fn resolve_imports(&mut self, fs: &FileSet) -> Res<()> {
+    fn resolve_all_imports(&mut self, fs: &FileSet) -> Res<()> {
         let mut diag = Diagnostics::new();
 
         for file in &fs.files {
             info!("Resolving imports for file {}", file.filepath);
+            let mut nsl = NamespaceList::new();
             for import in &file.ast.imports {
-                self.resove_import(import, &mut diag);
+                self.resolve_import(import, &mut nsl, &mut diag);
             }
+            self.file_namespaces.push(nsl);
         }
 
         if !diag.is_empty() {
@@ -130,7 +107,12 @@ impl<'a> Checker<'a> {
         Ok(())
     }
 
-    fn resove_import(&mut self, import: &ImportNode, diag: &mut Diagnostics) {
+    fn resolve_import(
+        &mut self,
+        import: &ImportNode,
+        nsl: &mut NamespaceList,
+        diag: &mut Diagnostics,
+    ) {
         let impath = ImportPath::from(import);
 
         // Try to get module
@@ -140,7 +122,6 @@ impl<'a> Checker<'a> {
                 assert!(import.names.len() > 0, "unchecked missing import name");
                 diag.add(Report::code_error(
                     &err,
-                    // TODO: add span trait to nodes for error reporting
                     &import.names[0].pos,
                     &import.names.last().unwrap().end_pos,
                 ));
@@ -164,7 +145,7 @@ impl<'a> Checker<'a> {
 
         // Add module as namespace
         let ns = Namespace::new(namespace_name, module);
-        let _ = self.nsl.add(ns).map_err(|err| {
+        let _ = nsl.add(ns).map_err(|err| {
             diag.add(Report::code_error(&err, range.0, range.1));
         });
 
@@ -177,7 +158,7 @@ impl<'a> Checker<'a> {
             // Check if the symbol exists
             if let Some(id) = module_exports.get(&symbol_name) {
                 // If it was already declared, add error
-                if let Ok(_) = self.get_symbol(&symbol_name) {
+                if self.get_symbol(&symbol_name).is_ok() {
                     diag.add(Report::code_error(
                         "already declared",
                         &tok.pos,
@@ -203,7 +184,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    // ---------------------------- Global pass ---------------------------- //
+    // ----------------------- Global pass ----------------------- //
 
     fn global_pass(&mut self, fs: &FileSet) -> Res<()> {
         let mut diag = Diagnostics::new();
@@ -232,15 +213,15 @@ impl<'a> Checker<'a> {
         match decl {
             ast::Decl::FuncDecl(node) => {
                 let origin = SymbolOrigin::Module(modpath.clone());
-                self.declare_function_definition(node, origin, &filename)
+                self.declare_function_definition(node, origin, filename)
             }
             ast::Decl::Func(node) => {
                 let origin = SymbolOrigin::Module(modpath.clone());
-                self.declare_function_definition(&node.clone().into(), origin, &filename)
+                self.declare_function_definition(&node.clone().into(), origin, filename)
             }
             ast::Decl::Extern(node) => {
                 let origin = SymbolOrigin::Extern(modpath.clone());
-                self.declare_function_definition(node, origin, &filename)
+                self.declare_function_definition(node, origin, filename)
             }
             _ => Ok(()),
         }
@@ -292,21 +273,21 @@ impl<'a> Checker<'a> {
 
         // If symbol already exists, return error
         if let Ok(sym) = self.get_symbol(&symbol.name) {
-            return Err(self
-                .error_token("already declared", &node.name)
-                .with_info(&format!(
-                    "previously declared in {}, line {}",
-                    sym.filename,
-                    sym.pos.row + 1
-                )));
+            return Err(
+                Report::code_error("already declared", &node.name.pos, &node.name.end_pos)
+                    .with_info(&format!(
+                        "previously declared in {}, line {}",
+                        sym.filename,
+                        sym.pos.row + 1
+                    )),
+            );
         };
 
-        // Already check if previously declared
         let _ = self.create_symbol(symbol);
         Ok(())
     }
 
-    // ---------------------------- Generate AST ---------------------------- //
+    // ----------------------- File-level emission ----------------------- //
 
     fn emit_module_files(
         &mut self,
@@ -314,20 +295,130 @@ impl<'a> Checker<'a> {
     ) -> Result<Vec<ModuleSourceFile>, Diagnostics> {
         let mut files = Vec::new();
 
-        for file in ast_files {
+        // Take file_namespaces out of self so we can iterate while borrowing self mutably
+        let all_nsl = std::mem::take(&mut self.file_namespaces);
+
+        for (file, nsl) in ast_files.into_iter().zip(all_nsl.into_iter()) {
             info!("Type check: {}", file.filepath);
-            let namespaces = NamespaceList::new();
-            let decls = self.emit_ast(file.ast)?;
+
+            let mut file_checker = FileChecker::new(self.ctx, &self.symbols, nsl, self.is_main);
+
+            let decls = file_checker.emit_ast(file.ast)?;
+            let nsl = file_checker.into_namespaces();
             let ast = TypedAst { decls };
 
             files.push(ModuleSourceFile {
                 filename: file.filename,
                 ast,
-                namespaces,
+                namespaces: nsl,
             });
         }
 
         Ok(files)
+    }
+
+    // ----------------------- Shared helpers ----------------------- //
+
+    /// Evaluate an AST type node to its semantic type id.
+    fn eval_type(&self, node: &TypeNode) -> Result<TypeId, Report> {
+        match node {
+            TypeNode::Primitive(token) => {
+                let prim = PrimitiveType::from(&token.kind);
+                Ok(self.ctx.types.primitive(prim))
+            }
+            TypeNode::Ident(token) => self.get_symbol_type_id(token).map_or(
+                Err(Report::code_error("not a type", &token.pos, &token.end_pos)),
+                Ok,
+            ),
+        }
+    }
+
+    /// Evaluate an option of a type node. Defaults to void type if not present.
+    fn eval_optional_type(&mut self, v: &Option<TypeNode>) -> Result<TypeId, Report> {
+        v.as_ref()
+            .map_or(Ok(self.ctx.types.void()), |r| self.eval_type(r))
+    }
+
+    fn get_symbol_type_id(&self, name: &Token) -> Option<TypeId> {
+        let name_str = name.to_string();
+        self.get_symbol(&name_str).ok().map(|sym| sym.ty)
+    }
+
+    /// Get a Symbol by name. The name is local to this module only.
+    /// Returns "not declared" on error.
+    fn get_symbol(&self, name: &str) -> Result<&Symbol, String> {
+        self.symbols
+            .get(name)
+            .map_or(Err("not declared".to_string()), |sym| {
+                Ok(self.ctx.symbols.get(sym.id))
+            })
+    }
+
+    /// Create a new symbol and add it to the local cache. Returns "already declared" on error.
+    fn create_symbol(&mut self, symbol: CreateSymbol) -> Result<SymbolId, String> {
+        if self.symbols.contains_key(&symbol.name) {
+            return Err("already declared".to_string());
+        }
+        let name = symbol.name.clone();
+        let exported = symbol.is_exported;
+        let id = self.ctx.symbols.add(symbol);
+        self.symbols.insert(name, ModuleSymbol { id, exported });
+        Ok(id)
+    }
+}
+
+// =========================================================================
+// File-level checker
+// =========================================================================
+
+/// A Binding is either a declared variable or function parameter. Bindings
+/// shadow global symbols like functions and types.
+struct Binding {
+    ty: TypeId,
+    is_const: bool,
+    pos: Pos,
+}
+
+/// Performs type checking on a single source file AST, producing a typed AST.
+/// Borrows the module-level symbol table immutably and owns per-file state
+/// (namespaces, variable bindings, return context).
+struct FileChecker<'a> {
+    ctx: &'a mut Context,
+    /// Module-level symbols (read-only during file checking).
+    symbols: &'a HashMap<String, ModuleSymbol>,
+    /// Per-file namespaces from import resolution.
+    nsl: NamespaceList,
+    /// Locally declared variables.
+    vars: VarTable<Binding>,
+    /// Return type in current function scope.
+    rtype: TypeId,
+    /// Whether the current function has returned.
+    has_returned: bool,
+    /// Whether we are in the main module.
+    is_main: bool,
+}
+
+impl<'a> FileChecker<'a> {
+    fn new(
+        ctx: &'a mut Context,
+        symbols: &'a HashMap<String, ModuleSymbol>,
+        nsl: NamespaceList,
+        is_main: bool,
+    ) -> Self {
+        Self {
+            ctx,
+            symbols,
+            nsl,
+            vars: VarTable::new(),
+            rtype: NO_TYPE,
+            has_returned: false,
+            is_main,
+        }
+    }
+
+    /// Consume the file checker and return the namespace list for storage.
+    fn into_namespaces(self) -> NamespaceList {
+        self.nsl
     }
 
     fn emit_ast(&mut self, ast: Ast) -> Res<Vec<types::Decl>> {
@@ -413,7 +504,7 @@ impl<'a> Checker<'a> {
         // There was no return when there should have been
         if !self.has_returned && f.ret != self.ctx.types.void() {
             return Err(self.error_token(
-                format!("missing return in function '{}'", node.name.kind).as_str(),
+                &format!("missing return in function '{}'", node.name.kind),
                 &node.body.rbrace,
             ));
         }
@@ -506,7 +597,7 @@ impl<'a> Checker<'a> {
             return Err(self.error("cannot assign void type to variable", &typed_expr));
         }
 
-        if let Ok(_) = self.nsl.get(&node.name.to_string()) {
+        if self.nsl.get(&node.name.to_string()).is_ok() {
             return Err(self.error_token("shadowing a namespace is not allowed", &node.name));
         }
 
@@ -571,7 +662,7 @@ impl<'a> Checker<'a> {
             TokenKind::IdentLit(name) => {
                 let ty_id = match self.get(&tok) {
                     Err(err) => {
-                        if let Ok(_) = self.nsl.get(name) {
+                        if self.nsl.get(name).is_ok() {
                             return Err(
                                 self.error_token("namespace cannot be used as a value", &tok)
                             );
@@ -580,8 +671,7 @@ impl<'a> Checker<'a> {
                     }
                     Ok(id) => id,
                 };
-                let t = self.ctx.types.lookup(ty_id);
-                t
+                self.ctx.types.lookup(ty_id)
             }
             _ => todo!(),
         };
@@ -683,16 +773,16 @@ impl<'a> Checker<'a> {
         // a normal expression.
         let expr = self.emit_expr(*node.expr)?;
 
-        return Err(self.error(
+        Err(self.error(
             &format!(
                 "type '{}' has no fields",
                 self.ctx.types.type_to_string(expr.type_id())
             ),
             &expr,
-        ));
+        ))
     }
 
-    // ---------------------------- Utility methods ---------------------------- //
+    // ----------------------- Utility methods ----------------------- //
 
     fn error(&self, msg: &str, node: &dyn Node) -> Report {
         Report::code_error(msg, node.pos(), node.end())
@@ -708,12 +798,11 @@ impl<'a> Checker<'a> {
 
     fn error_expected_token(&self, msg: &str, expect: TypeId, tok: &Token) -> Report {
         self.error_token(
-            format!(
+            &format!(
                 "{}: expected '{}'",
                 msg,
                 self.ctx.types.type_to_string(expect),
-            )
-            .as_str(),
+            ),
             tok,
         )
     }
@@ -726,13 +815,12 @@ impl<'a> Checker<'a> {
         node: &dyn Node,
     ) -> Report {
         self.error(
-            format!(
+            &format!(
                 "{}: expected '{}', got '{}'",
                 msg,
                 self.ctx.types.type_to_string(expect),
                 self.ctx.types.type_to_string(got)
-            )
-            .as_str(),
+            ),
             node,
         )
     }
@@ -776,11 +864,6 @@ impl<'a> Checker<'a> {
         Ok(self.ctx.types.lookup(id))
     }
 
-    /// Collect a list of type ids for each field in the slice.
-    fn _collect_field_types(&mut self, fields: &[Field]) -> Result<Vec<TypeId>, Report> {
-        fields.iter().map(|f| self.eval_type(&f.typ)).collect()
-    }
-
     /// Report whether the given l-value is constant or not.
     fn is_constant(&self, lval: &ast::Expr) -> bool {
         match lval {
@@ -793,37 +876,8 @@ impl<'a> Checker<'a> {
         }
     }
 
-    /// Evaluate an AST type node to its semantic type id.
-    fn eval_type(&self, node: &TypeNode) -> Result<TypeId, Report> {
-        match node {
-            TypeNode::Primitive(token) => {
-                let prim = PrimitiveType::from(&token.kind);
-                Ok(self.ctx.types.primitive(prim))
-            }
-            TypeNode::Ident(token) => self
-                .get(token)
-                .map_or(Err(self.error_token("not a type", token)), |ty| Ok(ty)),
-        }
-    }
-
-    /// Evaluate an option of a type node. Defaults to void type if not present.
-    fn eval_optional_type(&mut self, v: &Option<TypeNode>) -> Result<TypeId, Report> {
-        v.as_ref()
-            .map_or(Ok(self.ctx.types.void()), |r| self.eval_type(r))
-    }
-
-    /// Check if the expression is an identifier and return the corresponding type.
-    fn _if_identifier_get_type(&self, expr: &ast::Expr) -> Option<&Type> {
-        if let Some(name) = self.if_identifier_get_name(expr) {
-            if let Ok(sym) = self.get_symbol(name) {
-                return Some(self.ctx.types.lookup(sym.ty));
-            }
-        }
-        None
-    }
-
     /// If the given expression is a Token::Ident kind, it returns the identifier name.
-    fn if_identifier_get_name(&self, expr: &'a ast::Expr) -> Option<&'a str> {
+    fn if_identifier_get_name<'b>(&self, expr: &'b ast::Expr) -> Option<&'b str> {
         if let ast::Expr::Literal(token) = expr {
             if let TokenKind::IdentLit(name) = &token.kind {
                 return Some(name);
@@ -837,21 +891,8 @@ impl<'a> Checker<'a> {
     fn get_symbol(&self, name: &str) -> Result<&Symbol, String> {
         self.symbols
             .get(name)
-            .map_or(Err(format!("not declared")), |sym| {
+            .map_or(Err("not declared".to_string()), |sym| {
                 Ok(self.ctx.symbols.get(sym.id))
             })
-    }
-
-    /// Create a new symbol and add it to the local cache. Returns "already declared" on error.
-    fn create_symbol(&mut self, symbol: CreateSymbol) -> Result<SymbolId, String> {
-        if self.symbols.contains_key(&symbol.name) {
-            return Err(format!("already declared"));
-        }
-
-        let name = symbol.name.clone();
-        let exported = symbol.is_exported;
-        let id = self.ctx.symbols.add(symbol);
-        self.symbols.insert(name, ModuleSymbol { id, exported });
-        Ok(id)
     }
 }

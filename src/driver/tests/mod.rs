@@ -195,3 +195,8 @@ fn test_empty() {
         &format!("no source files in '{}'", case_dir("empty")),
     );
 }
+
+#[test]
+fn test_duplicate_namespace() {
+    run_case_with_status("duplicate_namespace", 0);
+}

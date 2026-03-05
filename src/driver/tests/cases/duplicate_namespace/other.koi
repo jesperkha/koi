@@ -1,0 +1,5 @@
+import util
+
+func other() {
+    util.puts("Doing other")
+}
