@@ -38,8 +38,6 @@ impl SymbolInterner {
             origin: symbol.origin,
             is_exported: symbol.is_exported,
             no_mangle: symbol.no_mangle,
-            pos: symbol.pos,
-            filename: symbol.filename,
         };
 
         let id = symbol.id;

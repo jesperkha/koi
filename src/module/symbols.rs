@@ -23,10 +23,6 @@ pub struct Symbol {
     pub is_exported: bool,
     /// True if the symbol name should not be mangled when linking
     pub no_mangle: bool,
-    /// Position of symbol declaration.
-    pub pos: Pos,
-    /// The filename where the symbol was declared.
-    pub filename: String,
 }
 
 impl Symbol {
@@ -73,7 +69,15 @@ impl fmt::Display for Symbol {
 
 #[derive(Clone, Debug)]
 pub enum SymbolOrigin {
-    Module(ModulePath),
+    Module {
+        /// Module path of module origin
+        modpath: ModulePath,
+        /// Position of symbol declaration.
+        pos: Pos,
+        /// The filename where the symbol was declared.
+        filename: String,
+    },
+    Library(ModulePath),
     Extern,
 }
 
@@ -83,8 +87,9 @@ impl fmt::Display for SymbolOrigin {
             f,
             "{}",
             match self {
-                SymbolOrigin::Module(modpath) => format!("module({})", modpath),
+                SymbolOrigin::Module { modpath, .. } => format!("module({})", modpath),
                 SymbolOrigin::Extern => format!("extern"),
+                SymbolOrigin::Library(modpath) => format!("library({})", modpath),
             }
         )
     }

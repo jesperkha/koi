@@ -148,7 +148,8 @@ impl<'a> Emitter<'a> {
             sym.name.clone()
         } else {
             let modpath = match &sym.origin {
-                SymbolOrigin::Module(modpath) => modpath,
+                SymbolOrigin::Module { modpath, .. } => modpath,
+                SymbolOrigin::Library(modpath) => modpath,
                 _ => unreachable!(),
             };
             format!("_{}_{}", modpath.to_underscore(), sym.name)

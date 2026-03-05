@@ -1,7 +1,7 @@
 use tracing::{debug, info};
 
 use crate::{
-    ast::{self},
+    ast::{self, Node},
     context::{Context, CreateModule, CreateSymbol},
     error::{Diagnostics, Report, Res},
     module::{
@@ -184,11 +184,19 @@ impl<'a> ModuleChecker<'a> {
     ) -> Result<(), Report> {
         match decl {
             ast::Decl::FuncDecl(node) => {
-                let origin = SymbolOrigin::Module(modpath.clone());
+                let origin = SymbolOrigin::Module {
+                    modpath: modpath.clone(),
+                    pos: node.pos().clone(),
+                    filename: filename.into(),
+                };
                 self.declare_function_definition(node, origin, filename)
             }
             ast::Decl::Func(node) => {
-                let origin = SymbolOrigin::Module(modpath.clone());
+                let origin = SymbolOrigin::Module {
+                    modpath: modpath.clone(),
+                    pos: node.pos().clone(),
+                    filename: filename.into(),
+                };
                 self.declare_function_definition(&node.clone().into(), origin, filename)
             }
             ast::Decl::Extern(node) => {
@@ -245,14 +253,18 @@ impl<'a> ModuleChecker<'a> {
 
         // If symbol already exists, return error
         if let Ok(sym) = self.get_symbol(&symbol.name) {
-            return Err(
-                Report::code_error("already declared", &node.name.pos, &node.name.end_pos)
-                    .with_info(&format!(
-                        "previously declared in {}, line {}",
-                        sym.filename,
-                        sym.pos.row + 1
-                    )),
-            );
+            let mut report =
+                Report::code_error("already declared", &node.name.pos, &node.name.end_pos);
+
+            if let SymbolOrigin::Module { pos, filename, .. } = &sym.origin {
+                report = report.with_info(&format!(
+                    "previously declared in {}, line {}",
+                    filename,
+                    pos.row + 1
+                ));
+            }
+
+            return Err(report);
         };
 
         let _ = self.create_symbol(symbol);

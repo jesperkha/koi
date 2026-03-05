@@ -117,7 +117,7 @@ impl HeaderFile {
                     ty: *mappings.get(&s.ty).expect("mapping not found"),
                     origin: match s.is_extern {
                         true => SymbolOrigin::Extern,
-                        false => SymbolOrigin::Module(modpath.clone()),
+                        false => SymbolOrigin::Library(modpath.clone()),
                     },
                 };
 
