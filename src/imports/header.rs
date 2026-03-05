@@ -116,7 +116,7 @@ impl HeaderFile {
                     pos: Pos::default(), // Not used outside of type checking local modules anyways. TODO: remove pos from Symbol
                     ty: *mappings.get(&s.ty).expect("mapping not found"),
                     origin: match s.is_extern {
-                        true => SymbolOrigin::Extern(modpath.clone()),
+                        true => SymbolOrigin::Extern,
                         false => SymbolOrigin::Module(modpath.clone()),
                     },
                 };

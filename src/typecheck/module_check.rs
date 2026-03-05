@@ -192,7 +192,7 @@ impl<'a> ModuleChecker<'a> {
                 self.declare_function_definition(&node.clone().into(), origin, filename)
             }
             ast::Decl::Extern(node) => {
-                let origin = SymbolOrigin::Extern(modpath.clone());
+                let origin = SymbolOrigin::Extern;
                 self.declare_function_definition(node, origin, filename)
             }
             _ => Ok(()),
@@ -224,7 +224,7 @@ impl<'a> ModuleChecker<'a> {
                 ret,
             }));
 
-        let is_extern = matches!(origin, SymbolOrigin::Extern(_));
+        let is_extern = matches!(origin, SymbolOrigin::Extern);
         let no_mangle = is_extern;
 
         let symbol = CreateSymbol {
