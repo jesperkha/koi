@@ -1,22 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# --- Colors & helpers ---
-bold=$'\033[1m'
-green=$'\033[0;32m'
-cyan=$'\033[0;36m'
-red=$'\033[0;31m'
-reset=$'\033[0m'
-
-info()  { printf "${cyan}::${reset} %s\n" "$*"; }
-ok()    { printf "${green}✓${reset} %s\n" "$*"; }
-err()   { printf "${red}error:${reset} %s\n" "$*" >&2; }
+err() { echo "error: $*" >&2; exit 1; }
 
 # --- Pre-flight checks ---
 for cmd in cargo cp mkdir; do
     if ! command -v "$cmd" &>/dev/null; then
         err "'$cmd' is required but not found in PATH"
-        exit 1
     fi
 done
 
@@ -24,11 +14,11 @@ done
 default_dir="$HOME/.local/koi"
 
 if [[ $# -ge 1 ]]; then
-    # Non-interactive: directory passed as argument
     install_dir="$1"
 else
-    printf "\n${bold}Koi Language Installer${reset}\n\n"
-    printf "Where should Koi be installed?\n"
+    echo "Koi Language Installer"
+    echo ""
+    echo "Where should Koi be installed?"
     read -rp "  Installation directory [$default_dir]: " install_dir
     install_dir="${install_dir:-$default_dir}"
 fi
@@ -39,37 +29,41 @@ install_dir="${install_dir/#\~/$HOME}"
 # Resolve to absolute path
 install_dir="$(realpath -m "$install_dir")"
 
-printf "\n"
-info "Installing to ${bold}${install_dir}${reset}"
+echo ""
+echo "Installing to $install_dir"
 
 # --- Create directory structure ---
-info "Creating directory structure …"
+echo "Creating directory structure ..."
 mkdir -p "$install_dir"/{lib,external,bin}
-ok "Created $install_dir/{lib,external,bin}"
+echo "Created $install_dir/{lib,external,bin}"
 
 # --- Copy runtime files ---
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-info "Copying runtime files …"
+echo "Copying runtime files ..."
 cp "$script_dir/lib/entry.s" "$install_dir/lib/entry.s"
-ok "Copied lib/entry.s"
+echo "Copied lib/entry.s"
 
 # --- Build release binary ---
-info "Building koi (release) — this may take a moment …"
+echo "Building koi (release) - this may take a moment ..."
 cargo build --release --manifest-path "$script_dir/Cargo.toml"
-ok "Build succeeded"
+echo "Build succeeded"
 
 # --- Install binary ---
-info "Installing binary …"
+echo "Installing binary ..."
 cp "$script_dir/target/release/koi" "$install_dir/bin/koi"
 chmod +x "$install_dir/bin/koi"
-ok "Installed koi binary to $install_dir/bin/koi"
+echo "Installed koi binary to $install_dir/bin/koi"
 
 # --- Post-install hint ---
-printf "\n${green}${bold}Installation complete!${reset}\n\n"
+echo ""
+echo "Installation complete!"
 
 # Check if the bin dir is already on PATH
 if [[ ":$PATH:" != *":$install_dir/bin:"* ]]; then
-    printf "Add the following to your shell profile to use ${bold}koi${reset}:\n\n"
-    printf "  export PATH=\"%s/bin:\$PATH\"\n\n" "$install_dir"
+    echo ""
+    echo "Add the following to your shell profile to use koi:"
+    echo ""
+    echo "  export PATH=\"$install_dir/bin:\$PATH\""
+    echo ""
 fi
