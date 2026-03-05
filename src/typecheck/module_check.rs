@@ -5,8 +5,8 @@ use crate::{
     context::{Context, CreateModule, CreateSymbol},
     error::{Diagnostics, Report, Res},
     module::{
-        FuncSymbol, ImportPath, ModuleId, ModuleKind, ModulePath, ModuleSourceFile, ModuleSymbol,
-        Namespace, NamespaceList, Symbol, SymbolId, SymbolKind, SymbolList, SymbolOrigin,
+        ImportPath, ModuleId, ModuleKind, ModulePath, ModuleSourceFile, ModuleSymbol, Namespace,
+        NamespaceList, Symbol, SymbolId, SymbolKind, SymbolList, SymbolOrigin,
     },
     typecheck::file_check::FileChecker,
     types::{FunctionType, PrimitiveType, TypeId, TypeKind, TypedAst},
@@ -236,10 +236,10 @@ impl<'a> ModuleChecker<'a> {
             filename: filepath.to_owned(),
             name: node.name.to_string(),
             pos: node.name.pos.clone(),
-            kind: SymbolKind::Function(FuncSymbol {
+            kind: SymbolKind::Function {
                 is_inline: false,
                 is_naked: false,
-            }),
+            },
             no_mangle,
             ty,
             origin,

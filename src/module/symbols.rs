@@ -46,11 +46,14 @@ impl fmt::Display for Symbol {
             specs.push("extern");
         }
         match &self.kind {
-            SymbolKind::Function(func) => {
-                if func.is_inline {
+            SymbolKind::Function {
+                is_inline,
+                is_naked,
+            } => {
+                if *is_inline {
                     specs.push("inline");
                 }
-                if func.is_naked {
+                if *is_naked {
                     specs.push("naked");
                 }
             }
@@ -97,16 +100,13 @@ impl fmt::Display for SymbolOrigin {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum SymbolKind {
-    Function(FuncSymbol),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FuncSymbol {
-    /// If the function body should be inlined.
-    pub is_inline: bool,
-    /// If the function body should be naked (no entry/exit protocol or additional
-    /// code added by the compiler).
-    pub is_naked: bool,
+    Function {
+        /// If the function body should be inlined.
+        is_inline: bool,
+        /// If the function body should be naked (no entry/exit protocol or additional
+        /// code added by the compiler).
+        is_naked: bool,
+    },
 }
 
 impl fmt::Display for SymbolKind {
@@ -115,7 +115,7 @@ impl fmt::Display for SymbolKind {
             f,
             "{}",
             match self {
-                SymbolKind::Function(_) => "function",
+                SymbolKind::Function { .. } => "function",
             }
         )
     }
