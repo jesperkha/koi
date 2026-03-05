@@ -20,13 +20,18 @@ for cmd in cargo cp mkdir; do
     fi
 done
 
-# --- Prompt for install directory ---
+# --- Determine install directory ---
 default_dir="$HOME/.local/koi"
 
-printf "\n${bold}Koi Language Installer${reset}\n\n"
-printf "Where should Koi be installed?\n"
-read -rp "  Installation directory [$default_dir]: " install_dir
-install_dir="${install_dir:-$default_dir}"
+if [[ $# -ge 1 ]]; then
+    # Non-interactive: directory passed as argument
+    install_dir="$1"
+else
+    printf "\n${bold}Koi Language Installer${reset}\n\n"
+    printf "Where should Koi be installed?\n"
+    read -rp "  Installation directory [$default_dir]: " install_dir
+    install_dir="${install_dir:-$default_dir}"
+fi
 
 # Expand ~ if the user typed it
 install_dir="${install_dir/#\~/$HOME}"

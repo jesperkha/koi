@@ -20,7 +20,7 @@ Koi is a very simple systems language. Both the modern syntax and module system 
 Install with a single command:
 
 ```sh
-
+curl -sL https://raw.githubusercontent.com/jesperkha/koi/main/setup.sh | bash
 ```
 
 ### Building from source
