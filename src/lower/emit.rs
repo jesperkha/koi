@@ -6,8 +6,6 @@ use std::{
 
 use tracing::{debug, info};
 
-// TODO: (test) string symbols (.S1 etc) are not duplicated across units
-
 use crate::{
     context::Context,
     error::{Diagnostics, Report, Res},

@@ -184,7 +184,7 @@ impl<'a> ModuleChecker<'a> {
                     pos: node.pos().clone(),
                     filename: filename.into(),
                 };
-                self.declare_function_definition(node, origin, filename)
+                self.declare_function_definition(node, origin)
             }
             ast::Decl::Func(node) => {
                 let origin = SymbolOrigin::Module {
@@ -192,11 +192,11 @@ impl<'a> ModuleChecker<'a> {
                     pos: node.pos().clone(),
                     filename: filename.into(),
                 };
-                self.declare_function_definition(&node.clone().into(), origin, filename)
+                self.declare_function_definition(&node.clone().into(), origin)
             }
             ast::Decl::Extern(node) => {
                 let origin = SymbolOrigin::Extern;
-                self.declare_function_definition(node, origin, filename)
+                self.declare_function_definition(node, origin)
             }
             _ => Ok(()),
         }
@@ -206,7 +206,6 @@ impl<'a> ModuleChecker<'a> {
         &mut self,
         node: &ast::FuncDeclNode,
         origin: SymbolOrigin,
-        filepath: &str,
     ) -> Result<(), Report> {
         // Evaluate return type if any
         let ret = self.eval_optional_type(&node.ret_type)?;
@@ -231,9 +230,7 @@ impl<'a> ModuleChecker<'a> {
         let no_mangle = is_extern;
 
         let symbol = CreateSymbol {
-            filename: filepath.to_owned(),
             name: node.name.to_string(),
-            pos: node.name.pos.clone(),
             kind: SymbolKind::Function {
                 is_inline: false,
                 is_naked: false,

@@ -6,7 +6,6 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ast::Pos,
     config::Config,
     context::{Context, CreateModule, CreateSymbol},
     module::{
@@ -108,12 +107,10 @@ impl HeaderFile {
             .into_iter()
             .map(|s| {
                 let create_symbol = CreateSymbol {
-                    filename: "".into(), // TODO: resolve filename for header module
                     kind: s.kind,
                     name: s.name,
                     no_mangle: s.no_mangle,
-                    is_exported: true,   // Always true for imported symbols
-                    pos: Pos::default(), // Not used outside of type checking local modules anyways. TODO: remove pos from Symbol
+                    is_exported: true, // Always true for imported symbols
                     ty: *mappings.get(&s.ty).expect("mapping not found"),
                     origin: match s.is_extern {
                         true => SymbolOrigin::Extern,

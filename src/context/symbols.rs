@@ -1,5 +1,4 @@
 use crate::{
-    ast::Pos,
     module::{Symbol, SymbolId, SymbolKind, SymbolOrigin},
     types::TypeId,
 };
@@ -14,8 +13,6 @@ pub struct CreateSymbol {
     pub origin: SymbolOrigin,
     pub is_exported: bool,
     pub no_mangle: bool,
-    pub pos: Pos,
-    pub filename: String,
 }
 
 pub struct SymbolInterner {
