@@ -11,11 +11,11 @@ use crate::{
     error::{Diagnostics, Report, Res},
     module::{
         FuncSymbol, ImportPath, ModuleId, ModuleKind, ModulePath, ModuleSymbol, Namespace,
-        NamespaceList, SourceModule, Symbol, SymbolKind, SymbolOrigin,
+        NamespaceList, SourceModule, Symbol, SymbolId, SymbolKind, SymbolOrigin,
     },
     types::{
-        self, FunctionType, NO_TYPE, NodeMeta, PrimitiveType, Type, TypeId, TypeKind, TypedAst,
-        TypedNode, ast_node_to_meta,
+        self, Decl, FunctionType, NO_TYPE, NodeMeta, PrimitiveType, Type, TypeId, TypeKind,
+        TypedAst, TypedNode, ast_node_to_meta,
     },
     util::VarTable,
 };
@@ -48,11 +48,10 @@ struct Binding {
 /// producing a typed AST. The types and symbols are stored in the provided
 /// context and symbol table.
 struct Checker<'a> {
-    // Dependencies
     ctx: &'a mut Context,
 
+    /// TODO: namespacelist??
     nsl: NamespaceList,
-
     /// Locally declared variables for type checking.
     vars: VarTable<Binding>,
     /// Return type in current scope
@@ -64,7 +63,7 @@ struct Checker<'a> {
     is_main: bool,
     /// Accumulative list of modules this depends on.
     deps: Vec<ModuleId>,
-
+    /// Map of declared and imported module symbols.
     symbols: HashMap<String, ModuleSymbol>,
 }
 
@@ -85,19 +84,20 @@ impl<'a> Checker<'a> {
     pub fn check(mut self, fs: FileSet) -> Res<CreateModule> {
         self.is_main = fs.modpath.is_main();
 
-        for _ in &fs.files {
-            self.resolve_imports(&fs)?;
-        }
+        // The first step of type checking is to resolve all imports in this module.
+        // Each import is resolved to a source or external module and it is added as
+        // a namespace in this module.
+        self.resolve_imports(&fs)?;
 
-        for file in &fs.files {
-            self.global_pass(&fs.modpath, &file)?;
-        }
+        // The second step is to do a global pass and pre-declare all top-level function- and type
+        // definitions. This is to ensure that function bodies can reference symbols declared later
+        // in the same file or another file in the same module.
+        self.global_pass(&fs)?;
 
-        let mut decls = Vec::new();
-        for file in fs.files {
-            let file_decls = self.emit_ast(file)?;
-            decls.extend(file_decls);
-        }
+        // Finally we emit the modules typed AST. This step does the actual type checking of all
+        // function bodies. The returned list is a combined list of all declaration nodes in all
+        // files in this module.
+        let decls = self.emit_module_decls(fs.files)?;
 
         Ok(CreateModule {
             modpath: fs.modpath,
@@ -109,6 +109,15 @@ impl<'a> Checker<'a> {
             symbols: self.symbols,
             deps: self.deps,
         })
+    }
+
+    fn emit_module_decls(&mut self, files: Vec<File>) -> Result<Vec<Decl>, Diagnostics> {
+        let mut decls = Vec::new();
+        for file in files {
+            let file_decls = self.emit_ast(file)?;
+            decls.extend(file_decls);
+        }
+        Ok(decls)
     }
 
     // ---------------------------- Import resolution ---------------------------- //
@@ -205,26 +214,15 @@ impl<'a> Checker<'a> {
 
     // ---------------------------- Global pass ---------------------------- //
 
-    fn global_pass(&mut self, modpath: &ModulePath, file: &File) -> Res<()> {
+    fn global_pass(&mut self, fs: &FileSet) -> Res<()> {
         let mut diag = Diagnostics::new();
 
-        for d in &file.ast.decls {
-            let _ = match d {
-                ast::Decl::FuncDecl(node) => {
-                    let origin = SymbolOrigin::Module(modpath.clone());
-                    self.declare_function_definition(node, origin, &file.filename)
+        for file in &fs.files {
+            for decl in &file.ast.decls {
+                if let Err(err) = self.check_global_decl(&fs.modpath, &file.filename, decl) {
+                    diag.add(err);
                 }
-                ast::Decl::Func(node) => {
-                    let origin = SymbolOrigin::Module(modpath.clone());
-                    self.declare_function_definition(&node.clone().into(), origin, &file.filename)
-                }
-                ast::Decl::Extern(node) => {
-                    let origin = SymbolOrigin::Extern(modpath.clone());
-                    self.declare_function_definition(node, origin, &file.filename)
-                }
-                _ => Ok(()),
             }
-            .map_err(|e| diag.add(e));
         }
 
         if !diag.is_empty() {
@@ -232,6 +230,29 @@ impl<'a> Checker<'a> {
         }
 
         Ok(())
+    }
+
+    fn check_global_decl(
+        &mut self,
+        modpath: &ModulePath,
+        filename: &str,
+        decl: &ast::Decl,
+    ) -> Result<(), Report> {
+        match decl {
+            ast::Decl::FuncDecl(node) => {
+                let origin = SymbolOrigin::Module(modpath.clone());
+                self.declare_function_definition(node, origin, &filename)
+            }
+            ast::Decl::Func(node) => {
+                let origin = SymbolOrigin::Module(modpath.clone());
+                self.declare_function_definition(&node.clone().into(), origin, &filename)
+            }
+            ast::Decl::Extern(node) => {
+                let origin = SymbolOrigin::Extern(modpath.clone());
+                self.declare_function_definition(node, origin, &filename)
+            }
+            _ => Ok(()),
+        }
     }
 
     fn declare_function_definition(
@@ -289,7 +310,8 @@ impl<'a> Checker<'a> {
                 )));
         };
 
-        self.set_symbol(symbol);
+        // Already check if previously declared
+        let _ = self.create_symbol(symbol);
         Ok(())
     }
 
@@ -789,6 +811,7 @@ impl<'a> Checker<'a> {
         None
     }
 
+    /// If the given expression is a Token::Ident kind, it returns the identifier name.
     fn if_identifier_get_name(&self, expr: &'a ast::Expr) -> Option<&'a str> {
         if let ast::Expr::Literal(token) = expr {
             if let TokenKind::IdentLit(name) = &token.kind {
@@ -798,6 +821,8 @@ impl<'a> Checker<'a> {
         None
     }
 
+    /// Get a Symbol by name. The name is local to this module only.
+    /// Returns "not declared" on error.
     fn get_symbol(&self, name: &str) -> Result<&Symbol, String> {
         self.symbols
             .get(name)
@@ -806,12 +831,16 @@ impl<'a> Checker<'a> {
             })
     }
 
-    fn set_symbol(&mut self, sym: CreateSymbol) -> Result<(), String> {
-        // TODO: err if exists
-        let name = sym.name.clone();
-        let exported = sym.is_exported;
-        let id = self.ctx.symbols.add(sym);
+    /// Create a new symbol and add it to the local cache. Returns "already declared" on error.
+    fn create_symbol(&mut self, symbol: CreateSymbol) -> Result<SymbolId, String> {
+        if self.symbols.contains_key(&symbol.name) {
+            return Err(format!("already declared"));
+        }
+
+        let name = symbol.name.clone();
+        let exported = symbol.is_exported;
+        let id = self.ctx.symbols.add(symbol);
         self.symbols.insert(name, ModuleSymbol { id, exported });
-        Ok(())
+        Ok(id)
     }
 }
