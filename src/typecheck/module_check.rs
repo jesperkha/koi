@@ -16,8 +16,11 @@ use crate::{
 /// and orchestrates per-file type checking.
 pub(crate) struct ModuleChecker<'a> {
     ctx: &'a mut Context,
+
+    /// Is this the main module?
     is_main: bool,
     deps: Vec<ModuleId>,
+    /// Module-level symbol cache
     symbols: SymbolList,
     /// Per-file namespace lists, indexed by file order.
     file_namespaces: Vec<NamespaceList>,
@@ -47,7 +50,8 @@ impl<'a> ModuleChecker<'a> {
         // in the same file or another file in the same module.
         self.global_pass(&fs)?;
 
-        // TODO: (docs) explain module file type check
+        // The third step is to perform the actual type checking on the function bodies. This
+        // generates a typed AST along with additional semantic information.
         let files = self.emit_module_files(fs.files)?;
 
         Ok(CreateModule {
@@ -290,8 +294,8 @@ impl<'a> ModuleChecker<'a> {
 
             files.push(ModuleSourceFile {
                 filename: file.filename,
-                ast,
                 namespaces: nsl,
+                ast,
             });
         }
 
