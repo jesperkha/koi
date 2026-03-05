@@ -1,10 +1,9 @@
 use crate::{
     ast::FileSet,
     config::Config,
-    module::ModuleGraph,
+    context::Context,
     parser::{parse_source_map, sort_by_dependency_graph},
     typecheck::check_filesets,
-    types::TypeContext,
     util::{ErrorStream, must, new_modpath, new_source_map},
 };
 
@@ -35,9 +34,8 @@ fn check_files(files: &[TestFile]) -> Result<(), ErrorStream> {
 
     let result = sort_by_dependency_graph(parsed).unwrap_or_else(|e| panic!("{}", e));
     let config = Config::test();
-    let mut mg = ModuleGraph::new();
-    let mut ctx = TypeContext::new();
-    check_filesets(result.sets, &mut mg, &mut ctx, &config)?;
+    let mut ctx = Context::new(config);
+    check_filesets(&mut ctx, result.sets)?;
 
     Ok(())
 }

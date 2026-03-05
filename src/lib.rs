@@ -2,6 +2,7 @@ pub mod ast;
 pub mod build;
 pub mod cmd;
 pub mod config;
+pub mod context;
 pub mod driver;
 pub mod error;
 pub mod imports;

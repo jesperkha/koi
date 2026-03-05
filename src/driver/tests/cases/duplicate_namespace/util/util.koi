@@ -1,0 +1,1 @@
+pub extern func puts(s string)

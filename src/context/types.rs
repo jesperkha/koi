@@ -1,10 +1,9 @@
+use crate::types::{NO_TYPE, PrimitiveType, Type, TypeId, TypeKind};
 use std::collections::{HashMap, HashSet};
 use strum::IntoEnumIterator;
 
-use crate::types::{PrimitiveType, Type, TypeId, TypeKind, no_type};
-
 /// Context for type lookups.
-pub struct TypeContext {
+pub struct TypeInterner {
     /// List of type information. Each `TypeId` maps
     /// to a `Type` by indexing into this vector.
     types: Vec<Type>,
@@ -12,7 +11,7 @@ pub struct TypeContext {
     cache: HashMap<TypeKind, TypeId>,
 }
 
-impl TypeContext {
+impl TypeInterner {
     pub fn new() -> Self {
         let mut s = Self {
             types: Vec::new(),
@@ -63,7 +62,7 @@ impl TypeContext {
     /// Get the full type information for a given type id.
     pub fn lookup(&self, id: TypeId) -> &Type {
         // Illegal state if id is noType or not known
-        assert_ne!(id, no_type());
+        assert_ne!(id, NO_TYPE);
         assert!(id < self.types.len());
         &self.types[id]
     }
@@ -102,12 +101,12 @@ impl TypeContext {
     }
 
     /// Shorthand for getting void type
-    pub fn void(&mut self) -> TypeId {
+    pub fn void(&self) -> TypeId {
         self.primitive(PrimitiveType::Void)
     }
 
     // Shorthand for getting the Type of void.
-    pub fn void_type(&mut self) -> Type {
+    pub fn void_type(&self) -> Type {
         Type {
             kind: TypeKind::Primitive(PrimitiveType::Void),
             id: self.primitive(PrimitiveType::Void),
@@ -146,43 +145,43 @@ impl TypeContext {
     }
 
     /// Get the string representation of a type for errors or logging.
-    pub fn to_string(&self, id: TypeId) -> String {
+    pub fn type_to_string(&self, id: TypeId) -> String {
         match &self.lookup(id).kind {
             TypeKind::Primitive(p) => format!("{p}"),
-            TypeKind::Array(inner) => format!("[]{}", self.to_string(*inner)),
-            TypeKind::Pointer(inner) => format!("*{}", self.to_string(*inner)),
-            TypeKind::Alias(id) => format!("{}", self.to_string(*id)),
-            TypeKind::Unique(id) => format!("{}", self.to_string(*id)),
+            TypeKind::Array(inner) => format!("[]{}", self.type_to_string(*inner)),
+            TypeKind::Pointer(inner) => format!("*{}", self.type_to_string(*inner)),
+            TypeKind::Alias(id) => format!("{}", self.type_to_string(*id)),
+            TypeKind::Unique(id) => format!("{}", self.type_to_string(*id)),
             TypeKind::Function(f) => {
                 let params_str = f
                     .params
                     .iter()
-                    .map(|p| self.to_string(*p))
+                    .map(|p| self.type_to_string(*p))
                     .collect::<Vec<_>>()
                     .join(", ");
 
-                let ret_str = self.to_string(f.ret);
+                let ret_str = self.type_to_string(f.ret);
                 format!("func ({}) {}", params_str, ret_str)
             }
         }
     }
 
-    pub fn to_string_debug(&self, id: TypeId) -> String {
+    pub fn type_to_string_debug(&self, id: TypeId) -> String {
         match &self.lookup(id).kind {
             TypeKind::Primitive(p) => format!("{p}"),
-            TypeKind::Array(inner) => format!("Array<{}>", self.to_string(*inner)),
-            TypeKind::Pointer(inner) => format!("Pointer<{}>", self.to_string(*inner)),
-            TypeKind::Alias(id) => format!("Alias({})", self.to_string(*id)),
-            TypeKind::Unique(id) => format!("Unique({})", self.to_string(*id)),
+            TypeKind::Array(inner) => format!("Array<{}>", self.type_to_string(*inner)),
+            TypeKind::Pointer(inner) => format!("Pointer<{}>", self.type_to_string(*inner)),
+            TypeKind::Alias(id) => format!("Alias({})", self.type_to_string(*id)),
+            TypeKind::Unique(id) => format!("Unique({})", self.type_to_string(*id)),
             TypeKind::Function(f) => {
                 let params_str = f
                     .params
                     .iter()
-                    .map(|p| self.to_string(*p))
+                    .map(|p| self.type_to_string(*p))
                     .collect::<Vec<_>>()
                     .join(", ");
 
-                let ret_str = self.to_string(f.ret);
+                let ret_str = self.type_to_string(f.ret);
                 format!("func ({}) {}", params_str, ret_str)
             }
         }
@@ -195,7 +194,7 @@ impl TypeContext {
         s += "| Types\n";
         s += "|-------------------------------\n";
         for i in 0..self.types.len() {
-            s += &format!("| {:<3} {}\n", i, self.to_string_debug(i));
+            s += &format!("| {:<3} {}\n", i, self.type_to_string_debug(i));
         }
 
         s

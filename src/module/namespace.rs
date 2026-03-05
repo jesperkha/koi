@@ -1,27 +1,25 @@
 use std::collections::HashMap;
 
-use crate::module::{Module, ModulePath, Symbol, SymbolList};
+use crate::module::{Module, ModulePath, SymbolId};
 
 pub struct Namespace {
     name: String,
     modpath: ModulePath,
-    symbols: SymbolList,
+    symbols: HashMap<String, SymbolId>,
 }
 
 impl Namespace {
     /// Create a new namespace from a module's exports.
     pub fn new(name: String, module: &Module) -> Self {
-        let mut ns = Namespace {
+        Self {
             name,
             modpath: module.modpath.clone(),
-            symbols: SymbolList::new(),
-        };
-
-        for (_, sym) in module.exports() {
-            let _ = ns.symbols.add(sym.clone());
+            symbols: module
+                .exports()
+                .iter()
+                .map(|(name, id)| ((*name).to_owned(), *id))
+                .collect(),
         }
-
-        ns
     }
 
     /// Name of namespace in code (may be different from module name if aliased).
@@ -34,14 +32,9 @@ impl Namespace {
         &self.modpath
     }
 
-    /// Add a symbol to this namespace.
-    pub fn add(&mut self, sym: Symbol) -> Result<(), String> {
-        self.symbols.add(sym)
-    }
-
     /// Get a symbol from this namespace.
-    pub fn get(&self, name: &str) -> Result<&Symbol, String> {
-        self.symbols.get(name)
+    pub fn get(&self, name: &str) -> Option<SymbolId> {
+        self.symbols.get(name).copied()
     }
 }
 

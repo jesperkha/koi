@@ -6,36 +6,38 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ast::Pos,
+    config::Config,
+    context::{Context, CreateModule, CreateSymbol},
     module::{
-        CreateModule, ImportPath, Module, ModuleKind, ModulePath, Symbol, SymbolKind, SymbolList,
+        ImportPath, Module, ModuleId, ModuleKind, ModulePath, ModuleSymbol, SymbolKind,
         SymbolOrigin,
     },
-    types::{PrimitiveType, TypeContext, TypeId, TypeKind},
+    types::{PrimitiveType, TypeId, TypeKind},
 };
 
 /// Create a header file from a module's exported symbols and types.
-pub fn create_header_file(module: &Module, ctx: &TypeContext) -> Result<Vec<u8>, String> {
-    let header = HeaderFile::from_module(module, ctx);
+pub fn create_header_file(ctx: &Context, id: ModuleId) -> Result<Vec<u8>, String> {
+    let module = ctx.modules.get(id);
+    let header = HeaderFile::from_module(ctx, module);
     postcard::to_stdvec(&header).map_err(|e| e.to_string())
 }
 
 /// Parse header file and intern types in context. Return the created module.
 pub fn read_header_file(
+    ctx: &mut Context,
     modpath: ModulePath,
     bytes: &[u8],
-    ctx: &mut TypeContext,
 ) -> Result<CreateModule, String> {
     let header: HeaderFile = postcard::from_bytes(bytes).map_err(|e| e.to_string())?;
-    header.to_module(modpath, ctx)
+    header.to_module(ctx, modpath)
 }
 
 pub fn dump_header_symbols(filepath: &str) -> Result<String, String> {
     let modpath = ModulePath::from(ImportPath::from("header"));
     let bytes = read(filepath).map_err(|e| format!("failed to read header file: {}", e))?;
-    let mut ctx = TypeContext::new();
-    let module = read_header_file(modpath, &bytes, &mut ctx)?;
-    Ok(module.symbols.dump(filepath))
+    let mut ctx = Context::new(Config::default());
+    let module = read_header_file(&mut ctx, modpath, &bytes)?;
+    Ok(module.symbols.dump(&ctx, filepath))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -47,7 +49,7 @@ struct HeaderFile {
 impl HeaderFile {
     /// Convert module to header file by extracting all exported symbols
     /// and types into parseable string representations.
-    pub fn from_module(module: &Module, ctx: &TypeContext) -> HeaderFile {
+    pub fn from_module(ctx: &Context, module: &Module) -> HeaderFile {
         let mut mappings = HashMap::new();
         let mut types = Vec::new();
 
@@ -55,13 +57,13 @@ impl HeaderFile {
         let all_types_ids = module
             .exports()
             .values()
-            .map(|symbol| ctx.get_all_references(symbol.ty))
+            .map(|id| ctx.types.get_all_references(ctx.symbols.get(*id).ty))
             .flatten()
             .collect::<HashSet<_>>();
 
         // Create a map from TypeId to HeaderTypeKind to store in the header file
         for ty in all_types_ids {
-            let kind = real_to_header(&ctx.lookup(ty).kind, ctx);
+            let kind = real_to_header(ctx, &ctx.types.lookup(ty).kind);
             let id = types.len();
             types.push(kind);
             mappings.insert(ty, id);
@@ -71,14 +73,18 @@ impl HeaderFile {
         let symbols = module
             .exports()
             .iter()
-            .map(|(_, symbol)| HeaderSymbol {
-                name: symbol.name.clone(),
-                ty: *mappings
-                    .get(&symbol.ty)
-                    .expect("all types should be mapped"),
-                kind: symbol.kind.clone(),
-                no_mangle: symbol.no_mangle,
-                is_extern: symbol.is_extern(),
+            .map(|(_, id)| {
+                let symbol = ctx.symbols.get(*id);
+
+                HeaderSymbol {
+                    name: symbol.name.clone(),
+                    ty: *mappings
+                        .get(&symbol.ty)
+                        .expect("all types should be mapped"),
+                    kind: symbol.kind.clone(),
+                    no_mangle: symbol.no_mangle,
+                    is_extern: symbol.is_extern(),
+                }
             })
             .collect();
 
@@ -86,43 +92,43 @@ impl HeaderFile {
     }
 
     /// Parse this headers symbols content and create module.
-    pub fn to_module(
-        self,
-        modpath: ModulePath,
-        ctx: &mut TypeContext,
-    ) -> Result<CreateModule, String> {
+    pub fn to_module(self, ctx: &mut Context, modpath: ModulePath) -> Result<CreateModule, String> {
         // Create map of header id to real id (HeaderTypeId -> TypeId)
         let mappings = self
             .types
             .iter()
             .enumerate()
-            .map(|(hid, hkind)| (hid, header_to_real(hkind, ctx)))
+            .map(|(hid, hkind)| (hid, header_to_real(ctx, hkind)))
             .collect::<HashMap<_, _>>();
 
         // Convert header symbols to Symbols
         let symbols = self
             .symbols
             .into_iter()
-            .map(|s| Symbol {
-                filename: "".into(), // TODO: resolve filename for header module
-                kind: s.kind,
-                name: s.name,
-                no_mangle: s.no_mangle,
-                is_exported: true,   // Always true for imported symbols
-                pos: Pos::default(), // Not used outside of type checking local modules anyways. TODO: remove pos from Symbol
-                ty: *mappings.get(&s.ty).expect("mapping not found"),
-                origin: match s.is_extern {
-                    true => SymbolOrigin::Extern(modpath.clone()),
-                    false => SymbolOrigin::Module(modpath.clone()),
-                },
+            .map(|s| {
+                let create_symbol = CreateSymbol {
+                    kind: s.kind,
+                    name: s.name,
+                    no_mangle: s.no_mangle,
+                    is_exported: true, // Always true for imported symbols
+                    ty: *mappings.get(&s.ty).expect("mapping not found"),
+                    origin: match s.is_extern {
+                        true => SymbolOrigin::Extern,
+                        false => SymbolOrigin::Library(modpath.clone()),
+                    },
+                };
+
+                let name = create_symbol.name.clone();
+                let id = ctx.symbols.add(create_symbol);
+                (name, ModuleSymbol { id, exported: true })
             })
-            .collect::<Vec<_>>();
+            .collect::<HashMap<_, _>>()
+            .into();
 
         Ok(CreateModule {
             modpath,
             kind: ModuleKind::External,
-            symbols: SymbolList::from(symbols),
-            deps: Vec::new(),
+            symbols,
         })
     }
 }
@@ -154,47 +160,47 @@ enum HeaderTypeKind {
 }
 
 /// Convert real type kind into header type kind.
-fn real_to_header(kind: &TypeKind, ctx: &TypeContext) -> HeaderTypeKind {
+fn real_to_header(ctx: &Context, kind: &TypeKind) -> HeaderTypeKind {
     match kind {
         TypeKind::Primitive(p) => HeaderTypeKind::Primitive(p.into()),
-        TypeKind::Array(id) => HeaderTypeKind::Array(boxed_kind(*id, ctx)),
-        TypeKind::Pointer(id) => HeaderTypeKind::Pointer(boxed_kind(*id, ctx)),
-        TypeKind::Alias(id) => HeaderTypeKind::Alias(boxed_kind(*id, ctx)),
-        TypeKind::Unique(id) => HeaderTypeKind::Unique(boxed_kind(*id, ctx)),
+        TypeKind::Array(id) => HeaderTypeKind::Array(boxed_kind(ctx, *id)),
+        TypeKind::Pointer(id) => HeaderTypeKind::Pointer(boxed_kind(ctx, *id)),
+        TypeKind::Alias(id) => HeaderTypeKind::Alias(boxed_kind(ctx, *id)),
+        TypeKind::Unique(id) => HeaderTypeKind::Unique(boxed_kind(ctx, *id)),
         TypeKind::Function(func) => {
             let params = func
                 .params
                 .iter()
-                .map(|id| real_to_header(&ctx.lookup(*id).kind, ctx))
+                .map(|id| real_to_header(ctx, &ctx.types.lookup(*id).kind))
                 .collect();
-            let ret = boxed_kind(func.ret, ctx);
+            let ret = boxed_kind(ctx, func.ret);
             HeaderTypeKind::Function(params, ret)
         }
     }
 }
 
-fn boxed_kind(ty: TypeId, ctx: &TypeContext) -> Box<HeaderTypeKind> {
-    Box::new(real_to_header(&ctx.lookup(ty).kind, ctx))
+fn boxed_kind(ctx: &Context, ty: TypeId) -> Box<HeaderTypeKind> {
+    Box::new(real_to_header(ctx, &ctx.types.lookup(ty).kind))
 }
 
 /// Convert header type kind to real type kinds id.
-fn header_to_real(kind: &HeaderTypeKind, ctx: &mut TypeContext) -> TypeId {
+fn header_to_real(ctx: &mut Context, kind: &HeaderTypeKind) -> TypeId {
     let typekind = match kind {
         HeaderTypeKind::Primitive(p) => TypeKind::Primitive(p.into()),
-        HeaderTypeKind::Array(inner) => TypeKind::Array(header_to_real(inner, ctx)),
-        HeaderTypeKind::Pointer(inner) => TypeKind::Pointer(header_to_real(inner, ctx)),
-        HeaderTypeKind::Alias(inner) => TypeKind::Alias(header_to_real(inner, ctx)),
-        HeaderTypeKind::Unique(inner) => TypeKind::Unique(header_to_real(inner, ctx)),
+        HeaderTypeKind::Array(inner) => TypeKind::Array(header_to_real(ctx, inner)),
+        HeaderTypeKind::Pointer(inner) => TypeKind::Pointer(header_to_real(ctx, inner)),
+        HeaderTypeKind::Alias(inner) => TypeKind::Alias(header_to_real(ctx, inner)),
+        HeaderTypeKind::Unique(inner) => TypeKind::Unique(header_to_real(ctx, inner)),
         HeaderTypeKind::Function(params, ret) => {
-            let param_ids = params.iter().map(|p| header_to_real(p, ctx)).collect();
-            let ret_id = header_to_real(ret, ctx);
+            let param_ids = params.iter().map(|p| header_to_real(ctx, p)).collect();
+            let ret_id = header_to_real(ctx, ret);
             TypeKind::Function(crate::types::FunctionType {
                 params: param_ids,
                 ret: ret_id,
             })
         }
     };
-    ctx.get_or_intern(typekind)
+    ctx.types.get_or_intern(typekind)
 }
 
 #[derive(Debug, Serialize, Deserialize)]

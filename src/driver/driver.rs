@@ -10,13 +10,13 @@ use crate::{
     ast::{FileSet, Source, SourceMap},
     build::x86,
     config::{Config, Options, PathManager, Project, ProjectType, Target},
+    context::Context,
     imports::{LibraryKind, LibrarySet, create_header_file, read_header_file},
     ir::{Ir, Unit},
     lower::emit_ir,
-    module::{Module, ModuleGraph, ModulePath},
+    module::{Module, ModuleId, ModulePath},
     parser::{SortResult, parse_source_map, sort_by_dependency_graph, validate_imports},
     typecheck::check_filesets,
-    types::TypeContext,
     util::{FilePath, create_dir_if_not_exist, get_root_dir, write_file},
 };
 
@@ -61,31 +61,31 @@ pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
     let sort_result = sort_by_dependency_graph(filesets)?;
 
     // Type check all file sets, turning them into Modules, and put
-    // them in a ModuleGraph. The generated TypeContext containing all
-    // type information is also returned.
-    let (module_graph, ctx) = create_modules(sort_result, &source_map, &libset, &config)?;
+    // them in the Context along with all type information.
+    let ctx = create_modules(sort_result, &source_map, &libset, config)?;
 
     // Do some high level passes at a module level before lowering
-    check_main_function_present(&module_graph, &project)?;
-    dump_debug_info(&ctx, &module_graph, &project, &config)?;
+    check_main_function_present(&ctx, &project)?;
+    dump_debug_info(&ctx, &project)?;
 
     // Create header files for package
     if matches!(project.project_type, ProjectType::Package) {
         let empty = Vec::new();
         let includes = project.includes.as_ref().unwrap_or(&empty);
-        create_package_headers(&module_graph, &ctx, &includes, &project)?;
+        create_package_headers(&ctx, &includes, &project)?;
     }
 
     // Emit the intermediate representation for all modules
-    let units = module_graph
+    let units = ctx
+        .modules
         .modules()
         .iter()
         .filter(|module| module.should_be_built())
-        .map(|module| emit_module_ir(&source_map, module, &ctx, &config))
+        .map(|module| emit_module_ir(&ctx, &source_map, module.id))
         .collect::<Result<Vec<Unit>, String>>()?;
 
     // Build the final executable/libary file
-    build(Ir::new(units), &config, &project, &pm, &libset)
+    build(Ir::new(units), &ctx.config, &project, &pm, &libset)
 }
 
 fn validate_external_imports(
@@ -101,13 +101,9 @@ fn validate_external_imports(
 }
 
 /// Create header files for main module and all modules listed in project include list.
-fn create_package_headers(
-    modgraph: &ModuleGraph,
-    ctx: &TypeContext,
-    includes: &[String],
-    project: &Project,
-) -> Res<()> {
-    let exported_modules = modgraph
+fn create_package_headers(ctx: &Context, includes: &[String], project: &Project) -> Res<()> {
+    let exported_modules = ctx
+        .modules
         .modules()
         .iter()
         .filter(|m| {
@@ -119,7 +115,7 @@ fn create_package_headers(
         let filename = format!("{}.koi.h", module.modpath.to_header_format());
 
         let outfile = FilePath::from(&project.out).join(&filename);
-        let content = create_header_file(module, &ctx)?;
+        let content = create_header_file(ctx, module.id)?;
         write_file(&outfile, &content)?;
     }
 
@@ -221,10 +217,9 @@ fn create_modules(
     sort_result: SortResult,
     map: &SourceMap,
     libset: &LibrarySet,
-    config: &Config,
-) -> Res<(ModuleGraph, TypeContext)> {
-    let mut ctx = TypeContext::new();
-    let mut mg = ModuleGraph::new();
+    config: Config,
+) -> Res<Context> {
+    let mut ctx = Context::new(config);
 
     for impath in sort_result.external_imports {
         let modpath = ModulePath::from(impath);
@@ -235,20 +230,20 @@ fn create_modules(
         let content = read(path.path_buf())
             .map_err(|_| format!("error: failed to read header file: '{:?}'", path))?;
 
-        let create_mod = read_header_file(modpath, &content, &mut ctx)
+        let create_mod = read_header_file(&mut ctx, modpath, &content)
             .map_err(|e| format!("error: failed to read header file: {}", e))?;
 
         info!("Loading external module: {}", create_mod.modpath);
-        mg.add(create_mod);
+        ctx.modules.add(create_mod);
     }
 
-    check_filesets(sort_result.sets, &mut mg, &mut ctx, &config).map_err(|err| err.render(&map))?;
-    Ok((mg, ctx))
+    check_filesets(&mut ctx, sort_result.sets).map_err(|err| err.render(&map))?;
+    Ok(ctx)
 }
 
 /// Shorthand for emitting a module to IR and converting error to string.
-fn emit_module_ir(map: &SourceMap, m: &Module, ctx: &TypeContext, config: &Config) -> Res<Unit> {
-    emit_ir(m, ctx, config).map_err(|errs| errs.render(&map))
+fn emit_module_ir(ctx: &Context, map: &SourceMap, id: ModuleId) -> Res<Unit> {
+    emit_ir(ctx, id).map_err(|errs| errs.render(&map))
 }
 
 /// Shorthand for assembling an IR unit and converting error to string.
@@ -351,8 +346,9 @@ fn error_str(msg: &str) -> Result<(), String> {
 }
 
 /// Check if main function is present and if it should be
-fn check_main_function_present(modgraph: &ModuleGraph, project: &Project) -> Res<()> {
-    let has_main = modgraph
+fn check_main_function_present(ctx: &Context, project: &Project) -> Res<()> {
+    let has_main = ctx
+        .modules
         .main()
         .map(|m| m.symbols.get("main").is_ok())
         .unwrap_or(false);
@@ -368,22 +364,17 @@ fn check_main_function_present(modgraph: &ModuleGraph, project: &Project) -> Res
 }
 
 /// Print debug info if configured.
-fn dump_debug_info(
-    ctx: &TypeContext,
-    modgraph: &ModuleGraph,
-    project: &Project,
-    config: &Config,
-) -> Res<()> {
-    if config.dump_type_context {
+fn dump_debug_info(ctx: &Context, project: &Project) -> Res<()> {
+    if ctx.config.dump_types {
         let path = format!("{}/types.txt", project.bin);
         debug!("Writing type info to {}", path);
-        write_file(&path.into(), &ctx.dump_context_string())?;
+        write_file(&path.into(), &ctx.types.dump_context_string())?;
     }
 
-    if config.print_symbol_tables {
+    if ctx.config.print_symbol_tables {
         let mut s = String::new();
-        for module in modgraph.modules() {
-            s += &module.symbols.dump(module.modpath.path());
+        for module in ctx.modules.modules() {
+            s += &module.symbols.dump(ctx, &module.modpath.to_underscore());
         }
 
         let path = format!("{}/symbols.txt", project.bin);

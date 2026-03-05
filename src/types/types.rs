@@ -5,10 +5,8 @@ use crate::ast::TokenKind;
 
 pub type TypeId = usize; // Unique identifier
 
-/// Get the id of invalid types (not assigned yet).
-pub fn no_type() -> TypeId {
-    return usize::MAX;
-}
+/// ID of invalid types (not assigned yet).
+pub const NO_TYPE: TypeId = usize::MAX;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Type {

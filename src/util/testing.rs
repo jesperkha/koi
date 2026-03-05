@@ -3,14 +3,14 @@ use std::fmt::Display;
 use crate::{
     ast::{Ast, Source, SourceMap, Token},
     config::Config,
+    context::Context,
     error::Diagnostics,
     ir::Unit,
     lower::emit_ir,
-    module::{ImportPath, Module, ModuleGraph, ModulePath},
+    module::{ImportPath, ModuleId, ModulePath},
     parser::parse_source_map,
     scanner::scan,
     typecheck::check_fileset,
-    types::TypeContext,
 };
 
 pub struct ErrorStream {
@@ -119,23 +119,17 @@ pub fn parse_string(src: &str) -> Result<Ast, ErrorStream> {
         .map_err(|e| e.into())
 }
 
-pub fn check_string<'a>(
-    src: &str,
-    mg: &'a mut ModuleGraph,
-    ctx: &mut TypeContext,
-) -> Result<&'a Module, ErrorStream> {
-    let config = Config::test();
+pub fn check_string(ctx: &mut Context, src: &str) -> Result<ModuleId, ErrorStream> {
     let map = new_source_map(src);
-    let fs =
-        parse_source_map(new_modpath("main"), &map, &config).map_err(|e| ErrorStream::from(e))?;
-    let create_module = check_fileset(fs, mg, ctx, &config).map_err(|e| ErrorStream::from(e))?;
-    Ok(mg.add(create_module))
+    let fs = parse_source_map(new_modpath("main"), &map, &ctx.config)
+        .map_err(|e| ErrorStream::from(e))?;
+    check_fileset(ctx, fs)
+        .map_err(|e| ErrorStream::from(e))
+        .map(|create| ctx.modules.add(create))
 }
 
 pub fn emit_string(src: &str) -> Result<Unit, ErrorStream> {
     let config = Config::test();
-    let mut mg = ModuleGraph::new();
-    let mut ctx = TypeContext::new();
-    check_string(src, &mut mg, &mut ctx)
-        .and_then(|pkg| emit_ir(&pkg, &ctx, &config).map_err(|e| e.into()))
+    let mut ctx = Context::new(config);
+    check_string(&mut ctx, src).and_then(|id| emit_ir(&ctx, id).map_err(|e| e.into()))
 }

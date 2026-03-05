@@ -60,7 +60,7 @@ fn new_config(case: &str) -> (Project, Options, Config) {
     };
 
     let config = Config {
-        dump_type_context: false,
+        dump_types: false,
         print_symbol_tables: false,
         no_mangle_names: false,
     };
@@ -92,7 +92,7 @@ fn library_config(
     };
 
     let config = Config {
-        dump_type_context: false,
+        dump_types: false,
         print_symbol_tables: false,
         no_mangle_names: false,
     };
@@ -194,4 +194,9 @@ fn test_empty() {
         "empty",
         &format!("no source files in '{}'", case_dir("empty")),
     );
+}
+
+#[test]
+fn test_duplicate_namespace() {
+    run_case_with_status("duplicate_namespace", 0);
 }
