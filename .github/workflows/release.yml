@@ -1,0 +1,38 @@
+name: Release
+
+on:
+    push:
+        tags:
+            - "v*"
+
+permissions:
+    contents: write
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Rust toolchain
+              uses: dtolnay/rust-toolchain@stable
+
+            - name: Extract tag name
+              id: tag
+              run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+            - name: Build installation directory
+              run: |
+                  bash install.sh "${{ github.workspace }}/dist/koi"
+
+            - name: Create tarball
+              run: |
+                  cd "${{ github.workspace }}/dist"
+                  tar -czf "${{ github.workspace }}/koi-${{ steps.tag.outputs.version }}-linux-amd64.tar.gz" koi
+
+            - name: Create GitHub release
+              uses: softprops/action-gh-release@v2
+              with:
+                  generate_release_notes: true
+                  files: koi-${{ steps.tag.outputs.version }}-linux-amd64.tar.gz

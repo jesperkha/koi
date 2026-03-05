@@ -12,9 +12,15 @@ use crate::{
 use clap::{CommandFactory, Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 
+const VERSION: &str = concat!("v", env!("CARGO_PKG_VERSION"));
+
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(author, about, long_about = None, version = VERSION, disable_version_flag = true)]
 struct Cli {
+    /// Print version
+    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    version: (),
+
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -29,6 +35,8 @@ enum Command {
     Build,
     /// Read the contents of a header file
     Read { filename: String },
+    /// Print version
+    Version,
 }
 
 pub fn run() {
@@ -57,6 +65,10 @@ fn run_command(command: Command) -> Result<(), String> {
         Command::Read { filename } => {
             let s = dump_header_symbols(&filename).unwrap();
             println!("{}", s);
+            Ok(())
+        }
+        Command::Version => {
+            println!("koi {}", VERSION);
             Ok(())
         }
     }
