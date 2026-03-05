@@ -1,8 +1,9 @@
 use core::fmt;
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{ast::Pos, module::ModulePath, types::TypeId};
+use crate::{ast::Pos, context::Context, module::ModulePath, types::TypeId};
 
 pub type SymbolId = usize;
 
@@ -113,5 +114,59 @@ impl fmt::Display for SymbolKind {
                 SymbolKind::Function(_) => "function",
             }
         )
+    }
+}
+
+pub struct ModuleSymbol {
+    pub id: SymbolId,
+    /// Should this symbol be exported? This should only be true if the symbol
+    /// is marked as public AND the symbol originates from this module.
+    pub exported: bool,
+}
+
+pub struct SymbolList {
+    symbols: HashMap<String, ModuleSymbol>,
+}
+
+impl SymbolList {
+    pub fn new() -> Self {
+        Self {
+            symbols: HashMap::new(),
+        }
+    }
+
+    pub fn add(&mut self, name: String, symbol: ModuleSymbol) -> Result<(), String> {
+        self.symbols
+            .insert(name, symbol)
+            .map_or(Ok(()), |_| Err(format!("already declared")))
+    }
+
+    pub fn get(&self, name: &str) -> Result<&ModuleSymbol, String> {
+        self.symbols
+            .get(name)
+            .map_or(Err(format!("not declared")), |s| Ok(s))
+    }
+
+    pub fn symbols(&self) -> &HashMap<String, ModuleSymbol> {
+        &self.symbols
+    }
+
+    pub fn dump(&self, ctx: &Context, filepath: &str) -> String {
+        let mut s = String::new();
+        s += &format!("Symbols in {}\n", filepath);
+        s += "-----------------------------------\n";
+
+        for (name, modsym) in &self.symbols {
+            let symbol = ctx.symbols.get(modsym.id);
+            s += &format!("{:<20}{}\n", name, symbol);
+        }
+
+        s
+    }
+}
+
+impl From<HashMap<String, ModuleSymbol>> for SymbolList {
+    fn from(symbols: HashMap<String, ModuleSymbol>) -> Self {
+        Self { symbols }
     }
 }

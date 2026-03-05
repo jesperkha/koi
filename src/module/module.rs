@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    module::{ModulePath, NamespaceList, SymbolId},
+    module::{ModulePath, NamespaceList, SymbolId, SymbolList},
     types::TypedAst,
     util::FilePath,
 };
@@ -18,16 +18,9 @@ pub struct Module {
     /// The module name can be fetched from the module path.
     pub modpath: ModulePath,
     /// List of symbols declared and used within this module.
-    pub symbols: HashMap<String, ModuleSymbol>,
+    pub symbols: SymbolList,
     /// List of modules this module depends on.
     pub deps: Vec<ModuleId>,
-}
-
-pub struct ModuleSymbol {
-    pub id: SymbolId,
-    /// Should this symbol be exported? This should only be true if the symbol
-    /// is marked as public AND the symbol originates from this module.
-    pub exported: bool,
 }
 
 pub enum ModuleKind {
@@ -74,6 +67,7 @@ impl Module {
     /// Collect all exported symbols from this module.
     pub fn exports(&self) -> HashMap<&String, SymbolId> {
         self.symbols
+            .symbols()
             .iter()
             .filter(|(_, sym)| sym.exported)
             .map(|(name, sym)| (name, sym.id))

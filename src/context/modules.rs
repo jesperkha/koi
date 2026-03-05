@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use tracing::debug;
 
-use crate::module::{ImportPath, Module, ModuleId, ModuleKind, ModulePath, ModuleSymbol};
+use crate::module::{ImportPath, Module, ModuleId, ModuleKind, ModulePath, SymbolList};
 
 pub const INVALID_MOD_ID: ModuleId = usize::MAX;
 
 pub struct CreateModule {
     pub modpath: ModulePath,
     pub kind: ModuleKind,
-    pub symbols: HashMap<String, ModuleSymbol>, // TODO: make this own type?
+    pub symbols: SymbolList,
     pub deps: Vec<ModuleId>,
 }
 

@@ -1,6 +1,5 @@
 use core::panic;
 use std::{
-    collections::HashMap,
     mem,
     sync::atomic::{AtomicUsize, Ordering},
 };
@@ -16,7 +15,7 @@ use crate::{
         self, AssignIns, ExternFuncInst, FuncInst, IRType, Ins, LValue, StoreIns, StringDataIns,
         SymTracker, Unit, Value,
     },
-    module::{ModuleId, ModuleKind, ModulePath, ModuleSymbol, NamespaceList, Symbol, SymbolOrigin},
+    module::{ModuleId, ModuleKind, ModulePath, NamespaceList, Symbol, SymbolList, SymbolOrigin},
     types::{self, Decl, Expr, LiteralKind, TypeId, TypeKind, TypedNode, Visitable, Visitor},
 };
 
@@ -57,7 +56,7 @@ struct ModuleFile<'a> {
     modpath: &'a ModulePath,
     nsl: &'a NamespaceList,
     nodes: &'a [Decl],
-    syms: &'a HashMap<String, ModuleSymbol>,
+    syms: &'a SymbolList,
 }
 
 struct Emitter<'a> {

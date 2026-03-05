@@ -10,7 +10,7 @@ use crate::{
     config::Config,
     context::{Context, CreateModule, CreateSymbol},
     module::{
-        ImportPath, Module, ModuleId, ModuleKind, ModulePath, ModuleSymbol, Symbol, SymbolKind,
+        ImportPath, Module, ModuleId, ModuleKind, ModulePath, ModuleSymbol, SymbolKind,
         SymbolOrigin,
     },
     types::{PrimitiveType, TypeId, TypeKind},
@@ -34,13 +34,11 @@ pub fn read_header_file(
 }
 
 pub fn dump_header_symbols(filepath: &str) -> Result<String, String> {
-    // TODO: dump header symbols
-    todo!()
-    // let modpath = ModulePath::from(ImportPath::from("header"));
-    // let bytes = read(filepath).map_err(|e| format!("failed to read header file: {}", e))?;
-    // let mut ctx = Context::new(Config::default());
-    // let module = read_header_file(&mut ctx, modpath, &bytes)?;
-    // Ok(module.symbols.dump(filepath))
+    let modpath = ModulePath::from(ImportPath::from("header"));
+    let bytes = read(filepath).map_err(|e| format!("failed to read header file: {}", e))?;
+    let mut ctx = Context::new(Config::default());
+    let module = read_header_file(&mut ctx, modpath, &bytes)?;
+    Ok(module.symbols.dump(&ctx, filepath))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -127,12 +125,13 @@ impl HeaderFile {
                 let id = ctx.symbols.add(create_symbol);
                 (name, ModuleSymbol { id, exported: true })
             })
-            .collect::<HashMap<_, _>>();
+            .collect::<HashMap<_, _>>()
+            .into();
 
         Ok(CreateModule {
             modpath,
             kind: ModuleKind::External,
-            symbols: symbols,
+            symbols,
             deps: Vec::new(),
         })
     }

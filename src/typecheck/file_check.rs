@@ -1,375 +1,16 @@
-use core::panic;
-use std::collections::HashMap;
-
 use tracing::{debug, info};
 
 use crate::{
-    ast::{
-        self, Ast, File, FileSet, FuncDeclNode, ImportNode, Node, Pos, Token, TokenKind, TypeNode,
-    },
-    context::{Context, CreateModule, CreateSymbol},
+    ast::{self, Ast, Node, Pos, Token, TokenKind},
+    context::Context,
     error::{Diagnostics, Report, Res},
-    module::{
-        FuncSymbol, ImportPath, ModuleId, ModuleKind, ModulePath, ModuleSourceFile, ModuleSymbol,
-        Namespace, NamespaceList, SourceModule, Symbol, SymbolId, SymbolKind, SymbolOrigin,
-    },
+    module::{NamespaceList, Symbol, SymbolList},
     types::{
-        self, FunctionType, NO_TYPE, NodeMeta, PrimitiveType, Type, TypeId, TypeKind, TypedAst,
-        TypedNode, ast_node_to_meta,
+        self, FunctionType, NO_TYPE, NodeMeta, PrimitiveType, Type, TypeId, TypeKind, TypedNode,
+        ast_node_to_meta,
     },
     util::VarTable,
 };
-
-/// Type check a list of filesets, producing a module graph and type context.
-pub fn check_filesets(ctx: &mut Context, filesets: Vec<FileSet>) -> Res<()> {
-    for fs in filesets {
-        let create_mod = check_fileset(ctx, fs)?;
-        ctx.modules.add(create_mod);
-    }
-    Ok(())
-}
-
-/// Type check single FileSet into a module.
-pub fn check_fileset(ctx: &mut Context, fs: FileSet) -> Res<CreateModule> {
-    let checker = ModuleChecker::new(ctx);
-    checker.check(fs)
-}
-
-/// Performs module-level checks: import resolution, global symbol declaration,
-/// and orchestrates per-file type checking.
-struct ModuleChecker<'a> {
-    ctx: &'a mut Context,
-    is_main: bool,
-    deps: Vec<ModuleId>,
-    symbols: HashMap<String, ModuleSymbol>,
-    /// Per-file namespace lists, indexed by file order.
-    file_namespaces: Vec<NamespaceList>,
-}
-
-impl<'a> ModuleChecker<'a> {
-    fn new(ctx: &'a mut Context) -> Self {
-        Self {
-            ctx,
-            symbols: HashMap::new(),
-            is_main: false,
-            deps: Vec::new(),
-            file_namespaces: Vec::new(),
-        }
-    }
-
-    fn check(mut self, fs: FileSet) -> Res<CreateModule> {
-        self.is_main = fs.modpath.is_main();
-
-        // The first step of type checking is to resolve all imports in this module.
-        // Each import is resolved to a source or external module and it is added as
-        // a namespace in this module.
-        self.resolve_all_imports(&fs)?;
-
-        // The second step is to do a global pass and pre-declare all top-level function- and type
-        // definitions. This is to ensure that function bodies can reference symbols declared later
-        // in the same file or another file in the same module.
-        self.global_pass(&fs)?;
-
-        // Phase 3: Per-file type checking
-        let files = self.emit_module_files(fs.files)?;
-
-        let kind = SourceModule {
-            filepath: fs.filepath,
-            files,
-        };
-
-        Ok(CreateModule {
-            modpath: fs.modpath,
-            kind: ModuleKind::Source(kind),
-            symbols: self.symbols,
-            deps: self.deps,
-        })
-    }
-
-    // ----------------------- Import resolution ----------------------- //
-
-    fn resolve_all_imports(&mut self, fs: &FileSet) -> Res<()> {
-        let mut diag = Diagnostics::new();
-
-        for file in &fs.files {
-            info!("Resolving imports for file {}", file.filepath);
-            let mut nsl = NamespaceList::new();
-            for import in &file.ast.imports {
-                self.resolve_import(import, &mut nsl, &mut diag);
-            }
-            self.file_namespaces.push(nsl);
-        }
-
-        if !diag.is_empty() {
-            return Err(diag);
-        }
-
-        Ok(())
-    }
-
-    fn resolve_import(
-        &mut self,
-        import: &ImportNode,
-        nsl: &mut NamespaceList,
-        diag: &mut Diagnostics,
-    ) {
-        let impath = ImportPath::from(import);
-
-        // Try to get module
-        let module = match self.ctx.modules.resolve(&impath) {
-            Ok(module) => module,
-            Err(err) => {
-                assert!(import.names.len() > 0, "unchecked missing import name");
-                diag.add(Report::code_error(
-                    &err,
-                    &import.names[0].pos,
-                    &import.names.last().unwrap().end_pos,
-                ));
-                return;
-            }
-        };
-
-        // Add as dependency
-        self.deps.push(module.id);
-
-        // Get namespace name and which token to highlight when reporting
-        // duplicate definition error.
-        let (namespace_name, range) = if let Some(alias) = &import.alias {
-            (alias.to_string(), (&alias.pos, &alias.end_pos))
-        } else {
-            (
-                impath.name().to_owned(),
-                (&import.names[0].pos, &import.names.last().unwrap().end_pos),
-            )
-        };
-
-        // Add module as namespace
-        let ns = Namespace::new(namespace_name, module);
-        let _ = nsl.add(ns).map_err(|err| {
-            diag.add(Report::code_error(&err, range.0, range.1));
-        });
-
-        let module_exports = module.exports();
-
-        // Go through each named imported symbol and add it to the cache
-        for tok in &import.imports {
-            let symbol_name = tok.to_string();
-
-            // Check if the symbol exists
-            if let Some(id) = module_exports.get(&symbol_name) {
-                // If it was already declared, add error
-                if self.get_symbol(&symbol_name).is_ok() {
-                    diag.add(Report::code_error(
-                        "already declared",
-                        &tok.pos,
-                        &tok.end_pos,
-                    ));
-                } else {
-                    self.symbols.insert(
-                        symbol_name,
-                        ModuleSymbol {
-                            id: *id,
-                            exported: false, // Imported symbols should not be re-exported
-                        },
-                    );
-                }
-            } else {
-                // Module did not contain the symbol
-                diag.add(Report::code_error(
-                    &format!("module '{}' has no export '{}'", module.name(), symbol_name),
-                    &tok.pos,
-                    &tok.end_pos,
-                ));
-            }
-        }
-    }
-
-    // ----------------------- Global pass ----------------------- //
-
-    fn global_pass(&mut self, fs: &FileSet) -> Res<()> {
-        let mut diag = Diagnostics::new();
-
-        for file in &fs.files {
-            for decl in &file.ast.decls {
-                if let Err(err) = self.check_global_decl(&fs.modpath, &file.filename, decl) {
-                    diag.add(err);
-                }
-            }
-        }
-
-        if !diag.is_empty() {
-            return Err(diag);
-        }
-
-        Ok(())
-    }
-
-    fn check_global_decl(
-        &mut self,
-        modpath: &ModulePath,
-        filename: &str,
-        decl: &ast::Decl,
-    ) -> Result<(), Report> {
-        match decl {
-            ast::Decl::FuncDecl(node) => {
-                let origin = SymbolOrigin::Module(modpath.clone());
-                self.declare_function_definition(node, origin, filename)
-            }
-            ast::Decl::Func(node) => {
-                let origin = SymbolOrigin::Module(modpath.clone());
-                self.declare_function_definition(&node.clone().into(), origin, filename)
-            }
-            ast::Decl::Extern(node) => {
-                let origin = SymbolOrigin::Extern(modpath.clone());
-                self.declare_function_definition(node, origin, filename)
-            }
-            _ => Ok(()),
-        }
-    }
-
-    fn declare_function_definition(
-        &mut self,
-        node: &FuncDeclNode,
-        origin: SymbolOrigin,
-        filepath: &str,
-    ) -> Result<(), Report> {
-        // Evaluate return type if any
-        let ret = self.eval_optional_type(&node.ret_type)?;
-
-        // Get parameter types
-        let param_ids = &node
-            .params
-            .iter()
-            .map(|f| self.eval_type(&f.typ).map(|id| (&f.name, id)))
-            .collect::<Result<Vec<_>, _>>()?;
-
-        // Declare function in context
-        let ty = self
-            .ctx
-            .types
-            .get_or_intern(TypeKind::Function(FunctionType {
-                params: param_ids.iter().map(|v| v.1).collect(),
-                ret,
-            }));
-
-        let is_extern = matches!(origin, SymbolOrigin::Extern(_));
-        let no_mangle = is_extern;
-
-        let symbol = CreateSymbol {
-            filename: filepath.to_owned(),
-            name: node.name.to_string(),
-            pos: node.name.pos.clone(),
-            kind: SymbolKind::Function(FuncSymbol {
-                is_inline: false,
-                is_naked: false,
-            }),
-            no_mangle,
-            ty,
-            origin,
-            is_exported: node.public,
-        };
-
-        debug!("declaring function: {:?}", symbol);
-
-        // If symbol already exists, return error
-        if let Ok(sym) = self.get_symbol(&symbol.name) {
-            return Err(
-                Report::code_error("already declared", &node.name.pos, &node.name.end_pos)
-                    .with_info(&format!(
-                        "previously declared in {}, line {}",
-                        sym.filename,
-                        sym.pos.row + 1
-                    )),
-            );
-        };
-
-        let _ = self.create_symbol(symbol);
-        Ok(())
-    }
-
-    // ----------------------- File-level emission ----------------------- //
-
-    fn emit_module_files(
-        &mut self,
-        ast_files: Vec<File>,
-    ) -> Result<Vec<ModuleSourceFile>, Diagnostics> {
-        let mut files = Vec::new();
-
-        // Take file_namespaces out of self so we can iterate while borrowing self mutably
-        let all_nsl = std::mem::take(&mut self.file_namespaces);
-
-        for (file, nsl) in ast_files.into_iter().zip(all_nsl.into_iter()) {
-            info!("Type check: {}", file.filepath);
-
-            let mut file_checker = FileChecker::new(self.ctx, &self.symbols, nsl, self.is_main);
-
-            let decls = file_checker.emit_ast(file.ast)?;
-            let nsl = file_checker.into_namespaces();
-            let ast = TypedAst { decls };
-
-            files.push(ModuleSourceFile {
-                filename: file.filename,
-                ast,
-                namespaces: nsl,
-            });
-        }
-
-        Ok(files)
-    }
-
-    // ----------------------- Shared helpers ----------------------- //
-
-    /// Evaluate an AST type node to its semantic type id.
-    fn eval_type(&self, node: &TypeNode) -> Result<TypeId, Report> {
-        match node {
-            TypeNode::Primitive(token) => {
-                let prim = PrimitiveType::from(&token.kind);
-                Ok(self.ctx.types.primitive(prim))
-            }
-            TypeNode::Ident(token) => self.get_symbol_type_id(token).map_or(
-                Err(Report::code_error("not a type", &token.pos, &token.end_pos)),
-                Ok,
-            ),
-        }
-    }
-
-    /// Evaluate an option of a type node. Defaults to void type if not present.
-    fn eval_optional_type(&mut self, v: &Option<TypeNode>) -> Result<TypeId, Report> {
-        v.as_ref()
-            .map_or(Ok(self.ctx.types.void()), |r| self.eval_type(r))
-    }
-
-    fn get_symbol_type_id(&self, name: &Token) -> Option<TypeId> {
-        let name_str = name.to_string();
-        self.get_symbol(&name_str).ok().map(|sym| sym.ty)
-    }
-
-    /// Get a Symbol by name. The name is local to this module only.
-    /// Returns "not declared" on error.
-    fn get_symbol(&self, name: &str) -> Result<&Symbol, String> {
-        self.symbols
-            .get(name)
-            .map_or(Err("not declared".to_string()), |sym| {
-                Ok(self.ctx.symbols.get(sym.id))
-            })
-    }
-
-    /// Create a new symbol and add it to the local cache. Returns "already declared" on error.
-    fn create_symbol(&mut self, symbol: CreateSymbol) -> Result<SymbolId, String> {
-        if self.symbols.contains_key(&symbol.name) {
-            return Err("already declared".to_string());
-        }
-        let name = symbol.name.clone();
-        let exported = symbol.is_exported;
-        let id = self.ctx.symbols.add(symbol);
-        self.symbols.insert(name, ModuleSymbol { id, exported });
-        Ok(id)
-    }
-}
-
-// =========================================================================
-// File-level checker
-// =========================================================================
 
 /// A Binding is either a declared variable or function parameter. Bindings
 /// shadow global symbols like functions and types.
@@ -382,10 +23,10 @@ struct Binding {
 /// Performs type checking on a single source file AST, producing a typed AST.
 /// Borrows the module-level symbol table immutably and owns per-file state
 /// (namespaces, variable bindings, return context).
-struct FileChecker<'a> {
+pub(crate) struct FileChecker<'a> {
     ctx: &'a mut Context,
     /// Module-level symbols (read-only during file checking).
-    symbols: &'a HashMap<String, ModuleSymbol>,
+    symbols: &'a SymbolList,
     /// Per-file namespaces from import resolution.
     nsl: NamespaceList,
     /// Locally declared variables.
@@ -399,9 +40,9 @@ struct FileChecker<'a> {
 }
 
 impl<'a> FileChecker<'a> {
-    fn new(
+    pub(crate) fn new(
         ctx: &'a mut Context,
-        symbols: &'a HashMap<String, ModuleSymbol>,
+        symbols: &'a SymbolList,
         nsl: NamespaceList,
         is_main: bool,
     ) -> Self {
@@ -417,11 +58,11 @@ impl<'a> FileChecker<'a> {
     }
 
     /// Consume the file checker and return the namespace list for storage.
-    fn into_namespaces(self) -> NamespaceList {
+    pub(crate) fn into_namespaces(self) -> NamespaceList {
         self.nsl
     }
 
-    fn emit_ast(&mut self, ast: Ast) -> Res<Vec<types::Decl>> {
+    pub(crate) fn emit_ast(&mut self, ast: Ast) -> Res<Vec<types::Decl>> {
         let mut diag = Diagnostics::new();
 
         let typed_decls = ast
