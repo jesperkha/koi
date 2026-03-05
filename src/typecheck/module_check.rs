@@ -6,8 +6,7 @@ use crate::{
     error::{Diagnostics, Report, Res},
     module::{
         FuncSymbol, ImportPath, ModuleId, ModuleKind, ModulePath, ModuleSourceFile, ModuleSymbol,
-        Namespace, NamespaceList, SourceModule, Symbol, SymbolId, SymbolKind, SymbolList,
-        SymbolOrigin,
+        Namespace, NamespaceList, Symbol, SymbolId, SymbolKind, SymbolList, SymbolOrigin,
     },
     typecheck::file_check::FileChecker,
     types::{FunctionType, PrimitiveType, TypeId, TypeKind, TypedAst},
@@ -51,14 +50,12 @@ impl<'a> ModuleChecker<'a> {
         // TODO: (docs) explain module file type check
         let files = self.emit_module_files(fs.files)?;
 
-        let kind = SourceModule {
-            filepath: fs.filepath,
-            files,
-        };
-
         Ok(CreateModule {
             modpath: fs.modpath,
-            kind: ModuleKind::Source(kind),
+            kind: ModuleKind::Source {
+                filepath: fs.filepath,
+                files,
+            },
             symbols: self.symbols,
             deps: self.deps,
         })

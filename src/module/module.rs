@@ -26,19 +26,17 @@ pub struct Module {
 pub enum ModuleKind {
     /// Source module are created from the source code of the current project.
     /// These modules are built into the final executable/library.
-    Source(SourceModule),
+    Source {
+        /// The relative path from src to this module.
+        /// For package modules this is the filepath to the linkable object file.
+        filepath: FilePath,
+        /// List of files in this source module.
+        files: Vec<ModuleSourceFile>,
+    },
 
     /// External modules are external libraries, such as the standard library,
     /// and are skipped when building, as they are pre-compiled.
     External,
-}
-
-pub struct SourceModule {
-    /// The relative path from src to this module.
-    /// For package modules this is the filepath to the linkable object file.
-    pub filepath: FilePath,
-    /// List of files in this source module.
-    pub files: Vec<ModuleSourceFile>,
 }
 
 pub struct ModuleSourceFile {
@@ -61,7 +59,7 @@ impl Module {
 
     /// Reports whether this module should be built (produce IR/codegen) or not.
     pub fn should_be_built(&self) -> bool {
-        matches!(self.kind, ModuleKind::Source(_))
+        matches!(self.kind, ModuleKind::Source { .. })
     }
 
     /// Collect all exported symbols from this module.

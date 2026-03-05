@@ -21,13 +21,13 @@ use crate::{
 
 pub fn emit_ir(ctx: &Context, id: ModuleId) -> Res<Unit> {
     let module = ctx.modules.get(id);
-    let ModuleKind::Source(kind) = &module.kind else {
+    let ModuleKind::Source { files, .. } = &module.kind else {
         panic!("attempt to emit non-source module");
     };
 
     let mut ins = Vec::new();
 
-    for file in &kind.files {
+    for file in files {
         let modulefile = ModuleFile {
             modpath: &module.modpath,
             nsl: &file.namespaces,

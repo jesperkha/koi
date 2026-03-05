@@ -37,7 +37,7 @@ impl ModuleInterner {
         let key = match &m.kind {
             // For source modules the import path should have the prefix and package name removed
             // (eg. myapp.util -> util). This is purely for convenience.
-            ModuleKind::Source(_) => m.modpath.path().to_string(),
+            ModuleKind::Source { .. } => m.modpath.path().to_string(),
             // For external modules the full import path is used to preserve the prefix and package
             // name (eg. lib.mylib.foo).
             ModuleKind::External => m.modpath.import_path().to_string(),
