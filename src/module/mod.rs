@@ -3,7 +3,7 @@ mod namespace;
 mod path;
 mod symbols;
 
-pub use module::{Module, ModuleId, ModuleKind, ModuleSymbol, SourceModule};
+pub use module::*;
 pub use namespace::*;
 pub use path::{ImportPath, ModulePath};
 pub use symbols::*;

@@ -19,8 +19,6 @@ pub struct Module {
     pub modpath: ModulePath,
     /// List of symbols declared and used within this module.
     pub symbols: HashMap<String, ModuleSymbol>,
-    // TODO: make separate list of symbols imported by name
-    // to not make .exports() dependent on anything
     /// List of modules this module depends on.
     pub deps: Vec<ModuleId>,
 }
@@ -46,9 +44,16 @@ pub struct SourceModule {
     /// The relative path from src to this module.
     /// For package modules this is the filepath to the linkable object file.
     pub filepath: FilePath,
-    /// The fully typed AST generated from files in this module.
+    /// List of files in this source module.
+    pub files: Vec<ModuleSourceFile>,
+}
+
+pub struct ModuleSourceFile {
+    /// The files name.
+    pub filename: String,
+    /// The fully typed AST generated from the File ast.
     pub ast: TypedAst,
-    /// List of namespaces imported into this module.
+    /// Namespaces this file uses.
     pub namespaces: NamespaceList,
 }
 

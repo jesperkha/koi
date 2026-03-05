@@ -5,17 +5,18 @@ use tracing::{debug, info};
 
 use crate::{
     ast::{
-        self, Field, File, FileSet, FuncDeclNode, ImportNode, Node, Pos, Token, TokenKind, TypeNode,
+        self, Ast, Field, File, FileSet, FuncDeclNode, ImportNode, Node, Pos, Token, TokenKind,
+        TypeNode,
     },
     context::{Context, CreateModule, CreateSymbol},
     error::{Diagnostics, Report, Res},
     module::{
-        FuncSymbol, ImportPath, ModuleId, ModuleKind, ModulePath, ModuleSymbol, Namespace,
-        NamespaceList, SourceModule, Symbol, SymbolId, SymbolKind, SymbolOrigin,
+        FuncSymbol, ImportPath, ModuleId, ModuleKind, ModulePath, ModuleSourceFile, ModuleSymbol,
+        Namespace, NamespaceList, SourceModule, Symbol, SymbolId, SymbolKind, SymbolOrigin,
     },
     types::{
-        self, Decl, FunctionType, NO_TYPE, NodeMeta, PrimitiveType, Type, TypeId, TypeKind,
-        TypedAst, TypedNode, ast_node_to_meta,
+        self, FunctionType, NO_TYPE, NodeMeta, PrimitiveType, Type, TypeId, TypeKind, TypedAst,
+        TypedNode, ast_node_to_meta,
     },
     util::VarTable,
 };
@@ -94,30 +95,42 @@ impl<'a> Checker<'a> {
         // in the same file or another file in the same module.
         self.global_pass(&fs)?;
 
-        // Finally we emit the modules typed AST. This step does the actual type checking of all
-        // function bodies. The returned list is a combined list of all declaration nodes in all
-        // files in this module.
-        let decls = self.emit_module_decls(fs.files)?;
+        // TODO: docs
+        let files = self.emit_module_files(fs.files)?;
+
+        let kind = SourceModule {
+            filepath: fs.filepath,
+            files,
+        };
 
         Ok(CreateModule {
             modpath: fs.modpath,
-            kind: ModuleKind::Source(SourceModule {
-                filepath: fs.filepath,
-                ast: TypedAst { decls },
-                namespaces: self.nsl,
-            }),
+            kind: ModuleKind::Source(kind),
             symbols: self.symbols,
             deps: self.deps,
         })
     }
 
-    fn emit_module_decls(&mut self, files: Vec<File>) -> Result<Vec<Decl>, Diagnostics> {
-        let mut decls = Vec::new();
-        for file in files {
-            let file_decls = self.emit_ast(file)?;
-            decls.extend(file_decls);
+    fn emit_module_files(
+        &mut self,
+        ast_files: Vec<File>,
+    ) -> Result<Vec<ModuleSourceFile>, Diagnostics> {
+        let mut files = Vec::new();
+
+        for file in ast_files {
+            info!("Type check: {}", file.filepath);
+            let namespaces = NamespaceList::new();
+            let decls = self.emit_ast(file.ast)?;
+            let ast = TypedAst { decls };
+
+            files.push(ModuleSourceFile {
+                filename: file.filename,
+                ast,
+                namespaces,
+            });
         }
-        Ok(decls)
+
+        Ok(files)
     }
 
     // ---------------------------- Import resolution ---------------------------- //
@@ -317,12 +330,10 @@ impl<'a> Checker<'a> {
 
     // ---------------------------- Generate AST ---------------------------- //
 
-    fn emit_ast(&mut self, file: File) -> Res<Vec<types::Decl>> {
+    fn emit_ast(&mut self, ast: Ast) -> Res<Vec<types::Decl>> {
         let mut diag = Diagnostics::new();
-        info!("Type check: {}", file.filepath);
 
-        let typed_decls = file
-            .ast
+        let typed_decls = ast
             .decls
             .into_iter()
             .map(|d| self.emit_decl(d))

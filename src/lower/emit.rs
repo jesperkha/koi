@@ -10,26 +10,47 @@ use crate::{
         self, AssignIns, ExternFuncInst, FuncInst, IRType, Ins, LValue, StoreIns, StringDataIns,
         SymTracker, Unit, Value,
     },
-    module::{
-        Module, ModuleId, ModuleKind, ModulePath, ModuleSymbol, NamespaceList, Symbol, SymbolOrigin,
-    },
+    module::{ModuleId, ModuleKind, ModulePath, ModuleSymbol, NamespaceList, Symbol, SymbolOrigin},
     types::{self, Decl, Expr, LiteralKind, TypeId, TypeKind, TypedNode, Visitable, Visitor},
 };
 
 pub fn emit_ir(ctx: &Context, id: ModuleId) -> Res<Unit> {
     let module = ctx.modules.get(id);
-    let emitter = Emitter::new(ctx, module);
-    emitter
-        .emit()
-        .map(|ins| Unit::new(module.modpath.clone(), ins))
+    let ModuleKind::Source(kind) = &module.kind else {
+        panic!("attempt to emit non-source module");
+    };
+
+    let mut ins = Vec::new();
+    for file in &kind.files {
+        let modulefile = ModuleFile {
+            modpath: &module.modpath,
+            nsl: &file.namespaces,
+            syms: &module.symbols,
+            nodes: &file.ast.decls,
+        };
+
+        let emitter = Emitter::new(ctx, modulefile);
+
+        let file_ins = emitter.emit()?;
+        ins.extend(file_ins);
+    }
+
+    Ok(Unit {
+        ins,
+        modpath: module.modpath.clone(),
+    })
 }
 
-struct Emitter<'a> {
-    ctx: &'a Context,
+struct ModuleFile<'a> {
     modpath: &'a ModulePath,
     nsl: &'a NamespaceList,
     nodes: &'a [Decl],
     syms: &'a HashMap<String, ModuleSymbol>,
+}
+
+struct Emitter<'a> {
+    ctx: &'a Context,
+    file: ModuleFile<'a>,
 
     sym: SymTracker,
     ins: Vec<Vec<Ins>>,
@@ -37,21 +58,14 @@ struct Emitter<'a> {
     // Track if void functions have returned or not to add explicit return
     has_returned: bool,
     curstr: usize,
-
     stack_size: usize, // Cumulative stack size from declarations
 }
 
 impl<'a> Emitter<'a> {
-    fn new(ctx: &'a Context, module: &'a Module) -> Self {
-        let ModuleKind::Source(kind) = &module.kind else {
-            panic!("attempt to emit IR for non-source module");
-        };
+    fn new(ctx: &'a Context, file: ModuleFile<'a>) -> Self {
         Self {
             ctx,
-            modpath: &module.modpath,
-            nsl: &kind.namespaces,
-            syms: &module.symbols,
-            nodes: &kind.ast.decls,
+            file,
             sym: SymTracker::new(),
             has_returned: false,
             ins: vec![Vec::new()],
@@ -61,10 +75,10 @@ impl<'a> Emitter<'a> {
     }
 
     fn emit(mut self) -> Res<Vec<Ins>> {
-        info!("Emitting IR for module: {}", self.modpath.path());
+        info!("Emitting IR for module: {}", self.file.modpath.path());
         let mut diag = Diagnostics::new();
 
-        for decl in self.nodes {
+        for decl in self.file.nodes {
             match decl.accept(&mut self) {
                 Ok(_) => {}
                 Err(err) => diag.add(err),
@@ -136,12 +150,13 @@ impl<'a> Emitter<'a> {
     fn get_symbol(&self, name: &str) -> &Symbol {
         self.ctx
             .symbols
-            .get(self.syms.get(name).expect("not a symbol").id)
+            .get(self.file.syms.get(name).expect("not a symbol").id)
     }
 
     fn get_namespace_symbol(&self, namespace: &str, name: &str) -> &Symbol {
         self.ctx.symbols.get(
-            self.nsl
+            self.file
+                .nsl
                 .get(namespace)
                 .expect("not a namespace")
                 .get(name)
