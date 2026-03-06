@@ -9,10 +9,10 @@ use tracing::{debug, info};
 
 use crate::{
     context::Context,
-    error::{Diagnostics, Report, Res},
+    error::{self, Diagnostics, Report},
     ir::{
-        self, Block, CallIns, ConstId, Data, DataIndex, Decl, ExternDecl, FuncDecl, IRType,
-        IRTypeInterner, Ins, LValue, RValue, StoreIns, SymTracker, Unit,
+        self, AssignIns, Block, CallIns, ConstId, Data, DataIndex, Decl, ExternDecl, FuncDecl,
+        IRType, IRTypeInterner, Ins, LValue, RValue, StoreIns, SymTracker, Unit,
     },
     module::{
         Module, ModuleId, ModuleKind, ModulePath, ModuleSourceFile, NamespaceList, Symbol,
@@ -22,6 +22,7 @@ use crate::{
         self, Expr, FunctionType, LiteralKind, TypeId, TypeKind, TypedAst, TypedNode, Visitable,
         Visitor,
     },
+    util::VarTable,
 };
 
 // pub fn emit_ir(ctx: &Context, id: ModuleId) -> Res<Unit> {
@@ -53,12 +54,14 @@ use crate::{
 //     todo!()
 // }
 
-pub fn emit_ir(ctx: &Context, id: ModuleId) -> Res<Unit> {
+pub fn emit_ir(ctx: &Context, id: ModuleId) -> error::Res<Unit> {
     let module = ctx.modules.get(id);
     let emitter = ModuleEmitter::new(ctx, module);
     let unit = emitter.emit()?;
     Ok(unit)
 }
+
+type Res<T> = Result<T, Report>;
 
 struct DataInterner {
     data: Vec<Data>,
@@ -109,7 +112,7 @@ impl<'a> ModuleEmitter<'a> {
         }
     }
 
-    fn emit(mut self) -> Res<Unit> {
+    fn emit(mut self) -> error::Res<Unit> {
         let ModuleKind::Source { files, .. } = &self.module.kind else {
             unreachable!();
         };
@@ -150,7 +153,7 @@ impl<'a> ModuleEmitter<'a> {
         })
     }
 
-    fn emit_extern(&mut self, id: SymbolId) -> Result<Decl, Report> {
+    fn emit_extern(&mut self, id: SymbolId) -> Res<Decl> {
         let symbol = self.ctx.symbols.get(id);
         let func = get_function_type(self.ctx, symbol.ty);
 
@@ -171,6 +174,7 @@ pub struct FileEmitter<'a> {
     data: &'a mut DataInterner,
 
     const_id: ConstId,
+    vars: VarTable<ConstId>,
 }
 
 struct EmitResult {
@@ -193,10 +197,11 @@ impl<'a> FileEmitter<'a> {
             nsl: &file.namespaces,
             ast: &file.ast,
             const_id: 0,
+            vars: VarTable::new(),
         }
     }
 
-    fn emit(mut self) -> Res<EmitResult> {
+    fn emit(mut self) -> error::Res<EmitResult> {
         let mut diag = Diagnostics::new();
         let mut decls = Vec::new();
 
@@ -223,7 +228,7 @@ impl<'a> FileEmitter<'a> {
         id
     }
 
-    fn emit_func(&mut self, node: &types::FuncNode) -> Result<Decl, Report> {
+    fn emit_func(&mut self, node: &types::FuncNode) -> Res<Decl> {
         let body = self.emit_block(&node.body)?;
 
         let func = get_function_type(self.ctx, node.ty.id);
@@ -240,7 +245,7 @@ impl<'a> FileEmitter<'a> {
         }))
     }
 
-    fn emit_block(&mut self, nodes: &Vec<types::Stmt>) -> Result<Block, Report> {
+    fn emit_block(&mut self, nodes: &Vec<types::Stmt>) -> Res<Block> {
         let mut ins = Vec::new();
 
         for node in nodes {
@@ -249,15 +254,34 @@ impl<'a> FileEmitter<'a> {
                 types::Stmt::ExprStmt(node) => {
                     let _ = self.expr_to_rval(&mut ins, node)?;
                 }
-                types::Stmt::VarDecl(node) => todo!(),
-                types::Stmt::VarAssign(node) => todo!(),
+                types::Stmt::VarDecl(node) => self.emit_var_decl(&mut ins, node)?,
+                types::Stmt::VarAssign(node) => self.emit_var_assign(&mut ins, node)?,
             };
         }
 
         Ok(Block { ins })
     }
 
-    fn emit_return(&mut self, ins: &mut Vec<Ins>, node: &types::ReturnNode) -> Result<(), Report> {
+    fn emit_var_assign(&mut self, ins: &mut Vec<Ins>, node: &types::VarAssignNode) -> Res<()> {
+        let ty = self.types.to_ir_type_id(self.ctx, node.ty.id);
+        let rval = self.expr_to_rval(ins, &node.rval)?;
+        let lval = self.expr_to_lval(ins, &node.lval)?;
+
+        ins.push(Ins::Assign(AssignIns { ty, lval, rval }));
+        Ok(())
+    }
+
+    fn emit_var_decl(&mut self, ins: &mut Vec<Ins>, node: &types::VarDeclNode) -> Res<()> {
+        let ty = self.types.to_ir_type_id(self.ctx, node.ty.id);
+        let rval = self.expr_to_rval(ins, &node.value)?;
+        let const_id = self.next_id();
+
+        ins.push(Ins::Store(StoreIns { ty, const_id, rval }));
+        self.vars.bind(node.name.clone(), const_id);
+        Ok(())
+    }
+
+    fn emit_return(&mut self, ins: &mut Vec<Ins>, node: &types::ReturnNode) -> Res<()> {
         let ty = self.types.to_ir_type_id(self.ctx, node.ty.id);
         let rval = match &node.expr {
             None => RValue::Void,
@@ -268,7 +292,7 @@ impl<'a> FileEmitter<'a> {
         Ok(())
     }
 
-    fn expr_to_rval(&mut self, ins: &mut Vec<Ins>, expr: &types::Expr) -> Result<RValue, Report> {
+    fn expr_to_rval(&mut self, ins: &mut Vec<Ins>, expr: &types::Expr) -> Res<RValue> {
         match expr {
             Expr::Literal(node) => self.lit_to_rval(node),
             Expr::Call(node) => self.call_to_rval(ins, node),
@@ -277,11 +301,11 @@ impl<'a> FileEmitter<'a> {
         }
     }
 
-    fn lit_to_rval(&mut self, node: &types::LiteralNode) -> Result<RValue, Report> {
+    fn lit_to_rval(&mut self, node: &types::LiteralNode) -> Res<RValue> {
         Ok(match &node.kind {
             LiteralKind::Int(n) => RValue::Int(*n),
             LiteralKind::String(s) => RValue::Data(self.data.get_or_intern_string(s.to_owned())),
-            LiteralKind::Ident(_) => todo!(),
+            LiteralKind::Ident(name) => self.get_variable_rval(name),
             LiteralKind::Uint(_) => todo!(),
             LiteralKind::Float(_) => todo!(),
             LiteralKind::Bool(_) => todo!(),
@@ -289,11 +313,7 @@ impl<'a> FileEmitter<'a> {
         })
     }
 
-    fn call_to_rval(
-        &mut self,
-        ins: &mut Vec<Ins>,
-        node: &types::CallNode,
-    ) -> Result<RValue, Report> {
+    fn call_to_rval(&mut self, ins: &mut Vec<Ins>, node: &types::CallNode) -> Res<RValue> {
         let args = node
             .args
             .iter()
@@ -319,6 +339,21 @@ impl<'a> FileEmitter<'a> {
         }));
 
         Ok(RValue::Const(result_id))
+    }
+
+    fn expr_to_lval(&mut self, ins: &mut Vec<Ins>, expr: &types::Expr) -> Res<LValue> {
+        if let Some(name) = try_to_identifier(expr) {
+            return Ok(self.get_variable_lval(name));
+        };
+        todo!()
+    }
+
+    fn get_variable_rval(&self, name: &str) -> RValue {
+        RValue::Const(*self.vars.get(name).expect("not an assigned name"))
+    }
+
+    fn get_variable_lval(&self, name: &str) -> LValue {
+        LValue::Const(*self.vars.get(name).expect("not an assigned name"))
     }
 }
 

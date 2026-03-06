@@ -67,13 +67,22 @@ pub enum LValue {
 
 pub enum Ins {
     Store(StoreIns),
-    Assign(StoreIns),
+    Assign(AssignIns),
     Call(CallIns),
     Intrinsic(IntrinsicIns),
     Return(IRTypeId, RValue),
 }
 
 pub struct StoreIns {
+    /// Type of the value being stored
+    pub ty: IRTypeId,
+    /// Destination value id being assigned to
+    pub const_id: ConstId,
+    /// Value being assigned
+    pub rval: RValue,
+}
+
+pub struct AssignIns {
     /// Type of the value being stored
     pub ty: IRTypeId,
     /// Destination value being assigned to
@@ -151,7 +160,10 @@ impl fmt::Display for Decl {
 impl fmt::Display for Ins {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Ins::Store(ins) | Ins::Assign(ins) => {
+            Ins::Store(ins) => {
+                write!(f, "${} {} = {}", ins.const_id, ins.ty, ins.rval)
+            }
+            Ins::Assign(ins) => {
                 write!(f, "{} {} = {}", ins.lval, ins.ty, ins.rval)
             }
             Ins::Return(ty, value) => write!(f, "ret <{}> {}", ty, value),
