@@ -161,10 +161,10 @@ impl fmt::Display for Ins {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Ins::Store(ins) => {
-                write!(f, "${} {} = {}", ins.const_id, ins.ty, ins.rval)
+                write!(f, "${} <{}> = {}", ins.const_id, ins.ty, ins.rval)
             }
             Ins::Assign(ins) => {
-                write!(f, "{} {} = {}", ins.lval, ins.ty, ins.rval)
+                write!(f, "{} <{}> = {}", ins.lval, ins.ty, ins.rval)
             }
             Ins::Return(ty, value) => write!(f, "ret <{}> {}", ty, value),
             Ins::Call(call) => {

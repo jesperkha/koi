@@ -231,7 +231,7 @@ impl<'a> FileEmitter<'a> {
     fn emit_func(&mut self, node: &types::FuncNode) -> Res<Decl> {
         let body = self.emit_block(&node.body)?;
 
-        let func = get_function_type(self.ctx, node.ty.id);
+        let func = get_function_type(self.ctx, node.ty);
         let params = self.types.to_ir_type_list(self.ctx, &func.params);
         let ret = self.types.to_ir_type_id(self.ctx, func.ret);
 
@@ -263,7 +263,7 @@ impl<'a> FileEmitter<'a> {
     }
 
     fn emit_var_assign(&mut self, ins: &mut Vec<Ins>, node: &types::VarAssignNode) -> Res<()> {
-        let ty = self.types.to_ir_type_id(self.ctx, node.ty.id);
+        let ty = self.types.to_ir_type_id(self.ctx, node.ty);
         let rval = self.expr_to_rval(ins, &node.rval)?;
         let lval = self.expr_to_lval(ins, &node.lval)?;
 
@@ -272,7 +272,7 @@ impl<'a> FileEmitter<'a> {
     }
 
     fn emit_var_decl(&mut self, ins: &mut Vec<Ins>, node: &types::VarDeclNode) -> Res<()> {
-        let ty = self.types.to_ir_type_id(self.ctx, node.ty.id);
+        let ty = self.types.to_ir_type_id(self.ctx, node.ty);
         let rval = self.expr_to_rval(ins, &node.value)?;
         let const_id = self.next_id();
 
@@ -282,7 +282,7 @@ impl<'a> FileEmitter<'a> {
     }
 
     fn emit_return(&mut self, ins: &mut Vec<Ins>, node: &types::ReturnNode) -> Res<()> {
-        let ty = self.types.to_ir_type_id(self.ctx, node.ty.id);
+        let ty = self.types.to_ir_type_id(self.ctx, node.ty);
         let rval = match &node.expr {
             None => RValue::Void,
             Some(expr) => self.expr_to_rval(ins, &expr)?,
@@ -332,7 +332,7 @@ impl<'a> FileEmitter<'a> {
         let result_id = self.next_id();
 
         ins.push(Ins::Call(CallIns {
-            ty: self.types.to_ir_type_id(self.ctx, node.ty.id),
+            ty: self.types.to_ir_type_id(self.ctx, node.ty),
             result: LValue::Const(result_id),
             callee,
             args,
