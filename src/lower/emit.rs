@@ -7,7 +7,10 @@ use crate::{
         AssignIns, Block, CallIns, ConstId, Data, DataIndex, Decl, ExternDecl, FuncDecl,
         IRTypeInterner, Ins, LValue, RValue, StoreIns, Unit,
     },
-    module::{Module, ModuleId, ModuleKind, ModuleSourceFile, NamespaceList, SymbolId, SymbolList},
+    module::{
+        Module, ModuleId, ModuleKind, ModuleSourceFile, NamespaceList, Symbol, SymbolId,
+        SymbolList, SymbolOrigin,
+    },
     types::{self, Expr, LiteralKind, TypedAst, TypedNode},
     util::VarTable,
 };
@@ -206,10 +209,11 @@ impl<'a> FileEmitter<'a> {
         let func = self.ctx.types.try_function(node.ty).unwrap();
         let params = self.types.to_ir_type_list(self.ctx, &func.params);
         let ret = self.types.to_ir(self.ctx, func.ret);
+        let name = self.mangle_local_name(&node.name);
 
         Ok(Decl::Func(FuncDecl {
             public: node.public,
-            name: node.name.clone(),
+            name,
             body,
             params,
             ret,
@@ -241,7 +245,6 @@ impl<'a> FileEmitter<'a> {
         let ty = self.types.to_ir(self.ctx, node.ty);
         let rval = self.expr_to_rval(ins, &node.rval)?;
         let lval = self.expr_to_lval(ins, &node.lval)?;
-
         ins.push(Ins::Assign(AssignIns { ty, lval, rval }));
         Ok(())
     }
@@ -250,8 +253,9 @@ impl<'a> FileEmitter<'a> {
         let ty = self.types.to_ir(self.ctx, node.ty);
         let rval = self.expr_to_rval(ins, &node.value)?;
         let const_id = self.next_id();
-
         ins.push(Ins::Store(StoreIns { ty, const_id, rval }));
+
+        // Bind locally to look up its ConstId later
         self.vars.bind(node.name.clone(), const_id);
         Ok(())
     }
@@ -274,8 +278,8 @@ impl<'a> FileEmitter<'a> {
         match expr {
             Expr::Literal(node) => self.lit_to_rval(node),
             Expr::Call(node) => self.call_to_rval(ins, node),
-            Expr::Member(node) => todo!(),
-            Expr::NamespaceMember(node) => todo!(),
+            Expr::NamespaceMember(node) => self.namespace_to_rval(node),
+            Expr::Member(_) => todo!(),
         }
     }
 
@@ -291,6 +295,14 @@ impl<'a> FileEmitter<'a> {
         })
     }
 
+    fn namespace_to_rval(&mut self, node: &types::NamespaceMemberNode) -> Res<RValue> {
+        // Both unwraps are guaranteed by type checker
+        let symbol_id = self.nsl.get(&node.name).unwrap().get(&node.field).unwrap();
+        let symbol = self.ctx.symbols.get(symbol_id);
+        let mangled_name = self.mangle_symbol_name(symbol);
+        Ok(RValue::Function(mangled_name))
+    }
+
     fn call_to_rval(&mut self, ins: &mut Vec<Ins>, node: &types::CallNode) -> Res<RValue> {
         let args = node
             .args
@@ -303,7 +315,10 @@ impl<'a> FileEmitter<'a> {
             .collect::<Result<Vec<_>, Report>>()?;
 
         let callee = match node.callee.try_identifier() {
-            Some(func_name) => RValue::Function(func_name.to_owned()),
+            Some(func_name) => {
+                let mangled_name = self.mangle_local_name(func_name);
+                RValue::Function(mangled_name)
+            }
             None => self.expr_to_rval(ins, &node.callee)?,
         };
 
@@ -322,7 +337,7 @@ impl<'a> FileEmitter<'a> {
     // Conversions to L-Value
     // ----------------------
 
-    fn expr_to_lval(&mut self, ins: &mut Vec<Ins>, expr: &types::Expr) -> Res<LValue> {
+    fn expr_to_lval(&mut self, _ins: &mut Vec<Ins>, expr: &types::Expr) -> Res<LValue> {
         if let Some(name) = expr.try_identifier() {
             return Ok(self.get_variable_lval(name));
         };
@@ -338,6 +353,32 @@ impl<'a> FileEmitter<'a> {
 
     fn get_variable_lval(&self, name: &str) -> LValue {
         LValue::Const(*self.vars.get(name).expect("not an assigned name"))
+    }
+
+    /// Get the mangled name of the given local symbol.
+    fn mangle_local_name(&self, name: &str) -> String {
+        let id = self.symbols.get(name).unwrap().id;
+        let symbol = self.ctx.symbols.get(id);
+        self.mangle_symbol_name(symbol)
+    }
+
+    /// Get the mangled version of a symbol name.
+    fn mangle_symbol_name(&self, symbol: &Symbol) -> String {
+        if self.ctx.config.no_mangle_names
+            || symbol.no_mangle
+            || symbol.is_extern()
+            || symbol.name == "main"
+        {
+            return symbol.name.clone();
+        }
+
+        let modpath = match &symbol.origin {
+            SymbolOrigin::Module { modpath, .. } => modpath,
+            SymbolOrigin::Library(modpath) => modpath,
+            _ => unreachable!(),
+        };
+
+        format!("_{}_{}", modpath.to_underscore(), symbol.name)
     }
 }
 
