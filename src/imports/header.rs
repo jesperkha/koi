@@ -9,8 +9,8 @@ use crate::{
     config::Config,
     context::{Context, CreateModule, CreateSymbol},
     module::{
-        ImportPath, Module, ModuleId, ModuleKind, ModulePath, ModuleSymbol, SymbolKind,
-        SymbolOrigin,
+        ImportPath, Module, ModuleId, ModuleKind, ModulePath, ModuleSymbol, ModuleSymbolKind,
+        SymbolKind, SymbolOrigin,
     },
     types::{PrimitiveType, TypeId, TypeKind},
 };
@@ -120,7 +120,11 @@ impl HeaderFile {
 
                 let name = create_symbol.name.clone();
                 let id = ctx.symbols.add(create_symbol);
-                (name, ModuleSymbol { id, exported: true })
+                let modsym = ModuleSymbol {
+                    id,
+                    kind: ModuleSymbolKind::Exported,
+                };
+                (name, modsym)
             })
             .collect::<HashMap<_, _>>()
             .into();

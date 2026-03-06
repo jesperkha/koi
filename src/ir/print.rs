@@ -1,21 +1,26 @@
-use crate::ir::Ins;
+use crate::ir::{Decl, Ins, Unit};
 
-pub fn print_ir(ir: &Vec<Ins>) {
-    println!("{}", ir_to_string(ir));
+pub fn print_ir(unit: &Unit) {
+    println!("{}", ir_to_string(unit));
 }
 
-pub fn ir_to_string(ir: &Vec<Ins>) -> String {
-    ir_to_string_indent(ir, 0)
-}
-
-fn ir_to_string_indent(ir: &Vec<Ins>, indent: usize) -> String {
+pub fn ir_to_string(unit: &Unit) -> String {
     let mut s = String::new();
-    for i in ir {
-        s.push_str(format!("{}{}\n", "    ".repeat(indent), i).as_str());
-        match i {
-            Ins::Func(f) => s.push_str(ir_to_string_indent(&f.body, indent + 1).as_str()),
-            _ => {}
+
+    for decl in &unit.decls {
+        match decl {
+            Decl::Extern(_) => s += &decl.to_string(),
+            Decl::Func(d) => s += &ins_to_string_indent(&d.body.ins, 1),
         }
+    }
+
+    s
+}
+
+fn ins_to_string_indent(ins: &Vec<Ins>, indent: usize) -> String {
+    let mut s = String::new();
+    for i in ins {
+        s.push_str(format!("{}{}\n", "    ".repeat(indent), i).as_str());
     }
 
     if indent > 0 {

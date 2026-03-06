@@ -123,9 +123,16 @@ impl fmt::Display for SymbolKind {
 
 pub struct ModuleSymbol {
     pub id: SymbolId,
-    /// Should this symbol be exported? This should only be true if the symbol
-    /// is marked as public AND the symbol originates from this module.
-    pub exported: bool,
+    pub kind: ModuleSymbolKind,
+}
+
+pub enum ModuleSymbolKind {
+    /// Exported symbols are symbols originating from this module and marked as public.
+    Exported,
+    /// Imported symbols are any extern or package imported symbols.
+    Imported,
+    /// Private symbols are symbols declared in this module, but not marked public.
+    Private,
 }
 
 pub struct SymbolList {

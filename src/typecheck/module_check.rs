@@ -5,8 +5,8 @@ use crate::{
     context::{Context, CreateModule, CreateSymbol},
     error::{Diagnostics, Report, Res},
     module::{
-        ImportPath, ModuleKind, ModulePath, ModuleSourceFile, ModuleSymbol, Namespace,
-        NamespaceList, Symbol, SymbolId, SymbolKind, SymbolList, SymbolOrigin,
+        ImportPath, ModuleKind, ModulePath, ModuleSourceFile, ModuleSymbol, ModuleSymbolKind,
+        Namespace, NamespaceList, Symbol, SymbolId, SymbolKind, SymbolList, SymbolOrigin,
     },
     typecheck::file_check::FileChecker,
     types::{FunctionType, PrimitiveType, TypeId, TypeKind, TypedAst},
@@ -141,7 +141,7 @@ impl<'a> ModuleChecker<'a> {
 
             let modsym = ModuleSymbol {
                 id: *id,
-                exported: false, // Imported symbols should not be re-exported
+                kind: ModuleSymbolKind::Imported,
             };
 
             // If it was already declared, add error
@@ -336,9 +336,12 @@ impl<'a> ModuleChecker<'a> {
             return Err("already declared".to_string());
         }
         let name = symbol.name.clone();
-        let exported = symbol.is_exported;
+        let kind = match symbol.is_exported {
+            true => ModuleSymbolKind::Exported,
+            false => ModuleSymbolKind::Private,
+        };
         let id = self.ctx.symbols.add(symbol);
-        let _ = self.symbols.add(name, ModuleSymbol { id, exported }); // Checked earlier
+        let _ = self.symbols.add(name, ModuleSymbol { id, kind }); // Checked earlier
         Ok(id)
     }
 }

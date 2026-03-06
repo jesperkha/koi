@@ -12,7 +12,7 @@ use crate::{
     config::{Config, Options, PathManager, Project, ProjectType, Target},
     context::Context,
     imports::{LibraryKind, LibrarySet, create_header_file, read_header_file},
-    ir::{Ir, Unit},
+    ir::{ProgramIR, Unit, print_ir},
     lower::emit_ir,
     module::{Module, ModuleId, ModulePath},
     parser::{SortResult, parse_source_map, sort_by_dependency_graph, validate_imports},
@@ -85,7 +85,12 @@ pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
         .collect::<Result<Vec<Unit>, String>>()?;
 
     // Build the final executable/libary file
-    build(Ir::new(units), &ctx.config, &project, &pm, &libset)
+    for unit in units {
+        print_ir(&unit);
+    }
+
+    Ok(())
+    //build(ProgramIR { units }, &ctx.config, &project, &pm, &libset)
 }
 
 fn validate_external_imports(
@@ -248,7 +253,7 @@ fn emit_module_ir(ctx: &Context, map: &SourceMap, id: ModuleId) -> Res<Unit> {
 
 /// Shorthand for assembling an IR unit and converting error to string.
 fn build(
-    ir: Ir,
+    ir: ProgramIR,
     config: &Config,
     project: &Project,
     pm: &PathManager,

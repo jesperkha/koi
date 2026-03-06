@@ -9,7 +9,7 @@ use crate::{
     build::x86::reg_alloc::RegAllocator,
     config::{Config, PathManager},
     imports::LibrarySet,
-    ir::{AssignIns, ConstId, IRType, IRVisitor, Ir, LValue, StoreIns, Unit, Value},
+    ir::{ConstId, IRType, LValue, ProgramIR, RValue, StoreIns, Unit},
     util::{FilePath, cmd, write_file},
 };
 
@@ -35,7 +35,7 @@ pub struct BuildConfig {
 
 /// Build and compile an x86-64 executable or shared object file.
 pub fn build(
-    ir: Ir,
+    ir: ProgramIR,
     buildcfg: BuildConfig,
     config: &Config,
     pm: &PathManager,
@@ -204,9 +204,9 @@ impl<'a> X86Builder<'a> {
         self.head.writeln(".intel_syntax noprefix");
         self.data.push();
 
-        for ins in &unit.ins {
-            ins.accept(&mut self);
-        }
+        // for ins in &unit.ins {
+        //     ins.accept(&mut self);
+        // }
 
         let mut src = Writer::new();
         src.append(&self.head);
@@ -247,15 +247,16 @@ impl<'a> X86Builder<'a> {
     }
 
     /// Convert IR Value to RVal
-    fn rval(&self, v: &Value) -> RVal {
+    fn rval(&self, v: &RValue) -> RVal {
         match v {
-            Value::Void => panic!("cannot get value of void type"),
-            Value::Int(n) => RVal::Imm(n.to_string()),
-            Value::Const(id) => RVal::Stack(self.get(*id).to_string()),
-            Value::Param(id) => RVal::Stack(self.get_param(*id).to_string()),
-            Value::Float(_) => todo!(),
-            Value::Function(_) => todo!(),
-            Value::Data(name) => RVal::Data(format!("[rip + .{}]", name)),
+            RValue::Void => panic!("cannot get value of void type"),
+            RValue::Int(n) => RVal::Imm(n.to_string()),
+            RValue::Const(id) => RVal::Stack(self.get(*id).to_string()),
+            RValue::Param(id) => RVal::Stack(self.get_param(*id).to_string()),
+            RValue::Float(_) => todo!(),
+            RValue::Function(_) => todo!(),
+            RValue::Data(name) => RVal::Data(format!("[rip + .{}]", name)),
+            RValue::Uint(_) => todo!(),
         }
     }
 
@@ -301,86 +302,86 @@ impl<'a> X86Builder<'a> {
     }
 }
 
-impl<'a> IRVisitor<()> for X86Builder<'a> {
-    fn visit_func(&mut self, f: &crate::ir::FuncInst) {
-        // Function label
-        if f.public {
-            self.text.writeln(&format!(".globl {}", f.name));
-        }
-        self.text.writeln(&format!("{}:", f.name));
+// impl<'a> IRVisitor<()> for X86Builder<'a> {
+//     fn visit_func(&mut self, f: &crate::ir::FuncDecl) {
+//         // Function label
+//         if f.public {
+//             self.text.writeln(&format!(".globl {}", f.name));
+//         }
+//         self.text.writeln(&format!("{}:", f.name));
 
-        // Push new stack frame
-        self.push();
-        self.stacksize = 0;
-        self.text.writeln("push rbp");
-        self.text.writeln("mov rbp, rsp");
+//         // Push new stack frame
+//         self.push();
+//         self.stacksize = 0;
+//         self.text.writeln("push rbp");
+//         self.text.writeln("mov rbp, rsp");
 
-        if f.stacksize > 0 {
-            let rounded_size = round_up_to_mult_of_16(f.stacksize);
-            self.text.writeln(&format!("sub rsp, {}", rounded_size));
-        }
+//         if f.stacksize > 0 {
+//             let rounded_size = round_up_to_mult_of_16(f.stacksize);
+//             self.text.writeln(&format!("sub rsp, {}", rounded_size));
+//         }
 
-        // Put params on stack
-        self.alloc.reset_params();
-        for (i, ty) in f.params.iter().enumerate() {
-            let dest = self.stack_alloc(ty.size());
-            let reg = self.alloc.next_param_reg(ty);
+//         // Put params on stack
+//         self.alloc.reset_params();
+//         for (i, ty) in f.params.iter().enumerate() {
+//             let dest = self.stack_alloc(ty.size());
+//             let reg = self.alloc.next_param_reg(ty);
 
-            self.bind_param(i, &dest);
-            self.mov(LVal::Stack(dest), RVal::Reg(reg), ty);
-        }
+//             self.bind_param(i, &dest);
+//             self.mov(LVal::Stack(dest), RVal::Reg(reg), ty);
+//         }
 
-        for ins in &f.body {
-            ins.accept(self);
-        }
+//         for ins in &f.body {
+//             ins.accept(self);
+//         }
 
-        self.pop();
-    }
+//         self.pop();
+//     }
 
-    fn visit_ret(&mut self, ty: &crate::ir::IRType, v: &crate::ir::Value) {
-        // If not void
-        if ty.size() != 0 {
-            self.mov(LVal::Reg(self.alloc.return_reg(ty)), self.rval(v), ty);
-        }
-        self.text.writeln("leave");
-        self.text.writeln("ret\n");
-    }
+//     fn visit_ret(&mut self, ty: &crate::ir::IRType, v: &crate::ir::RValue) {
+//         // If not void
+//         if ty.size() != 0 {
+//             self.mov(LVal::Reg(self.alloc.return_reg(ty)), self.rval(v), ty);
+//         }
+//         self.text.writeln("leave");
+//         self.text.writeln("ret\n");
+//     }
 
-    fn visit_store(&mut self, ins: &StoreIns) {
-        let loc = self.stack_alloc(ins.ty.size());
-        self.bind(ins.id, &loc);
-        self.mov(LVal::Stack(loc), self.rval(&ins.value), &ins.ty);
-    }
+//     fn visit_store(&mut self, ins: &StoreIns) {
+//         let loc = self.stack_alloc(ins.ty.size());
+//         self.bind(ins.id, &loc);
+//         self.mov(LVal::Stack(loc), self.rval(&ins.value), &ins.ty);
+//     }
 
-    fn visit_assign(&mut self, ins: &AssignIns) -> () {
-        self.mov(self.lval(&ins.lval), self.rval(&ins.value), &ins.ty);
-    }
+//     fn visit_assign(&mut self, ins: &AssignIns) -> () {
+//         self.mov(self.lval(&ins.lval), self.rval(&ins.value), &ins.ty);
+//     }
 
-    fn visit_call(&mut self, c: &crate::ir::CallIns) -> () {
-        self.alloc.reset_params();
-        match &c.callee {
-            Value::Function(name) => {
-                for arg in &c.args {
-                    let dest = self.alloc.next_param_reg(&arg.0);
-                    self.mov(LVal::Reg(dest), self.rval(&arg.1), &arg.0);
-                }
-                self.text.writeln(&format!("call {}", name));
-                self.bind(c.result, &self.alloc.return_reg(&c.ty));
-            }
-            _ => panic!("invalid call callee"),
-        }
-    }
+//     fn visit_call(&mut self, c: &crate::ir::CallIns) -> () {
+//         self.alloc.reset_params();
+//         match &c.callee {
+//             RValue::Function(name) => {
+//                 for arg in &c.args {
+//                     let dest = self.alloc.next_param_reg(&arg.0);
+//                     self.mov(LVal::Reg(dest), self.rval(&arg.1), &arg.0);
+//                 }
+//                 self.text.writeln(&format!("call {}", name));
+//                 self.bind(c.result, &self.alloc.return_reg(&c.ty));
+//             }
+//             _ => panic!("invalid call callee"),
+//         }
+//     }
 
-    fn visit_static_string(&mut self, d: &crate::ir::StringDataIns) -> () {
-        //self.data.writeln(&format!(".local .{}", d.name));
-        self.data
-            .writeln(&format!(".{}: .asciz \"{}\"", d.name, d.value));
-    }
+//     fn visit_static_string(&mut self, d: &crate::ir::StringDecl) -> () {
+//         //self.data.writeln(&format!(".local .{}", d.name));
+//         self.data
+//             .writeln(&format!(".{}: .asciz \"{}\"", d.name, d.value));
+//     }
 
-    fn visit_extern(&mut self, f: &crate::ir::ExternFuncInst) -> () {
-        self.head.writeln(&format!(".extern {}", f.name));
-    }
-}
+//     fn visit_extern(&mut self, f: &crate::ir::ExternDecl) -> () {
+//         self.head.writeln(&format!(".extern {}", f.name));
+//     }
+// }
 
 fn round_up_to_mult_of_16(n: usize) -> usize {
     (n + 15) & !15

@@ -48,7 +48,7 @@ impl RegAllocator {
                     | Primitive::I16
                     | Primitive::I32
                     | Primitive::I64
-                    | Primitive::Str
+                    | Primitive::String
             )
         )
     }

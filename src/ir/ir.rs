@@ -1,35 +1,64 @@
 use core::fmt;
 
-use crate::{ir::print::ir_to_string, module::ModulePath, types};
+use crate::ir::{IRTypeId, IRTypeInterner};
 
-pub struct Ir {
+pub struct ProgramIR {
     pub units: Vec<Unit>,
 }
 
-impl Ir {
-    pub fn new(units: Vec<Unit>) -> Self {
-        Self { units }
-    }
-}
-
 pub struct Unit {
-    pub ins: Vec<Ins>,
-    pub modpath: ModulePath,
+    /// Type mappings for this unit
+    pub types: IRTypeInterner,
+    /// Module path of this unit in underscore form
+    pub name: String,
+    /// Declarations in this unit
+    pub decls: Vec<Decl>,
+    /// Data segments used in this unit
+    pub data: Vec<Data>,
 }
 
-impl Unit {
-    pub fn new(modpath: ModulePath, ins: Vec<Ins>) -> Self {
-        Self { modpath, ins }
-    }
-}
-
-impl fmt::Display for Unit {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", ir_to_string(&self.ins))
-    }
-}
-
+/// Unique ID of a constant value
 pub type ConstId = usize;
+
+/// Index into the units data map
+pub type DataIndex = usize;
+
+pub enum Data {
+    String(String),
+}
+
+pub enum Decl {
+    Extern(ExternDecl),
+    Func(FuncDecl),
+}
+
+pub struct ExternDecl {
+    /// The symbol name
+    pub name: String,
+    /// Parameter types
+    pub params: Vec<IRTypeId>,
+    /// Return type
+    pub ret: IRTypeId,
+}
+
+pub struct FuncDecl {
+    /// Is this function public (outside of comp unit)
+    pub public: bool,
+    /// Name of function
+    pub name: String,
+    /// Parameter types
+    pub params: Vec<IRTypeId>,
+    /// Return type
+    pub ret: IRTypeId,
+    /// Function body instructions
+    pub body: Block,
+    /// Accumulated minimum stack size of body variables
+    pub stacksize: usize,
+}
+
+pub struct Block {
+    pub ins: Vec<Ins>,
+}
 
 pub enum LValue {
     Const(ConstId),
@@ -38,146 +67,83 @@ pub enum LValue {
 
 pub enum Ins {
     Store(StoreIns),
-    Assign(AssignIns),
-    Return(IRType, Value),
-    Func(FuncInst),
-    Extern(ExternFuncInst),
+    Assign(StoreIns),
     Call(CallIns),
-    StringData(StringDataIns),
+    Intrinsic(IntrinsicIns),
+    Return(IRTypeId, RValue),
 }
 
 pub struct StoreIns {
-    pub id: ConstId,
-    pub ty: IRType,
-    pub value: Value,
-}
-
-pub struct AssignIns {
+    /// Type of the value being stored
+    pub ty: IRTypeId,
+    /// Destination value being assigned to
     pub lval: LValue,
-    pub ty: IRType,
-    pub value: Value,
-}
-
-pub struct StringDataIns {
-    pub name: String,
-    pub length: usize,
-    pub value: String,
-}
-
-pub struct ExternFuncInst {
-    pub name: String,
-    pub params: Vec<IRType>,
-    pub ret: IRType,
-}
-
-pub struct FuncInst {
-    pub name: String,
-    pub public: bool,
-    pub params: Vec<IRType>,
-    pub ret: IRType,
-    pub body: Vec<Ins>,
-    pub stacksize: usize,
+    /// Value being assigned
+    pub rval: RValue,
 }
 
 pub struct CallIns {
-    pub callee: Value,
-    pub ty: IRType,
-    pub args: Vec<(IRType, Value)>,
-    pub result: ConstId,
+    /// Return type of the call
+    pub ty: IRTypeId,
+    /// The callee (should be Function or Const)
+    pub callee: RValue,
+    /// The arguments of the function call and their types
+    pub args: Vec<(IRTypeId, RValue)>,
+    /// Destination value being assigned to
+    pub result: Option<LValue>,
 }
 
-pub enum Value {
+pub enum IntrinsicKind {
+    Exit,
+}
+
+pub struct IntrinsicIns {
+    pub kind: IntrinsicKind,
+    pub ty: IRTypeId,
+    pub args: Vec<(IRTypeId, RValue)>,
+    pub result: Option<LValue>,
+}
+
+pub enum RValue {
     Void,
     Float(f64),
     Int(i64),
+    Uint(u64),
     Const(ConstId),
     Param(usize),
     Function(String),
-    Data(String),
+    Data(DataIndex),
 }
 
-#[derive(Debug)]
-pub enum IRType {
-    Primitive(Primitive),
-    Ptr(Box<IRType>),
-    Object(String, Vec<IRType>, usize), // List of fields and total size (not aligned)
-    Function(Vec<IRType>, Box<IRType>),
-}
-
-#[derive(Debug)]
-pub enum Primitive {
-    Void,
-    F32,
-    F64,
-    U8,
-    U16,
-    U32,
-    U64,
-    I8,
-    I16,
-    I32,
-    I64,
-    Str,
-}
-
-impl From<types::PrimitiveType> for Primitive {
-    fn from(value: types::PrimitiveType) -> Self {
-        match value {
-            types::PrimitiveType::Void => Primitive::Void,
-            types::PrimitiveType::I8 => Primitive::I8,
-            types::PrimitiveType::I16 => Primitive::I16,
-            types::PrimitiveType::I32 => Primitive::I32,
-            types::PrimitiveType::I64 => Primitive::I64,
-            types::PrimitiveType::Byte | types::PrimitiveType::Bool | types::PrimitiveType::U8 => {
-                Primitive::U8
+impl fmt::Display for Decl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Decl::Extern(func) => {
+                write!(
+                    f,
+                    "extern func {}({}) {}\n",
+                    func.name,
+                    func.params
+                        .iter()
+                        .map(|ty| ty.to_string())
+                        .collect::<Vec<String>>()
+                        .join(", "),
+                    func.ret,
+                )
             }
-            types::PrimitiveType::U16 => Primitive::U16,
-            types::PrimitiveType::U32 => Primitive::U32,
-            types::PrimitiveType::U64 => Primitive::U64,
-            types::PrimitiveType::F32 => Primitive::F32,
-            types::PrimitiveType::F64 => Primitive::F64,
-            types::PrimitiveType::String => Primitive::Str,
-        }
-    }
-}
-
-pub trait IRVisitor<T> {
-    fn visit_func(&mut self, f: &FuncInst) -> T;
-    fn visit_extern(&mut self, f: &ExternFuncInst) -> T;
-    fn visit_call(&mut self, c: &CallIns) -> T;
-    fn visit_static_string(&mut self, d: &StringDataIns) -> T;
-    fn visit_ret(&mut self, ty: &IRType, v: &Value) -> T;
-    fn visit_store(&mut self, ins: &StoreIns) -> T;
-    fn visit_assign(&mut self, ins: &AssignIns) -> T;
-}
-
-impl Ins {
-    pub fn accept<T>(&self, v: &mut dyn IRVisitor<T>) -> T {
-        match self {
-            Ins::Store(ins) => v.visit_store(ins),
-            Ins::Return(ty, value) => v.visit_ret(ty, value),
-            Ins::Func(func) => v.visit_func(func),
-            Ins::Extern(func) => v.visit_extern(func),
-            Ins::Call(call) => v.visit_call(call),
-            Ins::StringData(data) => v.visit_static_string(data),
-            Ins::Assign(ins) => v.visit_assign(ins),
-        }
-    }
-}
-
-impl IRType {
-    /// Get size of type in bytes
-    pub fn size(&self) -> usize {
-        match self {
-            IRType::Primitive(primitive) => match primitive {
-                Primitive::Void => 0,
-                Primitive::U8 | Primitive::I8 => 1,
-                Primitive::U16 | Primitive::I16 => 2,
-                Primitive::F32 | Primitive::I32 | Primitive::U32 => 4,
-                Primitive::F64 | Primitive::U64 | Primitive::I64 | Primitive::Str => 8,
-            },
-            IRType::Object(_, _, size) => *size,
-            IRType::Ptr(_) | IRType::Function(_, _) => 8,
+            Decl::Func(func) => {
+                write!(
+                    f,
+                    "func {}({}) {}",
+                    func.name,
+                    func.params
+                        .iter()
+                        .map(|ty| ty.to_string())
+                        .collect::<Vec<String>>()
+                        .join(", "),
+                    func.ret,
+                )
+            }
         }
     }
 }
@@ -185,41 +151,17 @@ impl IRType {
 impl fmt::Display for Ins {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Ins::Store(ins) => write!(f, "${} {} = {}", ins.id, ins.ty, ins.value),
-            Ins::Assign(ins) => write!(f, "{} {} = {}", ins.lval, ins.ty, ins.value),
+            Ins::Store(ins) | Ins::Assign(ins) => {
+                write!(f, "{} {} = {}", ins.lval, ins.ty, ins.rval)
+            }
             Ins::Return(ty, value) => write!(f, "ret {} {}", ty, value),
-            Ins::Extern(func) => {
-                write!(
-                    f,
-                    "extern func {}({}) {}\n",
-                    func.name,
-                    func.params
-                        .iter()
-                        .map(IRType::to_string)
-                        .collect::<Vec<String>>()
-                        .join(", "),
-                    func.ret,
-                )
-            }
-            Ins::Func(func) => {
-                write!(
-                    f,
-                    "func {}({}) {}",
-                    func.name,
-                    func.params
-                        .iter()
-                        .map(IRType::to_string)
-                        .collect::<Vec<String>>()
-                        .join(", "),
-                    func.ret,
-                )
-            }
             Ins::Call(call) => {
                 write!(
                     f,
-                    "${} {} = call {}({})",
-                    call.result,
-                    call.ty,
+                    "{}call {}({})",
+                    call.result
+                        .as_ref()
+                        .map_or("".into(), |dest| format!("{} {} = ", dest, call.ty)),
                     call.callee,
                     call.args
                         .iter()
@@ -228,41 +170,44 @@ impl fmt::Display for Ins {
                         .join(", "),
                 )
             }
-            Ins::StringData(data) => write!(f, "string .{} = \"{}\"", data.name, data.value),
+            Ins::Intrinsic(int) => {
+                write!(
+                    f,
+                    "{}intrinsic {}({})",
+                    int.result
+                        .as_ref()
+                        .map_or("".into(), |dest| format!("{} {} = ", dest, int.ty)),
+                    int.kind,
+                    int.args
+                        .iter()
+                        .map(|a| format!("{} {}", a.0, a.1))
+                        .collect::<Vec<String>>()
+                        .join(", "),
+                )
+            }
         }
     }
 }
 
-impl fmt::Display for IRType {
+impl fmt::Display for IntrinsicKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            IRType::Primitive(p) => write!(f, "{}", format!("{:?}", p).to_lowercase()),
-            IRType::Object(name, _, _) => write!(f, "{}", name),
-            IRType::Ptr(t) => write!(f, "ptr({})", t),
-            IRType::Function(params, ret) => write!(
-                f,
-                "func({})->{}",
-                params
-                    .iter()
-                    .map(|p| p.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                ret
-            ),
+            IntrinsicKind::Exit => write!(f, "exit"),
         }
     }
 }
 
-impl fmt::Display for Value {
+impl fmt::Display for RValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::Void => Ok(()),
-            Value::Int(s) => write!(f, "{}", s),
-            Value::Float(s) => write!(f, "{}", s),
-            Value::Const(s) => write!(f, "${}", s),
-            Value::Param(s) => write!(f, "%{}", s),
-            Value::Function(s) => write!(f, "{}", s),
-            Value::Data(s) => write!(f, ".{}", s),
+            RValue::Void => Ok(()),
+            RValue::Int(s) => write!(f, "{}", s),
+            RValue::Uint(s) => write!(f, "{}", s),
+            RValue::Float(s) => write!(f, "{}", s),
+            RValue::Const(s) => write!(f, "${}", s),
+            RValue::Param(s) => write!(f, "%{}", s),
+            RValue::Function(s) => write!(f, "{}", s),
+            RValue::Data(s) => write!(f, ".{}", s),
         }
     }
 }
