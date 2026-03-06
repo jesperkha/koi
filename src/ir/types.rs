@@ -1,17 +1,17 @@
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
 use crate::{
     context::Context,
     types::{self, TypeId},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum IRType {
     Primitive(Primitive),
     Function(Vec<IRType>, Box<IRType>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Primitive {
     Void,
     F32,
@@ -86,15 +86,27 @@ impl fmt::Display for IRType {
 
 pub type IRTypeId = usize;
 
-pub struct IRTypeInterner {}
+pub struct IRTypeInterner {
+    types: Vec<IRType>,
+    cache: HashMap<IRType, IRTypeId>,
+}
 
 impl IRTypeInterner {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            types: Vec::new(),
+            cache: HashMap::new(),
+        }
     }
 
     pub fn get_or_intern(&mut self, ty: IRType) -> IRTypeId {
-        todo!()
+        if let Some(id) = self.cache.get(&ty) {
+            return *id;
+        }
+        let id = self.types.len();
+        self.types.push(ty.clone()); // TODO: need this clone?
+        self.cache.insert(ty, id);
+        id
     }
 
     pub fn to_ir_type_list(&mut self, ctx: &Context, list: &[TypeId]) -> Vec<IRTypeId> {
@@ -117,5 +129,14 @@ impl IRTypeInterner {
 
     pub fn to_ir_type_id(&mut self, ctx: &Context, id: TypeId) -> IRTypeId {
         self.get_or_intern(self.to_ir_type(ctx, id))
+    }
+
+    pub fn dump(&self) -> String {
+        let mut s = String::new();
+        for (id, ty) in self.types.iter().enumerate() {
+            s += &format!("{} -> {}\n", id, ty);
+        }
+
+        s
     }
 }

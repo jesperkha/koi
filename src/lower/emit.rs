@@ -11,8 +11,8 @@ use crate::{
     context::Context,
     error::{Diagnostics, Report, Res},
     ir::{
-        self, Data, DataIndex, Decl, ExternDecl, FuncDecl, IRType, IRTypeInterner, Ins, LValue,
-        RValue, StoreIns, SymTracker, Unit,
+        self, Block, CallIns, ConstId, Data, DataIndex, Decl, ExternDecl, FuncDecl, IRType,
+        IRTypeInterner, Ins, LValue, RValue, StoreIns, SymTracker, Unit,
     },
     module::{
         Module, ModuleId, ModuleKind, ModulePath, ModuleSourceFile, NamespaceList, Symbol,
@@ -24,36 +24,36 @@ use crate::{
     },
 };
 
+// pub fn emit_ir(ctx: &Context, id: ModuleId) -> Res<Unit> {
+//     // let module = ctx.modules.get(id);
+//     // let ModuleKind::Source { files, .. } = &module.kind else {
+//     //     panic!("attempt to emit non-source module");
+//     // };
+
+//     // let mut ins = Vec::new();
+
+//     // for file in files {
+//     //     let modulefile = ModuleFile {
+//     //         modpath: &module.modpath,
+//     //         nsl: &file.namespaces,
+//     //         syms: &module.symbols,
+//     //         nodes: &file.ast.decls,
+//     //     };
+
+//     //     let emitter = Emitter::new(ctx, modulefile);
+//     //     let file_ins = emitter.emit()?;
+//     //     ins.extend(file_ins);
+//     // }
+
+//     // Ok(Unit {
+//     //     ins,
+//     //     modpath: module.modpath.clone(),
+//     // })
+
+//     todo!()
+// }
+
 pub fn emit_ir(ctx: &Context, id: ModuleId) -> Res<Unit> {
-    // let module = ctx.modules.get(id);
-    // let ModuleKind::Source { files, .. } = &module.kind else {
-    //     panic!("attempt to emit non-source module");
-    // };
-
-    // let mut ins = Vec::new();
-
-    // for file in files {
-    //     let modulefile = ModuleFile {
-    //         modpath: &module.modpath,
-    //         nsl: &file.namespaces,
-    //         syms: &module.symbols,
-    //         nodes: &file.ast.decls,
-    //     };
-
-    //     let emitter = Emitter::new(ctx, modulefile);
-    //     let file_ins = emitter.emit()?;
-    //     ins.extend(file_ins);
-    // }
-
-    // Ok(Unit {
-    //     ins,
-    //     modpath: module.modpath.clone(),
-    // })
-
-    todo!()
-}
-
-pub fn emit(ctx: &Context, id: ModuleId) -> Res<Unit> {
     let module = ctx.modules.get(id);
     let emitter = ModuleEmitter::new(ctx, module);
     let unit = emitter.emit()?;
@@ -62,15 +62,35 @@ pub fn emit(ctx: &Context, id: ModuleId) -> Res<Unit> {
 
 struct DataInterner {
     data: Vec<Data>,
+    string_map: HashMap<String, DataIndex>,
 }
 
 impl DataInterner {
     fn new() -> Self {
-        Self { data: Vec::new() }
+        Self {
+            data: Vec::new(),
+            string_map: HashMap::new(),
+        }
     }
 
     fn into_data(self) -> Vec<Data> {
         self.data
+    }
+
+    fn intern(&mut self, data: Data) -> DataIndex {
+        let index = self.data.len();
+        self.data.push(data);
+        index
+    }
+
+    fn get_or_intern_string(&mut self, s: String) -> DataIndex {
+        if let Some(index) = self.string_map.get(&s) {
+            *index
+        } else {
+            let id = self.intern(Data::String(s.clone()));
+            self.string_map.insert(s, id);
+            id
+        }
     }
 }
 
@@ -111,7 +131,13 @@ impl<'a> ModuleEmitter<'a> {
         }
 
         for file in files {
-            let emitter = FileEmitter::new(self.ctx, &self.module.symbols, file, &mut data);
+            let emitter = FileEmitter::new(
+                self.ctx,
+                &self.module.symbols,
+                &mut self.types,
+                file,
+                &mut data,
+            );
             let result = emitter.emit()?;
             decls.extend(result.decls);
         }
@@ -126,10 +152,8 @@ impl<'a> ModuleEmitter<'a> {
 
     fn emit_extern(&mut self, id: SymbolId) -> Result<Decl, Report> {
         let symbol = self.ctx.symbols.get(id);
-        let ty = self.ctx.types.lookup(symbol.ty);
-        let TypeKind::Function(func) = &ty.kind else {
-            unreachable!();
-        };
+        let func = get_function_type(self.ctx, symbol.ty);
+
         Ok(Decl::Extern(ExternDecl {
             name: symbol.name.clone(),
             params: self.types.to_ir_type_list(self.ctx, &func.params),
@@ -141,9 +165,12 @@ impl<'a> ModuleEmitter<'a> {
 pub struct FileEmitter<'a> {
     ctx: &'a Context,
     symbols: &'a SymbolList,
+    types: &'a mut IRTypeInterner,
     nsl: &'a NamespaceList,
     ast: &'a TypedAst,
-    data: &'a DataInterner,
+    data: &'a mut DataInterner,
+
+    const_id: ConstId,
 }
 
 struct EmitResult {
@@ -154,6 +181,7 @@ impl<'a> FileEmitter<'a> {
     fn new(
         ctx: &'a Context,
         symbols: &'a SymbolList,
+        types: &'a mut IRTypeInterner,
         file: &'a ModuleSourceFile,
         data: &'a mut DataInterner,
     ) -> Self {
@@ -161,8 +189,10 @@ impl<'a> FileEmitter<'a> {
             ctx,
             symbols,
             data,
+            types,
             nsl: &file.namespaces,
             ast: &file.ast,
+            const_id: 0,
         }
     }
 
@@ -187,13 +217,126 @@ impl<'a> FileEmitter<'a> {
         Ok(EmitResult { decls })
     }
 
-    fn emit_extern(&mut self, node: &types::ExternNode) -> Result<Decl, Report> {
-        todo!()
+    fn next_id(&mut self) -> ConstId {
+        let id = self.const_id;
+        self.const_id += 1;
+        id
     }
 
     fn emit_func(&mut self, node: &types::FuncNode) -> Result<Decl, Report> {
-        todo!()
+        let body = self.emit_block(&node.body)?;
+
+        let func = get_function_type(self.ctx, node.ty.id);
+        let params = self.types.to_ir_type_list(self.ctx, &func.params);
+        let ret = self.types.to_ir_type_id(self.ctx, func.ret);
+
+        Ok(Decl::Func(FuncDecl {
+            public: node.public,
+            name: node.name.clone(),
+            body,
+            params,
+            ret,
+            stacksize: 0,
+        }))
     }
+
+    fn emit_block(&mut self, nodes: &Vec<types::Stmt>) -> Result<Block, Report> {
+        let mut ins = Vec::new();
+
+        for node in nodes {
+            match node {
+                types::Stmt::Return(node) => self.emit_return(&mut ins, node)?,
+                types::Stmt::ExprStmt(node) => {
+                    let _ = self.expr_to_rval(&mut ins, node)?;
+                }
+                types::Stmt::VarDecl(node) => todo!(),
+                types::Stmt::VarAssign(node) => todo!(),
+            };
+        }
+
+        Ok(Block { ins })
+    }
+
+    fn emit_return(&mut self, ins: &mut Vec<Ins>, node: &types::ReturnNode) -> Result<(), Report> {
+        let ty = self.types.to_ir_type_id(self.ctx, node.ty.id);
+        let rval = match &node.expr {
+            None => RValue::Void,
+            Some(expr) => self.expr_to_rval(ins, &expr)?,
+        };
+
+        ins.push(Ins::Return(ty, rval));
+        Ok(())
+    }
+
+    fn expr_to_rval(&mut self, ins: &mut Vec<Ins>, expr: &types::Expr) -> Result<RValue, Report> {
+        match expr {
+            Expr::Literal(node) => self.lit_to_rval(node),
+            Expr::Call(node) => self.call_to_rval(ins, node),
+            Expr::Member(node) => todo!(),
+            Expr::NamespaceMember(node) => todo!(),
+        }
+    }
+
+    fn lit_to_rval(&mut self, node: &types::LiteralNode) -> Result<RValue, Report> {
+        Ok(match &node.kind {
+            LiteralKind::Int(n) => RValue::Int(*n),
+            LiteralKind::String(s) => RValue::Data(self.data.get_or_intern_string(s.to_owned())),
+            LiteralKind::Ident(_) => todo!(),
+            LiteralKind::Uint(_) => todo!(),
+            LiteralKind::Float(_) => todo!(),
+            LiteralKind::Bool(_) => todo!(),
+            LiteralKind::Char(_) => todo!(),
+        })
+    }
+
+    fn call_to_rval(
+        &mut self,
+        ins: &mut Vec<Ins>,
+        node: &types::CallNode,
+    ) -> Result<RValue, Report> {
+        let args = node
+            .args
+            .iter()
+            .map(|expr| {
+                let ty = self.types.to_ir_type_id(self.ctx, expr.type_id());
+                let rval = self.expr_to_rval(ins, expr)?;
+                Ok((ty, rval))
+            })
+            .collect::<Result<Vec<_>, Report>>()?;
+
+        let callee = match try_to_identifier(&node.callee) {
+            Some(func_name) => RValue::Function(func_name.to_owned()),
+            None => self.expr_to_rval(ins, &node.callee)?,
+        };
+
+        let result_id = self.next_id();
+
+        ins.push(Ins::Call(CallIns {
+            ty: self.types.to_ir_type_id(self.ctx, node.ty.id),
+            result: LValue::Const(result_id),
+            callee,
+            args,
+        }));
+
+        Ok(RValue::Const(result_id))
+    }
+}
+
+fn try_to_identifier(expr: &types::Expr) -> Option<&str> {
+    if let types::Expr::Literal(lit) = expr {
+        if let types::LiteralKind::Ident(name) = &lit.kind {
+            return Some(name);
+        };
+    };
+    None
+}
+
+fn get_function_type<'a>(ctx: &'a Context, id: TypeId) -> &'a FunctionType {
+    let ty = ctx.types.lookup(id);
+    let TypeKind::Function(func) = &ty.kind else {
+        panic!("expected type to be function");
+    };
+    func
 }
 
 // static STRING_ID: AtomicUsize = AtomicUsize::new(0);

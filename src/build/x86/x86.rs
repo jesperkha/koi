@@ -43,72 +43,72 @@ pub fn build(
 ) -> Result<(), String> {
     info!("Building for x86-64. Output: {}", buildcfg.target_name);
 
-    if !gcc_available() {
-        return Err("Failed to run gcc. Make sure it's installed and in PATH.".into());
-    }
+    // if !gcc_available() {
+    //     return Err("Failed to run gcc. Make sure it's installed and in PATH.".into());
+    // }
 
-    let mut asm_files = Vec::new();
+    // let mut asm_files = Vec::new();
 
-    for unit in ir.units {
-        info!("Assembling module {}", unit.modpath.path());
-        let filepath = format!("{}/{}.s", buildcfg.tmpdir, unit.modpath.to_underscore());
-        let source = X86Builder::new(config).build(unit)?;
+    // for unit in ir.units {
+    //     info!("Assembling module {}", unit.modpath.path());
+    //     let filepath = format!("{}/{}.s", buildcfg.tmpdir, unit.modpath.to_underscore());
+    //     let source = X86Builder::new(config).build(unit)?;
 
-        info!("Writing file {}", filepath);
-        write_file(&filepath.as_str().into(), &source)?;
-        asm_files.push(filepath);
-    }
+    //     info!("Writing file {}", filepath);
+    //     write_file(&filepath.as_str().into(), &source)?;
+    //     asm_files.push(filepath);
+    // }
 
-    let mut linker_flags = vec![];
-    for lib in libset.archives() {
-        linker_flags.push(format!("{}", lib));
-    }
+    // let mut linker_flags = vec![];
+    // for lib in libset.archives() {
+    //     linker_flags.push(format!("{}", lib));
+    // }
 
-    for lib in buildcfg.additional_libraries {
-        linker_flags.push(lib);
-    }
+    // for lib in buildcfg.additional_libraries {
+    //     linker_flags.push(lib);
+    // }
 
-    match buildcfg.linkmode {
-        LinkMode::Executable => {
-            info!("Compiling executable");
+    // match buildcfg.linkmode {
+    //     LinkMode::Executable => {
+    //         info!("Compiling executable");
 
-            let mut args = asm_files;
-            args.push("-nostartfiles".into());
+    //         let mut args = asm_files;
+    //         args.push("-nostartfiles".into());
 
-            let entry_file = pm.library_path().join("entry.s");
-            args.push(entry_file.to_string());
-            let target_path = FilePath::from(&buildcfg.outdir).join(&buildcfg.target_name);
-            args.push(format!("-o{}", target_path));
-            args.extend_from_slice(&linker_flags);
-            args.push("-lm".into()); // After libraries
-            cmd("gcc", &args)?;
-        }
-        LinkMode::Library => {
-            info!("Compiling static library");
+    //         let entry_file = pm.library_path().join("entry.s");
+    //         args.push(entry_file.to_string());
+    //         let target_path = FilePath::from(&buildcfg.outdir).join(&buildcfg.target_name);
+    //         args.push(format!("-o{}", target_path));
+    //         args.extend_from_slice(&linker_flags);
+    //         args.push("-lm".into()); // After libraries
+    //         cmd("gcc", &args)?;
+    //     }
+    //     LinkMode::Library => {
+    //         info!("Compiling static library");
 
-            let mut objfiles = Vec::new();
-            for asmfile in &asm_files {
-                let objfile = asmfile.replace(".s", ".o");
-                cmd(
-                    "gcc",
-                    &[
-                        "-nostartfiles".into(),
-                        "-c".into(),
-                        asmfile.into(),
-                        format!("-o{}", objfile),
-                    ],
-                )?;
-                objfiles.push(objfile);
-            }
-            let target_path =
-                FilePath::from(&buildcfg.outdir).join(&format!("lib{}.a", buildcfg.target_name));
+    //         let mut objfiles = Vec::new();
+    //         for asmfile in &asm_files {
+    //             let objfile = asmfile.replace(".s", ".o");
+    //             cmd(
+    //                 "gcc",
+    //                 &[
+    //                     "-nostartfiles".into(),
+    //                     "-c".into(),
+    //                     asmfile.into(),
+    //                     format!("-o{}", objfile),
+    //                 ],
+    //             )?;
+    //             objfiles.push(objfile);
+    //         }
+    //         let target_path =
+    //             FilePath::from(&buildcfg.outdir).join(&format!("lib{}.a", buildcfg.target_name));
 
-            let mut args = vec!["rcs".into(), target_path.to_string()];
-            args.extend_from_slice(&objfiles);
-            args.extend_from_slice(&linker_flags);
-            cmd("ar", &args)?;
-        }
-    }
+    //         let mut args = vec!["rcs".into(), target_path.to_string()];
+    //         args.extend_from_slice(&objfiles);
+    //         args.extend_from_slice(&linker_flags);
+    //         cmd("ar", &args)?;
+    //     }
+    // }
 
     Ok(())
 }

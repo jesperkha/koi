@@ -7,11 +7,19 @@ pub fn print_ir(unit: &Unit) {
 pub fn ir_to_string(unit: &Unit) -> String {
     let mut s = String::new();
 
+    s += &unit.types.dump();
+    s += "\n\n";
+
     for decl in &unit.decls {
         match decl {
             Decl::Extern(_) => s += &decl.to_string(),
-            Decl::Func(d) => s += &ins_to_string_indent(&d.body.ins, 1),
+            Decl::Func(d) => {
+                s += &decl.to_string();
+                s += "\n";
+                s += &ins_to_string_indent(&d.body.ins, 1);
+            }
         }
+        s += "\n";
     }
 
     s

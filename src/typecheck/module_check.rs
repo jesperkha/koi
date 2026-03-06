@@ -335,11 +335,16 @@ impl<'a> ModuleChecker<'a> {
         if self.symbols.get(&symbol.name).is_ok() {
             return Err("already declared".to_string());
         }
-        let name = symbol.name.clone();
-        let kind = match symbol.is_exported {
-            true => ModuleSymbolKind::Exported,
-            false => ModuleSymbolKind::Private,
+
+        let kind = match symbol.origin {
+            SymbolOrigin::Module { .. } => match symbol.is_exported {
+                true => ModuleSymbolKind::Exported,
+                false => ModuleSymbolKind::Private,
+            },
+            SymbolOrigin::Library(_) | SymbolOrigin::Extern => ModuleSymbolKind::Imported,
         };
+
+        let name = symbol.name.clone();
         let id = self.ctx.symbols.add(symbol);
         let _ = self.symbols.add(name, ModuleSymbol { id, kind }); // Checked earlier
         Ok(id)

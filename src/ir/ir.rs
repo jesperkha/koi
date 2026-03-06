@@ -90,7 +90,7 @@ pub struct CallIns {
     /// The arguments of the function call and their types
     pub args: Vec<(IRTypeId, RValue)>,
     /// Destination value being assigned to
-    pub result: Option<LValue>,
+    pub result: LValue,
 }
 
 pub enum IntrinsicKind {
@@ -134,12 +134,12 @@ impl fmt::Display for Decl {
             Decl::Func(func) => {
                 write!(
                     f,
-                    "func {}({}) {}",
+                    "func {}({}) <{}>",
                     func.name,
                     func.params
                         .iter()
-                        .map(|ty| ty.to_string())
-                        .collect::<Vec<String>>()
+                        .map(|ty| format!("<{}>", ty))
+                        .collect::<Vec<_>>()
                         .join(", "),
                     func.ret,
                 )
@@ -154,18 +154,16 @@ impl fmt::Display for Ins {
             Ins::Store(ins) | Ins::Assign(ins) => {
                 write!(f, "{} {} = {}", ins.lval, ins.ty, ins.rval)
             }
-            Ins::Return(ty, value) => write!(f, "ret {} {}", ty, value),
+            Ins::Return(ty, value) => write!(f, "ret <{}> {}", ty, value),
             Ins::Call(call) => {
                 write!(
                     f,
                     "{}call {}({})",
-                    call.result
-                        .as_ref()
-                        .map_or("".into(), |dest| format!("{} {} = ", dest, call.ty)),
+                    format!("{} <{}> = ", call.result, call.ty),
                     call.callee,
                     call.args
                         .iter()
-                        .map(|a| format!("{} {}", a.0, a.1))
+                        .map(|a| format!("<{}> {}", a.0, a.1))
                         .collect::<Vec<String>>()
                         .join(", "),
                 )
@@ -176,11 +174,11 @@ impl fmt::Display for Ins {
                     "{}intrinsic {}({})",
                     int.result
                         .as_ref()
-                        .map_or("".into(), |dest| format!("{} {} = ", dest, int.ty)),
+                        .map_or("".into(), |dest| format!("{} <{}> = ", dest, int.ty)),
                     int.kind,
                     int.args
                         .iter()
-                        .map(|a| format!("{} {}", a.0, a.1))
+                        .map(|a| format!("<{}> {}", a.0, a.1))
                         .collect::<Vec<String>>()
                         .join(", "),
                 )
