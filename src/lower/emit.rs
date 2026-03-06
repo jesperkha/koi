@@ -5,7 +5,7 @@ use crate::{
     error::{self, Diagnostics, Report},
     ir::{
         AssignIns, Block, CallIns, ConstId, Data, DataIndex, Decl, ExternDecl, FuncDecl,
-        IRTypeInterner, Ins, LValue, RValue, StoreIns, Unit,
+        IRTypeInterner, Ins, LValue, ParamId, RValue, StoreIns, Unit,
     },
     module::{
         Module, ModuleId, ModuleKind, ModuleSourceFile, NamespaceList, Symbol, SymbolId,
@@ -147,6 +147,7 @@ pub struct FileEmitter<'a> {
 
     const_id: ConstId,
     vars: VarTable<ConstId>,
+    params: VarTable<ParamId>,
 }
 
 struct EmitResult {
@@ -170,6 +171,7 @@ impl<'a> FileEmitter<'a> {
             ast: &file.ast,
             const_id: 0,
             vars: VarTable::new(),
+            params: VarTable::new(),
         }
     }
 
@@ -197,23 +199,30 @@ impl<'a> FileEmitter<'a> {
 
     /// Get next unique constant id to be used in this scope.
     fn next_id(&mut self) -> ConstId {
-        // TODO: scoped const id
         let id = self.const_id;
         self.const_id += 1;
         id
     }
 
     fn emit_func(&mut self, node: &types::FuncNode) -> Res<Decl> {
-        let body = self.emit_block(&node.body)?;
+        self.push_scope();
 
+        // Bind parameters to local ids
+        for (i, param) in node.params.iter().enumerate() {
+            self.params.bind(param.clone(), i);
+        }
+
+        let body = self.emit_block(&node.body)?;
+        self.pop_scope();
+
+        // Get function type
         let func = self.ctx.types.try_function(node.ty).unwrap();
         let params = self.types.to_ir_type_list(self.ctx, &func.params);
         let ret = self.types.to_ir(self.ctx, func.ret);
-        let name = self.mangle_local_name(&node.name);
 
         Ok(Decl::Func(FuncDecl {
             public: node.public,
-            name,
+            name: self.mangle_local_name(&node.name),
             body,
             params,
             ret,
@@ -347,12 +356,33 @@ impl<'a> FileEmitter<'a> {
     // Helper methods
     // --------------
 
-    fn get_variable_rval(&self, name: &str) -> RValue {
-        RValue::Const(*self.vars.get(name).expect("not an assigned name"))
+    fn push_scope(&mut self) {
+        self.vars.push_scope();
+        self.params.push_scope();
+        self.const_id = 0;
     }
 
+    fn pop_scope(&mut self) {
+        self.vars.pop_scope();
+        self.params.pop_scope();
+    }
+
+    /// Get the RValue of a named value (variable or parameter).
+    fn get_variable_rval(&self, name: &str) -> RValue {
+        if let Some(id) = self.vars.get(name) {
+            RValue::Const(*id)
+        } else {
+            RValue::Param(*self.params.get(name).expect("not an assigned name"))
+        }
+    }
+
+    /// Get the LValue of a named value (variable or parameter).
     fn get_variable_lval(&self, name: &str) -> LValue {
-        LValue::Const(*self.vars.get(name).expect("not an assigned name"))
+        if let Some(id) = self.vars.get(name) {
+            LValue::Const(*id)
+        } else {
+            LValue::Param(*self.params.get(name).expect("not an assigned name"))
+        }
     }
 
     /// Get the mangled name of the given local symbol.

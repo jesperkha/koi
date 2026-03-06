@@ -19,6 +19,7 @@ pub struct Unit {
 
 /// Unique ID of a constant value
 pub type ConstId = usize;
+pub type ParamId = usize;
 
 /// Index into the units data map
 pub type DataIndex = usize;
@@ -62,7 +63,7 @@ pub struct Block {
 
 pub enum LValue {
     Const(ConstId),
-    Param(usize),
+    Param(ParamId),
 }
 
 pub enum Ins {
