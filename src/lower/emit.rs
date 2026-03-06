@@ -1,59 +1,18 @@
-use core::panic;
-use std::{
-    collections::HashMap,
-    mem,
-    sync::atomic::{AtomicUsize, Ordering},
-};
-
-use tracing::{debug, info};
+use std::collections::HashMap;
 
 use crate::{
     context::Context,
     error::{self, Diagnostics, Report},
     ir::{
-        self, AssignIns, Block, CallIns, ConstId, Data, DataIndex, Decl, ExternDecl, FuncDecl,
-        IRType, IRTypeInterner, Ins, LValue, RValue, StoreIns, SymTracker, Unit,
+        AssignIns, Block, CallIns, ConstId, Data, DataIndex, Decl, ExternDecl, FuncDecl,
+        IRTypeInterner, Ins, LValue, RValue, StoreIns, Unit,
     },
-    module::{
-        Module, ModuleId, ModuleKind, ModulePath, ModuleSourceFile, NamespaceList, Symbol,
-        SymbolId, SymbolList, SymbolOrigin,
-    },
-    types::{
-        self, Expr, FunctionType, LiteralKind, TypeId, TypeKind, TypedAst, TypedNode, Visitable,
-        Visitor,
-    },
+    module::{Module, ModuleId, ModuleKind, ModuleSourceFile, NamespaceList, SymbolId, SymbolList},
+    types::{self, Expr, LiteralKind, TypedAst, TypedNode},
     util::VarTable,
 };
 
-// pub fn emit_ir(ctx: &Context, id: ModuleId) -> Res<Unit> {
-//     // let module = ctx.modules.get(id);
-//     // let ModuleKind::Source { files, .. } = &module.kind else {
-//     //     panic!("attempt to emit non-source module");
-//     // };
-
-//     // let mut ins = Vec::new();
-
-//     // for file in files {
-//     //     let modulefile = ModuleFile {
-//     //         modpath: &module.modpath,
-//     //         nsl: &file.namespaces,
-//     //         syms: &module.symbols,
-//     //         nodes: &file.ast.decls,
-//     //     };
-
-//     //     let emitter = Emitter::new(ctx, modulefile);
-//     //     let file_ins = emitter.emit()?;
-//     //     ins.extend(file_ins);
-//     // }
-
-//     // Ok(Unit {
-//     //     ins,
-//     //     modpath: module.modpath.clone(),
-//     // })
-
-//     todo!()
-// }
-
+/// Emit standalone module IR unit for this module.
 pub fn emit_ir(ctx: &Context, id: ModuleId) -> error::Res<Unit> {
     let module = ctx.modules.get(id);
     let emitter = ModuleEmitter::new(ctx, module);
@@ -63,6 +22,7 @@ pub fn emit_ir(ctx: &Context, id: ModuleId) -> error::Res<Unit> {
 
 type Res<T> = Result<T, Report>;
 
+/// Utility type for storing module data segments.
 struct DataInterner {
     data: Vec<Data>,
     string_map: HashMap<String, DataIndex>,
@@ -80,12 +40,14 @@ impl DataInterner {
         self.data
     }
 
+    /// Intern new data segment, returns the unique DataIndex.
     fn intern(&mut self, data: Data) -> DataIndex {
         let index = self.data.len();
         self.data.push(data);
         index
     }
 
+    /// Either get the string data index by cache or intern it.
     fn get_or_intern_string(&mut self, s: String) -> DataIndex {
         if let Some(index) = self.string_map.get(&s) {
             *index
@@ -97,6 +59,8 @@ impl DataInterner {
     }
 }
 
+/// ModuleEmitter handles module-level IR emission and
+/// bundles the necessary metadata in the Unit.
 struct ModuleEmitter<'a> {
     ctx: &'a Context,
     module: &'a Module,
@@ -112,6 +76,7 @@ impl<'a> ModuleEmitter<'a> {
         }
     }
 
+    /// Emit IR for all module files and create bundled IR unit.
     fn emit(mut self) -> error::Res<Unit> {
         let ModuleKind::Source { files, .. } = &self.module.kind else {
             unreachable!();
@@ -120,6 +85,7 @@ impl<'a> ModuleEmitter<'a> {
         let mut data = DataInterner::new();
         let mut decls = Vec::new();
 
+        // Declare all imported symbols as extern first (just for structural clarity)
         for id in &self.module.imports() {
             let mut diag = Diagnostics::new();
 
@@ -133,6 +99,7 @@ impl<'a> ModuleEmitter<'a> {
             }
         }
 
+        // Emit IR for each file in the module
         for file in files {
             let emitter = FileEmitter::new(
                 self.ctx,
@@ -155,16 +122,18 @@ impl<'a> ModuleEmitter<'a> {
 
     fn emit_extern(&mut self, id: SymbolId) -> Res<Decl> {
         let symbol = self.ctx.symbols.get(id);
-        let func = get_function_type(self.ctx, symbol.ty);
+        let func = self.ctx.types.try_function(symbol.ty).unwrap();
 
         Ok(Decl::Extern(ExternDecl {
             name: symbol.name.clone(),
             params: self.types.to_ir_type_list(self.ctx, &func.params),
-            ret: self.types.to_ir_type_id(self.ctx, func.ret),
+            ret: self.types.to_ir(self.ctx, func.ret),
         }))
     }
 }
 
+/// FileEmitter handles file-level emission and writes
+/// to the parent modules shared state.
 pub struct FileEmitter<'a> {
     ctx: &'a Context,
     symbols: &'a SymbolList,
@@ -201,6 +170,7 @@ impl<'a> FileEmitter<'a> {
         }
     }
 
+    /// Emit IR for this file. Mutates shared module state.
     fn emit(mut self) -> error::Res<EmitResult> {
         let mut diag = Diagnostics::new();
         let mut decls = Vec::new();
@@ -222,7 +192,9 @@ impl<'a> FileEmitter<'a> {
         Ok(EmitResult { decls })
     }
 
+    /// Get next unique constant id to be used in this scope.
     fn next_id(&mut self) -> ConstId {
+        // TODO: scoped const id
         let id = self.const_id;
         self.const_id += 1;
         id
@@ -231,9 +203,9 @@ impl<'a> FileEmitter<'a> {
     fn emit_func(&mut self, node: &types::FuncNode) -> Res<Decl> {
         let body = self.emit_block(&node.body)?;
 
-        let func = get_function_type(self.ctx, node.ty);
+        let func = self.ctx.types.try_function(node.ty).unwrap();
         let params = self.types.to_ir_type_list(self.ctx, &func.params);
-        let ret = self.types.to_ir_type_id(self.ctx, func.ret);
+        let ret = self.types.to_ir(self.ctx, func.ret);
 
         Ok(Decl::Func(FuncDecl {
             public: node.public,
@@ -262,8 +234,11 @@ impl<'a> FileEmitter<'a> {
         Ok(Block { ins })
     }
 
+    // The methods below all emit a variable number of instructions and therefore return no value.
+    // -------------------------------------------------------------------------------------------
+
     fn emit_var_assign(&mut self, ins: &mut Vec<Ins>, node: &types::VarAssignNode) -> Res<()> {
-        let ty = self.types.to_ir_type_id(self.ctx, node.ty);
+        let ty = self.types.to_ir(self.ctx, node.ty);
         let rval = self.expr_to_rval(ins, &node.rval)?;
         let lval = self.expr_to_lval(ins, &node.lval)?;
 
@@ -272,7 +247,7 @@ impl<'a> FileEmitter<'a> {
     }
 
     fn emit_var_decl(&mut self, ins: &mut Vec<Ins>, node: &types::VarDeclNode) -> Res<()> {
-        let ty = self.types.to_ir_type_id(self.ctx, node.ty);
+        let ty = self.types.to_ir(self.ctx, node.ty);
         let rval = self.expr_to_rval(ins, &node.value)?;
         let const_id = self.next_id();
 
@@ -281,8 +256,11 @@ impl<'a> FileEmitter<'a> {
         Ok(())
     }
 
+    // Conversions to R-Value
+    // ----------------------
+
     fn emit_return(&mut self, ins: &mut Vec<Ins>, node: &types::ReturnNode) -> Res<()> {
-        let ty = self.types.to_ir_type_id(self.ctx, node.ty);
+        let ty = self.types.to_ir(self.ctx, node.ty);
         let rval = match &node.expr {
             None => RValue::Void,
             Some(expr) => self.expr_to_rval(ins, &expr)?,
@@ -318,13 +296,13 @@ impl<'a> FileEmitter<'a> {
             .args
             .iter()
             .map(|expr| {
-                let ty = self.types.to_ir_type_id(self.ctx, expr.type_id());
+                let ty = self.types.to_ir(self.ctx, expr.type_id());
                 let rval = self.expr_to_rval(ins, expr)?;
                 Ok((ty, rval))
             })
             .collect::<Result<Vec<_>, Report>>()?;
 
-        let callee = match try_to_identifier(&node.callee) {
+        let callee = match node.callee.try_identifier() {
             Some(func_name) => RValue::Function(func_name.to_owned()),
             None => self.expr_to_rval(ins, &node.callee)?,
         };
@@ -332,7 +310,7 @@ impl<'a> FileEmitter<'a> {
         let result_id = self.next_id();
 
         ins.push(Ins::Call(CallIns {
-            ty: self.types.to_ir_type_id(self.ctx, node.ty),
+            ty: self.types.to_ir(self.ctx, node.ty),
             result: LValue::Const(result_id),
             callee,
             args,
@@ -341,12 +319,18 @@ impl<'a> FileEmitter<'a> {
         Ok(RValue::Const(result_id))
     }
 
+    // Conversions to L-Value
+    // ----------------------
+
     fn expr_to_lval(&mut self, ins: &mut Vec<Ins>, expr: &types::Expr) -> Res<LValue> {
-        if let Some(name) = try_to_identifier(expr) {
+        if let Some(name) = expr.try_identifier() {
             return Ok(self.get_variable_lval(name));
         };
         todo!()
     }
+
+    // Helper methods
+    // --------------
 
     fn get_variable_rval(&self, name: &str) -> RValue {
         RValue::Const(*self.vars.get(name).expect("not an assigned name"))
@@ -355,23 +339,6 @@ impl<'a> FileEmitter<'a> {
     fn get_variable_lval(&self, name: &str) -> LValue {
         LValue::Const(*self.vars.get(name).expect("not an assigned name"))
     }
-}
-
-fn try_to_identifier(expr: &types::Expr) -> Option<&str> {
-    if let types::Expr::Literal(lit) = expr {
-        if let types::LiteralKind::Ident(name) = &lit.kind {
-            return Some(name);
-        };
-    };
-    None
-}
-
-fn get_function_type<'a>(ctx: &'a Context, id: TypeId) -> &'a FunctionType {
-    let ty = ctx.types.lookup(id);
-    let TypeKind::Function(func) = &ty.kind else {
-        panic!("expected type to be function");
-    };
-    func
 }
 
 // static STRING_ID: AtomicUsize = AtomicUsize::new(0);

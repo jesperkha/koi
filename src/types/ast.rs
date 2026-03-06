@@ -1,6 +1,6 @@
 use crate::{
     ast::{Node, NodeId, Pos, TokenKind},
-    types::{Type, TypeId, TypeKind},
+    types::TypeId,
 };
 
 pub trait TypedNode<'a> {
@@ -70,6 +70,18 @@ pub enum Expr {
     Call(CallNode),
     Member(MemberNode),
     NamespaceMember(NamespaceMemberNode),
+}
+
+impl Expr {
+    /// Try to get the inner identifier string if this is a Ident kind.
+    pub fn try_identifier(&self) -> Option<&str> {
+        if let Expr::Literal(lit) = self {
+            if let LiteralKind::Ident(name) = &lit.kind {
+                return Some(name);
+            };
+        };
+        None
+    }
 }
 
 pub struct FuncNode {

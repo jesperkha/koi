@@ -110,10 +110,14 @@ impl IRTypeInterner {
     }
 
     pub fn to_ir_type_list(&mut self, ctx: &Context, list: &[TypeId]) -> Vec<IRTypeId> {
-        list.iter().map(|ty| self.to_ir_type_id(ctx, *ty)).collect()
+        list.iter().map(|ty| self.to_ir(ctx, *ty)).collect()
     }
 
-    pub fn to_ir_type(&self, ctx: &Context, id: TypeId) -> IRType {
+    pub fn to_ir(&mut self, ctx: &Context, id: TypeId) -> IRTypeId {
+        self.get_or_intern(self.to_ir_type(ctx, id))
+    }
+
+    fn to_ir_type(&self, ctx: &Context, id: TypeId) -> IRType {
         let id = ctx.types.deep_resolve(id);
         let ty = ctx.types.lookup(id);
 
@@ -125,10 +129,6 @@ impl IRTypeInterner {
             ),
             _ => panic!("unhandled kind {:?}", ty.kind),
         }
-    }
-
-    pub fn to_ir_type_id(&mut self, ctx: &Context, id: TypeId) -> IRTypeId {
-        self.get_or_intern(self.to_ir_type(ctx, id))
     }
 
     pub fn dump(&self) -> String {

@@ -1,4 +1,4 @@
-use tracing::{debug, info};
+use tracing::info;
 
 use crate::{
     ast::{self, Ast, Node, Pos, Token, TokenKind},

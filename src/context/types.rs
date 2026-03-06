@@ -67,10 +67,12 @@ impl TypeInterner {
         &self.types[id]
     }
 
+    /// Get a Type
     pub fn get(&self, id: TypeId) -> Option<&Type> {
         self.types.get(id)
     }
 
+    /// Try to get the inner FunctionType of this type id.
     pub fn try_function(&self, id: TypeId) -> Option<&FunctionType> {
         if let Some(ty) = self.get(id) {
             if let TypeKind::Function(func) = &ty.kind {
