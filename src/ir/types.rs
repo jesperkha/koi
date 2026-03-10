@@ -139,4 +139,8 @@ impl IRTypeInterner {
 
         s
     }
+
+    pub fn type_to_string(&self, id: IRTypeId) -> String {
+        self.types[id].to_string()
+    }
 }

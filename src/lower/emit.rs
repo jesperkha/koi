@@ -4,8 +4,8 @@ use crate::{
     context::Context,
     error::{self, Diagnostics, Report},
     ir::{
-        AssignIns, Block, CallIns, ConstId, Data, DataIndex, Decl, ExternDecl, FuncDecl,
-        IRTypeInterner, Ins, LValue, ParamId, RValue, StoreIns, Unit,
+        AssignIns, Block, CallIns, ConstId, Data, DataIndex, Decl, ExternDecl, FuncDecl, IRType,
+        IRTypeInterner, Ins, LValue, ParamId, Primitive, RValue, StoreIns, Unit,
     },
     module::{
         Module, ModuleId, ModuleKind, ModuleSourceFile, NamespaceList, Symbol, SymbolId,
@@ -229,7 +229,7 @@ impl<'a> FileEmitter<'a> {
             self.params.bind(param.clone(), i);
         }
 
-        let body = self.emit_block(&node.body)?;
+        let body = self.emit_func_block(&node.body)?;
         self.pop_scope();
 
         // Get function type
@@ -247,7 +247,7 @@ impl<'a> FileEmitter<'a> {
         }))
     }
 
-    fn emit_block(&mut self, nodes: &Vec<types::Stmt>) -> Res<Block> {
+    fn emit_func_block(&mut self, nodes: &Vec<types::Stmt>) -> Res<Block> {
         let mut ins = Vec::new();
 
         for node in nodes {
@@ -259,6 +259,17 @@ impl<'a> FileEmitter<'a> {
                 types::Stmt::VarDecl(node) => self.emit_var_decl(&mut ins, node)?,
                 types::Stmt::VarAssign(node) => self.emit_var_assign(&mut ins, node)?,
             };
+        }
+
+        // Add explicit return statement if function has no return value
+        if !ins
+            .last()
+            .map_or(false, |ins| matches!(ins, Ins::Return(_, _)))
+        {
+            ins.push(Ins::Return(
+                self.types.get_or_intern(IRType::Primitive(Primitive::Void)),
+                RValue::Void,
+            ));
         }
 
         Ok(Block { ins })
@@ -314,10 +325,10 @@ impl<'a> FileEmitter<'a> {
             LiteralKind::Int(n) => RValue::Int(*n),
             LiteralKind::String(s) => RValue::Data(self.data.get_or_intern_string(s.to_owned())),
             LiteralKind::Ident(name) => self.get_variable_rval(name),
-            LiteralKind::Uint(_) => todo!(),
-            LiteralKind::Float(_) => todo!(),
-            LiteralKind::Bool(_) => todo!(),
-            LiteralKind::Char(_) => todo!(),
+            LiteralKind::Uint(n) => RValue::Uint(*n),
+            LiteralKind::Float(n) => RValue::Float(*n),
+            LiteralKind::Bool(n) => RValue::Uint(if *n { 1 } else { 0 }),
+            LiteralKind::Char(n) => RValue::Uint(*n as u64),
         })
     }
 
