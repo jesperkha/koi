@@ -1,8 +1,30 @@
 use std::fmt::Display;
 
+pub struct File {
+    pub data_section: Vec<DataDecl>,
+    pub text_section: Vec<TextDecl>,
+}
+
+pub enum DataDecl {
+    String { label: String, content: String },
+}
+
+pub enum TextDecl {
+    Extern(String),
+    Function {
+        global: bool,
+        name: String,
+        ins: Vec<AssemblyIns>,
+    },
+}
+
 pub enum AssemblyIns {
+    Push(Source),
+    Sub(Destination, Source),
     Mov(Destination, Source, Size),
     Lea(Register, Label),
+    Call(Label),
+    Leave,
     Ret,
 }
 
@@ -14,9 +36,16 @@ pub enum Size {
 }
 
 pub enum Source {
+    Immediate(Immediate),
     Register(Register),
     StackOffset(StackOffset),
     Label(Label),
+}
+
+pub enum Immediate {
+    Int(i64),
+    Uint(u64),
+    Float(f64),
 }
 
 pub enum Destination {
@@ -55,12 +84,63 @@ pub struct Label {
     pub name: String,
 }
 
+impl Display for File {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, ".intel_syntax noprefix\n")?;
+
+        write!(f, ".section data\n\n")?;
+        for decl in &self.data_section {
+            write!(f, "{}\n", decl)?;
+        }
+
+        write!(f, ".section text\n\n")?;
+        for decl in &self.text_section {
+            write!(f, "{}\n", decl)?;
+        }
+
+        write!(f, ".section .note.GNU-stack,\"\",@progbits\n")?;
+        Ok(())
+    }
+}
+
+impl Display for DataDecl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DataDecl::String { label, content } => {
+                write!(f, ".{}: .asciz \"{}\"", label, content)
+            }
+        }
+    }
+}
+
+impl Display for TextDecl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TextDecl::Function { global, name, ins } => {
+                if *global {
+                    write!(f, ".globl {}\n", name)?;
+                }
+                write!(f, "{}:\n", name)?;
+                for i in ins {
+                    write!(f, "    {}\n", i)?;
+                }
+                Ok(())
+            }
+            TextDecl::Extern(name) => write!(f, ".extern {}", name),
+        }
+    }
+}
+
 impl Display for AssemblyIns {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AssemblyIns::Mov(dst, src, size) => write!(f, "mov {} {}, {}", dst, src, size),
             AssemblyIns::Lea(register, label) => write!(f, "lea {}, {}", register, label),
+            AssemblyIns::Sub(dst, src) => write!(f, "sub {}, {}", dst, src),
+            AssemblyIns::Push(source) => write!(f, "push {}", source),
+            AssemblyIns::Leave => write!(f, "leave"),
             AssemblyIns::Ret => write!(f, "ret"),
+            AssemblyIns::Call(label) => write!(f, "call {}", label),
         }
     }
 }
@@ -98,7 +178,22 @@ impl Display for Source {
             Source::Register(reg) => write!(f, "{}", reg),
             Source::StackOffset(stack) => write!(f, "{}", stack),
             Source::Label(label) => write!(f, "{}", label.name),
+            Source::Immediate(imm) => write!(f, "{}", imm),
         }
+    }
+}
+
+impl Display for Immediate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Immediate::Int(n) => n.to_string(),
+                Immediate::Uint(n) => n.to_string(),
+                Immediate::Float(n) => n.to_string(),
+            }
+        )
     }
 }
 
