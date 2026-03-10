@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     context::Context,
@@ -86,21 +86,8 @@ impl<'a> ModuleEmitter<'a> {
         };
 
         let mut data = DataInterner::new();
+        let mut externs = HashSet::new();
         let mut decls = Vec::new();
-
-        // Declare all imported symbols as extern first (just for structural clarity)
-        for id in &self.module.imports() {
-            let mut diag = Diagnostics::new();
-
-            match self.emit_extern(*id) {
-                Ok(decl) => decls.push(decl),
-                Err(report) => diag.add(report),
-            }
-
-            if !diag.is_empty() {
-                return Err(diag);
-            }
-        }
 
         // Emit IR for each file in the module
         for file in files {
@@ -113,13 +100,33 @@ impl<'a> ModuleEmitter<'a> {
             );
             let result = emitter.emit()?;
             decls.extend(result.decls);
+            externs.extend(result.externs);
         }
+
+        // Declare all imported symbols as extern
+        let mut extern_decls = Vec::new();
+        externs.extend(self.module.imports());
+        for id in externs {
+            let mut diag = Diagnostics::new();
+
+            match self.emit_extern(id) {
+                Ok(decl) => extern_decls.push(decl),
+                Err(report) => diag.add(report),
+            }
+
+            if !diag.is_empty() {
+                return Err(diag);
+            }
+        }
+
+        // TODO: tidy up list stuff
+        extern_decls.extend(decls);
 
         Ok(Unit {
             name: self.module.modpath.to_underscore(),
             data: data.into_data(),
             types: self.types,
-            decls,
+            decls: extern_decls,
         })
     }
 
@@ -128,7 +135,7 @@ impl<'a> ModuleEmitter<'a> {
         let func = self.ctx.types.try_function(symbol.ty).unwrap();
 
         Ok(Decl::Extern(ExternDecl {
-            name: symbol.name.clone(),
+            name: mangle_symbol_name(self.ctx, symbol),
             params: self.types.to_ir_type_list(self.ctx, &func.params),
             ret: self.types.to_ir(self.ctx, func.ret),
         }))
@@ -148,9 +155,15 @@ pub struct FileEmitter<'a> {
     const_id: ConstId,
     vars: VarTable<ConstId>,
     params: VarTable<ParamId>,
+
+    /// Cache of already declared extern symbols
+    externs: HashSet<SymbolId>,
 }
 
 struct EmitResult {
+    /// Symbol ids of all extern functions used.
+    externs: HashSet<SymbolId>,
+    /// Top-level declarations.
     decls: Vec<Decl>,
 }
 
@@ -172,6 +185,7 @@ impl<'a> FileEmitter<'a> {
             const_id: 0,
             vars: VarTable::new(),
             params: VarTable::new(),
+            externs: HashSet::new(),
         }
     }
 
@@ -194,7 +208,10 @@ impl<'a> FileEmitter<'a> {
             }
         }
 
-        Ok(EmitResult { decls })
+        Ok(EmitResult {
+            decls,
+            externs: self.externs,
+        })
     }
 
     /// Get next unique constant id to be used in this scope.
@@ -222,7 +239,7 @@ impl<'a> FileEmitter<'a> {
 
         Ok(Decl::Func(FuncDecl {
             public: node.public,
-            name: self.mangle_local_name(&node.name),
+            name: self.to_mangled_name(&node.name),
             body,
             params,
             ret,
@@ -308,7 +325,9 @@ impl<'a> FileEmitter<'a> {
         // Both unwraps are guaranteed by type checker
         let symbol_id = self.nsl.get(&node.name).unwrap().get(&node.field).unwrap();
         let symbol = self.ctx.symbols.get(symbol_id);
-        let mangled_name = self.mangle_symbol_name(symbol);
+        let mangled_name = mangle_symbol_name(self.ctx, symbol);
+        self.externs.insert(symbol_id);
+
         Ok(RValue::Function(mangled_name))
     }
 
@@ -325,7 +344,7 @@ impl<'a> FileEmitter<'a> {
 
         let callee = match node.callee.try_identifier() {
             Some(func_name) => {
-                let mangled_name = self.mangle_local_name(func_name);
+                let mangled_name = self.to_mangled_name(func_name);
                 RValue::Function(mangled_name)
             }
             None => self.expr_to_rval(ins, &node.callee)?,
@@ -386,30 +405,27 @@ impl<'a> FileEmitter<'a> {
     }
 
     /// Get the mangled name of the given local symbol.
-    fn mangle_local_name(&self, name: &str) -> String {
+    fn to_mangled_name(&self, name: &str) -> String {
         let id = self.symbols.get(name).unwrap().id;
         let symbol = self.ctx.symbols.get(id);
-        self.mangle_symbol_name(symbol)
+        mangle_symbol_name(self.ctx, symbol)
+    }
+}
+
+/// Get the mangled version of a symbol name.
+fn mangle_symbol_name(ctx: &Context, symbol: &Symbol) -> String {
+    if ctx.config.no_mangle_names || symbol.no_mangle || symbol.is_extern() || symbol.name == "main"
+    {
+        return symbol.name.clone();
     }
 
-    /// Get the mangled version of a symbol name.
-    fn mangle_symbol_name(&self, symbol: &Symbol) -> String {
-        if self.ctx.config.no_mangle_names
-            || symbol.no_mangle
-            || symbol.is_extern()
-            || symbol.name == "main"
-        {
-            return symbol.name.clone();
-        }
+    let modpath = match &symbol.origin {
+        SymbolOrigin::Module { modpath, .. } => modpath,
+        SymbolOrigin::Library(modpath) => modpath,
+        _ => unreachable!(),
+    };
 
-        let modpath = match &symbol.origin {
-            SymbolOrigin::Module { modpath, .. } => modpath,
-            SymbolOrigin::Library(modpath) => modpath,
-            _ => unreachable!(),
-        };
-
-        format!("_{}_{}", modpath.to_underscore(), symbol.name)
-    }
+    format!("_{}_{}", modpath.to_underscore(), symbol.name)
 }
 
 // static STRING_ID: AtomicUsize = AtomicUsize::new(0);
