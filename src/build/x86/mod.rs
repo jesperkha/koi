@@ -1,3 +1,4 @@
+mod assembly;
 mod reg_alloc;
 mod x86;
 
