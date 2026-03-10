@@ -122,7 +122,8 @@ impl HeaderFile {
                 let id = ctx.symbols.add(create_symbol);
                 let modsym = ModuleSymbol {
                     id,
-                    kind: ModuleSymbolKind::Exported,
+                    exported: true,
+                    kind: ModuleSymbolKind::Module,
                 };
                 (name, modsym)
             })

@@ -65,7 +65,7 @@ impl Module {
         self.symbols
             .symbols()
             .iter()
-            .filter(|(_, sym)| matches!(sym.kind, ModuleSymbolKind::Exported))
+            .filter(|(_, sym)| sym.exported)
             .map(|(name, sym)| (name, sym.id))
             .collect::<_>()
     }

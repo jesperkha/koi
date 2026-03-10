@@ -141,6 +141,7 @@ impl<'a> ModuleChecker<'a> {
 
             let modsym = ModuleSymbol {
                 id: *id,
+                exported: false,
                 kind: ModuleSymbolKind::Imported,
             };
 
@@ -337,16 +338,14 @@ impl<'a> ModuleChecker<'a> {
         }
 
         let kind = match symbol.origin {
-            SymbolOrigin::Module { .. } => match symbol.is_exported {
-                true => ModuleSymbolKind::Exported,
-                false => ModuleSymbolKind::Private,
-            },
+            SymbolOrigin::Module { .. } => ModuleSymbolKind::Module,
             SymbolOrigin::Library(_) | SymbolOrigin::Extern => ModuleSymbolKind::Imported,
         };
 
+        let exported = symbol.is_exported;
         let name = symbol.name.clone();
         let id = self.ctx.symbols.add(symbol);
-        let _ = self.symbols.add(name, ModuleSymbol { id, kind }); // Checked earlier
+        let _ = self.symbols.add(name, ModuleSymbol { id, kind, exported }); // Checked earlier
         Ok(id)
     }
 }

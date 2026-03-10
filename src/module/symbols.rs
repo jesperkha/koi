@@ -121,18 +121,18 @@ impl fmt::Display for SymbolKind {
     }
 }
 
+/// ModuleSymbol represents a symbol imported or declared in a module.
 pub struct ModuleSymbol {
     pub id: SymbolId,
     pub kind: ModuleSymbolKind,
+    pub exported: bool,
 }
 
 pub enum ModuleSymbolKind {
-    /// Exported symbols are symbols originating from this module and marked as public.
-    Exported,
+    /// Module symbols are symbols declared in this module.
+    Module,
     /// Imported symbols are any extern or package imported symbols.
     Imported,
-    /// Private symbols are symbols declared in this module, but not marked public.
-    Private,
 }
 
 pub struct SymbolList {
