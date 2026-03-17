@@ -22,7 +22,7 @@ pub enum Asm {
     Push(Src),
     Sub(Dest, Src),
     Mov(Dest, Src),
-    Lea(Reg, Label),
+    Lea(Dest, Src),
     Call(Label),
     Leave,
     Ret,
@@ -138,7 +138,7 @@ impl Display for Asm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Asm::Mov(dst, src) => write!(f, "mov {}, {}", dst, src),
-            Asm::Lea(register, label) => write!(f, "lea {}, {}", register, label),
+            Asm::Lea(dst, src) => write!(f, "lea {}, {}", dst, src),
             Asm::Sub(dst, src) => write!(f, "sub {}, {}", dst, src),
             Asm::Push(source) => write!(f, "push {}", source),
             Asm::Leave => write!(f, "leave"),
@@ -180,7 +180,7 @@ impl Display for Src {
         match self {
             Src::Reg(reg) => write!(f, "{}", reg),
             Src::StackOffset(stack) => write!(f, "{}", stack),
-            Src::Label(label) => write!(f, "{}", label.name),
+            Src::Label(label) => write!(f, "[rip + {}]", label),
             Src::Immediate(imm) => write!(f, "{}", imm),
         }
     }

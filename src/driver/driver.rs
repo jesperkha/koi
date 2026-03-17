@@ -85,7 +85,10 @@ pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
         .collect::<Result<Vec<Unit>, String>>()?;
 
     // Build the final executable/libary file
-    let asm_files = units.iter().map(|unit| assemble(unit)).collect::<Vec<_>>();
+    let asm_files = units
+        .into_iter()
+        .map(|unit| assemble(unit))
+        .collect::<Vec<_>>();
 
     for f in asm_files {
         println!("{}", f);

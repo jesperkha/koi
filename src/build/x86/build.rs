@@ -1,21 +1,23 @@
+use std::mem::take;
+
 use crate::{
-    build::x86::{Asm, DataDecl, Dest, File, Immediate, Reg, Size, Src, TextDecl},
-    ir::{Decl, ExternDecl, FuncDecl, IRTypeId, Ins, RValue, Unit},
+    build::x86::{Asm, DataDecl, Dest, File, Immediate, Label, Reg, Size, Src, TextDecl},
+    ir::{Data, Decl, ExternDecl, FuncDecl, IRTypeId, Ins, RValue, Unit},
 };
 
-pub fn assemble(unit: &Unit) -> File {
+pub fn assemble(unit: Unit) -> File {
     let assembler = Assembler::new(unit);
     assembler.assemble()
 }
 
-pub struct Assembler<'a> {
-    unit: &'a Unit,
+pub struct Assembler {
+    unit: Unit,
     data: Vec<DataDecl>,
     text: Vec<TextDecl>,
 }
 
-impl<'a> Assembler<'a> {
-    pub fn new(unit: &'a Unit) -> Self {
+impl Assembler {
+    pub fn new(unit: Unit) -> Self {
         Self {
             unit,
             data: Vec::new(),
@@ -24,7 +26,11 @@ impl<'a> Assembler<'a> {
     }
 
     pub fn assemble(mut self) -> File {
-        for decl in &self.unit.decls {
+        let decls = take(&mut self.unit.decls);
+        let data = take(&mut self.unit.data);
+
+        // Assemble all declarations
+        for decl in decls {
             let text_decl = match decl {
                 Decl::Extern(decl) => self.emit_extern(decl),
                 Decl::Func(decl) => self.emit_func(decl),
@@ -33,17 +39,29 @@ impl<'a> Assembler<'a> {
             self.text.push(text_decl);
         }
 
+        // Declare all data segments
+        for (i, data) in data.into_iter().enumerate() {
+            let data_decl = match data {
+                Data::String(s) => DataDecl::String {
+                    label: to_data_label(i),
+                    content: s.clone(),
+                },
+            };
+
+            self.data.push(data_decl);
+        }
+
         File {
             data_section: self.data,
             text_section: self.text,
         }
     }
 
-    fn emit_extern(&mut self, decl: &ExternDecl) -> TextDecl {
+    fn emit_extern(&mut self, decl: ExternDecl) -> TextDecl {
         TextDecl::Extern(decl.name.clone())
     }
 
-    fn emit_func(&mut self, decl: &FuncDecl) -> TextDecl {
+    fn emit_func(&mut self, decl: FuncDecl) -> TextDecl {
         let fasm = FunctionAssembler::new(&self.unit, &decl.body.ins);
         let ins = fasm.assemble();
 
@@ -91,20 +109,28 @@ impl<'a> FunctionAssembler<'a> {
         match ins {
             Ins::Store(store_ins) => todo!(),
             Ins::Assign(assign_ins) => todo!(),
-            Ins::Call(call_ins) => todo!(),
+            Ins::Call(call) => {}
             Ins::Intrinsic(intrinsic_ins) => todo!(),
             Ins::Return(ty, rvalue) => self.emit_return(ty, rvalue),
         }
     }
 
     fn emit_return(&mut self, ty: &IRTypeId, rval: &RValue) {
-        // mov rax, [...]
-        self.push(Asm::Mov(Dest::Reg(Reg::Rax), self.rval_to_src(rval)));
+        // mov/lea rax, [...]
+        self.mov_or_lea(Dest::Reg(Reg::Rax), self.rval_to_src(rval));
 
         // leave
         // ret
         self.push(Asm::Leave);
         self.push(Asm::Ret);
+    }
+
+    fn mov_or_lea(&mut self, dest: Dest, src: Src) {
+        self.push(if matches!(src, Src::Label(_)) {
+            Asm::Lea(dest, src)
+        } else {
+            Asm::Mov(dest, src)
+        });
     }
 
     fn rval_to_src(&self, rval: &RValue) -> Src {
@@ -116,7 +142,9 @@ impl<'a> FunctionAssembler<'a> {
             RValue::Const(_) => todo!(),
             RValue::Param(_) => todo!(),
             RValue::Function(_) => todo!(),
-            RValue::Data(_) => todo!(),
+            RValue::Data(idx) => Src::Label(Label {
+                name: to_data_label(*idx),
+            }),
         }
     }
 
@@ -129,4 +157,8 @@ impl<'a> FunctionAssembler<'a> {
             _ => panic!("no size"),
         }
     }
+}
+
+fn to_data_label(idx: usize) -> String {
+    format!("D{}", idx)
 }
