@@ -14,15 +14,15 @@ pub enum TextDecl {
     Function {
         global: bool,
         name: String,
-        ins: Vec<AssemblyIns>,
+        ins: Vec<Asm>,
     },
 }
 
-pub enum AssemblyIns {
-    Push(Source),
-    Sub(Destination, Source),
-    Mov(Destination, Source, Size),
-    Lea(Register, Label),
+pub enum Asm {
+    Push(Src),
+    Sub(Dest, Src),
+    Mov(Dest, Src),
+    Lea(Reg, Label),
     Call(Label),
     Leave,
     Ret,
@@ -35,9 +35,9 @@ pub enum Size {
     Qword,
 }
 
-pub enum Source {
+pub enum Src {
     Immediate(Immediate),
-    Register(Register),
+    Reg(Reg),
     StackOffset(StackOffset),
     Label(Label),
 }
@@ -48,13 +48,16 @@ pub enum Immediate {
     Float(f64),
 }
 
-pub enum Destination {
-    Register(Register),
+pub enum Dest {
+    Reg(Reg),
     StackOffset(StackOffset),
 }
 
-pub enum Register {
+pub enum Reg {
     Rax,
+
+    Rbp,
+    Rsp,
 
     // Integer parameters
     Rdi,
@@ -88,12 +91,12 @@ impl Display for File {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, ".intel_syntax noprefix\n")?;
 
-        write!(f, ".section data\n\n")?;
+        write!(f, ".section .data\n\n")?;
         for decl in &self.data_section {
             write!(f, "{}\n", decl)?;
         }
 
-        write!(f, ".section text\n\n")?;
+        write!(f, ".section .text\n\n")?;
         for decl in &self.text_section {
             write!(f, "{}\n", decl)?;
         }
@@ -131,16 +134,16 @@ impl Display for TextDecl {
     }
 }
 
-impl Display for AssemblyIns {
+impl Display for Asm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AssemblyIns::Mov(dst, src, size) => write!(f, "mov {} {}, {}", dst, src, size),
-            AssemblyIns::Lea(register, label) => write!(f, "lea {}, {}", register, label),
-            AssemblyIns::Sub(dst, src) => write!(f, "sub {}, {}", dst, src),
-            AssemblyIns::Push(source) => write!(f, "push {}", source),
-            AssemblyIns::Leave => write!(f, "leave"),
-            AssemblyIns::Ret => write!(f, "ret"),
-            AssemblyIns::Call(label) => write!(f, "call {}", label),
+            Asm::Mov(dst, src) => write!(f, "mov {}, {}", dst, src),
+            Asm::Lea(register, label) => write!(f, "lea {}, {}", register, label),
+            Asm::Sub(dst, src) => write!(f, "sub {}, {}", dst, src),
+            Asm::Push(source) => write!(f, "push {}", source),
+            Asm::Leave => write!(f, "leave"),
+            Asm::Ret => write!(f, "ret"),
+            Asm::Call(label) => write!(f, "call {}", label),
         }
     }
 }
@@ -172,13 +175,13 @@ impl Display for Label {
     }
 }
 
-impl Display for Source {
+impl Display for Src {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Source::Register(reg) => write!(f, "{}", reg),
-            Source::StackOffset(stack) => write!(f, "{}", stack),
-            Source::Label(label) => write!(f, "{}", label.name),
-            Source::Immediate(imm) => write!(f, "{}", imm),
+            Src::Reg(reg) => write!(f, "{}", reg),
+            Src::StackOffset(stack) => write!(f, "{}", stack),
+            Src::Label(label) => write!(f, "{}", label.name),
+            Src::Immediate(imm) => write!(f, "{}", imm),
         }
     }
 }
@@ -197,36 +200,38 @@ impl Display for Immediate {
     }
 }
 
-impl Display for Destination {
+impl Display for Dest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Destination::Register(reg) => write!(f, "{}", reg),
-            Destination::StackOffset(stack) => write!(f, "{}", stack),
+            Dest::Reg(reg) => write!(f, "{}", reg),
+            Dest::StackOffset(stack) => write!(f, "{}", stack),
         }
     }
 }
 
-impl Display for Register {
+impl Display for Reg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}",
             match self {
-                Register::Rax => "rax",
-                Register::Rdi => "rdi",
-                Register::Rsi => "rsi",
-                Register::Rdx => "rdx",
-                Register::Rcx => "rcx",
-                Register::R8 => "r8",
-                Register::R9 => "r9",
-                Register::Xmm0 => "xmm0",
-                Register::Xmm1 => "xmm1",
-                Register::Xmm2 => "xmm2",
-                Register::Xmm3 => "xmm3",
-                Register::Xmm4 => "xmm4",
-                Register::Xmm5 => "xmm5",
-                Register::Xmm6 => "xmm6",
-                Register::Xmm7 => "xmm7",
+                Reg::Rax => "rax",
+                Reg::Rdi => "rdi",
+                Reg::Rsi => "rsi",
+                Reg::Rdx => "rdx",
+                Reg::Rcx => "rcx",
+                Reg::R8 => "r8",
+                Reg::R9 => "r9",
+                Reg::Xmm0 => "xmm0",
+                Reg::Xmm1 => "xmm1",
+                Reg::Xmm2 => "xmm2",
+                Reg::Xmm3 => "xmm3",
+                Reg::Xmm4 => "xmm4",
+                Reg::Xmm5 => "xmm5",
+                Reg::Xmm6 => "xmm6",
+                Reg::Xmm7 => "xmm7",
+                Reg::Rbp => "rbp",
+                Reg::Rsp => "rsp",
             }
         )
     }

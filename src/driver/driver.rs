@@ -8,7 +8,7 @@ use walkdir::WalkDir;
 
 use crate::{
     ast::{FileSet, Source, SourceMap},
-    build::x86,
+    build::x86::{self, assemble},
     config::{Config, Options, PathManager, Project, ProjectType, Target},
     context::Context,
     imports::{LibraryKind, LibrarySet, create_header_file, read_header_file},
@@ -85,8 +85,10 @@ pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
         .collect::<Result<Vec<Unit>, String>>()?;
 
     // Build the final executable/libary file
-    for unit in units {
-        print_ir(&unit);
+    let asm_files = units.iter().map(|unit| assemble(unit)).collect::<Vec<_>>();
+
+    for f in asm_files {
+        println!("{}", f);
     }
 
     Ok(())

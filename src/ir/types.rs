@@ -143,4 +143,9 @@ impl IRTypeInterner {
     pub fn type_to_string(&self, id: IRTypeId) -> String {
         self.types[id].to_string()
     }
+
+    pub fn sizeof(&self, id: IRTypeId) -> usize {
+        let ty = &self.types[id];
+        ty.size()
+    }
 }
