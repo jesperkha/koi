@@ -116,8 +116,10 @@ impl<'a> FunctionAssembler<'a> {
     }
 
     fn emit_return(&mut self, ty: &IRTypeId, rval: &RValue) {
-        // mov/lea rax, [...]
-        self.mov_or_lea(Dest::Reg(Reg::Rax), self.rval_to_src(rval));
+        if !matches!(rval, RValue::Void) {
+            // mov/lea rax, [...]
+            self.mov_or_lea(Dest::Reg(Reg::Rax), self.rval_to_src(rval));
+        }
 
         // leave
         // ret
