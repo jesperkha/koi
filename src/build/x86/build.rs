@@ -1,8 +1,11 @@
-use std::mem::take;
+use std::{collections::HashMap, mem::take};
 
 use crate::{
     build::x86::{Asm, DataDecl, Dest, File, Immediate, Label, Reg, Size, Src, TextDecl},
-    ir::{Data, Decl, ExternDecl, FuncDecl, IRTypeId, Ins, RValue, Unit},
+    ir::{
+        AssignIns, CallIns, ConstId, Data, Decl, ExternDecl, FuncDecl, IRType, IRTypeId, Ins,
+        Primitive, RValue, StoreIns, Unit,
+    },
 };
 
 pub fn assemble(unit: Unit) -> File {
@@ -77,6 +80,7 @@ struct FunctionAssembler<'a> {
     unit: &'a Unit,
     body: &'a [Ins],
     asm: Vec<Asm>,
+    vars: HashMap<ConstId, Dest>,
 }
 
 impl<'a> FunctionAssembler<'a> {
@@ -85,6 +89,7 @@ impl<'a> FunctionAssembler<'a> {
             unit,
             body,
             asm: Vec::new(),
+            vars: HashMap::new(),
         }
     }
 
@@ -107,11 +112,36 @@ impl<'a> FunctionAssembler<'a> {
 
     fn emit_ins(&mut self, ins: &Ins) {
         match ins {
-            Ins::Store(store_ins) => todo!(),
-            Ins::Assign(assign_ins) => todo!(),
-            Ins::Call(call) => {}
-            Ins::Intrinsic(intrinsic_ins) => todo!(),
+            Ins::Store(store) => self.emit_store(store),
+            Ins::Assign(assign) => self.emit_assign(assign),
+            Ins::Call(call) => self.emit_call(call),
             Ins::Return(ty, rvalue) => self.emit_return(ty, rvalue),
+            Ins::Intrinsic(_) => todo!(),
+        }
+    }
+
+    fn emit_store(&mut self, store: &StoreIns) {
+        todo!()
+    }
+
+    fn emit_assign(&mut self, assign: &AssignIns) {
+        todo!()
+    }
+
+    fn emit_call(&mut self, call: &CallIns) {
+        let mut regs = RegAllocator::new();
+
+        for (ty, rval) in &call.args {
+            let src = self.rval_to_src(rval);
+            let reg = regs.next(self.unit, ty);
+            self.mov_or_lea(Dest::Reg(reg), src);
+        }
+
+        match &call.callee {
+            RValue::Function(name) => self.push(Asm::Call(name.clone())),
+            RValue::Const(_) => todo!(),
+            RValue::Param(_) => todo!(),
+            _ => panic!("bad function callee kind"),
         }
     }
 
@@ -139,8 +169,8 @@ impl<'a> FunctionAssembler<'a> {
         match rval {
             RValue::Int(n) => Src::Immediate(Immediate::Int(*n)),
             RValue::Uint(n) => Src::Immediate(Immediate::Uint(*n)),
+            RValue::Float(n) => Src::Immediate(Immediate::Float(*n)),
             RValue::Void => todo!(),
-            RValue::Float(_) => todo!(),
             RValue::Const(_) => todo!(),
             RValue::Param(_) => todo!(),
             RValue::Function(_) => todo!(),
@@ -163,4 +193,67 @@ impl<'a> FunctionAssembler<'a> {
 
 fn to_data_label(idx: usize) -> String {
     format!("D{}", idx)
+}
+
+struct RegAllocator {
+    num_int: usize,
+    num_float: usize,
+}
+
+static INT_REGS: [Reg; 6] = [Reg::Rdi, Reg::Rsi, Reg::Rdx, Reg::Rcx, Reg::R8, Reg::R9];
+static FLOAT_REGS: [Reg; 8] = [
+    Reg::Xmm0,
+    Reg::Xmm1,
+    Reg::Xmm2,
+    Reg::Xmm3,
+    Reg::Xmm4,
+    Reg::Xmm5,
+    Reg::Xmm6,
+    Reg::Xmm7,
+];
+
+impl RegAllocator {
+    fn new() -> Self {
+        Self {
+            num_int: 0,
+            num_float: 0,
+        }
+    }
+
+    fn next(&mut self, unit: &Unit, ty: &IRTypeId) -> Reg {
+        match unit.types.get(*ty) {
+            IRType::Primitive(primitive) => match primitive {
+                Primitive::F32 | Primitive::F64 => self.next_float(),
+                Primitive::U8
+                | Primitive::U16
+                | Primitive::U32
+                | Primitive::U64
+                | Primitive::I8
+                | Primitive::I16
+                | Primitive::I32
+                | Primitive::I64
+                | Primitive::String => self.next_int(),
+                Primitive::Void => panic!("void type not allowed"),
+            },
+            IRType::Function(..) => todo!(),
+        }
+    }
+
+    fn next_int(&mut self) -> Reg {
+        if self.num_int >= INT_REGS.len() {
+            panic!("exceeded maximum int registers");
+        }
+        let reg = INT_REGS[self.num_int].clone();
+        self.num_int += 1;
+        reg
+    }
+
+    fn next_float(&mut self) -> Reg {
+        if self.num_float >= FLOAT_REGS.len() {
+            panic!("exceeded maximum float registers");
+        }
+        let reg = FLOAT_REGS[self.num_float].clone();
+        self.num_float += 1;
+        reg
+    }
 }

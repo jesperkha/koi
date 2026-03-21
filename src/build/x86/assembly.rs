@@ -23,7 +23,7 @@ pub enum Asm {
     Sub(Dest, Src),
     Mov(Dest, Src),
     Lea(Dest, Src),
-    Call(Label),
+    Call(String),
     Leave,
     Ret,
 }
@@ -53,6 +53,7 @@ pub enum Dest {
     StackOffset(StackOffset),
 }
 
+#[derive(Debug, Clone)]
 pub enum Reg {
     Rax,
 

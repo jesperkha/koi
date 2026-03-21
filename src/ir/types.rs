@@ -148,4 +148,8 @@ impl IRTypeInterner {
         let ty = &self.types[id];
         ty.size()
     }
+
+    pub fn get(&self, id: IRTypeId) -> &IRType {
+        &self.types[id]
+    }
 }
