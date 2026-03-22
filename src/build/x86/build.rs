@@ -1,12 +1,17 @@
 use std::{collections::HashMap, mem::take};
 
 use crate::{
-    build::x86::{Asm, DataDecl, Dest, File, Immediate, Label, Reg, Size, Src, TextDecl},
+    build::x86::{
+        Asm, DataDecl, Dest, File, Immediate, Label, Reg, Size, Src, StackOffset, TextDecl,
+        UnsignedReg,
+    },
     ir::{
         AssignIns, CallIns, ConstId, Data, Decl, ExternDecl, FuncDecl, IRType, IRTypeId, Ins,
-        Primitive, RValue, StoreIns, Unit,
+        LValue, Primitive, RValue, StoreIns, Unit,
     },
 };
+
+static MIN_STACK_SIZE: usize = 4;
 
 pub fn assemble(unit: Unit) -> File {
     let assembler = Assembler::new(unit);
@@ -65,7 +70,7 @@ impl Assembler {
     }
 
     fn emit_func(&mut self, decl: FuncDecl) -> TextDecl {
-        let fasm = FunctionAssembler::new(&self.unit, &decl.body.ins);
+        let fasm = FunctionAssembler::new(&self.unit, &decl);
         let ins = fasm.assemble();
 
         TextDecl::Function {
@@ -80,16 +85,22 @@ struct FunctionAssembler<'a> {
     unit: &'a Unit,
     body: &'a [Ins],
     asm: Vec<Asm>,
+    acc_offset: usize,
+    params: Vec<Reg>,
     vars: HashMap<ConstId, Dest>,
 }
 
 impl<'a> FunctionAssembler<'a> {
-    fn new(unit: &'a Unit, body: &'a [Ins]) -> Self {
+    fn new(unit: &'a Unit, decl: &'a FuncDecl) -> Self {
+        let mut regs = RegAllocator::new();
+        let params = decl.params.iter().map(|ty| regs.next(unit, ty)).collect();
         Self {
             unit,
-            body,
+            body: &decl.body.ins,
             asm: Vec::new(),
             vars: HashMap::new(),
+            acc_offset: 0,
+            params,
         }
     }
 
@@ -121,34 +132,63 @@ impl<'a> FunctionAssembler<'a> {
     }
 
     fn emit_store(&mut self, store: &StoreIns) {
-        todo!()
+        // Allocate more stack space
+        self.acc_offset += self.unit.types.sizeof(store.ty).max(MIN_STACK_SIZE);
+
+        // Map ConstId to stack offset
+        let dest = Dest::StackOffset(StackOffset {
+            offset: self.acc_offset,
+            size: self.type_size(&store.ty),
+        });
+        self.vars.insert(store.const_id, dest.clone());
+
+        // Move value into offset
+        let src = self.rval_to_src(&store.rval);
+        let src = self.src_to_movable(src, &store.ty);
+        self.mov_or_lea(dest, src);
     }
 
     fn emit_assign(&mut self, assign: &AssignIns) {
-        todo!()
+        let src = self.rval_to_src(&assign.rval);
+        let src = self.src_to_movable(src, &assign.ty);
+        let dest = self.lval_to_dest(&assign.lval);
+        self.mov_or_lea(dest, src);
     }
 
     fn emit_call(&mut self, call: &CallIns) {
         let mut regs = RegAllocator::new();
 
+        // Move all arguments into call registers
         for (ty, rval) in &call.args {
             let src = self.rval_to_src(rval);
             let reg = regs.next(self.unit, ty);
             self.mov_or_lea(Dest::Reg(reg), src);
         }
 
+        // call <name>
         match &call.callee {
             RValue::Function(name) => self.push(Asm::Call(name.clone())),
             RValue::Const(_) => todo!(),
             RValue::Param(_) => todo!(),
             _ => panic!("bad function callee kind"),
         }
+
+        // If the return type is not void, assign it to a register
+        if self.unit.types.get(call.ty).size() != 0 {
+            match &call.result {
+                LValue::Const(id) => {
+                    self.vars.insert(*id, Dest::Reg(self.rax(&call.ty)));
+                }
+                // No need to allocate new register
+                LValue::Param(_) => {}
+            };
+        }
     }
 
     fn emit_return(&mut self, ty: &IRTypeId, rval: &RValue) {
+        // Move value into RAX if function returns a value
         if !matches!(rval, RValue::Void) {
-            // mov/lea rax, [...]
-            self.mov_or_lea(Dest::Reg(Reg::Rax), self.rval_to_src(rval));
+            self.mov_or_lea(Dest::Reg(self.rax(ty)), self.rval_to_src(rval));
         }
 
         // leave
@@ -157,6 +197,7 @@ impl<'a> FunctionAssembler<'a> {
         self.push(Asm::Ret);
     }
 
+    /// Helper to automatically switch between mov and lea depending on value.
     fn mov_or_lea(&mut self, dest: Dest, src: Src) {
         self.push(if matches!(src, Src::Label(_)) {
             Asm::Lea(dest, src)
@@ -165,29 +206,62 @@ impl<'a> FunctionAssembler<'a> {
         });
     }
 
+    /// Get parameter register
+    fn param(&self, idx: usize) -> Reg {
+        self.params[idx].clone()
+    }
+
+    /// Get variable dest (stack offset or register)
+    fn var(&self, const_id: ConstId) -> &Dest {
+        self.vars
+            .get(&const_id)
+            .expect(&format!("not stored: {const_id}"))
+    }
+
+    /// Convert IR RValue to a Src. May emit multiple steps to compute the final value.
     fn rval_to_src(&self, rval: &RValue) -> Src {
         match rval {
             RValue::Int(n) => Src::Immediate(Immediate::Int(*n)),
             RValue::Uint(n) => Src::Immediate(Immediate::Uint(*n)),
             RValue::Float(n) => Src::Immediate(Immediate::Float(*n)),
-            RValue::Void => todo!(),
-            RValue::Const(_) => todo!(),
-            RValue::Param(_) => todo!(),
-            RValue::Function(_) => todo!(),
+            RValue::Const(id) => self.var(*id).into(),
+            RValue::Param(idx) => Src::Reg(self.param(*idx)),
             RValue::Data(idx) => Src::Label(Label {
                 name: to_data_label(*idx),
             }),
+
+            RValue::Void => todo!(),
+            RValue::Function(_) => todo!(),
+        }
+    }
+
+    /// Get the register or stack offset which the lvalue is located at.
+    fn lval_to_dest(&mut self, lval: &LValue) -> Dest {
+        match lval {
+            LValue::Const(id) => self.var(*id).clone(),
+            LValue::Param(idx) => Dest::Reg(self.param(*idx)),
+        }
+    }
+
+    /// Convert Src to movable value (either immediate, register, or temp register RAX).
+    fn src_to_movable(&mut self, src: Src, ty: &IRTypeId) -> Src {
+        match src {
+            Src::Reg(_) | Src::Immediate(_) => src,
+            Src::StackOffset(_) | Src::Label(_) => {
+                let rax = self.rax(ty);
+                self.mov_or_lea(Dest::Reg(rax.clone()), src);
+                Src::Reg(rax)
+            }
         }
     }
 
     fn type_size(&self, ty: &IRTypeId) -> Size {
-        match self.unit.types.sizeof(*ty) {
-            1 => Size::Byte,
-            2 => Size::Word,
-            4 => Size::Dword,
-            8 => Size::Qword,
-            _ => panic!("no size"),
-        }
+        type_size(self.unit, ty)
+    }
+
+    /// Shorthand for getting correctly sized RAX register
+    fn rax(&self, ty: &IRTypeId) -> Reg {
+        UnsignedReg::Rax.to_sized(self.type_size(ty))
     }
 }
 
@@ -200,16 +274,23 @@ struct RegAllocator {
     num_float: usize,
 }
 
-static INT_REGS: [Reg; 6] = [Reg::Rdi, Reg::Rsi, Reg::Rdx, Reg::Rcx, Reg::R8, Reg::R9];
-static FLOAT_REGS: [Reg; 8] = [
-    Reg::Xmm0,
-    Reg::Xmm1,
-    Reg::Xmm2,
-    Reg::Xmm3,
-    Reg::Xmm4,
-    Reg::Xmm5,
-    Reg::Xmm6,
-    Reg::Xmm7,
+static INT_REGS: [UnsignedReg; 6] = [
+    UnsignedReg::Rdi,
+    UnsignedReg::Rsi,
+    UnsignedReg::Rdx,
+    UnsignedReg::Rcx,
+    UnsignedReg::R8,
+    UnsignedReg::R9,
+];
+static FLOAT_REGS: [UnsignedReg; 8] = [
+    UnsignedReg::Xmm0,
+    UnsignedReg::Xmm1,
+    UnsignedReg::Xmm2,
+    UnsignedReg::Xmm3,
+    UnsignedReg::Xmm4,
+    UnsignedReg::Xmm5,
+    UnsignedReg::Xmm6,
+    UnsignedReg::Xmm7,
 ];
 
 impl RegAllocator {
@@ -237,9 +318,10 @@ impl RegAllocator {
             },
             IRType::Function(..) => todo!(),
         }
+        .to_sized(type_size(unit, ty))
     }
 
-    fn next_int(&mut self) -> Reg {
+    fn next_int(&mut self) -> UnsignedReg {
         if self.num_int >= INT_REGS.len() {
             panic!("exceeded maximum int registers");
         }
@@ -248,12 +330,22 @@ impl RegAllocator {
         reg
     }
 
-    fn next_float(&mut self) -> Reg {
+    fn next_float(&mut self) -> UnsignedReg {
         if self.num_float >= FLOAT_REGS.len() {
             panic!("exceeded maximum float registers");
         }
         let reg = FLOAT_REGS[self.num_float].clone();
         self.num_float += 1;
         reg
+    }
+}
+
+fn type_size(unit: &Unit, ty: &IRTypeId) -> Size {
+    match unit.types.sizeof(*ty) {
+        1 => Size::Byte,
+        2 => Size::Word,
+        4 => Size::Dword,
+        8 => Size::Qword,
+        _ => panic!("no size"),
     }
 }

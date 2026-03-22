@@ -84,6 +84,10 @@ pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
         .map(|module| emit_module_ir(&ctx, &source_map, module.id))
         .collect::<Result<Vec<Unit>, String>>()?;
 
+    // for unit in &units {
+    //     print_ir(unit);
+    // }
+
     // Build the final executable/libary file
     let asm_files = units
         .into_iter()
