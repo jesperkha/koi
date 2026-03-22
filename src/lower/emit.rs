@@ -264,7 +264,7 @@ impl<'a> FileEmitter<'a> {
         // Add explicit return statement if function has no return value
         if !ins
             .last()
-            .map_or(false, |ins| matches!(ins, Ins::Return(_, _)))
+            .is_some_and(|ins| matches!(ins, Ins::Return(_, _)))
         {
             ins.push(Ins::Return(
                 self.types.get_or_intern(IRType::Primitive(Primitive::Void)),
@@ -304,7 +304,7 @@ impl<'a> FileEmitter<'a> {
         let ty = self.types.to_ir(self.ctx, node.ty);
         let rval = match &node.expr {
             None => RValue::Void,
-            Some(expr) => self.expr_to_rval(ins, &expr)?,
+            Some(expr) => self.expr_to_rval(ins, expr)?,
         };
 
         ins.push(Ins::Return(ty, rval));

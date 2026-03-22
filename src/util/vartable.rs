@@ -6,6 +6,12 @@ pub struct VarTable<T> {
     scopes: Vec<HashMap<String, T>>,
 }
 
+impl<T> Default for VarTable<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> VarTable<T> {
     pub fn new() -> Self {
         Self {

@@ -91,7 +91,7 @@ impl fmt::Display for SymbolOrigin {
             "{}",
             match self {
                 SymbolOrigin::Module { modpath, .. } => format!("module({})", modpath),
-                SymbolOrigin::Extern => format!("extern"),
+                SymbolOrigin::Extern => "extern".to_string(),
                 SymbolOrigin::Library(modpath) => format!("library({})", modpath),
             }
         )
@@ -139,6 +139,12 @@ pub struct SymbolList {
     symbols: HashMap<String, ModuleSymbol>,
 }
 
+impl Default for SymbolList {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SymbolList {
     pub fn new() -> Self {
         Self {
@@ -149,13 +155,11 @@ impl SymbolList {
     pub fn add(&mut self, name: String, symbol: ModuleSymbol) -> Result<(), String> {
         self.symbols
             .insert(name, symbol)
-            .map_or(Ok(()), |_| Err(format!("already declared")))
+            .map_or(Ok(()), |_| Err("already declared".to_string()))
     }
 
     pub fn get(&self, name: &str) -> Result<&ModuleSymbol, String> {
-        self.symbols
-            .get(name)
-            .map_or(Err(format!("not declared")), |s| Ok(s))
+        self.symbols.get(name).ok_or("not declared".to_string())
     }
 
     pub fn symbols(&self) -> &HashMap<String, ModuleSymbol> {

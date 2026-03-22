@@ -1,7 +1,7 @@
 use crate::{
     ast::FileSet,
     config::Config,
-    parser::{parser::parse_source_map, sort_by_dependency_graph},
+    parser::{parse::parse_source_map, sort_by_dependency_graph},
     util::{new_modpath, new_source_map},
 };
 

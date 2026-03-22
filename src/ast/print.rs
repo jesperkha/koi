@@ -64,10 +64,10 @@ impl Visitor<()> for Printer {
         self.s.push(')');
         self.s.push(' ');
 
-        node.ret_type.as_ref().map(|t| {
+        if let Some(t) = node.ret_type.as_ref() {
             t.accept(self);
             self.s.push(' ');
-        });
+        }
 
         Stmt::Block(node.body.clone()).accept(self);
     }
@@ -92,13 +92,13 @@ impl Visitor<()> for Printer {
         self.s.push('\n');
     }
 
-    fn visit_type(&mut self, node: &super::TypeNode) -> () {
+    fn visit_type(&mut self, node: &super::TypeNode) {
         match node {
             TypeNode::Primitive(tok) | TypeNode::Ident(tok) => self.visit_literal(tok),
         }
     }
 
-    fn visit_call(&mut self, node: &super::CallExpr) -> () {
+    fn visit_call(&mut self, node: &super::CallExpr) {
         node.callee.accept(self);
         self.s.push('(');
         for (i, arg) in node.args.iter().enumerate() {
@@ -110,13 +110,13 @@ impl Visitor<()> for Printer {
         self.s.push(')');
     }
 
-    fn visit_group(&mut self, node: &super::GroupExpr) -> () {
+    fn visit_group(&mut self, node: &super::GroupExpr) {
         self.s.push('(');
         node.inner.accept(self);
         self.s.push(')');
     }
 
-    fn visit_extern(&mut self, node: &super::FuncDeclNode) -> () {
+    fn visit_extern(&mut self, node: &super::FuncDeclNode) {
         self.s.push_str("extern func ");
         self.token(&node.name);
         self.s.push('(');
@@ -133,15 +133,16 @@ impl Visitor<()> for Printer {
         self.s.push(')');
         self.s.push(' ');
 
-        node.ret_type.as_ref().map(|t| {
+        if let Some(t) = node.ret_type.as_ref() {
             t.accept(self);
             self.s.push(' ');
-        });
+        }
+
         self.s.push('\n');
         self.s.push('\n');
     }
 
-    fn visit_var_decl(&mut self, node: &super::VarDeclNode) -> () {
+    fn visit_var_decl(&mut self, node: &super::VarDeclNode) {
         self.s.push_str(&format!("{} {} ", node.name, node.symbol));
         node.expr.accept(self);
     }
@@ -152,7 +153,7 @@ impl Visitor<()> for Printer {
         node.expr.accept(self);
     }
 
-    fn visit_import(&mut self, node: &super::ImportNode) -> () {
+    fn visit_import(&mut self, node: &super::ImportNode) {
         self.s.push_str(&format!(
             "import {} {}\n\n",
             node.names
@@ -162,7 +163,7 @@ impl Visitor<()> for Printer {
                 .join("."),
             if let Some(alias) = &node.alias {
                 format!("as {}", alias)
-            } else if node.imports.len() > 0 {
+            } else if !node.imports.is_empty() {
                 format!(
                     "{{\n    {}\n}}",
                     node.imports
@@ -177,7 +178,7 @@ impl Visitor<()> for Printer {
         ));
     }
 
-    fn visit_member(&mut self, node: &super::MemberNode) -> () {
+    fn visit_member(&mut self, node: &super::MemberNode) {
         node.expr.accept(self);
         self.s.push('.');
         self.s.push_str(&node.field.to_string());

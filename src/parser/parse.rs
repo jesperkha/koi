@@ -64,7 +64,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_file(mut self) -> Result<Ast, Diagnostics> {
-        if self.tokens.len() == 0 {
+        if self.tokens.is_empty() {
             return Ok(Ast {
                 imports: vec![],
                 decls: vec![],
@@ -255,7 +255,7 @@ impl<'a> Parser<'a> {
 
     fn parse_extern(&mut self, public: bool) -> Result<Decl, Report> {
         self.consume(); // extern
-        self.parse_function_def(public).map(|def| Decl::Extern(def))
+        self.parse_function_def(public).map(|decl| Decl::Extern(Box::new(decl)))
     }
 
     fn parse_function_def(&mut self, public: bool) -> Result<FuncDeclNode, Report> {
@@ -326,7 +326,7 @@ impl<'a> Parser<'a> {
 
         let body = self.parse_block()?;
 
-        Ok(Decl::Func(FuncNode {
+        Ok(Decl::Func(Box::new(FuncNode {
             public,
             name: decl.name,
             lparen: decl.lparen,
@@ -334,7 +334,7 @@ impl<'a> Parser<'a> {
             rparen: decl.rparen,
             ret_type: decl.ret_type,
             body,
-        }))
+        })))
     }
 
     fn parse_field(&mut self, field_name: &str) -> Result<Field, Report> {
@@ -366,7 +366,7 @@ impl<'a> Parser<'a> {
 
         let rbrace = self.expect(TokenKind::RBrace)?;
         Ok(BlockNode {
-            lbrace: lbrace,
+            lbrace,
             stmts,
             rbrace,
         })
@@ -397,11 +397,10 @@ impl<'a> Parser<'a> {
         let equal = self.expect(TokenKind::Eq)?;
         let expr = self.parse_expr()?;
 
-        if let Expr::Literal(name) = &lval {
-            if matches!(&name.kind, TokenKind::IdentLit(_)) {
+        if let Expr::Literal(name) = &lval
+            && matches!(&name.kind, TokenKind::IdentLit(_)) {
                 return Ok(Stmt::VarAssign(VarAssignNode { lval, equal, expr }));
             }
-        }
 
         Err(self.error_node("invalid left hand value in assignment", &lval))
     }
@@ -412,8 +411,8 @@ impl<'a> Parser<'a> {
 
         // To not use lval after move
         let err = self.error_node("invalid left hand value in declaration", &lval);
-        if let Expr::Literal(name) = lval {
-            if matches!(name.kind, TokenKind::IdentLit(_)) {
+        if let Expr::Literal(name) = lval
+            && matches!(name.kind, TokenKind::IdentLit(_)) {
                 return Ok(Stmt::VarDecl(VarDeclNode {
                     name,
                     symbol,
@@ -421,7 +420,6 @@ impl<'a> Parser<'a> {
                     constant,
                 }));
             }
-        }
 
         Err(err)
     }
@@ -567,8 +565,7 @@ impl<'a> Parser<'a> {
     /// Get current token or report error.
     fn cur_must(&self, msg: &str) -> Result<&Token, Report> {
         self.tokens
-            .get(self.pos)
-            .map_or(Err(self.error_token(msg)), Result::Ok)
+            .get(self.pos).ok_or(self.error_token(msg))
     }
 
     fn cur_or_last(&self) -> Token {
@@ -591,8 +588,7 @@ impl<'a> Parser<'a> {
 
     /// Consumes current token and returns it. Errors if EOF.
     fn must_consume(&mut self) -> Result<Token, Report> {
-        self.consume()
-            .map_or(Err(self.error_token("unexpected end of file")), |t| Ok(t))
+        self.consume().ok_or(self.error_token("unexpected end of file"))
     }
 
     /// Expects the current token to be of a specific kind.
@@ -613,13 +609,12 @@ impl<'a> Parser<'a> {
     where
         P: Fn(Token) -> bool,
     {
-        if let Some(tok) = self.cur() {
-            if predicate(tok) {
+        if let Some(tok) = self.cur()
+            && predicate(tok) {
                 let pos = self.pos;
                 self.pos += 1;
                 return Ok(self.tokens[pos].clone());
             }
-        }
         Err(self.error_token(&format!("expected {}", message)))
     }
 
@@ -638,22 +633,20 @@ impl<'a> Parser<'a> {
 
     fn matches_any(&self, kinds: &[TokenKind]) -> bool {
         for k in kinds {
-            if let Some(tok) = self.cur() {
-                if &tok.kind == k {
+            if let Some(tok) = self.cur()
+                && &tok.kind == k {
                     return true;
                 }
-            }
         }
-        return false;
+        false
     }
 
     /// Return comment string if current token is a comment.
     fn matches_comment(&self) -> Option<String> {
-        if let Some(tok) = self.cur() {
-            if let TokenKind::Comment(s) = tok.kind {
+        if let Some(tok) = self.cur()
+            && let TokenKind::Comment(s) = tok.kind {
                 return Some(s);
             }
-        }
         None
     }
 

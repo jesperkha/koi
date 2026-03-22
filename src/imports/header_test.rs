@@ -38,7 +38,7 @@ fn test_read_header_file() {
 
     pub func faz() {}
     "#;
-    let mut ctx = Context::new(Config::default());
+    let mut ctx = Context::new(Config::normal());
     let create_mod = create_header_module(&mut ctx, src, new_modpath("lib.test"));
 
     let foo = ctx

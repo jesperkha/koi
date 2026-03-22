@@ -215,7 +215,7 @@ impl<'a> FunctionAssembler<'a> {
     fn var(&self, const_id: ConstId) -> &Dest {
         self.vars
             .get(&const_id)
-            .expect(&format!("not stored: {const_id}"))
+            .unwrap_or_else(|| panic!("not stored: {const_id}"))
     }
 
     /// Convert IR RValue to a Src. May emit multiple steps to compute the final value.

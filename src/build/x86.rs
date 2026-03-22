@@ -58,7 +58,7 @@ pub fn build(
         let source = assemble(unit);
 
         info!("Writing file {}", filepath);
-        write_file(&filepath.as_str().into(), &source.to_string())?;
+        write_file(&filepath.as_str().into(), source.to_string())?;
         asm_files.push(filepath);
     }
 

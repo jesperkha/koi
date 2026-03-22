@@ -16,7 +16,7 @@ where
     C: AsRef<[u8]>,
 {
     debug!("Writing file: {}", filepath);
-    if let Err(_) = fs::write(filepath.path_buf(), content) {
+    if fs::write(filepath.path_buf(), content).is_err() {
         return Err(format!("error: failed to write file {}", filepath));
     };
 

@@ -75,11 +75,11 @@ pub enum Expr {
 impl Expr {
     /// Try to get the inner identifier string if this is a Ident kind.
     pub fn try_identifier(&self) -> Option<&str> {
-        if let Expr::Literal(lit) = self {
-            if let LiteralKind::Ident(name) = &lit.kind {
-                return Some(name);
-            };
-        };
+        if let Expr::Literal(lit) = self
+            && let LiteralKind::Ident(name) = &lit.kind
+        {
+            return Some(name);
+        }
         None
     }
 }
