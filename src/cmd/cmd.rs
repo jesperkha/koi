@@ -4,12 +4,13 @@ use std::{
 };
 
 use crate::{
-    config::{DEFAULT_KOI_TOML, load_config_file},
+    config::{DEFAULT_KOI_TOML, ProjectType, load_config_file},
     driver::compile,
     imports::dump_header_symbols,
-    util::write_file,
+    util::{exec, write_file},
 };
 use clap::{CommandFactory, Parser, Subcommand};
+use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 const VERSION: &str = concat!("v", env!("CARGO_PKG_VERSION"));
@@ -58,10 +59,24 @@ fn run_command(command: Command) -> Result<(), String> {
         Command::Init => koi_init(),
         Command::Build => {
             let (project, options, config) = load_config_file()?;
+            info!("Building project: {}", project.name);
             init_logger(options.debug_mode);
             compile(project, options, config)
         }
-        Command::Run => todo!(),
+        Command::Run => {
+            let (project, options, config) = load_config_file()?;
+            info!("Building and running project: {}", project.name);
+
+            // Check if project can be run
+            if matches!(project.project_type, ProjectType::Package) {
+                return Err("error: run command only works for app projects".into());
+            }
+
+            init_logger(options.debug_mode);
+            let binary = format!("./{}/{}", project.out, project.name);
+            compile(project, options, config)?;
+            exec(&binary, &[])
+        }
         Command::Read { filename } => {
             let s = dump_header_symbols(&filename).unwrap();
             println!("{}", s);
