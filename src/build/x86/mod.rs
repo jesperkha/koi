@@ -1,6 +1,5 @@
 mod assembly;
 mod build;
-mod reg_alloc;
 mod x86;
 
 #[cfg(test)]

@@ -8,11 +8,11 @@ use walkdir::WalkDir;
 
 use crate::{
     ast::{FileSet, Source, SourceMap},
-    build::x86::{self, assemble},
+    build::x86::{self},
     config::{Config, Options, PathManager, Project, ProjectType, Target},
     context::Context,
     imports::{LibraryKind, LibrarySet, create_header_file, read_header_file},
-    ir::{ProgramIR, Unit, print_ir},
+    ir::{ProgramIR, Unit},
     lower::emit_ir,
     module::{Module, ModuleId, ModulePath},
     parser::{SortResult, parse_source_map, sort_by_dependency_graph, validate_imports},
@@ -84,22 +84,8 @@ pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
         .map(|module| emit_module_ir(&ctx, &source_map, module.id))
         .collect::<Result<Vec<Unit>, String>>()?;
 
-    // for unit in &units {
-    //     print_ir(unit);
-    // }
-
     // Build the final executable/libary file
-    let asm_files = units
-        .into_iter()
-        .map(|unit| assemble(unit))
-        .collect::<Vec<_>>();
-
-    for f in asm_files {
-        println!("{}", f);
-    }
-
-    Ok(())
-    //build(ProgramIR { units }, &ctx.config, &project, &pm, &libset)
+    build(ProgramIR { units }, &ctx.config, &project, &pm, &libset)
 }
 
 fn validate_external_imports(
