@@ -8,7 +8,7 @@ use walkdir::WalkDir;
 
 use crate::{
     ast::{FileSet, Source, SourceMap},
-    build::x86::{self},
+    build::x86,
     config::{Config, Options, PathManager, Project, ProjectType, Target},
     context::Context,
     imports::{LibraryKind, LibrarySet, create_header_file, read_header_file},
@@ -19,6 +19,9 @@ use crate::{
     typecheck::check_filesets,
     util::{FilePath, create_dir_if_not_exist, get_root_dir, write_file},
 };
+
+#[cfg(test)]
+mod tests;
 
 /// Result type shorthand used in this file.
 type Res<T> = Result<T, String>;

@@ -1,4 +1,4 @@
-use koi::cmd::run;
+use koi::run;
 
 fn main() {
     run();

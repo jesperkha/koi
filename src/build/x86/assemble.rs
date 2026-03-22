@@ -13,12 +13,12 @@ use crate::{
 
 static MIN_STACK_SIZE: usize = 4;
 
-pub fn assemble(unit: Unit) -> File {
+pub(crate) fn assemble(unit: Unit) -> File {
     let assembler = Assembler::new(unit);
     assembler.assemble()
 }
 
-pub struct Assembler {
+pub(crate) struct Assembler {
     unit: Unit,
     data: Vec<DataDecl>,
     text: Vec<TextDecl>,
