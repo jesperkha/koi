@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ir::{ConstId, Value};
+use crate::ir::{ConstId, RValue};
 
 /// SymTracker keeps track of ids for named symbols in the current function
 /// context. Setting a new name overrides the previous and thus provides SSA
@@ -44,11 +44,11 @@ impl SymTracker {
     }
 
     /// Look up a name in the current context
-    pub fn get(&self, s: &str) -> Value {
+    pub fn get(&self, s: &str) -> RValue {
         if let Some(v) = self.tbl.get(s).map(|t| *t) {
-            Value::Const(v)
+            RValue::Const(v)
         } else {
-            Value::Param(
+            RValue::Param(
                 *self
                     .params
                     .get(s)

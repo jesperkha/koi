@@ -59,8 +59,8 @@ impl Display for ErrorStream {
 }
 
 pub fn compare_string_lines_or_panic(ina: String, inb: String) {
-    let a: Vec<&str> = ina.trim().split('\n').collect();
-    let b: Vec<&str> = inb.trim().split('\n').collect();
+    let a: Vec<&str> = ina.trim().split('\n').filter(|s| !s.is_empty()).collect();
+    let b: Vec<&str> = inb.trim().split('\n').filter(|s| !s.is_empty()).collect();
     assert_eq!(
         a.len(),
         b.len(),

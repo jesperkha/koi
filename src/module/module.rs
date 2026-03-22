@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    module::{ModulePath, NamespaceList, SymbolId, SymbolList},
+    module::{ModulePath, ModuleSymbolKind, NamespaceList, SymbolId, SymbolList},
     types::TypedAst,
     util::FilePath,
 };
@@ -67,6 +67,16 @@ impl Module {
             .iter()
             .filter(|(_, sym)| sym.exported)
             .map(|(name, sym)| (name, sym.id))
+            .collect::<_>()
+    }
+
+    /// Collect all symbols imported into this module.
+    pub fn imports(&self) -> Vec<SymbolId> {
+        self.symbols
+            .symbols()
+            .iter()
+            .filter(|(_, sym)| matches!(sym.kind, ModuleSymbolKind::Imported))
+            .map(|(_, sym)| sym.id)
             .collect::<_>()
     }
 }

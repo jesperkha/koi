@@ -1,11 +1,9 @@
 use crate::{
     ast::{Node, NodeId, Pos, TokenKind},
-    types::{Type, TypeId, TypeKind},
+    types::TypeId,
 };
 
 pub trait TypedNode<'a> {
-    /// Get the TypeKind of this node.
-    fn kind(&'a self) -> &'a TypeKind;
     /// Get the unique TypeId for this node, only to be used within the same module.
     fn type_id(&self) -> TypeId;
 }
@@ -74,8 +72,20 @@ pub enum Expr {
     NamespaceMember(NamespaceMemberNode),
 }
 
+impl Expr {
+    /// Try to get the inner identifier string if this is a Ident kind.
+    pub fn try_identifier(&self) -> Option<&str> {
+        if let Expr::Literal(lit) = self {
+            if let LiteralKind::Ident(name) = &lit.kind {
+                return Some(name);
+            };
+        };
+        None
+    }
+}
+
 pub struct FuncNode {
-    pub ty: Type,
+    pub ty: TypeId,
     pub meta: NodeMeta,
     pub name: String,
     pub params: Vec<String>,
@@ -84,33 +94,33 @@ pub struct FuncNode {
 }
 
 pub struct ExternNode {
-    pub ty: Type,
+    pub ty: TypeId,
     pub meta: NodeMeta,
     pub name: String,
 }
 
 pub struct ReturnNode {
-    pub ty: Type,
+    pub ty: TypeId,
     pub meta: NodeMeta,
     pub expr: Option<Expr>,
 }
 
 pub struct MemberNode {
-    pub ty: Type,
+    pub ty: TypeId,
     pub meta: NodeMeta,
     pub expr: Box<Expr>,
     pub field: String,
 }
 
 pub struct NamespaceMemberNode {
-    pub ty: Type,
+    pub ty: TypeId,
     pub meta: NodeMeta,
     pub name: String,
     pub field: String,
 }
 
 pub struct LiteralNode {
-    pub ty: Type,
+    pub ty: TypeId,
     pub meta: NodeMeta,
     pub kind: LiteralKind,
 }
@@ -142,21 +152,21 @@ impl From<TokenKind> for LiteralKind {
 }
 
 pub struct VarDeclNode {
-    pub ty: Type,
+    pub ty: TypeId,
     pub meta: NodeMeta,
     pub name: String,
     pub value: Expr,
 }
 
 pub struct VarAssignNode {
-    pub ty: Type,
+    pub ty: TypeId,
     pub meta: NodeMeta,
     pub lval: Expr,
     pub rval: Expr,
 }
 
 pub struct CallNode {
-    pub ty: Type,
+    pub ty: TypeId,
     pub meta: NodeMeta,
     pub callee: Box<Expr>,
     pub args: Vec<Expr>,
@@ -282,12 +292,6 @@ macro_rules! impl_typed_node_enum {
                     $(Self::$variant(inner) => inner.type_id(),)*
                 }
             }
-
-            fn kind(&'a self) -> &'a TypeKind {
-                match self {
-                    $(Self::$variant(inner) => inner.kind(),)*
-                }
-            }
         }
     };
 }
@@ -310,12 +314,8 @@ macro_rules! impl_typed_node {
     ($($t:ty),* $(,)?) => {
         $(
             impl<'a> TypedNode<'a> for $t {
-                fn kind(&'a self) -> &'a TypeKind {
-                    &self.ty.kind
-                }
-
                 fn type_id(&self) -> TypeId {
-                    self.ty.id
+                    self.ty
                 }
             }
         )*

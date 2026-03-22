@@ -1,4 +1,4 @@
-use tracing::{debug, info};
+use tracing::info;
 
 use crate::{
     ast::{self, Ast, Node, Pos, Token, TokenKind},
@@ -154,7 +154,7 @@ impl<'a> FileChecker<'a> {
             meta,
             name: node.name.to_string(),
             public: node.public,
-            ty: func_type,
+            ty: func_type.id,
             params: node.params.iter().map(|p| p.name.to_string()).collect(),
             body,
         }))
@@ -197,8 +197,11 @@ impl<'a> FileChecker<'a> {
             .get_symbol(&name)
             .expect("should have been declared in global pass");
 
-        let ty = self.ctx.types.lookup(sym.ty).clone();
-        Ok(types::Decl::Extern(types::ExternNode { ty, meta, name }))
+        Ok(types::Decl::Extern(types::ExternNode {
+            ty: sym.ty,
+            meta,
+            name,
+        }))
     }
 
     fn emit_var_assign(&mut self, node: ast::VarAssignNode) -> Result<types::Stmt, Report> {
@@ -224,7 +227,7 @@ impl<'a> FileChecker<'a> {
 
         Ok(types::Stmt::VarAssign(types::VarAssignNode {
             meta,
-            ty: self.ctx.types.void_type(),
+            ty: rval.type_id(),
             lval,
             rval,
         }))
@@ -242,10 +245,10 @@ impl<'a> FileChecker<'a> {
             return Err(self.error_token("shadowing a namespace is not allowed", &node.name));
         }
 
-        let id = self.bind(&node.name, typed_expr.type_id(), node.constant)?;
+        let ty = self.bind(&node.name, typed_expr.type_id(), node.constant)?;
         Ok(types::Stmt::VarDecl(types::VarDeclNode {
             meta,
-            ty: self.ctx.types.lookup(id).clone(),
+            ty,
             name: node.name.to_string(),
             value: typed_expr,
         }))
@@ -270,10 +273,7 @@ impl<'a> FileChecker<'a> {
             } else {
                 Ok(types::Stmt::Return(types::ReturnNode {
                     meta,
-                    ty: Type {
-                        kind: typed_expr.kind().clone(),
-                        id: typed_expr.type_id(),
-                    },
+                    ty: typed_expr.type_id(),
                     expr: Some(typed_expr),
                 }))
             };
@@ -287,7 +287,7 @@ impl<'a> FileChecker<'a> {
             Ok(types::Stmt::Return(types::ReturnNode {
                 meta,
                 expr: None,
-                ty: self.ctx.types.void_type(),
+                ty: self.ctx.types.void(),
             }))
         }
     }
@@ -317,13 +317,15 @@ impl<'a> FileChecker<'a> {
             _ => todo!(),
         };
 
+        // TODO: token to type??
+
         Ok(types::Expr::Literal(types::LiteralNode {
             meta: NodeMeta {
                 id: tok.id,
                 pos: tok.pos,
                 end: tok.end_pos,
             },
-            ty: ty.clone(),
+            ty: ty.id,
             kind: tok.kind.into(),
         }))
     }
@@ -332,56 +334,56 @@ impl<'a> FileChecker<'a> {
         let meta = ast_node_to_meta(&node);
         let callee = self.emit_expr(*node.callee)?;
 
-        if let TypeKind::Function(f) = callee.kind() {
-            // Check if number of arguments matches
-            if f.params.len() != node.args.len() {
-                let msg = format!(
-                    "function takes {} arguments, got {}",
-                    f.params.len(),
-                    node.args.len(),
-                );
-                return Err(self
-                    .error_from_to(&msg, callee.pos(), &node.rparen.pos)
-                    .with_info(&format!(
-                        "definition: {}",
-                        self.ctx.types.type_to_string(callee.type_id())
-                    )));
-            }
+        let (params, ret) = match self.ctx.types.try_function(callee.type_id()) {
+            Some(f) => (f.params.clone(), f.ret), // Copy to not use mut ref later
+            None => return Err(self.error("not a function", &callee)),
+        };
 
-            assert_eq!(
-                f.params.len(),
+        // Check if number of arguments matches
+        if params.len() != node.args.len() {
+            let msg = format!(
+                "function takes {} arguments, got {}",
+                params.len(),
                 node.args.len(),
-                "sanity check: args and params are same size"
             );
-
-            let mut args = Vec::new();
-            for (i, arg) in node.args.into_iter().enumerate() {
-                let typed_arg = self.emit_expr(arg)?;
-
-                // Check if each argument type matches the param type
-                let (arg_id, param_id) = (typed_arg.type_id(), f.params[i]);
-                if arg_id != param_id {
-                    let msg = format!(
-                        "mismatched types in function call. expected '{}', got '{}'",
-                        self.ctx.types.type_to_string(param_id),
-                        self.ctx.types.type_to_string(arg_id)
-                    );
-                    return Err(self.error(&msg, &typed_arg));
-                }
-
-                args.push(typed_arg);
-            }
-
-            return Ok(types::Expr::Call(types::CallNode {
-                meta,
-                ty: self.ctx.types.lookup(f.ret).clone(),
-                callee: Box::new(callee),
-                args,
-            }));
+            return Err(self
+                .error_from_to(&msg, callee.pos(), &node.rparen.pos)
+                .with_info(&format!(
+                    "definition: {}",
+                    self.ctx.types.type_to_string(callee.type_id())
+                )));
         }
 
-        debug!("callee type is actually: {:?}", callee.kind());
-        Err(self.error("not a function", &callee))
+        assert_eq!(
+            params.len(),
+            node.args.len(),
+            "sanity check: args and params are same size"
+        );
+
+        let mut args = Vec::new();
+        for (i, arg) in node.args.into_iter().enumerate() {
+            let typed_arg = self.emit_expr(arg)?;
+
+            // Check if each argument type matches the param type
+            let (arg_id, param_id) = (typed_arg.type_id(), params[i]);
+            if arg_id != param_id {
+                let msg = format!(
+                    "mismatched types in function call. expected '{}', got '{}'",
+                    self.ctx.types.type_to_string(param_id),
+                    self.ctx.types.type_to_string(arg_id)
+                );
+                return Err(self.error(&msg, &typed_arg));
+            }
+
+            args.push(typed_arg);
+        }
+
+        Ok(types::Expr::Call(types::CallNode {
+            meta,
+            ty: ret,
+            callee: Box::new(callee),
+            args,
+        }))
     }
 
     fn emit_member(&mut self, node: ast::MemberNode) -> Result<types::Expr, Report> {
@@ -402,7 +404,7 @@ impl<'a> FileChecker<'a> {
                 let symbol = self.ctx.symbols.get(id);
 
                 return Ok(types::Expr::NamespaceMember(types::NamespaceMemberNode {
-                    ty: self.ctx.types.lookup(symbol.ty).clone(),
+                    ty: symbol.ty,
                     name: name.to_owned(),
                     meta,
                     field,

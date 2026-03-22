@@ -1,4 +1,4 @@
-use crate::types::{NO_TYPE, PrimitiveType, Type, TypeId, TypeKind};
+use crate::types::{FunctionType, NO_TYPE, PrimitiveType, Type, TypeId, TypeKind};
 use std::collections::{HashMap, HashSet};
 use strum::IntoEnumIterator;
 
@@ -65,6 +65,21 @@ impl TypeInterner {
         assert_ne!(id, NO_TYPE);
         assert!(id < self.types.len());
         &self.types[id]
+    }
+
+    /// Get a Type
+    pub fn get(&self, id: TypeId) -> Option<&Type> {
+        self.types.get(id)
+    }
+
+    /// Try to get the inner FunctionType of this type id.
+    pub fn try_function(&self, id: TypeId) -> Option<&FunctionType> {
+        if let Some(ty) = self.get(id) {
+            if let TypeKind::Function(func) = &ty.kind {
+                return Some(func);
+            }
+        }
+        None
     }
 
     /// Resolve a type to its type id for comparisons. Removes any aliasing.

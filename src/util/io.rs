@@ -3,6 +3,7 @@ use std::{
     fmt::Display,
     fs::{self, read_dir},
     io,
+    os::unix::process::CommandExt,
     path::PathBuf,
     process::Command,
 };
@@ -47,6 +48,13 @@ pub fn cmd(command: &str, args: &[String]) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// Execute command and replace current process. Will only ever return Err.
+pub fn exec(command: &str, args: &[String]) -> Result<(), String> {
+    info!("Exec: {} {}", command, args.join(" "));
+    let err = Command::new(command).args(args).exec();
+    Err(format!("failed to run command: {}", err))
 }
 
 pub fn create_dir_if_not_exist(dir: &str) -> Result<(), String> {

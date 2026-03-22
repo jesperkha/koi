@@ -5,8 +5,8 @@ use crate::{
     context::{Context, CreateModule, CreateSymbol},
     error::{Diagnostics, Report, Res},
     module::{
-        ImportPath, ModuleKind, ModulePath, ModuleSourceFile, ModuleSymbol, Namespace,
-        NamespaceList, Symbol, SymbolId, SymbolKind, SymbolList, SymbolOrigin,
+        ImportPath, ModuleKind, ModulePath, ModuleSourceFile, ModuleSymbol, ModuleSymbolKind,
+        Namespace, NamespaceList, Symbol, SymbolId, SymbolKind, SymbolList, SymbolOrigin,
     },
     typecheck::file_check::FileChecker,
     types::{FunctionType, PrimitiveType, TypeId, TypeKind, TypedAst},
@@ -141,7 +141,8 @@ impl<'a> ModuleChecker<'a> {
 
             let modsym = ModuleSymbol {
                 id: *id,
-                exported: false, // Imported symbols should not be re-exported
+                exported: false,
+                kind: ModuleSymbolKind::Imported,
             };
 
             // If it was already declared, add error
@@ -335,10 +336,16 @@ impl<'a> ModuleChecker<'a> {
         if self.symbols.get(&symbol.name).is_ok() {
             return Err("already declared".to_string());
         }
-        let name = symbol.name.clone();
+
+        let kind = match symbol.origin {
+            SymbolOrigin::Module { .. } => ModuleSymbolKind::Module,
+            SymbolOrigin::Library(_) | SymbolOrigin::Extern => ModuleSymbolKind::Imported,
+        };
+
         let exported = symbol.is_exported;
+        let name = symbol.name.clone();
         let id = self.ctx.symbols.add(symbol);
-        let _ = self.symbols.add(name, ModuleSymbol { id, exported }); // Checked earlier
+        let _ = self.symbols.add(name, ModuleSymbol { id, kind, exported }); // Checked earlier
         Ok(id)
     }
 }
