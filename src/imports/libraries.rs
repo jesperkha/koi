@@ -26,6 +26,12 @@ pub struct LibrarySet {
     libs: HashMap<ModulePath, Header>,
 }
 
+impl Default for LibrarySet {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LibrarySet {
     pub fn new() -> Self {
         Self {

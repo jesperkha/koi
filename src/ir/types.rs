@@ -91,6 +91,12 @@ pub struct IRTypeInterner {
     cache: HashMap<IRType, IRTypeId>,
 }
 
+impl Default for IRTypeInterner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IRTypeInterner {
     pub fn new() -> Self {
         Self {
@@ -114,21 +120,7 @@ impl IRTypeInterner {
     }
 
     pub fn to_ir(&mut self, ctx: &Context, id: TypeId) -> IRTypeId {
-        self.get_or_intern(self.to_ir_type(ctx, id))
-    }
-
-    fn to_ir_type(&self, ctx: &Context, id: TypeId) -> IRType {
-        let id = ctx.types.deep_resolve(id);
-        let ty = ctx.types.lookup(id);
-
-        match &ty.kind {
-            types::TypeKind::Primitive(p) => IRType::Primitive(p.clone().into()),
-            types::TypeKind::Function(f) => IRType::Function(
-                f.params.iter().map(|p| self.to_ir_type(ctx, *p)).collect(),
-                Box::new(self.to_ir_type(ctx, f.ret)),
-            ),
-            _ => panic!("unhandled kind {:?}", ty.kind),
-        }
+        self.get_or_intern(to_ir_type(ctx, id))
     }
 
     pub fn dump(&self) -> String {
@@ -151,5 +143,19 @@ impl IRTypeInterner {
 
     pub fn get(&self, id: IRTypeId) -> &IRType {
         &self.types[id]
+    }
+}
+
+fn to_ir_type(ctx: &Context, id: TypeId) -> IRType {
+    let id = ctx.types.deep_resolve(id);
+    let ty = ctx.types.lookup(id);
+
+    match &ty.kind {
+        types::TypeKind::Primitive(p) => IRType::Primitive(p.clone().into()),
+        types::TypeKind::Function(f) => IRType::Function(
+            f.params.iter().map(|p| to_ir_type(ctx, *p)).collect(),
+            Box::new(to_ir_type(ctx, f.ret)),
+        ),
+        _ => panic!("unhandled kind {:?}", ty.kind),
     }
 }

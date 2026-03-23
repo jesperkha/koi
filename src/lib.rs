@@ -14,3 +14,5 @@ pub mod scanner;
 pub mod typecheck;
 pub mod types;
 pub mod util;
+
+pub use cmd::run;

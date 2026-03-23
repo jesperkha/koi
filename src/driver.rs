@@ -8,7 +8,7 @@ use walkdir::WalkDir;
 
 use crate::{
     ast::{FileSet, Source, SourceMap},
-    build::x86::{self},
+    build::x86,
     config::{Config, Options, PathManager, Project, ProjectType, Target},
     context::Context,
     imports::{LibraryKind, LibrarySet, create_header_file, read_header_file},
@@ -20,6 +20,9 @@ use crate::{
     util::{FilePath, create_dir_if_not_exist, get_root_dir, write_file},
 };
 
+#[cfg(test)]
+mod tests;
+
 /// Result type shorthand used in this file.
 type Res<T> = Result<T, String>;
 
@@ -28,7 +31,7 @@ pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
     let pm = PathManager::new(
         options
             .install_dir
-            .map_or(get_root_dir(), |s| FilePath::from(s)),
+            .map_or(get_root_dir(), FilePath::from),
     );
 
     create_dir_if_not_exist(&project.bin)?;
@@ -72,7 +75,7 @@ pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
     if matches!(project.project_type, ProjectType::Package) {
         let empty = Vec::new();
         let includes = project.includes.as_ref().unwrap_or(&empty);
-        create_package_headers(&ctx, &includes, &project)?;
+        create_package_headers(&ctx, includes, &project)?;
     }
 
     // Emit the intermediate representation for all modules
@@ -144,12 +147,12 @@ fn collect_all_source_dirs(
             continue;
         }
 
-        let modpath = filepath_to_module_path(&dir, source_dir, project);
+        let modpath = filepath_to_module_path(dir, source_dir, project);
         let dir = SourceDir { modpath, map };
         dirs.push(dir);
     }
 
-    if dirs.len() == 0 {
+    if dirs.is_empty() {
         return Err(format!("no source files in '{}'", source_dir));
     }
 
@@ -175,11 +178,10 @@ fn dir_to_source_map(dir: &FilePath) -> Res<SourceMap> {
             continue;
         }
 
-        if let Some(ext) = path.extension() {
-            if ext == "koi" {
+        if let Some(ext) = path.extension()
+            && ext == "koi" {
                 files.push(path.into());
             }
-        }
     }
 
     let mut map = SourceMap::new();
@@ -237,13 +239,13 @@ fn create_modules(
         ctx.modules.add(create_mod);
     }
 
-    check_filesets(&mut ctx, sort_result.sets).map_err(|err| err.render(&map))?;
+    check_filesets(&mut ctx, sort_result.sets).map_err(|err| err.render(map))?;
     Ok(ctx)
 }
 
 /// Shorthand for emitting a module to IR and converting error to string.
 fn emit_module_ir(ctx: &Context, map: &SourceMap, id: ModuleId) -> Res<Unit> {
-    emit_ir(ctx, id).map_err(|errs| errs.render(&map))
+    emit_ir(ctx, id).map_err(|errs| errs.render(map))
 }
 
 /// Shorthand for assembling an IR unit and converting error to string.
@@ -369,7 +371,7 @@ fn dump_debug_info(ctx: &Context, project: &Project) -> Res<()> {
     if ctx.config.dump_types {
         let path = format!("{}/types.txt", project.bin);
         debug!("Writing type info to {}", path);
-        write_file(&path.into(), &ctx.types.dump_context_string())?;
+        write_file(&path.into(), ctx.types.dump_context_string())?;
     }
 
     if ctx.config.print_symbol_tables {

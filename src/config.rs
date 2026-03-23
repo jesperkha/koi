@@ -1,3 +1,4 @@
+use crate::util::FilePath;
 use serde::Deserialize;
 use std::{fs, path::Path};
 
@@ -97,7 +98,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn default() -> Self {
+    pub fn normal() -> Self {
         Self {
             dump_types: false,
             no_mangle_names: false,
@@ -130,14 +131,49 @@ pub fn load_config_file() -> Result<(Project, Options, Config), String> {
 pub fn load_config_file_ex(path: &str) -> Result<(Project, Options, Config), String> {
     let filepath = Path::new(path).join("koi.toml");
     let src = fs::read_to_string(filepath)
-        .map_err(|_| format!("Failed to open koi.toml. Run `koi init` if missing."))?;
+        .map_err(|_| "Failed to open koi.toml. Run `koi init` if missing.".to_string())?;
     let config_file: ConfigFile = toml::from_str(&src).map_err(|e| e.to_string())?;
 
     let config = if config_file.options.debug_mode {
         Config::debug()
     } else {
-        Config::default()
+        Config::normal()
     };
 
     Ok((config_file.project, config_file.options, config))
+}
+
+/// PathManager manages paths for Koi installation. Everything is relative to
+/// the koi executable, which is assumed to be in the root directory.
+///
+/// Koi installation layout:
+///
+/// ```txt
+/// :root:/
+///     lib/       # Compiled shared libraries
+///     include/   # Module header files
+///     koi        # Koi executable
+/// ```
+pub struct PathManager {
+    root: FilePath,
+}
+
+impl PathManager {
+    pub fn new(root: FilePath) -> Self {
+        Self { root }
+    }
+
+    pub fn root(&self) -> &FilePath {
+        &self.root
+    }
+
+    /// Path to library directory containing koi builtin libraries.
+    pub fn library_path(&self) -> FilePath {
+        self.root().join("lib")
+    }
+
+    /// Path to library directory containing external libraries.
+    pub fn external_library_path(&self) -> FilePath {
+        self.root().join("external")
+    }
 }

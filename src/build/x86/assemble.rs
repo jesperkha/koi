@@ -13,12 +13,12 @@ use crate::{
 
 static MIN_STACK_SIZE: usize = 4;
 
-pub fn assemble(unit: Unit) -> File {
+pub(crate) fn assemble(unit: Unit) -> File {
     let assembler = Assembler::new(unit);
     assembler.assemble()
 }
 
-pub struct Assembler {
+pub(crate) struct Assembler {
     unit: Unit,
     data: Vec<DataDecl>,
     text: Vec<TextDecl>,
@@ -215,7 +215,7 @@ impl<'a> FunctionAssembler<'a> {
     fn var(&self, const_id: ConstId) -> &Dest {
         self.vars
             .get(&const_id)
-            .expect(&format!("not stored: {const_id}"))
+            .unwrap_or_else(|| panic!("not stored: {const_id}"))
     }
 
     /// Convert IR RValue to a Src. May emit multiple steps to compute the final value.

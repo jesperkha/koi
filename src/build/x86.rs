@@ -3,12 +3,20 @@ use std::process::{Command, Stdio};
 use tracing::info;
 
 use crate::{
-    build::x86::assemble,
     config::{Config, PathManager},
     imports::LibrarySet,
     ir::ProgramIR,
     util::{FilePath, cmd, write_file},
 };
+
+#[cfg(test)]
+mod tests;
+
+mod assemble;
+mod assembly;
+
+use assemble::assemble;
+use assembly::*;
 
 pub enum LinkMode {
     /// Link as executable ELF file
@@ -50,7 +58,7 @@ pub fn build(
         let source = assemble(unit);
 
         info!("Writing file {}", filepath);
-        write_file(&filepath.as_str().into(), &source.to_string())?;
+        write_file(&filepath.as_str().into(), source.to_string())?;
         asm_files.push(filepath);
     }
 

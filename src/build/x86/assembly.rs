@@ -194,19 +194,19 @@ pub struct Label {
 
 impl Display for File {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, ".intel_syntax noprefix\n")?;
+        writeln!(f, ".intel_syntax noprefix")?;
 
         write!(f, ".section .data\n\n")?;
         for decl in &self.data_section {
-            write!(f, "{}\n", decl)?;
+            writeln!(f, "{}", decl)?;
         }
 
         write!(f, ".section .text\n\n")?;
         for decl in &self.text_section {
-            write!(f, "{}\n", decl)?;
+            writeln!(f, "{}", decl)?;
         }
 
-        write!(f, ".section .note.GNU-stack,\"\",@progbits\n")?;
+        writeln!(f, ".section .note.GNU-stack,\"\",@progbits")?;
         Ok(())
     }
 }
@@ -226,11 +226,11 @@ impl Display for TextDecl {
         match self {
             TextDecl::Function { global, name, ins } => {
                 if *global {
-                    write!(f, ".globl {}\n", name)?;
+                    writeln!(f, ".globl {}", name)?;
                 }
-                write!(f, "{}:\n", name)?;
+                writeln!(f, "{}:", name)?;
                 for i in ins {
-                    write!(f, "    {}\n", i)?;
+                    writeln!(f, "    {}", i)?;
                 }
                 Ok(())
             }

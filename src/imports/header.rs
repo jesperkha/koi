@@ -29,13 +29,13 @@ pub fn read_header_file(
     bytes: &[u8],
 ) -> Result<CreateModule, String> {
     let header: HeaderFile = postcard::from_bytes(bytes).map_err(|e| e.to_string())?;
-    header.to_module(ctx, modpath)
+    header.into_module(ctx, modpath)
 }
 
 pub fn dump_header_symbols(filepath: &str) -> Result<String, String> {
     let modpath = ModulePath::from(ImportPath::from("header"));
     let bytes = read(filepath).map_err(|e| format!("failed to read header file: {}", e))?;
-    let mut ctx = Context::new(Config::default());
+    let mut ctx = Context::new(Config::normal());
     let module = read_header_file(&mut ctx, modpath, &bytes)?;
     Ok(module.symbols.dump(&ctx, filepath))
 }
@@ -57,8 +57,7 @@ impl HeaderFile {
         let all_types_ids = module
             .exports()
             .values()
-            .map(|id| ctx.types.get_all_references(ctx.symbols.get(*id).ty))
-            .flatten()
+            .flat_map(|id| ctx.types.get_all_references(ctx.symbols.get(*id).ty))
             .collect::<HashSet<_>>();
 
         // Create a map from TypeId to HeaderTypeKind to store in the header file
@@ -72,8 +71,8 @@ impl HeaderFile {
         // Convert all symbols to HeaderSymbol
         let symbols = module
             .exports()
-            .iter()
-            .map(|(_, id)| {
+            .values()
+            .map(|id| {
                 let symbol = ctx.symbols.get(*id);
 
                 HeaderSymbol {
@@ -92,7 +91,11 @@ impl HeaderFile {
     }
 
     /// Parse this headers symbols content and create module.
-    pub fn to_module(self, ctx: &mut Context, modpath: ModulePath) -> Result<CreateModule, String> {
+    pub fn into_module(
+        self,
+        ctx: &mut Context,
+        modpath: ModulePath,
+    ) -> Result<CreateModule, String> {
         // Create map of header id to real id (HeaderTypeId -> TypeId)
         let mappings = self
             .types

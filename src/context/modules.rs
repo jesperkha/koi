@@ -20,6 +20,12 @@ pub struct ModuleInterner {
     main_id: Option<ModuleId>,
 }
 
+impl Default for ModuleInterner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ModuleInterner {
     pub fn new() -> Self {
         ModuleInterner {
@@ -85,7 +91,7 @@ impl ModuleInterner {
                         .collect::<Vec<_>>()
                         .join(", ")
                 );
-                Err(format!("could not resolve module import"))
+                Err("could not resolve module import".to_string())
             },
             |id| Ok(&self.modules[*id]),
         )

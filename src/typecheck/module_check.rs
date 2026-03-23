@@ -95,7 +95,7 @@ impl<'a> ModuleChecker<'a> {
         let module = match self.ctx.modules.resolve(&impath) {
             Ok(module) => module,
             Err(err) => {
-                assert!(import.names.len() > 0, "unchecked missing import name");
+                assert!(!import.names.is_empty(), "unchecked missing import name");
                 diag.add(Report::code_error(
                     &err,
                     &import.names[0].pos,
@@ -179,27 +179,18 @@ impl<'a> ModuleChecker<'a> {
         decl: &ast::Decl,
     ) -> Result<(), Report> {
         match decl {
-            ast::Decl::FuncDecl(node) => {
-                let origin = SymbolOrigin::Module {
-                    modpath: modpath.clone(),
-                    pos: node.pos().clone(),
-                    filename: filename.into(),
-                };
-                self.declare_function_definition(node, origin)
-            }
             ast::Decl::Func(node) => {
                 let origin = SymbolOrigin::Module {
                     modpath: modpath.clone(),
                     pos: node.pos().clone(),
                     filename: filename.into(),
                 };
-                self.declare_function_definition(&node.clone().into(), origin)
+                self.declare_function_definition(&(*node.clone()).into(), origin)
             }
             ast::Decl::Extern(node) => {
                 let origin = SymbolOrigin::Extern;
                 self.declare_function_definition(node, origin)
             }
-            _ => Ok(()),
         }
     }
 
@@ -303,10 +294,9 @@ impl<'a> ModuleChecker<'a> {
                 let prim = PrimitiveType::from(&token.kind);
                 Ok(self.ctx.types.primitive(prim))
             }
-            ast::TypeNode::Ident(token) => self.get_symbol_type_id(token).map_or(
-                Err(Report::code_error("not a type", &token.pos, &token.end_pos)),
-                Ok,
-            ),
+            ast::TypeNode::Ident(token) => self
+                .get_symbol_type_id(token)
+                .ok_or(Report::code_error("not a type", &token.pos, &token.end_pos)),
         }
     }
 

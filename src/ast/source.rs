@@ -17,6 +17,12 @@ pub struct SourceMap {
     map: HashMap<SourceId, Source>,
 }
 
+impl Default for SourceMap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SourceMap {
     pub fn new() -> Self {
         Self {
@@ -72,7 +78,7 @@ impl Source {
             filepath,
             lines: Source::get_line_beginnings(src.as_slice()),
             size: src.len(),
-            src: src,
+            src,
         }
     }
 

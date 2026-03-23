@@ -63,8 +63,9 @@ fn ins_to_string_indent(unit: &Unit, ins: &Vec<Ins>, indent: usize) -> String {
             Ins::Return(ty, value) => format!("ret {} {}", unit.types.type_to_string(*ty), value),
             Ins::Call(call) => {
                 format!(
-                    "{}call {}({})",
-                    format!("{} {} = ", call.result, unit.types.type_to_string(call.ty)),
+                    "{} {} = call {}({})",
+                    call.result,
+                    unit.types.type_to_string(call.ty),
                     call.callee,
                     call.args
                         .iter()

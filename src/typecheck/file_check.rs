@@ -83,9 +83,8 @@ impl<'a> FileChecker<'a> {
 
     fn emit_decl(&mut self, decl: ast::Decl) -> Result<types::Decl, Report> {
         match decl {
-            ast::Decl::Func(node) => self.emit_func(node),
-            ast::Decl::Extern(node) => self.emit_extern(node),
-            _ => panic!("unexpected decl node in ast: {:?}", decl),
+            ast::Decl::Func(node) => self.emit_func(*node),
+            ast::Decl::Extern(node) => self.emit_extern(*node),
         }
     }
 
@@ -183,7 +182,7 @@ impl<'a> FileChecker<'a> {
         }
 
         // No parameters allowed
-        if f.params.len() > 0 {
+        if !f.params.is_empty() {
             return Err(self.error("main function must not take any arguments", node));
         }
 
@@ -391,25 +390,25 @@ impl<'a> FileChecker<'a> {
         let field = node.field.to_string();
 
         // First check if the left hand value is a namespace
-        if let Some(name) = self.if_identifier_get_name(&*node.expr) {
-            if let Ok(ns) = self.nsl.get(name) {
-                // Get symbol from field
-                let Some(id) = ns.get(&field) else {
-                    return Err(self.error_token(
-                        &format!("namespace '{}' has no member '{}'", ns.name(), &field),
-                        &node.field,
-                    ));
-                };
+        if let Some(name) = self.if_identifier_get_name(&node.expr)
+            && let Ok(ns) = self.nsl.get(name)
+        {
+            // Get symbol from field
+            let Some(id) = ns.get(&field) else {
+                return Err(self.error_token(
+                    &format!("namespace '{}' has no member '{}'", ns.name(), &field),
+                    &node.field,
+                ));
+            };
 
-                let symbol = self.ctx.symbols.get(id);
+            let symbol = self.ctx.symbols.get(id);
 
-                return Ok(types::Expr::NamespaceMember(types::NamespaceMemberNode {
-                    ty: symbol.ty,
-                    name: name.to_owned(),
-                    meta,
-                    field,
-                }));
-            }
+            return Ok(types::Expr::NamespaceMember(types::NamespaceMemberNode {
+                ty: symbol.ty,
+                name: name.to_owned(),
+                meta,
+                field,
+            }));
         }
 
         // Otherwise this is a normal member getter and we treat lval as
@@ -511,7 +510,7 @@ impl<'a> FileChecker<'a> {
     fn is_constant(&self, lval: &ast::Expr) -> bool {
         match lval {
             ast::Expr::Literal(token) => match &token.kind {
-                TokenKind::IdentLit(name) => self.vars.get(name).map_or(false, |sym| sym.is_const),
+                TokenKind::IdentLit(name) => self.vars.get(name).is_some_and(|sym| sym.is_const),
                 _ => false,
             },
             ast::Expr::Group(_) | ast::Expr::Call(_) => true,
@@ -521,10 +520,10 @@ impl<'a> FileChecker<'a> {
 
     /// If the given expression is a Token::Ident kind, it returns the identifier name.
     fn if_identifier_get_name<'b>(&self, expr: &'b ast::Expr) -> Option<&'b str> {
-        if let ast::Expr::Literal(token) = expr {
-            if let TokenKind::IdentLit(name) = &token.kind {
-                return Some(name);
-            }
+        if let ast::Expr::Literal(token) = expr
+            && let TokenKind::IdentLit(name) = &token.kind
+        {
+            return Some(name);
         }
         None
     }

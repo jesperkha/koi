@@ -42,6 +42,12 @@ pub struct NamespaceList {
     ns: HashMap<String, Namespace>,
 }
 
+impl Default for NamespaceList {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NamespaceList {
     pub fn new() -> Self {
         Self { ns: HashMap::new() }
@@ -56,8 +62,6 @@ impl NamespaceList {
 
     /// Get a namespace by name.
     pub fn get(&self, name: &str) -> Result<&Namespace, String> {
-        self.ns
-            .get(name)
-            .map_or(Err("not declared".to_string()), |s| Ok(s))
+        self.ns.get(name).ok_or("not declared".to_string())
     }
 }

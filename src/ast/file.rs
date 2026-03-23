@@ -56,7 +56,7 @@ pub struct FileSet {
 impl FileSet {
     /// Create new file set from File list. List must contain at least one file.
     pub fn new(modpath: ModulePath, files: Vec<File>) -> Self {
-        assert!(files.len() > 0, "files list must contain at least one file");
+        assert!(!files.is_empty(), "files list must contain at least one file");
 
         let mut imports = HashSet::new();
 

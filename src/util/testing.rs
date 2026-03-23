@@ -22,6 +22,10 @@ impl ErrorStream {
         self.errors.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn get(&self, i: usize) -> &Error {
         &self.errors[i]
     }
@@ -37,7 +41,7 @@ impl From<Diagnostics> for ErrorStream {
             .reports()
             .iter()
             .map(|report| Error {
-                message: format!("{}", report.message),
+                message: report.message.to_string(),
             })
             .collect();
         ErrorStream { errors }
@@ -121,10 +125,9 @@ pub fn parse_string(src: &str) -> Result<Ast, ErrorStream> {
 
 pub fn check_string(ctx: &mut Context, src: &str) -> Result<ModuleId, ErrorStream> {
     let map = new_source_map(src);
-    let fs = parse_source_map(new_modpath("main"), &map, &ctx.config)
-        .map_err(|e| ErrorStream::from(e))?;
+    let fs = parse_source_map(new_modpath("main"), &map, &ctx.config).map_err(ErrorStream::from)?;
     check_fileset(ctx, fs)
-        .map_err(|e| ErrorStream::from(e))
+        .map_err(ErrorStream::from)
         .map(|create| ctx.modules.add(create))
 }
 

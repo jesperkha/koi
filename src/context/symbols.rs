@@ -19,6 +19,12 @@ pub struct SymbolInterner {
     symbols: Vec<Symbol>,
 }
 
+impl Default for SymbolInterner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SymbolInterner {
     pub fn new() -> Self {
         Self {
@@ -61,7 +67,7 @@ impl SymbolInterner {
     pub fn dump(&self, module: &str) -> String {
         let mut s = String::new();
         s += &format!("| Symbols in {}\n", module);
-        s += &format!("| ----------------------\n");
+        s += "| ----------------------\n";
         for sym in &self.symbols {
             s += &format!("| {:<20} {}\n", sym.name, sym)
         }

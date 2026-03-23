@@ -168,7 +168,7 @@ impl ImportPath {
 
     /// Get only the module name (the last identifier of the path).
     pub fn name(&self) -> &str {
-        &self
+        self
             .path
             .split(".")
             .last()

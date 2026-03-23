@@ -12,6 +12,12 @@ pub struct SymTracker {
     curparam: usize,
 }
 
+impl Default for SymTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SymTracker {
     pub fn new() -> Self {
         Self {
@@ -31,7 +37,7 @@ impl SymTracker {
     }
 
     /// Create new const id for a temporary value
-    pub fn next(&mut self) -> ConstId {
+    pub fn next_const_id(&mut self) -> ConstId {
         let id = self.curid;
         self.curid += 1;
         id
@@ -45,14 +51,14 @@ impl SymTracker {
 
     /// Look up a name in the current context
     pub fn get(&self, s: &str) -> RValue {
-        if let Some(v) = self.tbl.get(s).map(|t| *t) {
+        if let Some(v) = self.tbl.get(s).copied() {
             RValue::Const(v)
         } else {
             RValue::Param(
                 *self
                     .params
                     .get(s)
-                    .expect(&format!("tried to read undeclared name: {}", s)), // bug
+                    .unwrap_or_else(|| panic!("tried to read undeclared name: {}", s)), // bug
             )
         }
     }

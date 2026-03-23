@@ -41,19 +41,19 @@ impl Token {
 
         Token {
             id: next_id(),
-            length: length,
+            length,
             eof: kind.eq(&TokenKind::Eof),
             invalid: kind.eq(&TokenKind::Invalid),
-            pos: pos,
-            end_pos: end_pos,
-            kind: kind,
+            pos,
+            end_pos,
+            kind,
         }
     }
 }
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.kind.to_string())
+        write!(f, "{}", self.kind)
     }
 }
 
@@ -252,7 +252,7 @@ impl fmt::Display for TokenKind {
             TokenKind::Comment(comment) => &format!("// {}", comment),
 
             // Literals
-            TokenKind::IdentLit(ident) => &ident,
+            TokenKind::IdentLit(ident) => ident,
             TokenKind::IntLit(n) => &n.to_string(),
             TokenKind::FloatLit(f) => &f.to_string(),
             TokenKind::StringLit(s) => &format!("\"{}\"", s),

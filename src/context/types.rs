@@ -11,6 +11,12 @@ pub struct TypeInterner {
     cache: HashMap<TypeKind, TypeId>,
 }
 
+impl Default for TypeInterner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TypeInterner {
     pub fn new() -> Self {
         let mut s = Self {
@@ -36,10 +42,9 @@ impl TypeInterner {
 
     /// Shorthand for getting a primitive type id.
     pub fn primitive(&self, kind: PrimitiveType) -> TypeId {
-        self.cache
+        *self.cache
             .get(&TypeKind::Primitive(kind))
             .expect("all primitive types must be assigned at init")
-            .clone()
     }
 
     /// Shorthand for getting the Type of a primitive kind.
@@ -74,11 +79,10 @@ impl TypeInterner {
 
     /// Try to get the inner FunctionType of this type id.
     pub fn try_function(&self, id: TypeId) -> Option<&FunctionType> {
-        if let Some(ty) = self.get(id) {
-            if let TypeKind::Function(func) = &ty.kind {
+        if let Some(ty) = self.get(id)
+            && let TypeKind::Function(func) = &ty.kind {
                 return Some(func);
             }
-        }
         None
     }
 
@@ -165,8 +169,8 @@ impl TypeInterner {
             TypeKind::Primitive(p) => format!("{p}"),
             TypeKind::Array(inner) => format!("[]{}", self.type_to_string(*inner)),
             TypeKind::Pointer(inner) => format!("*{}", self.type_to_string(*inner)),
-            TypeKind::Alias(id) => format!("{}", self.type_to_string(*id)),
-            TypeKind::Unique(id) => format!("{}", self.type_to_string(*id)),
+            TypeKind::Alias(id) => self.type_to_string(*id).to_string(),
+            TypeKind::Unique(id) => self.type_to_string(*id).to_string(),
             TypeKind::Function(f) => {
                 let params_str = f
                     .params

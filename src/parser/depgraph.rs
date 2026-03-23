@@ -17,7 +17,7 @@ pub struct SortResult {
 /// The first element in the returned ordered list is the least depended on module
 /// and must be type checked first.
 pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<SortResult, String> {
-    if sets.len() == 0 {
+    if sets.is_empty() {
         return Ok(SortResult {
             sets: Vec::new(),
             external_imports: Vec::new(),
@@ -41,7 +41,7 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<SortResult, String
             let fs_path = fs.modpath.path();
 
             if import_path == fs_path {
-                return Err(format!("import cycle detected"));
+                return Err("import cycle detected".to_string());
             }
 
             // Stdlib and external imports are resolved elsewhere and are
@@ -58,7 +58,7 @@ pub fn sort_by_dependency_graph(sets: Vec<FileSet>) -> Result<SortResult, String
             let b = *index.get(fs_path).expect("missing import {}");
 
             if has_path_connecting(&dag, b, *a, None) {
-                return Err(format!("import cycle detected"));
+                return Err("import cycle detected".to_string());
             }
 
             dag.add_edge(*a, b, ());
