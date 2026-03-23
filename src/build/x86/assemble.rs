@@ -7,9 +7,13 @@ use crate::{
     },
     ir::{
         AssignIns, CallIns, ConstId, Data, Decl, ExternDecl, FuncDecl, IRType, IRTypeId, Ins,
-        LValue, Primitive, RValue, StoreIns, Unit,
+        LValue, Primitive, RValue, StoreIns, Unit, ins_to_string,
     },
 };
+
+// TODO: parameters get overridden when assigning
+// TODO: subtract total stack size
+// TODO: floating point literals and return register
 
 static MIN_STACK_SIZE: usize = 4;
 
@@ -83,7 +87,7 @@ impl Assembler {
 
 struct FunctionAssembler<'a> {
     unit: &'a Unit,
-    body: &'a [Ins],
+    decl: &'a FuncDecl,
     asm: Vec<Asm>,
     acc_offset: usize,
     params: Vec<Reg>,
@@ -96,7 +100,7 @@ impl<'a> FunctionAssembler<'a> {
         let params = decl.params.iter().map(|ty| regs.next(unit, ty)).collect();
         Self {
             unit,
-            body: &decl.body.ins,
+            decl,
             asm: Vec::new(),
             vars: HashMap::new(),
             acc_offset: 0,
@@ -114,7 +118,16 @@ impl<'a> FunctionAssembler<'a> {
         self.push(Asm::Push(Src::Reg(Reg::Rbp)));
         self.push(Asm::Mov(Dest::Reg(Reg::Rbp), Src::Reg(Reg::Rsp)));
 
-        for i in self.body {
+        // sub rsp, [x]
+        let stacksize = round_to_16(self.decl.stacksize);
+        if stacksize != 0 {
+            self.push(Asm::Sub(
+                Dest::Reg(Reg::Rsp),
+                Src::Immediate(Immediate::Uint(stacksize as u64)),
+            ));
+        }
+
+        for i in &self.decl.body.ins {
             self.emit_ins(i);
         }
 
@@ -122,6 +135,7 @@ impl<'a> FunctionAssembler<'a> {
     }
 
     fn emit_ins(&mut self, ins: &Ins) {
+        self.push(Asm::Comment(ins_to_string(self.unit, ins)));
         match ins {
             Ins::Store(store) => self.emit_store(store),
             Ins::Assign(assign) => self.emit_assign(assign),
@@ -348,4 +362,8 @@ fn type_size(unit: &Unit, ty: &IRTypeId) -> Size {
         8 => Size::Qword,
         _ => panic!("no size"),
     }
+}
+
+fn round_to_16(n: usize) -> usize {
+    (n + 15) & !15
 }

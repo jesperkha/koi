@@ -155,6 +155,7 @@ pub struct FileEmitter<'a> {
     const_id: ConstId,
     vars: VarTable<ConstId>,
     params: VarTable<ParamId>,
+    stacksize: usize,
 
     /// Cache of already declared extern symbols
     externs: HashSet<SymbolId>,
@@ -183,6 +184,7 @@ impl<'a> FileEmitter<'a> {
             nsl: &file.namespaces,
             ast: &file.ast,
             const_id: 0,
+            stacksize: 0,
             vars: VarTable::new(),
             params: VarTable::new(),
             externs: HashSet::new(),
@@ -240,10 +242,10 @@ impl<'a> FileEmitter<'a> {
         Ok(Decl::Func(FuncDecl {
             public: node.public,
             name: self.to_mangled_name(&node.name),
+            stacksize: self.stacksize,
             body,
             params,
             ret,
-            stacksize: 0,
         }))
     }
 
@@ -291,6 +293,8 @@ impl<'a> FileEmitter<'a> {
         let rval = self.expr_to_rval(ins, &node.value)?;
         let const_id = self.next_id();
         ins.push(Ins::Store(StoreIns { ty, const_id, rval }));
+
+        self.stacksize += self.types.sizeof(ty);
 
         // Bind locally to look up its ConstId later
         self.vars.bind(node.name.clone(), const_id);
@@ -390,6 +394,7 @@ impl<'a> FileEmitter<'a> {
         self.vars.push_scope();
         self.params.push_scope();
         self.const_id = 0;
+        self.stacksize = 0;
     }
 
     fn pop_scope(&mut self) {
