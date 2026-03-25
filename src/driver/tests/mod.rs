@@ -64,6 +64,7 @@ fn new_config(case: &str) -> (Project, Options, Config) {
         dump_types: false,
         print_symbol_tables: false,
         no_mangle_names: false,
+        comment_assembly: false,
     };
 
     (project, options, config)
@@ -97,6 +98,7 @@ fn library_config(
         dump_types: false,
         print_symbol_tables: false,
         no_mangle_names: false,
+        comment_assembly: false,
     };
 
     (project, options, config)
@@ -201,4 +203,9 @@ fn test_empty() {
 #[test]
 fn test_duplicate_namespace() {
     run_case_with_status("duplicate_namespace", 0);
+}
+
+#[test]
+fn test_param_alloc() {
+    run_case_with_status("param_alloc", 1);
 }

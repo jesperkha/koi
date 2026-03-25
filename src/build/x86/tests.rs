@@ -1,11 +1,12 @@
 use crate::{
     build::x86::{File, assemble},
+    config::Config,
     util::{compare_string_lines_or_panic, emit_string, must},
 };
 
 fn assemble_src(src: &str) -> File {
     let unit = must(emit_string(src));
-    assemble(unit)
+    assemble(unit, &Config::test())
 }
 
 fn compare(src: &str, expect: &str) {

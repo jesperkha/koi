@@ -40,7 +40,7 @@ pub struct BuildConfig {
 pub fn build(
     ir: ProgramIR,
     buildcfg: BuildConfig,
-    _config: &Config,
+    config: &Config,
     pm: &PathManager,
     libset: &LibrarySet,
 ) -> Result<(), String> {
@@ -55,7 +55,7 @@ pub fn build(
     for unit in ir.units {
         info!("Assembling module {}", unit.name);
         let filepath = format!("{}/{}.s", buildcfg.tmpdir, unit.name);
-        let source = assemble(unit);
+        let source = assemble(unit, config);
 
         info!("Writing file {}", filepath);
         write_file(&filepath.as_str().into(), source.to_string())?;
