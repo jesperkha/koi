@@ -130,7 +130,7 @@ impl<'a> FunctionAssembler<'a> {
             .decl
             .params
             .iter()
-            .fold(0 as usize, |acc, ty| acc + self.sizeof(ty));
+            .fold(0_usize, |acc, ty| acc + self.sizeof(ty));
 
         // sub rsp, [x]
         let stacksize = round_to_16(self.decl.stacksize + param_stack_size);
@@ -290,11 +290,11 @@ impl<'a> FunctionAssembler<'a> {
     /// Allocate new stack slot for variable
     fn new_stack_offset(&mut self, ty: &IRTypeId) -> Dest {
         self.acc_offset += self.sizeof(ty);
-        let dest = Dest::StackOffset(StackOffset {
+
+        Dest::StackOffset(StackOffset {
             offset: self.acc_offset,
             size: self.type_size(ty),
-        });
-        dest
+        })
     }
 
     fn type_size(&self, ty: &IRTypeId) -> Size {
