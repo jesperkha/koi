@@ -123,7 +123,7 @@ impl Config {
             dump_types: true,
             no_mangle_names: false,
             print_symbol_tables: true,
-            comment_assembly: false,
+            comment_assembly: true,
         }
     }
 }
