@@ -1,0 +1,11 @@
+func f(a int, b int) int {
+    return g(b, a)
+}
+
+func g(a int, b int) int {
+    return b
+}
+
+func main() int {
+    return f(1, 2)
+}

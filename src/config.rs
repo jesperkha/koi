@@ -95,6 +95,8 @@ pub struct Config {
     pub print_symbol_tables: bool,
     /// Dont mangle any symbol names, used primarily for testing.
     pub no_mangle_names: bool,
+    /// Add comments to assembly showing source IR code
+    pub comment_assembly: bool,
 }
 
 impl Config {
@@ -103,6 +105,7 @@ impl Config {
             dump_types: false,
             no_mangle_names: false,
             print_symbol_tables: false,
+            comment_assembly: true,
         }
     }
 
@@ -111,6 +114,7 @@ impl Config {
             dump_types: false,
             no_mangle_names: true,
             print_symbol_tables: false,
+            comment_assembly: false,
         }
     }
 
@@ -119,6 +123,7 @@ impl Config {
             dump_types: true,
             no_mangle_names: false,
             print_symbol_tables: true,
+            comment_assembly: true,
         }
     }
 }

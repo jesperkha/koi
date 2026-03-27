@@ -4,6 +4,6 @@ mod sym;
 mod types;
 
 pub use nodes::*;
-pub use print::{ir_to_string, print_ir};
+pub use print::{ins_to_string, print_ir, unit_to_string};
 pub use sym::SymTracker;
 pub use types::*;

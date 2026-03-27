@@ -19,6 +19,7 @@ pub enum TextDecl {
 }
 
 pub enum Asm {
+    Comment(String),
     Push(Src),
     Sub(Dest, Src),
     Mov(Dest, Src),
@@ -242,6 +243,7 @@ impl Display for TextDecl {
 impl Display for Asm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Asm::Comment(comment) => write!(f, "/* {} */", comment),
             Asm::Mov(dst, src) => write!(f, "mov {}, {}", dst, src),
             Asm::Lea(dst, src) => write!(f, "lea {}, {}", dst, src),
             Asm::Sub(dst, src) => write!(f, "sub {}, {}", dst, src),

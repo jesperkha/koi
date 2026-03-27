@@ -1,10 +1,10 @@
 use crate::{
-    ir::ir_to_string,
+    ir::unit_to_string,
     util::{compare_string_lines_or_panic, emit_string, must},
 };
 
 fn expect_equal(src: &str, expect: &str) {
-    let ir_str = ir_to_string(&must(emit_string(src)));
+    let ir_str = unit_to_string(&must(emit_string(src)));
     compare_string_lines_or_panic(ir_str, expect.to_string());
 }
 

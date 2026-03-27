@@ -5,28 +5,31 @@ use crate::{
         Asm, DataDecl, Dest, File, Immediate, Label, Reg, Size, Src, StackOffset, TextDecl,
         UnsignedReg,
     },
+    config::Config,
     ir::{
         AssignIns, CallIns, ConstId, Data, Decl, ExternDecl, FuncDecl, IRType, IRTypeId, Ins,
-        LValue, Primitive, RValue, StoreIns, Unit,
+        LValue, Primitive, RValue, StoreIns, Unit, ins_to_string,
     },
 };
 
-static MIN_STACK_SIZE: usize = 4;
+// TODO: floating point literals and return register
 
-pub(crate) fn assemble(unit: Unit) -> File {
-    let assembler = Assembler::new(unit);
+pub fn assemble(unit: Unit, config: &Config) -> File {
+    let assembler = Assembler::new(unit, config);
     assembler.assemble()
 }
 
-pub(crate) struct Assembler {
+pub struct Assembler<'a> {
+    config: &'a Config,
     unit: Unit,
     data: Vec<DataDecl>,
     text: Vec<TextDecl>,
 }
 
-impl Assembler {
-    pub fn new(unit: Unit) -> Self {
+impl<'a> Assembler<'a> {
+    pub fn new(unit: Unit, config: &'a Config) -> Self {
         Self {
+            config,
             unit,
             data: Vec::new(),
             text: Vec::new(),
@@ -70,7 +73,7 @@ impl Assembler {
     }
 
     fn emit_func(&mut self, decl: FuncDecl) -> TextDecl {
-        let fasm = FunctionAssembler::new(&self.unit, &decl);
+        let fasm = FunctionAssembler::new(&self.unit, &decl, self.config);
         let ins = fasm.assemble();
 
         TextDecl::Function {
@@ -83,24 +86,25 @@ impl Assembler {
 
 struct FunctionAssembler<'a> {
     unit: &'a Unit,
-    body: &'a [Ins],
+    decl: &'a FuncDecl,
+    config: &'a Config,
+
     asm: Vec<Asm>,
     acc_offset: usize,
-    params: Vec<Reg>,
+    params: Vec<Dest>,
     vars: HashMap<ConstId, Dest>,
 }
 
 impl<'a> FunctionAssembler<'a> {
-    fn new(unit: &'a Unit, decl: &'a FuncDecl) -> Self {
-        let mut regs = RegAllocator::new();
-        let params = decl.params.iter().map(|ty| regs.next(unit, ty)).collect();
+    fn new(unit: &'a Unit, decl: &'a FuncDecl, config: &'a Config) -> Self {
         Self {
             unit,
-            body: &decl.body.ins,
+            decl,
+            config,
             asm: Vec::new(),
             vars: HashMap::new(),
             acc_offset: 0,
-            params,
+            params: Vec::new(),
         }
     }
 
@@ -114,7 +118,37 @@ impl<'a> FunctionAssembler<'a> {
         self.push(Asm::Push(Src::Reg(Reg::Rbp)));
         self.push(Asm::Mov(Dest::Reg(Reg::Rbp), Src::Reg(Reg::Rsp)));
 
-        for i in self.body {
+        let mut regs = RegAllocator::new();
+        let params = self
+            .decl
+            .params
+            .iter()
+            .map(|ty| regs.next(self.unit, ty))
+            .collect::<Vec<Reg>>();
+
+        let param_stack_size = self
+            .decl
+            .params
+            .iter()
+            .fold(0_usize, |acc, ty| acc + self.sizeof(ty));
+
+        // sub rsp, [x]
+        let stacksize = round_to_16(self.decl.stacksize + param_stack_size);
+        if stacksize != 0 {
+            self.push(Asm::Sub(
+                Dest::Reg(Reg::Rsp),
+                Src::Immediate(Immediate::Uint(stacksize as u64)),
+            ));
+        }
+
+        // Put parameters on stack
+        for (i, ty) in self.decl.params.iter().enumerate() {
+            let dest = self.new_stack_offset(ty);
+            self.mov_or_lea(dest.clone(), Src::Reg(params[i].clone()));
+            self.params.push(dest);
+        }
+
+        for i in &self.decl.body.ins {
             self.emit_ins(i);
         }
 
@@ -122,6 +156,10 @@ impl<'a> FunctionAssembler<'a> {
     }
 
     fn emit_ins(&mut self, ins: &Ins) {
+        if self.config.comment_assembly {
+            self.push(Asm::Comment(ins_to_string(self.unit, ins)));
+        }
+
         match ins {
             Ins::Store(store) => self.emit_store(store),
             Ins::Assign(assign) => self.emit_assign(assign),
@@ -132,14 +170,8 @@ impl<'a> FunctionAssembler<'a> {
     }
 
     fn emit_store(&mut self, store: &StoreIns) {
-        // Allocate more stack space
-        self.acc_offset += self.unit.types.sizeof(store.ty).max(MIN_STACK_SIZE);
-
         // Map ConstId to stack offset
-        let dest = Dest::StackOffset(StackOffset {
-            offset: self.acc_offset,
-            size: self.type_size(&store.ty),
-        });
+        let dest = self.new_stack_offset(&store.ty);
         self.vars.insert(store.const_id, dest.clone());
 
         // Move value into offset
@@ -207,7 +239,7 @@ impl<'a> FunctionAssembler<'a> {
     }
 
     /// Get parameter register
-    fn param(&self, idx: usize) -> Reg {
+    fn param(&self, idx: usize) -> Dest {
         self.params[idx].clone()
     }
 
@@ -225,7 +257,7 @@ impl<'a> FunctionAssembler<'a> {
             RValue::Uint(n) => Src::Immediate(Immediate::Uint(*n)),
             RValue::Float(n) => Src::Immediate(Immediate::Float(*n)),
             RValue::Const(id) => self.var(*id).into(),
-            RValue::Param(idx) => Src::Reg(self.param(*idx)),
+            RValue::Param(idx) => (&self.param(*idx)).into(),
             RValue::Data(idx) => Src::Label(Label {
                 name: to_data_label(*idx),
             }),
@@ -239,7 +271,7 @@ impl<'a> FunctionAssembler<'a> {
     fn lval_to_dest(&mut self, lval: &LValue) -> Dest {
         match lval {
             LValue::Const(id) => self.var(*id).clone(),
-            LValue::Param(idx) => Dest::Reg(self.param(*idx)),
+            LValue::Param(idx) => self.param(*idx),
         }
     }
 
@@ -255,8 +287,22 @@ impl<'a> FunctionAssembler<'a> {
         }
     }
 
+    /// Allocate new stack slot for variable
+    fn new_stack_offset(&mut self, ty: &IRTypeId) -> Dest {
+        self.acc_offset += self.sizeof(ty);
+
+        Dest::StackOffset(StackOffset {
+            offset: self.acc_offset,
+            size: self.type_size(ty),
+        })
+    }
+
     fn type_size(&self, ty: &IRTypeId) -> Size {
         type_size(self.unit, ty)
+    }
+
+    fn sizeof(&self, ty: &IRTypeId) -> usize {
+        self.unit.types.sizeof(*ty)
     }
 
     /// Shorthand for getting correctly sized RAX register
@@ -348,4 +394,8 @@ fn type_size(unit: &Unit, ty: &IRTypeId) -> Size {
         8 => Size::Qword,
         _ => panic!("no size"),
     }
+}
+
+fn round_to_16(n: usize) -> usize {
+    (n + 15) & !15
 }
