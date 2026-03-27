@@ -1,7 +1,6 @@
 name: Rust
 
 on:
-    push:
     pull_request:
         branches: ["main"]
 
@@ -16,5 +15,7 @@ jobs:
             - uses: actions/checkout@v4
             - name: Build
               run: cargo build --verbose
+            - name: Run clippy
+              run: cargo clippy -- -D warnings
             - name: Run tests
               run: cargo test --verbose

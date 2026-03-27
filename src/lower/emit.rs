@@ -380,7 +380,7 @@ impl<'a> FileEmitter<'a> {
     // Conversions to L-Value
     // ----------------------
 
-    fn expr_to_lval(&mut self, _ins: &mut Vec<Ins>, expr: &types::Expr) -> Res<LValue> {
+    fn expr_to_lval(&mut self, _ins: &mut [Ins], expr: &types::Expr) -> Res<LValue> {
         if let Some(name) = expr.try_identifier() {
             return Ok(self.get_variable_lval(name));
         };
