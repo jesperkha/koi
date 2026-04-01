@@ -26,14 +26,36 @@ struct Cli {
     command: Option<Command>,
 }
 
+#[derive(clap::Args, Default)]
+struct ProjectOverrides {
+    /// Override project name
+    #[arg(long)]
+    name: Option<String>,
+    /// Override binary/temp output directory
+    #[arg(long)]
+    bin: Option<String>,
+    /// Override output directory
+    #[arg(long)]
+    out: Option<String>,
+    /// Override source directory
+    #[arg(long)]
+    src: Option<String>,
+}
+
 #[derive(Subcommand)]
 enum Command {
     /// Initialize a new project
     Init,
     /// Build and run project
-    Run,
+    Run {
+        #[command(flatten)]
+        overrides: ProjectOverrides,
+    },
     /// Build project
-    Build,
+    Build {
+        #[command(flatten)]
+        overrides: ProjectOverrides,
+    },
     /// Read the contents of a header file
     Read { filename: String },
     /// Print version
@@ -54,17 +76,38 @@ pub fn run() {
     }
 }
 
+fn apply_overrides(
+    mut project: crate::config::Project,
+    o: ProjectOverrides,
+) -> crate::config::Project {
+    if let Some(v) = o.name {
+        project.name = v;
+    }
+    if let Some(v) = o.bin {
+        project.bin = v;
+    }
+    if let Some(v) = o.out {
+        project.out = v;
+    }
+    if let Some(v) = o.src {
+        project.src = v;
+    }
+    project
+}
+
 fn run_command(command: Command) -> Result<(), String> {
     match command {
         Command::Init => koi_init(),
-        Command::Build => {
+        Command::Build { overrides } => {
             let (project, options, config) = load_config_file()?;
+            let project = apply_overrides(project, overrides);
             info!("Building project: {}", project.name);
             init_logger(options.debug_mode);
             compile(project, options, config)
         }
-        Command::Run => {
+        Command::Run { overrides } => {
             let (project, options, config) = load_config_file()?;
+            let project = apply_overrides(project, overrides);
             info!("Building and running project: {}", project.name);
 
             // Check if project can be run
