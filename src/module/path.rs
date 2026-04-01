@@ -41,11 +41,6 @@ impl ModulePath {
         }
     }
 
-    /// Create new standard library module path
-    pub fn to_std(self) -> ModulePath {
-        ModulePath::new("std".into(), self.package, self.path)
-    }
-
     /// Create new external library module path
     pub fn to_lib(self) -> ModulePath {
         ModulePath::new("lib".into(), self.package, self.path)
@@ -80,11 +75,6 @@ impl ModulePath {
         } else {
             ImportPath::from(self.path.as_str())
         }
-    }
-
-    /// Check if this module path is part of the standard library.
-    pub fn is_stdlib(&self) -> bool {
-        self.prefix == "std"
     }
 
     /// Check if this module path is an external library.
@@ -168,8 +158,7 @@ impl ImportPath {
 
     /// Get only the module name (the last identifier of the path).
     pub fn name(&self) -> &str {
-        self
-            .path
+        self.path
             .split(".")
             .last()
             .expect("called name on a non-import path")

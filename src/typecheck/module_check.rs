@@ -67,6 +67,7 @@ impl<'a> ModuleChecker<'a> {
     fn resolve_all_imports(&mut self, fs: &ast::FileSet) -> Res<()> {
         let mut diag = Diagnostics::new();
 
+        // Go through each import of each file and create a namespace list for each file.
         for file in &fs.files {
             info!("Resolving imports for file {}", file.filepath);
             let mut nsl = NamespaceList::new();
