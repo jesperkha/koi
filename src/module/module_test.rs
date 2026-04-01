@@ -52,9 +52,6 @@ fn test_modpath_is_x() {
     let modpath = ModulePath::new("lib".into(), "test".into(), "".into());
     assert!(modpath.is_library());
 
-    let modpath = ModulePath::new("std".into(), "test".into(), "".into());
-    assert!(modpath.is_stdlib());
-
     let modpath = ModulePath::new("".into(), "app".into(), "".into());
     assert!(!modpath.is_main());
     let modpath = modpath.to_main();
@@ -83,7 +80,6 @@ fn test_modpath_from_impath() {
     assert_eq!(modpath.path(), "");
 
     let modpath = ModulePath::from(ImportPath::from("std.io.util"));
-    assert!(modpath.is_stdlib());
     assert_eq!(modpath.prefix(), "std");
     assert_eq!(modpath.package(), "io");
     assert_eq!(modpath.path(), "util");

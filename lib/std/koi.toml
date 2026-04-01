@@ -1,0 +1,15 @@
+# Koi project configuration
+
+[project]
+name = "std"      # Project name
+type = "package"  # Project type (app|package)
+src = "."         # Source code directory
+bin = "bin"       # Output directory for temporary files
+out = "bin"       # Output directory of targets
+target = "x86-64" # Target arch (x86-64)
+ignore-dirs = []  # Source directories to ignore
+link-with = []    # Additional libraries to link with
+includes = ["io"]
+
+[options]
+debug-mode = false

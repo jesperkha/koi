@@ -11,7 +11,7 @@ use crate::{
     build::x86,
     config::{Config, Options, PathManager, Project, ProjectType, Target},
     context::Context,
-    imports::{LibraryKind, LibrarySet, create_header_file, read_header_file},
+    imports::{LibrarySet, create_header_file, read_header_file},
     ir::{ProgramIR, Unit},
     lower::emit_ir,
     module::{Module, ModuleId, ModulePath},
@@ -28,11 +28,7 @@ type Res<T> = Result<T, String>;
 
 /// Compile the project using the given global config and build configuration.
 pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
-    let pm = PathManager::new(
-        options
-            .install_dir
-            .map_or(get_root_dir(), FilePath::from),
-    );
+    let pm = PathManager::new(options.install_dir.map_or(get_root_dir(), FilePath::from));
 
     create_dir_if_not_exist(&project.bin)?;
 
@@ -52,8 +48,8 @@ pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
         });
 
     let mut libset = LibrarySet::new();
-    libset.read_dir(&pm.library_path(), LibraryKind::Stdlib)?;
-    libset.read_dir(&pm.external_library_path(), LibraryKind::External)?;
+    libset.read_dir(&pm.library_path())?;
+    libset.read_dir(&pm.external_library_path())?;
 
     // Check that external and std imports actually exist
     validate_external_imports(&filesets, &source_map, &libset)?;
@@ -179,9 +175,10 @@ fn dir_to_source_map(dir: &FilePath) -> Res<SourceMap> {
         }
 
         if let Some(ext) = path.extension()
-            && ext == "koi" {
-                files.push(path.into());
-            }
+            && ext == "koi"
+        {
+            files.push(path.into());
+        }
     }
 
     let mut map = SourceMap::new();
@@ -330,11 +327,11 @@ fn filepath_to_module_path(path: &FilePath, source_dir: &str, project: &Project)
         .trim_end_matches("/")
         .replace("/", ".");
 
-    let prefix = if matches!(project.project_type, ProjectType::Package) {
-        "lib".into()
-    } else {
-        "".into()
-    };
+    let prefix = match project.project_type {
+        ProjectType::App => "",
+        ProjectType::Package => "lib",
+    }
+    .into();
 
     let mut modpath = ModulePath::new(prefix, project.name.clone(), path);
     if modpath.path().is_empty() {
