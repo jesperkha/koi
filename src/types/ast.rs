@@ -336,3 +336,24 @@ impl_typed_node!(
     UnaryNode,
     BinaryNode,
 );
+
+impl From<TokenKind> for BinaryOp {
+    fn from(value: TokenKind) -> Self {
+        match value {
+            TokenKind::Plus => Self::Plus,
+            TokenKind::Minus => Self::Minus,
+            TokenKind::Star => Self::Mult,
+            TokenKind::Slash => Self::Divide,
+            TokenKind::Percent => Self::Modulo,
+            TokenKind::EqEq => Self::Equal,
+            TokenKind::NotEq => Self::NotEqual,
+            TokenKind::Greater => Self::Greater,
+            TokenKind::Less => Self::Less,
+            TokenKind::GreaterEq => Self::GreaterEq,
+            TokenKind::LessEq => Self::LessEq,
+            TokenKind::OrOr => Self::LogicOr,
+            TokenKind::AndAnd => Self::LogicAnd,
+            _ => unreachable!(),
+        }
+    }
+}

@@ -421,8 +421,8 @@ impl Node for Expr {
             Expr::Call(call) => call.pos(),
             Expr::Group(grp) => &grp.lparen.pos,
             Expr::Member(node) => node.expr.pos(),
-            Expr::Binary(node) => node.lhs.pos(),
-            Expr::Unary(node) => &node.op.pos,
+            Expr::Binary(node) => node.pos(),
+            Expr::Unary(node) => node.pos(),
         }
     }
 
@@ -432,8 +432,8 @@ impl Node for Expr {
             Expr::Call(call) => call.end(),
             Expr::Member(node) => &node.field.end_pos,
             Expr::Group(grp) => &grp.rparen.end_pos,
-            Expr::Binary(node) => node.rhs.end(),
-            Expr::Unary(node) => node.rhs.end(),
+            Expr::Binary(node) => node.end(),
+            Expr::Unary(node) => node.end(),
         }
     }
 
@@ -443,8 +443,8 @@ impl Node for Expr {
             Expr::Call(call) => call.id(),
             Expr::Group(grp) => grp.rparen.id,
             Expr::Member(node) => node.dot.id,
-            Expr::Binary(node) => node.op.id,
-            Expr::Unary(node) => node.op.id,
+            Expr::Binary(node) => node.id(),
+            Expr::Unary(node) => node.id(),
         }
     }
 }
@@ -474,6 +474,34 @@ impl Node for MemberNode {
 
     fn id(&self) -> NodeId {
         self.dot.id
+    }
+}
+
+impl Node for UnaryExpr {
+    fn pos(&self) -> &Pos {
+        &self.op.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.rhs.end()
+    }
+
+    fn id(&self) -> NodeId {
+        self.op.id
+    }
+}
+
+impl Node for BinaryExpr {
+    fn pos(&self) -> &Pos {
+        self.lhs.pos()
+    }
+
+    fn end(&self) -> &Pos {
+        &self.rhs.end()
+    }
+
+    fn id(&self) -> NodeId {
+        self.op.id
     }
 }
 
