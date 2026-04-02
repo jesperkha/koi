@@ -1,0 +1,9 @@
+func notf(a bool) bool {
+    return !a
+}
+
+func main() int {
+    notf(true)
+    notf(false)
+    return 0
+}

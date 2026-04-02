@@ -21,12 +21,31 @@ pub enum TextDecl {
 pub enum Asm {
     Comment(String),
     Push(Src),
-    Sub(Dest, Src),
     Mov(Dest, Src),
     Lea(Dest, Src),
+    Add(Dest, Src),
+    Sub(Dest, Src),
+    IMul(Dest, Src),
+    IDiv(Src),
+    Cqo,
+    Neg(Dest),
+    And(Dest, Src),
+    Or(Dest, Src),
+    Xor(Dest, Src),
+    Cmp(Src, Src),
+    Set(Condition, Dest),
     Call(String),
     Leave,
     Ret,
+}
+
+pub enum Condition {
+    E,
+    Ne,
+    G,
+    Ge,
+    L,
+    Le,
 }
 
 #[derive(Clone, Debug)]
@@ -246,12 +265,36 @@ impl Display for Asm {
             Asm::Comment(comment) => write!(f, "/* {} */", comment),
             Asm::Mov(dst, src) => write!(f, "mov {}, {}", dst, src),
             Asm::Lea(dst, src) => write!(f, "lea {}, {}", dst, src),
+            Asm::Add(dst, src) => write!(f, "add {}, {}", dst, src),
             Asm::Sub(dst, src) => write!(f, "sub {}, {}", dst, src),
+            Asm::IMul(dst, src) => write!(f, "imul {}, {}", dst, src),
+            Asm::IDiv(src) => write!(f, "idiv {}", src),
+            Asm::Cqo => write!(f, "cqo"),
+            Asm::Neg(dst) => write!(f, "neg {}", dst),
+            Asm::And(dst, src) => write!(f, "and {}, {}", dst, src),
+            Asm::Or(dst, src) => write!(f, "or {}, {}", dst, src),
+            Asm::Xor(dst, src) => write!(f, "xor {}, {}", dst, src),
+            Asm::Cmp(src1, src2) => write!(f, "cmp {}, {}", src1, src2),
+            Asm::Set(cond, dst) => write!(f, "set{} {}", cond, dst),
             Asm::Push(source) => write!(f, "push {}", source),
             Asm::Leave => write!(f, "leave"),
             Asm::Ret => write!(f, "ret"),
             Asm::Call(label) => write!(f, "call {}", label),
         }
+    }
+}
+
+impl Display for Condition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Condition::E => "e",
+            Condition::Ne => "ne",
+            Condition::G => "g",
+            Condition::Ge => "ge",
+            Condition::L => "l",
+            Condition::Le => "le",
+        };
+        write!(f, "{}", s)
     }
 }
 

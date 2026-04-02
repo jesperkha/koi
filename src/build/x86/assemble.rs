@@ -2,13 +2,14 @@ use std::{collections::HashMap, mem::take};
 
 use crate::{
     build::x86::{
-        Asm, DataDecl, Dest, File, Immediate, Label, Reg, Size, Src, StackOffset, TextDecl,
-        UnsignedReg,
+        Asm, Condition, DataDecl, Dest, File, Immediate, Label, Reg, Size, Src, StackOffset,
+        TextDecl, UnsignedReg,
     },
     config::Config,
     ir::{
-        AssignIns, CallIns, ConstId, Data, Decl, ExternDecl, FuncDecl, IRType, IRTypeId, Ins,
-        LValue, Primitive, RValue, StoreIns, Unit, ins_to_string,
+        AssignIns, BinaryIns, CallIns, ConstId, Data, Decl, ExternDecl, FuncDecl, IRBinaryOp,
+        IRType, IRTypeId, IRUnaryOp, Ins, LValue, Primitive, RValue, StoreIns, UnaryIns, Unit,
+        ins_to_string,
     },
 };
 
@@ -166,8 +167,8 @@ impl<'a> FunctionAssembler<'a> {
             Ins::Call(call) => self.emit_call(call),
             Ins::Return(ty, rvalue) => self.emit_return(ty, rvalue),
             Ins::Intrinsic(_) => todo!(),
-            Ins::Binary(_) => todo!(),
-            Ins::Unary(_) => todo!(),
+            Ins::Binary(ins) => self.emit_binary(ins),
+            Ins::Unary(ins) => self.emit_unary(ins),
         }
     }
 
@@ -229,6 +230,107 @@ impl<'a> FunctionAssembler<'a> {
         // ret
         self.push(Asm::Leave);
         self.push(Asm::Ret);
+    }
+
+    fn emit_binary(&mut self, ins: &BinaryIns) {
+        let lhs = self.rval_to_src(&ins.lhs);
+        let rhs = self.rval_to_src(&ins.rhs);
+        let result_size = self.type_size(&ins.ty);
+        let rax = UnsignedReg::Rax.to_sized(result_size.clone());
+
+        match &ins.op {
+            IRBinaryOp::Add | IRBinaryOp::Sub | IRBinaryOp::Mul => {
+                let r10 = UnsignedReg::R10.to_sized(result_size);
+                self.push(Asm::Mov(Dest::Reg(rax.clone()), lhs));
+                self.push(Asm::Mov(Dest::Reg(r10.clone()), rhs));
+                let op = match &ins.op {
+                    IRBinaryOp::Add => Asm::Add(Dest::Reg(rax.clone()), Src::Reg(r10)),
+                    IRBinaryOp::Sub => Asm::Sub(Dest::Reg(rax.clone()), Src::Reg(r10)),
+                    IRBinaryOp::Mul => Asm::IMul(Dest::Reg(rax.clone()), Src::Reg(r10)),
+                    _ => unreachable!(),
+                };
+                self.push(op);
+                self.vars.insert(ins.result, Dest::Reg(rax));
+            }
+            IRBinaryOp::Div => {
+                let r10 = UnsignedReg::R10.to_sized(result_size);
+                self.push(Asm::Mov(Dest::Reg(rax.clone()), lhs));
+                self.push(Asm::Mov(Dest::Reg(r10.clone()), rhs));
+                self.push(Asm::Cqo);
+                self.push(Asm::IDiv(Src::Reg(r10)));
+                self.vars.insert(ins.result, Dest::Reg(rax));
+            }
+            IRBinaryOp::Mod => {
+                // Operands are i64, result is u32 in edx after idiv
+                let rax64 = UnsignedReg::Rax.to_sized(Size::Qword);
+                let r10_64 = UnsignedReg::R10.to_sized(Size::Qword);
+                self.push(Asm::Mov(Dest::Reg(rax64.clone()), lhs));
+                self.push(Asm::Mov(Dest::Reg(r10_64.clone()), rhs));
+                self.push(Asm::Cqo);
+                self.push(Asm::IDiv(Src::Reg(r10_64)));
+                self.vars.insert(ins.result, Dest::Reg(Reg::Edx));
+            }
+            IRBinaryOp::Eq | IRBinaryOp::Ne | IRBinaryOp::Gt | IRBinaryOp::Ge
+            | IRBinaryOp::Lt | IRBinaryOp::Le => {
+                // Determine operand size from the non-immediate src; both operands have the same type.
+                let op_size = match (&lhs, &rhs) {
+                    (Src::Immediate(_), Src::Immediate(_)) => Size::Qword,
+                    (Src::Immediate(_), _) => src_size(&rhs),
+                    _ => src_size(&lhs),
+                };
+                let rax_op = UnsignedReg::Rax.to_sized(op_size.clone());
+                let r10_op = UnsignedReg::R10.to_sized(op_size);
+                self.push(Asm::Mov(Dest::Reg(rax_op.clone()), lhs));
+                self.push(Asm::Mov(Dest::Reg(r10_op.clone()), rhs));
+                self.push(Asm::Cmp(Src::Reg(rax_op), Src::Reg(r10_op)));
+                let cond = match &ins.op {
+                    IRBinaryOp::Eq => Condition::E,
+                    IRBinaryOp::Ne => Condition::Ne,
+                    IRBinaryOp::Gt => Condition::G,
+                    IRBinaryOp::Ge => Condition::Ge,
+                    IRBinaryOp::Lt => Condition::L,
+                    IRBinaryOp::Le => Condition::Le,
+                    _ => unreachable!(),
+                };
+                self.push(Asm::Set(cond, Dest::Reg(Reg::Al)));
+                self.vars.insert(ins.result, Dest::Reg(Reg::Al));
+            }
+            IRBinaryOp::And | IRBinaryOp::Or => {
+                let r10 = UnsignedReg::R10.to_sized(result_size);
+                self.push(Asm::Mov(Dest::Reg(rax.clone()), lhs));
+                self.push(Asm::Mov(Dest::Reg(r10.clone()), rhs));
+                let op = match &ins.op {
+                    IRBinaryOp::And => Asm::And(Dest::Reg(rax.clone()), Src::Reg(r10)),
+                    IRBinaryOp::Or => Asm::Or(Dest::Reg(rax.clone()), Src::Reg(r10)),
+                    _ => unreachable!(),
+                };
+                self.push(op);
+                self.vars.insert(ins.result, Dest::Reg(rax));
+            }
+        }
+    }
+
+    fn emit_unary(&mut self, ins: &UnaryIns) {
+        let rhs = self.rval_to_src(&ins.rhs);
+        let result_size = self.type_size(&ins.ty);
+        let rax = UnsignedReg::Rax.to_sized(result_size);
+
+        match &ins.op {
+            IRUnaryOp::Neg => {
+                self.push(Asm::Mov(Dest::Reg(rax.clone()), rhs));
+                self.push(Asm::Neg(Dest::Reg(rax.clone())));
+                self.vars.insert(ins.result, Dest::Reg(rax));
+            }
+            IRUnaryOp::Not => {
+                // Boolean not: flip the low bit (xor with 1)
+                self.push(Asm::Mov(Dest::Reg(rax.clone()), rhs));
+                self.push(Asm::Xor(
+                    Dest::Reg(rax.clone()),
+                    Src::Immediate(Immediate::Uint(1)),
+                ));
+                self.vars.insert(ins.result, Dest::Reg(rax));
+            }
+        }
     }
 
     /// Helper to automatically switch between mov and lea depending on value.
@@ -400,4 +502,31 @@ fn type_size(unit: &Unit, ty: &IRTypeId) -> Size {
 
 fn round_to_16(n: usize) -> usize {
     (n + 15) & !15
+}
+
+/// Get the operand size of a Src value.
+fn src_size(src: &Src) -> Size {
+    match src {
+        Src::Reg(reg) => reg_to_size(reg),
+        Src::StackOffset(off) => off.size.clone(),
+        Src::Immediate(_) | Src::Label(_) => Size::Qword,
+    }
+}
+
+fn reg_to_size(reg: &Reg) -> Size {
+    match reg {
+        Reg::Rax | Reg::Rbx | Reg::Rcx | Reg::Rdx | Reg::Rbp | Reg::Rsp | Reg::Rsi
+        | Reg::Rdi | Reg::R8 | Reg::R9 | Reg::R10 | Reg::R11 | Reg::R12 | Reg::R13
+        | Reg::R14 | Reg::R15 => Size::Qword,
+        Reg::Eax | Reg::Ebx | Reg::Ecx | Reg::Edx | Reg::Esi | Reg::Edi | Reg::R8d
+        | Reg::R9d | Reg::R10d | Reg::R11d | Reg::R12d | Reg::R13d | Reg::R14d | Reg::R15d => {
+            Size::Dword
+        }
+        Reg::Ax | Reg::Bx | Reg::Cx | Reg::Ex | Reg::Si | Reg::Di | Reg::R8w | Reg::R9w
+        | Reg::R10w | Reg::R11w | Reg::R12w | Reg::R13w | Reg::R14w | Reg::R15w => Size::Word,
+        Reg::Al | Reg::Bl | Reg::Cl | Reg::El | Reg::Sil | Reg::Dil | Reg::R8b | Reg::R9b
+        | Reg::R10b | Reg::R11b | Reg::R12b | Reg::R13b | Reg::R14b | Reg::R15b => Size::Byte,
+        Reg::Xmm0 | Reg::Xmm1 | Reg::Xmm2 | Reg::Xmm3 | Reg::Xmm4 | Reg::Xmm5 | Reg::Xmm6
+        | Reg::Xmm7 => Size::Qword,
+    }
 }

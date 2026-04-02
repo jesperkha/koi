@@ -176,6 +176,325 @@ f:
 }
 
 #[test]
+fn test_binary_add() {
+    compare(
+        r#"
+func f(a int, b int) int {
+    return a + b
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov QWORD PTR [rbp-8], rdi
+    mov QWORD PTR [rbp-16], rsi
+    mov rax, QWORD PTR [rbp-8]
+    mov r10, QWORD PTR [rbp-16]
+    add rax, r10
+    mov rax, rax
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_binary_sub() {
+    compare(
+        r#"
+func f(a int, b int) int {
+    return a - b
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov QWORD PTR [rbp-8], rdi
+    mov QWORD PTR [rbp-16], rsi
+    mov rax, QWORD PTR [rbp-8]
+    mov r10, QWORD PTR [rbp-16]
+    sub rax, r10
+    mov rax, rax
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_binary_mul() {
+    compare(
+        r#"
+func f(a int, b int) int {
+    return a * b
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov QWORD PTR [rbp-8], rdi
+    mov QWORD PTR [rbp-16], rsi
+    mov rax, QWORD PTR [rbp-8]
+    mov r10, QWORD PTR [rbp-16]
+    imul rax, r10
+    mov rax, rax
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_binary_div() {
+    compare(
+        r#"
+func f(a int, b int) int {
+    return a / b
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov QWORD PTR [rbp-8], rdi
+    mov QWORD PTR [rbp-16], rsi
+    mov rax, QWORD PTR [rbp-8]
+    mov r10, QWORD PTR [rbp-16]
+    cqo
+    idiv r10
+    mov rax, rax
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_binary_eq() {
+    compare(
+        r#"
+func f(a int, b int) bool {
+    return a == b
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov QWORD PTR [rbp-8], rdi
+    mov QWORD PTR [rbp-16], rsi
+    mov rax, QWORD PTR [rbp-8]
+    mov r10, QWORD PTR [rbp-16]
+    cmp rax, r10
+    sete al
+    mov al, al
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_binary_lt() {
+    compare(
+        r#"
+func f(a int, b int) bool {
+    return a < b
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov QWORD PTR [rbp-8], rdi
+    mov QWORD PTR [rbp-16], rsi
+    mov rax, QWORD PTR [rbp-8]
+    mov r10, QWORD PTR [rbp-16]
+    cmp rax, r10
+    setl al
+    mov al, al
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_binary_and() {
+    compare(
+        r#"
+func f(a bool, b bool) bool {
+    return a && b
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    mov BYTE PTR [rbp-2], sil
+    mov al, BYTE PTR [rbp-1]
+    mov r10b, BYTE PTR [rbp-2]
+    and al, r10b
+    mov al, al
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_binary_or() {
+    compare(
+        r#"
+func f(a bool, b bool) bool {
+    return a || b
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    mov BYTE PTR [rbp-2], sil
+    mov al, BYTE PTR [rbp-1]
+    mov r10b, BYTE PTR [rbp-2]
+    or al, r10b
+    mov al, al
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_unary_neg() {
+    compare(
+        r#"
+func f(a int) int {
+    return -a
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov QWORD PTR [rbp-8], rdi
+    mov rax, QWORD PTR [rbp-8]
+    neg rax
+    mov rax, rax
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_unary_not() {
+    compare(
+        r#"
+func f(a bool) bool {
+    return !a
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    mov al, BYTE PTR [rbp-1]
+    xor al, 1
+    mov al, al
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
 fn test_param_alloc() {
     compare(
         r#"

@@ -1,0 +1,8 @@
+func negate(n int) int {
+    return -n
+}
+
+func main() int {
+    a := negate(5)
+    return a + 10
+}
