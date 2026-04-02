@@ -483,7 +483,7 @@ impl Node for UnaryExpr {
     }
 
     fn end(&self) -> &Pos {
-        &self.rhs.end()
+        self.rhs.end()
     }
 
     fn id(&self) -> NodeId {
@@ -497,7 +497,7 @@ impl Node for BinaryExpr {
     }
 
     fn end(&self) -> &Pos {
-        &self.rhs.end()
+        self.rhs.end()
     }
 
     fn id(&self) -> NodeId {

@@ -353,12 +353,12 @@ impl<'a> FileChecker<'a> {
                         &rhs,
                     ));
                 }
-                return Ok(types::Expr::Unary(types::UnaryNode {
+                Ok(types::Expr::Unary(types::UnaryNode {
                     ty: bool_t,
                     meta,
                     op,
                     rhs: Box::new(rhs),
-                }));
+                }))
             }
             UnaryOp::Minus => {
                 if !self.ctx.types.is_number(rhs.type_id()) {
@@ -370,12 +370,12 @@ impl<'a> FileChecker<'a> {
                         &rhs,
                     ));
                 }
-                return Ok(types::Expr::Unary(types::UnaryNode {
+                Ok(types::Expr::Unary(types::UnaryNode {
                     meta,
                     op,
                     ty: rhs.type_id(),
                     rhs: Box::new(rhs),
-                }));
+                }))
             }
         }
     }
