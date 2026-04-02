@@ -8,23 +8,6 @@ pub trait TypedNode<'a> {
     fn type_id(&self) -> TypeId;
 }
 
-pub trait Visitable {
-    /// Accept visitor to inspect this node.
-    fn accept<T>(&self, v: &mut dyn Visitor<T>) -> T;
-}
-
-pub trait Visitor<T> {
-    fn visit_func(&mut self, node: &FuncNode) -> T;
-    fn visit_return(&mut self, node: &ReturnNode) -> T;
-    fn visit_var_assign(&mut self, node: &VarAssignNode) -> T;
-    fn visit_var_decl(&mut self, node: &VarDeclNode) -> T;
-    fn visit_literal(&mut self, node: &LiteralNode) -> T;
-    fn visit_extern(&mut self, node: &ExternNode) -> T;
-    fn visit_call(&mut self, node: &CallNode) -> T;
-    fn visit_member(&mut self, node: &MemberNode) -> T;
-    fn visit_namespace_member(&mut self, node: &NamespaceMemberNode) -> T;
-}
-
 pub struct TypedAst {
     pub decls: Vec<Decl>,
 }
@@ -170,37 +153,6 @@ pub struct CallNode {
     pub meta: NodeMeta,
     pub callee: Box<Expr>,
     pub args: Vec<Expr>,
-}
-
-impl Visitable for Decl {
-    fn accept<T>(&self, v: &mut dyn Visitor<T>) -> T {
-        match self {
-            Decl::Func(node) => v.visit_func(node),
-            Decl::Extern(node) => v.visit_extern(node),
-        }
-    }
-}
-
-impl Visitable for Stmt {
-    fn accept<T>(&self, v: &mut dyn Visitor<T>) -> T {
-        match self {
-            Stmt::Return(node) => v.visit_return(node),
-            Stmt::VarDecl(node) => v.visit_var_decl(node),
-            Stmt::VarAssign(node) => v.visit_var_assign(node),
-            Stmt::ExprStmt(node) => node.accept(v),
-        }
-    }
-}
-
-impl Visitable for Expr {
-    fn accept<T>(&self, v: &mut dyn Visitor<T>) -> T {
-        match self {
-            Expr::Literal(node) => v.visit_literal(node),
-            Expr::Call(node) => v.visit_call(node),
-            Expr::Member(node) => v.visit_member(node),
-            Expr::NamespaceMember(node) => v.visit_namespace_member(node),
-        }
-    }
 }
 
 impl Node for Decl {
