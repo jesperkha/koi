@@ -698,3 +698,171 @@ fn test_binary_bool_equality() {
     "#,
     );
 }
+
+#[test]
+fn test_unary_not_pass() {
+    assert_pass(
+        r#"
+        func f(a bool) bool {
+            return !a
+        }
+    "#,
+    );
+    // Double negation
+    assert_pass(
+        r#"
+        func f(a bool) bool {
+            return !!a
+        }
+    "#,
+    );
+    // ! on comparison result
+    assert_pass(
+        r#"
+        func f(a int, b int) bool {
+            return !(a == b)
+        }
+    "#,
+    );
+    // ! result assigned to variable
+    assert_pass(
+        r#"
+        func f(a bool) bool {
+            b := !a
+            return b
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_unary_not_type_error() {
+    assert_error(
+        r#"
+        func f(a int) bool {
+            return !a
+        }
+    "#,
+        "'!' operator can only be used on type 'bool', got 'i64'",
+    );
+    assert_error(
+        r#"
+        func f() bool {
+            return !1
+        }
+    "#,
+        "'!' operator can only be used on type 'bool', got 'i64'",
+    );
+}
+
+#[test]
+fn test_unary_not_yields_bool() {
+    // ! result is bool, not int
+    assert_error(
+        r#"
+        func f(a bool) int {
+            return !a
+        }
+    "#,
+        "incorrect return type: expected 'i64', got 'bool'",
+    );
+}
+
+#[test]
+fn test_unary_minus_pass() {
+    assert_pass(
+        r#"
+        func f(a int) int {
+            return -a
+        }
+    "#,
+    );
+    // Double negation
+    assert_pass(
+        r#"
+        func f(a int) int {
+            return --a
+        }
+    "#,
+    );
+    // - result assigned to variable
+    assert_pass(
+        r#"
+        func f(a int) int {
+            b := -a
+            return b
+        }
+    "#,
+    );
+    // - in arithmetic expression
+    assert_pass(
+        r#"
+        func f(a int, b int) int {
+            return a + -b
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_unary_minus_preserves_type() {
+    // - preserves the operand type, not bool
+    assert_error(
+        r#"
+        func f(a int) bool {
+            return -a
+        }
+    "#,
+        "incorrect return type: expected 'bool', got 'i64'",
+    );
+}
+
+#[test]
+fn test_unary_minus_type_error() {
+    assert_error(
+        r#"
+        func f(a bool) bool {
+            return -a
+        }
+    "#,
+        "'-' operator can only be used on number types, got 'bool'",
+    );
+    assert_error(
+        r#"
+        func f(s string) string {
+            return -s
+        }
+    "#,
+        "'-' operator can only be used on number types, got 'string'",
+    );
+}
+
+#[test]
+fn test_unary_as_function_argument() {
+    assert_pass(
+        r#"
+        func consume(v bool) {}
+        func f(a bool) {
+            consume(!a)
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func consume(v int) {}
+        func f(a int) {
+            consume(-a)
+        }
+    "#,
+    );
+    // Type mismatch: ! yields bool but int expected
+    assert_error(
+        r#"
+        func consume(v int) {}
+        func f(a bool) {
+            consume(!a)
+        }
+    "#,
+        "mismatched types in function call. expected 'i64', got 'bool'",
+    );
+}
