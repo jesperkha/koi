@@ -44,14 +44,16 @@ pub trait Visitor<R> {
     fn visit_extern(&mut self, node: &FuncDeclNode) -> R;
     fn visit_block(&mut self, node: &BlockNode) -> R;
     fn visit_return(&mut self, node: &ReturnNode) -> R;
-    fn visit_literal(&mut self, node: &Token) -> R;
     fn visit_type(&mut self, node: &TypeNode) -> R;
-    fn visit_call(&mut self, node: &CallExpr) -> R;
-    fn visit_group(&mut self, node: &GroupExpr) -> R;
     fn visit_var_decl(&mut self, node: &VarDeclNode) -> R;
     fn visit_var_assign(&mut self, node: &VarAssignNode) -> R;
     fn visit_import(&mut self, node: &ImportNode) -> R;
     fn visit_member(&mut self, node: &MemberNode) -> R;
+
+    fn visit_literal(&mut self, node: &Token) -> R;
+    fn visit_call(&mut self, node: &CallExpr) -> R;
+    fn visit_group(&mut self, node: &GroupExpr) -> R;
+    fn visit_binary(&mut self, node: &BinaryExpr) -> R;
 }
 
 /// Declarations are not considered statements for linting purposes.
@@ -83,6 +85,7 @@ pub enum Expr {
     Group(GroupExpr),
     Call(CallExpr),
     Member(MemberNode),
+    Binary(BinaryExpr),
 }
 
 /// A TypeNode is the AST representation of a type, not the semantic meaning.
@@ -90,6 +93,13 @@ pub enum Expr {
 pub enum TypeNode {
     Primitive(Token),
     Ident(Token),
+}
+
+#[derive(Debug, Clone)]
+pub struct BinaryExpr {
+    pub lhs: Box<Expr>,
+    pub op: Token,
+    pub rhs: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]
@@ -403,6 +413,7 @@ impl Node for Expr {
             Expr::Call(call) => call.pos(),
             Expr::Group(grp) => &grp.lparen.pos,
             Expr::Member(node) => node.expr.pos(),
+            Expr::Binary(node) => node.lhs.pos(),
         }
     }
 
@@ -412,6 +423,7 @@ impl Node for Expr {
             Expr::Call(call) => call.end(),
             Expr::Member(node) => &node.field.end_pos,
             Expr::Group(grp) => &grp.rparen.end_pos,
+            Expr::Binary(node) => node.rhs.end(),
         }
     }
 
@@ -421,6 +433,7 @@ impl Node for Expr {
             Expr::Call(call) => call.id(),
             Expr::Group(grp) => grp.rparen.id,
             Expr::Member(node) => node.dot.id,
+            Expr::Binary(node) => node.op.id,
         }
     }
 }
@@ -460,6 +473,7 @@ impl Visitable for Expr {
             Expr::Call(call) => visitor.visit_call(call),
             Expr::Group(grp) => visitor.visit_group(grp),
             Expr::Member(node) => visitor.visit_member(node),
+            Expr::Binary(node) => visitor.visit_binary(node),
         }
     }
 }

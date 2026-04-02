@@ -1,7 +1,7 @@
 use tracing::info;
 
 use crate::{
-    ast::{self, Ast, Node, Pos, Token, TokenKind},
+    ast::{self, Ast, Expr, Node, Pos, Token, TokenKind},
     context::Context,
     error::{Diagnostics, Report, Res},
     module::{NamespaceList, Symbol, SymbolList},
@@ -104,6 +104,7 @@ impl<'a> FileChecker<'a> {
             ast::Expr::Group(node) => self.emit_expr(*node.inner),
             ast::Expr::Call(node) => self.emit_call(node),
             ast::Expr::Member(node) => self.emit_member(node),
+            ast::Expr::Binary(node) => self.emit_binary(node),
         }
     }
 
@@ -329,6 +330,10 @@ impl<'a> FileChecker<'a> {
         }))
     }
 
+    fn emit_binary(&mut self, node: ast::BinaryExpr) -> Result<types::Expr, Report> {
+        todo!()
+    }
+
     fn emit_call(&mut self, node: ast::CallExpr) -> Result<types::Expr, Report> {
         let meta = ast_node_to_meta(&node);
         let callee = self.emit_expr(*node.callee)?;
@@ -515,6 +520,7 @@ impl<'a> FileChecker<'a> {
             },
             ast::Expr::Group(_) | ast::Expr::Call(_) => true,
             ast::Expr::Member(node) => self.is_constant(&node.expr),
+            ast::Expr::Binary(_) => true,
         }
     }
 
