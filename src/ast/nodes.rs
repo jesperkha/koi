@@ -54,6 +54,7 @@ pub trait Visitor<R> {
     fn visit_call(&mut self, node: &CallExpr) -> R;
     fn visit_group(&mut self, node: &GroupExpr) -> R;
     fn visit_binary(&mut self, node: &BinaryExpr) -> R;
+    fn visit_unary(&mut self, node: &UnaryExpr) -> R;
 }
 
 /// Declarations are not considered statements for linting purposes.
@@ -86,6 +87,7 @@ pub enum Expr {
     Call(CallExpr),
     Member(MemberNode),
     Binary(BinaryExpr),
+    Unary(UnaryExpr),
 }
 
 /// A TypeNode is the AST representation of a type, not the semantic meaning.
@@ -93,6 +95,12 @@ pub enum Expr {
 pub enum TypeNode {
     Primitive(Token),
     Ident(Token),
+}
+
+#[derive(Debug, Clone)]
+pub struct UnaryExpr {
+    pub op: Token,
+    pub rhs: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]
@@ -414,6 +422,7 @@ impl Node for Expr {
             Expr::Group(grp) => &grp.lparen.pos,
             Expr::Member(node) => node.expr.pos(),
             Expr::Binary(node) => node.lhs.pos(),
+            Expr::Unary(node) => &node.op.pos,
         }
     }
 
@@ -424,6 +433,7 @@ impl Node for Expr {
             Expr::Member(node) => &node.field.end_pos,
             Expr::Group(grp) => &grp.rparen.end_pos,
             Expr::Binary(node) => node.rhs.end(),
+            Expr::Unary(node) => node.rhs.end(),
         }
     }
 
@@ -434,6 +444,7 @@ impl Node for Expr {
             Expr::Group(grp) => grp.rparen.id,
             Expr::Member(node) => node.dot.id,
             Expr::Binary(node) => node.op.id,
+            Expr::Unary(node) => node.op.id,
         }
     }
 }
@@ -474,6 +485,7 @@ impl Visitable for Expr {
             Expr::Group(grp) => visitor.visit_group(grp),
             Expr::Member(node) => visitor.visit_member(node),
             Expr::Binary(node) => visitor.visit_binary(node),
+            Expr::Unary(node) => visitor.visit_unary(node),
         }
     }
 }

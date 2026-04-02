@@ -6,7 +6,7 @@ use crate::{
     ast::{
         Ast, BinaryExpr, BlockNode, CallExpr, Decl, Expr, Field, File, FileSet, FuncDeclNode,
         FuncNode, GroupExpr, ImportNode, MemberNode, Node, ReturnNode, SourceMap, Stmt, Token,
-        TokenKind, TypeNode, VarAssignNode, VarDeclNode,
+        TokenKind, TypeNode, UnaryExpr, VarAssignNode, VarDeclNode,
     },
     config::Config,
     error::{Diagnostics, Report, Res},
@@ -492,8 +492,21 @@ impl<'a> Parser<'a> {
     fn parse_multiplicative(&mut self) -> Result<Expr, Report> {
         self.parse_binary(
             &[TokenKind::Star, TokenKind::Slash, TokenKind::Percent],
-            Self::parse_call_and_member,
+            Self::parse_unary,
         )
+    }
+
+    fn parse_unary(&mut self) -> Result<Expr, Report> {
+        if self.matches_any(&[TokenKind::Minus, TokenKind::Not]) {
+            let op = self.must_consume()?;
+            let rhs = self.parse_unary()?;
+            return Ok(Expr::Unary(UnaryExpr {
+                op,
+                rhs: Box::new(rhs),
+            }));
+        }
+
+        self.parse_call_and_member()
     }
 
     fn parse_call_and_member(&mut self) -> Result<Expr, Report> {

@@ -189,4 +189,9 @@ impl Visitor<()> for Printer {
         self.visit_literal(&node.op);
         node.rhs.accept(self);
     }
+
+    fn visit_unary(&mut self, node: &super::UnaryExpr) -> () {
+        self.visit_literal(&node.op);
+        node.rhs.accept(self);
+    }
 }

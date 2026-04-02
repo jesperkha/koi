@@ -505,7 +505,7 @@ fn test_malformed_import_reports_error() {
 }
 
 #[test]
-fn test_binary_term() {
+fn test_binary() {
     assert_pass(
         r#"
         func sum(a int, b int) int {
@@ -538,6 +538,31 @@ fn test_binary_term() {
         r#"
         func f() {
             g() && true == false || true
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_unary() {
+    assert_pass(
+        r#"
+        func f() {
+            !a && !!a && !!!a
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            !a && (-b + n) == !!!!c
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            -(-a - -b - c)
         }
     "#,
     );
