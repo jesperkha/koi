@@ -7,7 +7,7 @@ use crate::{
     module::{NamespaceList, Symbol, SymbolList},
     types::{
         self, BinaryOp, FunctionType, NO_TYPE, NodeMeta, PrimitiveType, Type, TypeId, TypeKind,
-        TypedNode, ast_node_to_meta,
+        TypedNode, UnaryOp, ast_node_to_meta,
     },
     util::VarTable,
 };
@@ -332,12 +332,56 @@ impl<'a> FileChecker<'a> {
     }
 
     fn emit_unary(&mut self, node: ast::UnaryExpr) -> Result<types::Expr, Report> {
-        todo!()
+        let meta = ast_node_to_meta(&node);
+        let rhs = self.emit_expr(*node.rhs)?;
+
+        let op = match node.op.kind {
+            TokenKind::Not => UnaryOp::LogicNot,
+            TokenKind::Minus => UnaryOp::Minus,
+            _ => unreachable!(),
+        };
+
+        match op {
+            UnaryOp::LogicNot => {
+                let bool_t = self.ctx.types.primitive(PrimitiveType::Bool);
+                if !self.ctx.types.equivalent(rhs.type_id(), bool_t) {
+                    return Err(self.error(
+                        &format!(
+                            "'!' operator can only be used on type 'bool', got '{}'",
+                            self.type_to_string(&rhs)
+                        ),
+                        &rhs,
+                    ));
+                }
+                return Ok(types::Expr::Unary(types::UnaryNode {
+                    ty: bool_t,
+                    meta,
+                    op,
+                    rhs: Box::new(rhs),
+                }));
+            }
+            UnaryOp::Minus => {
+                if !self.ctx.types.is_number(rhs.type_id()) {
+                    return Err(self.error(
+                        &format!(
+                            "'-' operator can only be used on number types, got '{}'",
+                            self.type_to_string(&rhs)
+                        ),
+                        &rhs,
+                    ));
+                }
+                return Ok(types::Expr::Unary(types::UnaryNode {
+                    meta,
+                    op,
+                    ty: rhs.type_id(),
+                    rhs: Box::new(rhs),
+                }));
+            }
+        }
     }
 
     fn emit_binary(&mut self, node: ast::BinaryExpr) -> Result<types::Expr, Report> {
         let meta = ast_node_to_meta(&node);
-
         let lhs = self.emit_expr(*node.lhs)?;
         let rhs = self.emit_expr(*node.rhs)?;
 
