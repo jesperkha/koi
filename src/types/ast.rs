@@ -53,6 +53,8 @@ pub enum Expr {
     Call(CallNode),
     Member(MemberNode),
     NamespaceMember(NamespaceMemberNode),
+    Binary(BinaryNode),
+    Unary(UnaryNode),
 }
 
 impl Expr {
@@ -155,6 +157,45 @@ pub struct CallNode {
     pub args: Vec<Expr>,
 }
 
+pub enum BinaryOp {
+    Plus,
+    Minus,
+    Mult,
+    Divide,
+    Modulo,
+
+    Equal,
+    NotEqual,
+
+    Greater,
+    GreaterEq,
+    Less,
+    LessEq,
+
+    LogicAnd,
+    LogicOr,
+}
+
+pub struct BinaryNode {
+    pub ty: TypeId,
+    pub meta: NodeMeta,
+    pub lhs: Box<Expr>,
+    pub op: BinaryOp,
+    pub rhs: Box<Expr>,
+}
+
+pub enum UnaryOp {
+    LogicNot,
+    Minus,
+}
+
+pub struct UnaryNode {
+    pub ty: TypeId,
+    pub meta: NodeMeta,
+    pub op: UnaryOp,
+    pub rhs: Box<Expr>,
+}
+
 impl Node for Decl {
     fn pos(&self) -> &Pos {
         match self {
@@ -214,6 +255,8 @@ impl Node for Expr {
             Expr::Call(node) => &node.meta.pos,
             Expr::Member(node) => &node.meta.pos,
             Expr::NamespaceMember(node) => &node.meta.pos,
+            Expr::Binary(node) => &node.meta.pos,
+            Expr::Unary(node) => &node.meta.pos,
         }
     }
 
@@ -223,6 +266,8 @@ impl Node for Expr {
             Expr::Call(node) => &node.meta.end,
             Expr::Member(node) => &node.meta.end,
             Expr::NamespaceMember(node) => &node.meta.end,
+            Expr::Binary(node) => &node.meta.end,
+            Expr::Unary(node) => &node.meta.end,
         }
     }
 
@@ -232,6 +277,8 @@ impl Node for Expr {
             Expr::Call(node) => node.meta.id,
             Expr::Member(node) => node.meta.id,
             Expr::NamespaceMember(node) => node.meta.id,
+            Expr::Binary(node) => node.meta.id,
+            Expr::Unary(node) => node.meta.id,
         }
     }
 }
@@ -259,7 +306,9 @@ impl_typed_node_enum!(Expr {
     Call,
     Literal,
     Member,
-    NamespaceMember
+    NamespaceMember,
+    Unary,
+    Binary,
 });
 
 macro_rules! impl_typed_node {
@@ -284,4 +333,6 @@ impl_typed_node!(
     VarAssignNode,
     NamespaceMemberNode,
     MemberNode,
+    UnaryNode,
+    BinaryNode,
 );

@@ -321,6 +321,8 @@ impl<'a> FileEmitter<'a> {
             Expr::Call(node) => self.call_to_rval(ins, node),
             Expr::NamespaceMember(node) => self.namespace_to_rval(node),
             Expr::Member(_) => todo!(),
+            Expr::Binary(_) => todo!(),
+            Expr::Unary(_) => todo!(),
         }
     }
 
