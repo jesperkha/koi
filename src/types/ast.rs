@@ -157,6 +157,7 @@ pub struct CallNode {
     pub args: Vec<Expr>,
 }
 
+#[derive(Clone)]
 pub enum BinaryOp {
     Plus,
     Minus,
@@ -184,6 +185,7 @@ pub struct BinaryNode {
     pub rhs: Box<Expr>,
 }
 
+#[derive(Clone)]
 pub enum UnaryOp {
     LogicNot,
     Minus,

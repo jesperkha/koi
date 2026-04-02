@@ -166,6 +166,8 @@ impl<'a> FunctionAssembler<'a> {
             Ins::Call(call) => self.emit_call(call),
             Ins::Return(ty, rvalue) => self.emit_return(ty, rvalue),
             Ins::Intrinsic(_) => todo!(),
+            Ins::Binary(_) => todo!(),
+            Ins::Unary(_) => todo!(),
         }
     }
 

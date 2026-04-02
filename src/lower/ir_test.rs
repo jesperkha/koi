@@ -215,6 +215,294 @@ fn test_variable_decl() {
 }
 
 #[test]
+fn test_binary_arithmetic() {
+    expect_equal(
+        r#"
+        func f(a int, b int) int {
+            return a + b
+        }
+    "#,
+        r#"
+        func f(i64, i64) i64
+            $0 i64 = add %0 %1
+            ret i64 $0
+        "#,
+    );
+    expect_equal(
+        r#"
+        func f(a int, b int) int {
+            return a - b
+        }
+    "#,
+        r#"
+        func f(i64, i64) i64
+            $0 i64 = sub %0 %1
+            ret i64 $0
+        "#,
+    );
+    expect_equal(
+        r#"
+        func f(a int, b int) int {
+            return a * b
+        }
+    "#,
+        r#"
+        func f(i64, i64) i64
+            $0 i64 = mul %0 %1
+            ret i64 $0
+        "#,
+    );
+    expect_equal(
+        r#"
+        func f(a int, b int) int {
+            return a / b
+        }
+    "#,
+        r#"
+        func f(i64, i64) i64
+            $0 i64 = div %0 %1
+            ret i64 $0
+        "#,
+    );
+}
+
+#[test]
+fn test_binary_modulo() {
+    // Modulo produces u32
+    expect_equal(
+        r#"
+        func f(a int, b int) {
+            c := a % b
+        }
+    "#,
+        r#"
+        func f(i64, i64) void
+            $0 u32 = mod %0 %1
+            $1 u32 = $0
+            ret void
+        "#,
+    );
+}
+
+#[test]
+fn test_binary_comparison() {
+    // Comparisons produce u8 (bool lowers to u8)
+    expect_equal(
+        r#"
+        func f(a int, b int) bool {
+            return a == b
+        }
+    "#,
+        r#"
+        func f(i64, i64) u8
+            $0 u8 = eq %0 %1
+            ret u8 $0
+        "#,
+    );
+    expect_equal(
+        r#"
+        func f(a int, b int) bool {
+            return a != b
+        }
+    "#,
+        r#"
+        func f(i64, i64) u8
+            $0 u8 = ne %0 %1
+            ret u8 $0
+        "#,
+    );
+    expect_equal(
+        r#"
+        func f(a int, b int) bool {
+            return a < b
+        }
+    "#,
+        r#"
+        func f(i64, i64) u8
+            $0 u8 = lt %0 %1
+            ret u8 $0
+        "#,
+    );
+    expect_equal(
+        r#"
+        func f(a int, b int) bool {
+            return a > b
+        }
+    "#,
+        r#"
+        func f(i64, i64) u8
+            $0 u8 = gt %0 %1
+            ret u8 $0
+        "#,
+    );
+    expect_equal(
+        r#"
+        func f(a int, b int) bool {
+            return a <= b
+        }
+    "#,
+        r#"
+        func f(i64, i64) u8
+            $0 u8 = le %0 %1
+            ret u8 $0
+        "#,
+    );
+    expect_equal(
+        r#"
+        func f(a int, b int) bool {
+            return a >= b
+        }
+    "#,
+        r#"
+        func f(i64, i64) u8
+            $0 u8 = ge %0 %1
+            ret u8 $0
+        "#,
+    );
+}
+
+#[test]
+fn test_binary_logical() {
+    expect_equal(
+        r#"
+        func f(a bool, b bool) bool {
+            return a && b
+        }
+    "#,
+        r#"
+        func f(u8, u8) u8
+            $0 u8 = and %0 %1
+            ret u8 $0
+        "#,
+    );
+    expect_equal(
+        r#"
+        func f(a bool, b bool) bool {
+            return a || b
+        }
+    "#,
+        r#"
+        func f(u8, u8) u8
+            $0 u8 = or %0 %1
+            ret u8 $0
+        "#,
+    );
+}
+
+#[test]
+fn test_binary_chained() {
+    // a + b + c — second binary uses first's $result
+    expect_equal(
+        r#"
+        func f(a int, b int) int {
+            return a + b + a
+        }
+    "#,
+        r#"
+        func f(i64, i64) i64
+            $0 i64 = add %0 %1
+            $1 i64 = add $0 %0
+            ret i64 $1
+        "#,
+    );
+    expect_equal(
+        r#"
+        func f(a int, b int, c int, d bool) bool {
+            return (a + -b) * c == 0 && d
+        }
+    "#,
+        r#"
+        func f(i64, i64, i64, u8) u8
+            $0 i64 = neg %1
+            $1 i64 = add %0 $0
+            $2 i64 = mul $1 %2
+            $3 u8 = eq $2 0
+            $4 u8 = and $3 %3
+            ret u8 $4
+        "#,
+    );
+}
+
+#[test]
+fn test_unary_neg() {
+    expect_equal(
+        r#"
+        func f(a int) int {
+            return -a
+        }
+    "#,
+        r#"
+        func f(i64) i64
+            $0 i64 = neg %0
+            ret i64 $0
+        "#,
+    );
+    // Double negation
+    expect_equal(
+        r#"
+        func f(a int) int {
+            return --a
+        }
+    "#,
+        r#"
+        func f(i64) i64
+            $0 i64 = neg %0
+            $1 i64 = neg $0
+            ret i64 $1
+        "#,
+    );
+}
+
+#[test]
+fn test_unary_not() {
+    // ! produces u8 (bool)
+    expect_equal(
+        r#"
+        func f(a bool) bool {
+            return !a
+        }
+    "#,
+        r#"
+        func f(u8) u8
+            $0 u8 = not %0
+            ret u8 $0
+        "#,
+    );
+    // Double not
+    expect_equal(
+        r#"
+        func f(a bool) bool {
+            return !!a
+        }
+    "#,
+        r#"
+        func f(u8) u8
+            $0 u8 = not %0
+            $1 u8 = not $0
+            ret u8 $1
+        "#,
+    );
+}
+
+#[test]
+fn test_unary_in_binary() {
+    // -a used as operand in binary expression
+    expect_equal(
+        r#"
+        func f(a int, b int) int {
+            return a + -b
+        }
+    "#,
+        r#"
+        func f(i64, i64) i64
+            $0 i64 = neg %1
+            $1 i64 = add %0 $0
+            ret i64 $1
+        "#,
+    );
+}
+
+#[test]
 fn test_variable_assign() {
     expect_equal(
         r#"

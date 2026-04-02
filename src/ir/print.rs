@@ -72,6 +72,21 @@ pub fn ins_to_string(unit: &Unit, ins: &Ins) -> String {
                     .join(", "),
             )
         }
+        Ins::Binary(ins) => format!(
+            "${} {} = {} {} {}",
+            ins.result,
+            unit.types.type_to_string(ins.ty),
+            ins.op,
+            ins.lhs,
+            ins.rhs,
+        ),
+        Ins::Unary(ins) => format!(
+            "${} {} = {} {}",
+            ins.result,
+            unit.types.type_to_string(ins.ty),
+            ins.op,
+            ins.rhs,
+        ),
         Ins::Intrinsic(int) => {
             format!(
                 "{}intrinsic {}({})",
