@@ -49,7 +49,7 @@ fn test_return_type() {
             return true
         }
     "#,
-        "incorrect return type: expected 'i64', got 'bool'",
+        "incorrect return type: expected 'i32', got 'bool'",
     );
     assert_error(
         r#"
@@ -57,7 +57,7 @@ fn test_return_type() {
             return a
         }
     "#,
-        "incorrect return type: expected 'bool', got 'i64'",
+        "incorrect return type: expected 'bool', got 'i32'",
     );
     assert_error(
         r#"
@@ -182,7 +182,7 @@ fn test_function_call_fail() {
             f(true)
         }
     "#,
-        "mismatched types in function call. expected 'i64', got 'bool'",
+        "mismatched types in function call. expected 'i32', got 'bool'",
     );
 }
 
@@ -264,7 +264,7 @@ fn test_variable_decl_error() {
             return a
         }
     "#,
-        "incorrect return type: expected 'i64', got 'bool'",
+        "incorrect return type: expected 'i32', got 'bool'",
     );
     assert_error(
         r#"
@@ -326,7 +326,7 @@ fn test_variable_assignment_fail() {
             a = true
         }
     "#,
-        "mismatched types in assignment. expected 'i64', got 'bool'",
+        "mismatched types in assignment. expected 'i32', got 'bool'",
     );
     assert_error(
         r#"
@@ -355,7 +355,7 @@ fn test_main_function_rules() {
             return
         }
     "#,
-        "main function must return 'i64'",
+        "main function must return 'i32'",
     );
     assert_error(
         r#"
@@ -376,7 +376,7 @@ fn test_member_error() {
             return 0
         }
     "#,
-        "type 'i64' has no fields",
+        "type 'i32' has no fields",
     );
     assert_error(
         r#"
@@ -453,6 +453,416 @@ fn test_return_from_call_mismatch() {
             return g()
         }
     "#,
-        "incorrect return type: expected 'i64', got 'bool'",
+        "incorrect return type: expected 'i32', got 'bool'",
+    );
+}
+
+#[test]
+fn test_binary_arithmetic_pass() {
+    // Arithmetic ops preserve operand type
+    assert_pass(
+        r#"
+        func f(a int, b int) int {
+            return a + b
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(a int, b int) int {
+            return a - b
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(a int, b int) int {
+            return a * b
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(a int, b int) int {
+            return a / b
+        }
+    "#,
+    );
+    // Chained arithmetic
+    assert_pass(
+        r#"
+        func f(a int, b int) int {
+            return a + b + a
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_binary_comparison_yields_bool() {
+    // All comparison ops produce bool regardless of operand type
+    assert_pass(
+        r#"
+        func f(a int, b int) bool {
+            return a == b
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(a int, b int) bool {
+            return a != b
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(a int, b int) bool {
+            return a < b
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(a int, b int) bool {
+            return a > b
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(a int, b int) bool {
+            return a <= b
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(a int, b int) bool {
+            return a >= b
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_binary_comparison_not_int() {
+    // Comparison result is bool, not int
+    assert_error(
+        r#"
+        func f(a int, b int) int {
+            return a == b
+        }
+    "#,
+        "incorrect return type: expected 'i32', got 'bool'",
+    );
+    assert_error(
+        r#"
+        func f(a int, b int) int {
+            return a < b
+        }
+    "#,
+        "incorrect return type: expected 'i32', got 'bool'",
+    );
+}
+
+#[test]
+fn test_binary_logical_ops() {
+    // && and || on bools produce bool
+    assert_pass(
+        r#"
+        func f(a bool, b bool) bool {
+            return a && b
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(a bool, b bool) bool {
+            return a || b
+        }
+    "#,
+    );
+    // Chained logical
+    assert_pass(
+        r#"
+        func f(a bool, b bool) bool {
+            return a && b || a
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_binary_modulo_yields_u32() {
+    // Modulo produces u32
+    assert_pass(
+        r#"
+        func f(a int, b int) {
+            c := a % b
+        }
+    "#,
+    );
+    // Modulo result is u32, not int
+    assert_error(
+        r#"
+        func f(a int, b int) int {
+            return a % b
+        }
+    "#,
+        "incorrect return type: expected 'i32', got 'u32'",
+    );
+}
+
+#[test]
+fn test_binary_type_mismatch_error() {
+    assert_error(
+        r#"
+        func f(a int, b bool) int {
+            return a + b
+        }
+    "#,
+        "mismatched types in expression: 'i32' and 'bool'",
+    );
+    assert_error(
+        r#"
+        func f(a int, b bool) bool {
+            return a == b
+        }
+    "#,
+        "mismatched types in expression: 'i32' and 'bool'",
+    );
+    assert_error(
+        r#"
+        func f(a bool, b int) bool {
+            return a && b
+        }
+    "#,
+        "mismatched types in expression: 'bool' and 'i32'",
+    );
+}
+
+#[test]
+fn test_binary_result_as_variable() {
+    // Assign comparison result (bool) to variable and use it
+    assert_pass(
+        r#"
+        func f(a int, b int) bool {
+            c := a == b
+            return c
+        }
+    "#,
+    );
+    // Assign arithmetic result (int) to variable
+    assert_pass(
+        r#"
+        func f(a int, b int) int {
+            c := a + b
+            return c
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_binary_result_as_function_argument() {
+    // Pass bool result of comparison to function expecting bool
+    assert_pass(
+        r#"
+        func consume(v bool) {}
+        func f(a int, b int) {
+            consume(a == b)
+        }
+    "#,
+    );
+    // Type mismatch: pass bool where int expected
+    assert_error(
+        r#"
+        func consume(v int) {}
+        func f(a int, b int) {
+            consume(a == b)
+        }
+    "#,
+        "mismatched types in function call. expected 'i32', got 'bool'",
+    );
+}
+
+#[test]
+fn test_binary_bool_equality() {
+    // == on bools produces bool
+    assert_pass(
+        r#"
+        func f(a bool, b bool) bool {
+            return a == b
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_unary_not_pass() {
+    assert_pass(
+        r#"
+        func f(a bool) bool {
+            return !a
+        }
+    "#,
+    );
+    // Double negation
+    assert_pass(
+        r#"
+        func f(a bool) bool {
+            return !!a
+        }
+    "#,
+    );
+    // ! on comparison result
+    assert_pass(
+        r#"
+        func f(a int, b int) bool {
+            return !(a == b)
+        }
+    "#,
+    );
+    // ! result assigned to variable
+    assert_pass(
+        r#"
+        func f(a bool) bool {
+            b := !a
+            return b
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_unary_not_type_error() {
+    assert_error(
+        r#"
+        func f(a int) bool {
+            return !a
+        }
+    "#,
+        "'!' operator can only be used on type 'bool', got 'i32'",
+    );
+    assert_error(
+        r#"
+        func f() bool {
+            return !1
+        }
+    "#,
+        "'!' operator can only be used on type 'bool', got 'i32'",
+    );
+}
+
+#[test]
+fn test_unary_not_yields_bool() {
+    // ! result is bool, not int
+    assert_error(
+        r#"
+        func f(a bool) int {
+            return !a
+        }
+    "#,
+        "incorrect return type: expected 'i32', got 'bool'",
+    );
+}
+
+#[test]
+fn test_unary_minus_pass() {
+    assert_pass(
+        r#"
+        func f(a int) int {
+            return -a
+        }
+    "#,
+    );
+    // Double negation
+    assert_pass(
+        r#"
+        func f(a int) int {
+            return --a
+        }
+    "#,
+    );
+    // - result assigned to variable
+    assert_pass(
+        r#"
+        func f(a int) int {
+            b := -a
+            return b
+        }
+    "#,
+    );
+    // - in arithmetic expression
+    assert_pass(
+        r#"
+        func f(a int, b int) int {
+            return a + -b
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_unary_minus_preserves_type() {
+    // - preserves the operand type, not bool
+    assert_error(
+        r#"
+        func f(a int) bool {
+            return -a
+        }
+    "#,
+        "incorrect return type: expected 'bool', got 'i32'",
+    );
+}
+
+#[test]
+fn test_unary_minus_type_error() {
+    assert_error(
+        r#"
+        func f(a bool) bool {
+            return -a
+        }
+    "#,
+        "'-' operator can only be used on number types, got 'bool'",
+    );
+    assert_error(
+        r#"
+        func f(s string) string {
+            return -s
+        }
+    "#,
+        "'-' operator can only be used on number types, got 'string'",
+    );
+}
+
+#[test]
+fn test_unary_as_function_argument() {
+    assert_pass(
+        r#"
+        func consume(v bool) {}
+        func f(a bool) {
+            consume(!a)
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func consume(v int) {}
+        func f(a int) {
+            consume(-a)
+        }
+    "#,
+    );
+    // Type mismatch: ! yields bool but int expected
+    assert_error(
+        r#"
+        func consume(v int) {}
+        func f(a bool) {
+            consume(!a)
+        }
+    "#,
+        "mismatched types in function call. expected 'i32', got 'bool'",
     );
 }

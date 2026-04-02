@@ -4,9 +4,9 @@ use tracing::info;
 
 use crate::{
     ast::{
-        Ast, BlockNode, CallExpr, Decl, Expr, Field, File, FileSet, FuncDeclNode, FuncNode,
-        GroupExpr, ImportNode, MemberNode, Node, ReturnNode, SourceMap, Stmt, Token, TokenKind,
-        TypeNode, VarAssignNode, VarDeclNode,
+        Ast, BinaryExpr, BlockNode, CallExpr, Decl, Expr, Field, File, FileSet, FuncDeclNode,
+        FuncNode, GroupExpr, ImportNode, MemberNode, Node, ReturnNode, SourceMap, Stmt, Token,
+        TokenKind, TypeNode, UnaryExpr, VarAssignNode, VarDeclNode,
     },
     config::Config,
     error::{Diagnostics, Report, Res},
@@ -255,7 +255,8 @@ impl<'a> Parser<'a> {
 
     fn parse_extern(&mut self, public: bool) -> Result<Decl, Report> {
         self.consume(); // extern
-        self.parse_function_def(public).map(|decl| Decl::Extern(Box::new(decl)))
+        self.parse_function_def(public)
+            .map(|decl| Decl::Extern(Box::new(decl)))
     }
 
     fn parse_function_def(&mut self, public: bool) -> Result<FuncDeclNode, Report> {
@@ -398,9 +399,10 @@ impl<'a> Parser<'a> {
         let expr = self.parse_expr()?;
 
         if let Expr::Literal(name) = &lval
-            && matches!(&name.kind, TokenKind::IdentLit(_)) {
-                return Ok(Stmt::VarAssign(VarAssignNode { lval, equal, expr }));
-            }
+            && matches!(&name.kind, TokenKind::IdentLit(_))
+        {
+            return Ok(Stmt::VarAssign(VarAssignNode { lval, equal, expr }));
+        }
 
         Err(self.error_node("invalid left hand value in assignment", &lval))
     }
@@ -412,14 +414,15 @@ impl<'a> Parser<'a> {
         // To not use lval after move
         let err = self.error_node("invalid left hand value in declaration", &lval);
         if let Expr::Literal(name) = lval
-            && matches!(name.kind, TokenKind::IdentLit(_)) {
-                return Ok(Stmt::VarDecl(VarDeclNode {
-                    name,
-                    symbol,
-                    expr,
-                    constant,
-                }));
-            }
+            && matches!(name.kind, TokenKind::IdentLit(_))
+        {
+            return Ok(Stmt::VarDecl(VarDeclNode {
+                name,
+                symbol,
+                expr,
+                constant,
+            }));
+        }
 
         Err(err)
     }
@@ -438,6 +441,71 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expr(&mut self) -> Result<Expr, Report> {
+        self.parse_logical()
+    }
+
+    fn parse_binary(
+        &mut self,
+        tokens: &[TokenKind],
+        next: fn(&mut Self) -> Result<Expr, Report>,
+    ) -> Result<Expr, Report> {
+        let mut lhs = next(self)?;
+        while self.matches_any(tokens) {
+            let op = self.must_consume()?;
+            let rhs = next(self)?;
+            lhs = Expr::Binary(BinaryExpr {
+                op,
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            });
+        }
+        Ok(lhs)
+    }
+
+    fn parse_logical(&mut self) -> Result<Expr, Report> {
+        self.parse_binary(&[TokenKind::AndAnd, TokenKind::OrOr], Self::parse_equality)
+    }
+
+    fn parse_equality(&mut self) -> Result<Expr, Report> {
+        self.parse_binary(&[TokenKind::EqEq, TokenKind::NotEq], Self::parse_comparison)
+    }
+
+    fn parse_comparison(&mut self) -> Result<Expr, Report> {
+        self.parse_binary(
+            &[
+                TokenKind::Greater,
+                TokenKind::GreaterEq,
+                TokenKind::Less,
+                TokenKind::LessEq,
+            ],
+            Self::parse_additive,
+        )
+    }
+
+    fn parse_additive(&mut self) -> Result<Expr, Report> {
+        self.parse_binary(
+            &[TokenKind::Plus, TokenKind::Minus],
+            Self::parse_multiplicative,
+        )
+    }
+
+    fn parse_multiplicative(&mut self) -> Result<Expr, Report> {
+        self.parse_binary(
+            &[TokenKind::Star, TokenKind::Slash, TokenKind::Percent],
+            Self::parse_unary,
+        )
+    }
+
+    fn parse_unary(&mut self) -> Result<Expr, Report> {
+        if self.matches_any(&[TokenKind::Minus, TokenKind::Not]) {
+            let op = self.must_consume()?;
+            let rhs = self.parse_unary()?;
+            return Ok(Expr::Unary(UnaryExpr {
+                op,
+                rhs: Box::new(rhs),
+            }));
+        }
+
         self.parse_call_and_member()
     }
 
@@ -564,8 +632,7 @@ impl<'a> Parser<'a> {
 
     /// Get current token or report error.
     fn cur_must(&self, msg: &str) -> Result<&Token, Report> {
-        self.tokens
-            .get(self.pos).ok_or(self.error_token(msg))
+        self.tokens.get(self.pos).ok_or(self.error_token(msg))
     }
 
     fn cur_or_last(&self) -> Token {
@@ -588,7 +655,8 @@ impl<'a> Parser<'a> {
 
     /// Consumes current token and returns it. Errors if EOF.
     fn must_consume(&mut self) -> Result<Token, Report> {
-        self.consume().ok_or(self.error_token("unexpected end of file"))
+        self.consume()
+            .ok_or(self.error_token("unexpected end of file"))
     }
 
     /// Expects the current token to be of a specific kind.
@@ -610,11 +678,12 @@ impl<'a> Parser<'a> {
         P: Fn(Token) -> bool,
     {
         if let Some(tok) = self.cur()
-            && predicate(tok) {
-                let pos = self.pos;
-                self.pos += 1;
-                return Ok(self.tokens[pos].clone());
-            }
+            && predicate(tok)
+        {
+            let pos = self.pos;
+            self.pos += 1;
+            return Ok(self.tokens[pos].clone());
+        }
         Err(self.error_token(&format!("expected {}", message)))
     }
 
@@ -634,9 +703,10 @@ impl<'a> Parser<'a> {
     fn matches_any(&self, kinds: &[TokenKind]) -> bool {
         for k in kinds {
             if let Some(tok) = self.cur()
-                && &tok.kind == k {
-                    return true;
-                }
+                && &tok.kind == k
+            {
+                return true;
+            }
         }
         false
     }
@@ -644,9 +714,10 @@ impl<'a> Parser<'a> {
     /// Return comment string if current token is a comment.
     fn matches_comment(&self) -> Option<String> {
         if let Some(tok) = self.cur()
-            && let TokenKind::Comment(s) = tok.kind {
-                return Some(s);
-            }
+            && let TokenKind::Comment(s) = tok.kind
+        {
+            return Some(s);
+        }
         None
     }
 

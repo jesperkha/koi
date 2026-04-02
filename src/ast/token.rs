@@ -123,6 +123,7 @@ pub enum TokenKind {
     // Logic
     Eq,
     EqEq,
+    Not,
     NotEq,
     PlusEq,
     MinusEq,
@@ -136,8 +137,6 @@ pub enum TokenKind {
     OrOr,
     And,
     AndAnd,
-    Bang,
-    BangEq,
 
     // Parenthesis
     LParen,
@@ -190,6 +189,7 @@ static RESERVED: &[(&str, TokenKind)] = &[
     // Logic
     ("=", TokenKind::Eq),
     ("==", TokenKind::EqEq),
+    ("!", TokenKind::Not),
     ("!=", TokenKind::NotEq),
     ("+=", TokenKind::PlusEq),
     ("-=", TokenKind::MinusEq),
@@ -203,8 +203,6 @@ static RESERVED: &[(&str, TokenKind)] = &[
     ("||", TokenKind::OrOr),
     ("&", TokenKind::And),
     ("&&", TokenKind::AndAnd),
-    ("!", TokenKind::Bang),
-    ("!=", TokenKind::BangEq),
     // Parenthesis & Brackets
     ("(", TokenKind::LParen),
     (")", TokenKind::RParen),

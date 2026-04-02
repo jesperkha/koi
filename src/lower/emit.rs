@@ -4,14 +4,15 @@ use crate::{
     context::Context,
     error::{self, Diagnostics, Report},
     ir::{
-        AssignIns, Block, CallIns, ConstId, Data, DataIndex, Decl, ExternDecl, FuncDecl, IRType,
-        IRTypeInterner, Ins, LValue, ParamId, Primitive, RValue, StoreIns, Unit,
+        AssignIns, BinaryIns, Block, CallIns, ConstId, Data, DataIndex, Decl, ExternDecl, FuncDecl,
+        IRBinaryOp, IRType, IRTypeInterner, IRUnaryOp, Ins, LValue, ParamId, Primitive, RValue,
+        StoreIns, UnaryIns, Unit,
     },
     module::{
         Module, ModuleId, ModuleKind, ModuleSourceFile, NamespaceList, Symbol, SymbolId,
         SymbolList, SymbolOrigin,
     },
-    types::{self, Expr, LiteralKind, TypedAst, TypedNode},
+    types::{self, BinaryOp, Expr, LiteralKind, TypedAst, TypedNode, UnaryOp},
     util::VarTable,
 };
 
@@ -321,7 +322,37 @@ impl<'a> FileEmitter<'a> {
             Expr::Call(node) => self.call_to_rval(ins, node),
             Expr::NamespaceMember(node) => self.namespace_to_rval(node),
             Expr::Member(_) => todo!(),
+            Expr::Binary(node) => self.binary_to_rval(ins, node),
+            Expr::Unary(node) => self.unary_to_rval(ins, node),
         }
+    }
+
+    fn unary_to_rval(&mut self, ins: &mut Vec<Ins>, node: &types::UnaryNode) -> Res<RValue> {
+        let ty = self.types.to_ir(self.ctx, node.ty);
+        let rhs = self.expr_to_rval(ins, &node.rhs)?;
+        let result = self.next_id();
+        ins.push(Ins::Unary(UnaryIns {
+            ty,
+            op: node.op.clone().into(),
+            rhs,
+            result,
+        }));
+        Ok(RValue::Const(result))
+    }
+
+    fn binary_to_rval(&mut self, ins: &mut Vec<Ins>, node: &types::BinaryNode) -> Res<RValue> {
+        let ty = self.types.to_ir(self.ctx, node.ty);
+        let lhs = self.expr_to_rval(ins, &node.lhs)?;
+        let rhs = self.expr_to_rval(ins, &node.rhs)?;
+        let result = self.next_id();
+        ins.push(Ins::Binary(BinaryIns {
+            ty,
+            op: node.op.clone().into(),
+            lhs,
+            rhs,
+            result,
+        }));
+        Ok(RValue::Const(result))
     }
 
     fn lit_to_rval(&mut self, node: &types::LiteralNode) -> Res<RValue> {
@@ -425,6 +456,35 @@ impl<'a> FileEmitter<'a> {
         let id = self.symbols.get(name).unwrap().id;
         let symbol = self.ctx.symbols.get(id);
         mangle_symbol_name(self.ctx, symbol)
+    }
+}
+
+impl From<BinaryOp> for IRBinaryOp {
+    fn from(op: BinaryOp) -> Self {
+        match op {
+            BinaryOp::Plus => IRBinaryOp::Add,
+            BinaryOp::Minus => IRBinaryOp::Sub,
+            BinaryOp::Mult => IRBinaryOp::Mul,
+            BinaryOp::Divide => IRBinaryOp::Div,
+            BinaryOp::Modulo => IRBinaryOp::Mod,
+            BinaryOp::Equal => IRBinaryOp::Eq,
+            BinaryOp::NotEqual => IRBinaryOp::Ne,
+            BinaryOp::Greater => IRBinaryOp::Gt,
+            BinaryOp::GreaterEq => IRBinaryOp::Ge,
+            BinaryOp::Less => IRBinaryOp::Lt,
+            BinaryOp::LessEq => IRBinaryOp::Le,
+            BinaryOp::LogicAnd => IRBinaryOp::And,
+            BinaryOp::LogicOr => IRBinaryOp::Or,
+        }
+    }
+}
+
+impl From<UnaryOp> for IRUnaryOp {
+    fn from(op: UnaryOp) -> Self {
+        match op {
+            UnaryOp::Minus => IRUnaryOp::Neg,
+            UnaryOp::LogicNot => IRUnaryOp::Not,
+        }
     }
 }
 

@@ -1,0 +1,21 @@
+func eq(a int, b int) bool {
+    return a == b
+}
+
+func lt(a int, b int) bool {
+    return a < b
+}
+
+func and_op(a bool, b bool) bool {
+    return a && b
+}
+
+func main() int {
+    eq(5, 5)
+    eq(5, 3)
+    lt(3, 5)
+    lt(5, 3)
+    and_op(true, true)
+    and_op(true, false)
+    return 0
+}

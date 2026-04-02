@@ -6,8 +6,8 @@ use crate::{
     error::{Diagnostics, Report, Res},
     module::{NamespaceList, Symbol, SymbolList},
     types::{
-        self, FunctionType, NO_TYPE, NodeMeta, PrimitiveType, Type, TypeId, TypeKind, TypedNode,
-        ast_node_to_meta,
+        self, BinaryOp, FunctionType, NO_TYPE, NodeMeta, PrimitiveType, Type, TypeId, TypeKind,
+        TypedNode, UnaryOp, ast_node_to_meta,
     },
     util::VarTable,
 };
@@ -104,6 +104,8 @@ impl<'a> FileChecker<'a> {
             ast::Expr::Group(node) => self.emit_expr(*node.inner),
             ast::Expr::Call(node) => self.emit_call(node),
             ast::Expr::Member(node) => self.emit_member(node),
+            ast::Expr::Binary(node) => self.emit_binary(node),
+            ast::Expr::Unary(node) => self.emit_unary(node),
         }
     }
 
@@ -166,7 +168,7 @@ impl<'a> FileChecker<'a> {
         }
 
         // If return type is not int
-        let return_type = self.ctx.types.primitive(PrimitiveType::I64);
+        let return_type = self.ctx.types.primitive(PrimitiveType::I32);
 
         if !self.ctx.types.equivalent(f.ret, return_type) {
             let msg = format!(
@@ -293,7 +295,7 @@ impl<'a> FileChecker<'a> {
 
     fn emit_literal(&mut self, tok: Token) -> Result<types::Expr, Report> {
         let ty = match &tok.kind {
-            TokenKind::IntLit(_) => self.ctx.types.primitive_type(PrimitiveType::I64),
+            TokenKind::IntLit(_) => self.ctx.types.primitive_type(PrimitiveType::I32),
             TokenKind::FloatLit(_) => self.ctx.types.primitive_type(PrimitiveType::F64),
             TokenKind::StringLit(_) => self.ctx.types.primitive_type(PrimitiveType::String),
             TokenKind::True | TokenKind::False => {
@@ -326,6 +328,96 @@ impl<'a> FileChecker<'a> {
             },
             ty: ty.id,
             kind: tok.kind.into(),
+        }))
+    }
+
+    fn emit_unary(&mut self, node: ast::UnaryExpr) -> Result<types::Expr, Report> {
+        let meta = ast_node_to_meta(&node);
+        let rhs = self.emit_expr(*node.rhs)?;
+
+        let op = match node.op.kind {
+            TokenKind::Not => UnaryOp::LogicNot,
+            TokenKind::Minus => UnaryOp::Minus,
+            _ => unreachable!(),
+        };
+
+        match op {
+            UnaryOp::LogicNot => {
+                let bool_t = self.ctx.types.primitive(PrimitiveType::Bool);
+                if !self.ctx.types.equivalent(rhs.type_id(), bool_t) {
+                    return Err(self.error(
+                        &format!(
+                            "'!' operator can only be used on type 'bool', got '{}'",
+                            self.type_to_string(&rhs)
+                        ),
+                        &rhs,
+                    ));
+                }
+                Ok(types::Expr::Unary(types::UnaryNode {
+                    ty: bool_t,
+                    meta,
+                    op,
+                    rhs: Box::new(rhs),
+                }))
+            }
+            UnaryOp::Minus => {
+                if !self.ctx.types.is_number(rhs.type_id()) {
+                    return Err(self.error(
+                        &format!(
+                            "'-' operator can only be used on number types, got '{}'",
+                            self.type_to_string(&rhs)
+                        ),
+                        &rhs,
+                    ));
+                }
+                Ok(types::Expr::Unary(types::UnaryNode {
+                    meta,
+                    op,
+                    ty: rhs.type_id(),
+                    rhs: Box::new(rhs),
+                }))
+            }
+        }
+    }
+
+    fn emit_binary(&mut self, node: ast::BinaryExpr) -> Result<types::Expr, Report> {
+        let meta = ast_node_to_meta(&node);
+        let lhs = self.emit_expr(*node.lhs)?;
+        let rhs = self.emit_expr(*node.rhs)?;
+
+        if lhs.type_id() != rhs.type_id() {
+            return Err(self.error_from_to(
+                &format!(
+                    "mismatched types in expression: '{}' and '{}'",
+                    self.type_to_string(&lhs),
+                    self.type_to_string(&rhs),
+                ),
+                &meta.pos,
+                &meta.end,
+            ));
+        }
+
+        let op: BinaryOp = node.op.kind.into();
+
+        let ty = match op {
+            BinaryOp::Plus | BinaryOp::Minus | BinaryOp::Mult | BinaryOp::Divide => lhs.type_id(),
+            BinaryOp::Modulo => self.ctx.types.primitive(PrimitiveType::U32),
+            BinaryOp::Equal
+            | BinaryOp::NotEqual
+            | BinaryOp::Greater
+            | BinaryOp::GreaterEq
+            | BinaryOp::Less
+            | BinaryOp::LessEq
+            | BinaryOp::LogicAnd
+            | BinaryOp::LogicOr => self.ctx.types.primitive(PrimitiveType::Bool),
+        };
+
+        Ok(types::Expr::Binary(types::BinaryNode {
+            ty,
+            meta,
+            op,
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
         }))
     }
 
@@ -426,6 +518,10 @@ impl<'a> FileChecker<'a> {
 
     // ----------------------- Utility methods ----------------------- //
 
+    fn type_to_string(&self, node: &dyn TypedNode) -> String {
+        self.ctx.types.type_to_string(node.type_id())
+    }
+
     fn error(&self, msg: &str, node: &dyn Node) -> Report {
         Report::code_error(msg, node.pos(), node.end())
     }
@@ -515,6 +611,7 @@ impl<'a> FileChecker<'a> {
             },
             ast::Expr::Group(_) | ast::Expr::Call(_) => true,
             ast::Expr::Member(node) => self.is_constant(&node.expr),
+            ast::Expr::Binary(_) | ast::Expr::Unary(_) => true,
         }
     }
 

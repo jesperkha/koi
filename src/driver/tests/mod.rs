@@ -209,3 +209,39 @@ fn test_duplicate_namespace() {
 fn test_param_alloc() {
     run_case_with_status("param_alloc", 1);
 }
+
+#[test]
+fn test_binary_add() {
+    run_case_with_status("binary_add", 5);
+}
+
+#[test]
+fn test_binary_sub() {
+    run_case_with_status("binary_sub", 7);
+}
+
+#[test]
+fn test_binary_mul() {
+    run_case_with_status("binary_mul", 12);
+}
+
+#[test]
+fn test_binary_div() {
+    run_case_with_status("binary_div", 5);
+}
+
+#[test]
+fn test_unary_neg() {
+    // negate(5) = -5, then -5 + 10 = 5
+    run_case_with_status("unary_neg", 5);
+}
+
+#[test]
+fn test_binary_compare() {
+    run_case_with_status("binary_compare", 0);
+}
+
+#[test]
+fn test_unary_not() {
+    run_case_with_status("unary_not", 0);
+}

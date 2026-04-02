@@ -72,6 +72,44 @@ pub enum Ins {
     Call(CallIns),
     Intrinsic(IntrinsicIns),
     Return(IRTypeId, RValue),
+    Binary(BinaryIns),
+    Unary(UnaryIns),
+}
+
+pub enum IRBinaryOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Eq,
+    Ne,
+    Gt,
+    Ge,
+    Lt,
+    Le,
+    And,
+    Or,
+}
+
+pub enum IRUnaryOp {
+    Neg,
+    Not,
+}
+
+pub struct BinaryIns {
+    pub ty: IRTypeId,
+    pub op: IRBinaryOp,
+    pub lhs: RValue,
+    pub rhs: RValue,
+    pub result: ConstId,
+}
+
+pub struct UnaryIns {
+    pub ty: IRTypeId,
+    pub op: IRUnaryOp,
+    pub rhs: RValue,
+    pub result: ConstId,
 }
 
 pub struct StoreIns {
@@ -145,6 +183,37 @@ impl fmt::Display for RValue {
             RValue::Function(s) => write!(f, "{}", s),
             RValue::Data(s) => write!(f, ".{}", s),
         }
+    }
+}
+
+impl fmt::Display for IRBinaryOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            IRBinaryOp::Add => "add",
+            IRBinaryOp::Sub => "sub",
+            IRBinaryOp::Mul => "mul",
+            IRBinaryOp::Div => "div",
+            IRBinaryOp::Mod => "mod",
+            IRBinaryOp::Eq => "eq",
+            IRBinaryOp::Ne => "ne",
+            IRBinaryOp::Gt => "gt",
+            IRBinaryOp::Ge => "ge",
+            IRBinaryOp::Lt => "lt",
+            IRBinaryOp::Le => "le",
+            IRBinaryOp::And => "and",
+            IRBinaryOp::Or => "or",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl fmt::Display for IRUnaryOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            IRUnaryOp::Neg => "neg",
+            IRUnaryOp::Not => "not",
+        };
+        write!(f, "{}", s)
     }
 }
 

@@ -183,4 +183,15 @@ impl Visitor<()> for Printer {
         self.s.push('.');
         self.s.push_str(&node.field.to_string());
     }
+
+    fn visit_binary(&mut self, node: &super::BinaryExpr) {
+        node.lhs.accept(self);
+        self.visit_literal(&node.op);
+        node.rhs.accept(self);
+    }
+
+    fn visit_unary(&mut self, node: &super::UnaryExpr) {
+        self.visit_literal(&node.op);
+        node.rhs.accept(self);
+    }
 }

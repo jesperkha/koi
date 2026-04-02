@@ -503,3 +503,67 @@ fn test_malformed_import_reports_error() {
         Err(errs) => assert!(errs.len() >= 1),
     }
 }
+
+#[test]
+fn test_binary() {
+    assert_pass(
+        r#"
+        func sum(a int, b int) int {
+            return a + b
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func op(a int, b int, c int) int {
+            return a + b - c
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            n + ((a + b) - c)
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            1 + 2 * (3 - 4) == 1 - 3
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            g() && true == false || true
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_unary() {
+    assert_pass(
+        r#"
+        func f() {
+            !a && !!a && !!!a
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            !a && (-b + n) == !!!!c
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            -(-a - -b - c)
+        }
+    "#,
+    );
+}

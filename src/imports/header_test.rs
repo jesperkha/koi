@@ -45,7 +45,7 @@ fn test_read_header_file() {
         .symbols
         .get(create_mod.symbols.get("foo").unwrap().id)
         .ty;
-    assert_eq!(foo, func_type_id(&mut ctx, &vec![], PrimitiveType::I64));
+    assert_eq!(foo, func_type_id(&mut ctx, &vec![], PrimitiveType::I32));
 
     let bar = ctx
         .symbols
@@ -56,7 +56,7 @@ fn test_read_header_file() {
         func_type_id(
             &mut ctx,
             &vec![PrimitiveType::String, PrimitiveType::Bool],
-            PrimitiveType::I64
+            PrimitiveType::I32
         )
     );
 
@@ -81,7 +81,7 @@ fn test_loading_header_module() {
         .symbols
         .get(create_mod.symbols.get("doFoo").unwrap().id)
         .ty;
-    assert_eq!(foo, func_type_id(&mut ctx, &vec![], PrimitiveType::I64));
+    assert_eq!(foo, func_type_id(&mut ctx, &vec![], PrimitiveType::I32));
 
     ctx.modules.add(create_mod);
 

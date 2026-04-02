@@ -42,7 +42,8 @@ impl TypeInterner {
 
     /// Shorthand for getting a primitive type id.
     pub fn primitive(&self, kind: PrimitiveType) -> TypeId {
-        *self.cache
+        *self
+            .cache
             .get(&TypeKind::Primitive(kind))
             .expect("all primitive types must be assigned at init")
     }
@@ -80,9 +81,10 @@ impl TypeInterner {
     /// Try to get the inner FunctionType of this type id.
     pub fn try_function(&self, id: TypeId) -> Option<&FunctionType> {
         if let Some(ty) = self.get(id)
-            && let TypeKind::Function(func) = &ty.kind {
-                return Some(func);
-            }
+            && let TypeKind::Function(func) = &ty.kind
+        {
+            return Some(func);
+        }
         None
     }
 
@@ -117,6 +119,23 @@ impl TypeInterner {
     /// Tests if two types are equivalent (resolves any aliasing).
     pub fn equivalent(&self, a: TypeId, b: TypeId) -> bool {
         self.resolve(a) == self.resolve(b)
+    }
+
+    /// Reports whether id is a number-like type (int, uint, float).
+    pub fn is_number(&self, id: TypeId) -> bool {
+        [
+            self.primitive(PrimitiveType::F32),
+            self.primitive(PrimitiveType::F64),
+            self.primitive(PrimitiveType::I8),
+            self.primitive(PrimitiveType::I16),
+            self.primitive(PrimitiveType::I32),
+            self.primitive(PrimitiveType::I64),
+            self.primitive(PrimitiveType::U8),
+            self.primitive(PrimitiveType::U16),
+            self.primitive(PrimitiveType::U32),
+            self.primitive(PrimitiveType::U64),
+        ]
+        .contains(&id)
     }
 
     /// Shorthand for getting void type
