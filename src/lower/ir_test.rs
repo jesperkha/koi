@@ -42,8 +42,8 @@ fn test_function_literal_return() {
         }
     "#,
         r#"
-        func f() i64
-            ret i64 0
+        func f() i32
+            ret i32 0
         "#,
     );
     expect_equal(
@@ -79,8 +79,8 @@ fn test_function_parameter_return() {
         }
     "#,
         r#"
-        func f(i64) i64
-            ret i64 %0
+        func f(i32) i32
+            ret i32 %0
         "#,
     );
 }
@@ -98,12 +98,12 @@ fn test_function_call() {
         }
     "#,
         r#"
-        func f() i64
-            ret i64 0
+        func f() i32
+            ret i32 0
 
-        func g() i64
-            $0 i64 = call f()
-            ret i64 $0
+        func g() i32
+            $0 i32 = call f()
+            ret i32 $0
         "#,
     );
 }
@@ -121,12 +121,12 @@ fn test_function_call_with_params() {
         }
     "#,
         r#"
-        func f(i64, u8) i64
-            ret i64 %0
+        func f(i32, u8) i32
+            ret i32 %0
 
-        func g(i64, u8) i64
-            $0 i64 = call f(%0 i64, %1 u8)
-            ret i64 $0
+        func g(i32, u8) i32
+            $0 i32 = call f(%0 i32, %1 u8)
+            ret i32 $0
         "#,
     );
 }
@@ -144,14 +144,14 @@ fn test_multiple_function_calls() {
         }
     "#,
         r#"
-        func f(i64) i64
-            ret i64 %0
+        func f(i32) i32
+            ret i32 %0
 
-        func g(i64) i64
-            $0 i64 = call f(%0 i64)
-            $1 i64 = call f($0 i64)
-            $2 i64 = call f($1 i64)
-            ret i64 $2
+        func g(i32) i32
+            $0 i32 = call f(%0 i32)
+            $1 i32 = call f($0 i32)
+            $2 i32 = call f($1 i32)
+            ret i32 $2
         "#,
     );
     expect_equal(
@@ -161,12 +161,12 @@ fn test_multiple_function_calls() {
         }
     "#,
         r#"
-        func f(i64, i64) i64
-            $0 i64 = call f(2 i64, %0 i64)
-            $1 i64 = call f(3 i64, %0 i64)
-            $2 i64 = call f($0 i64, $1 i64)
-            $3 i64 = call f(1 i64, $2 i64)
-            ret i64 $3
+        func f(i32, i32) i32
+            $0 i32 = call f(2 i32, %0 i32)
+            $1 i32 = call f(3 i32, %0 i32)
+            $2 i32 = call f($0 i32, $1 i32)
+            $3 i32 = call f(1 i32, $2 i32)
+            ret i32 $3
         "#,
     );
 }
@@ -178,7 +178,7 @@ fn test_extern() {
         extern func write(fd int, s string, len int) int
     "#,
         r#"
-        extern func write(i64, string, i64) i64
+        extern func write(i32, string, i32) i32
         "#,
     );
 }
@@ -193,7 +193,7 @@ fn test_variable_decl() {
     "#,
         r#"
         func f() void
-            $0 i64 = 0
+            $0 i32 = 0
             ret void
         "#,
     );
@@ -206,10 +206,10 @@ fn test_variable_decl() {
         }
     "#,
         r#"
-        func f() i64
-            $0 i64 = 0
-            $1 i64 = $0
-            ret i64 $1
+        func f() i32
+            $0 i32 = 0
+            $1 i32 = $0
+            ret i32 $1
         "#,
     );
 }
@@ -223,9 +223,9 @@ fn test_binary_arithmetic() {
         }
     "#,
         r#"
-        func f(i64, i64) i64
-            $0 i64 = add %0 %1
-            ret i64 $0
+        func f(i32, i32) i32
+            $0 i32 = add %0 %1
+            ret i32 $0
         "#,
     );
     expect_equal(
@@ -235,9 +235,9 @@ fn test_binary_arithmetic() {
         }
     "#,
         r#"
-        func f(i64, i64) i64
-            $0 i64 = sub %0 %1
-            ret i64 $0
+        func f(i32, i32) i32
+            $0 i32 = sub %0 %1
+            ret i32 $0
         "#,
     );
     expect_equal(
@@ -247,9 +247,9 @@ fn test_binary_arithmetic() {
         }
     "#,
         r#"
-        func f(i64, i64) i64
-            $0 i64 = mul %0 %1
-            ret i64 $0
+        func f(i32, i32) i32
+            $0 i32 = mul %0 %1
+            ret i32 $0
         "#,
     );
     expect_equal(
@@ -259,9 +259,9 @@ fn test_binary_arithmetic() {
         }
     "#,
         r#"
-        func f(i64, i64) i64
-            $0 i64 = div %0 %1
-            ret i64 $0
+        func f(i32, i32) i32
+            $0 i32 = div %0 %1
+            ret i32 $0
         "#,
     );
 }
@@ -276,7 +276,7 @@ fn test_binary_modulo() {
         }
     "#,
         r#"
-        func f(i64, i64) void
+        func f(i32, i32) void
             $0 u32 = mod %0 %1
             $1 u32 = $0
             ret void
@@ -294,7 +294,7 @@ fn test_binary_comparison() {
         }
     "#,
         r#"
-        func f(i64, i64) u8
+        func f(i32, i32) u8
             $0 u8 = eq %0 %1
             ret u8 $0
         "#,
@@ -306,7 +306,7 @@ fn test_binary_comparison() {
         }
     "#,
         r#"
-        func f(i64, i64) u8
+        func f(i32, i32) u8
             $0 u8 = ne %0 %1
             ret u8 $0
         "#,
@@ -318,7 +318,7 @@ fn test_binary_comparison() {
         }
     "#,
         r#"
-        func f(i64, i64) u8
+        func f(i32, i32) u8
             $0 u8 = lt %0 %1
             ret u8 $0
         "#,
@@ -330,7 +330,7 @@ fn test_binary_comparison() {
         }
     "#,
         r#"
-        func f(i64, i64) u8
+        func f(i32, i32) u8
             $0 u8 = gt %0 %1
             ret u8 $0
         "#,
@@ -342,7 +342,7 @@ fn test_binary_comparison() {
         }
     "#,
         r#"
-        func f(i64, i64) u8
+        func f(i32, i32) u8
             $0 u8 = le %0 %1
             ret u8 $0
         "#,
@@ -354,7 +354,7 @@ fn test_binary_comparison() {
         }
     "#,
         r#"
-        func f(i64, i64) u8
+        func f(i32, i32) u8
             $0 u8 = ge %0 %1
             ret u8 $0
         "#,
@@ -399,10 +399,10 @@ fn test_binary_chained() {
         }
     "#,
         r#"
-        func f(i64, i64) i64
-            $0 i64 = add %0 %1
-            $1 i64 = add $0 %0
-            ret i64 $1
+        func f(i32, i32) i32
+            $0 i32 = add %0 %1
+            $1 i32 = add $0 %0
+            ret i32 $1
         "#,
     );
     expect_equal(
@@ -412,10 +412,10 @@ fn test_binary_chained() {
         }
     "#,
         r#"
-        func f(i64, i64, i64, u8) u8
-            $0 i64 = neg %1
-            $1 i64 = add %0 $0
-            $2 i64 = mul $1 %2
+        func f(i32, i32, i32, u8) u8
+            $0 i32 = neg %1
+            $1 i32 = add %0 $0
+            $2 i32 = mul $1 %2
             $3 u8 = eq $2 0
             $4 u8 = and $3 %3
             ret u8 $4
@@ -432,9 +432,9 @@ fn test_unary_neg() {
         }
     "#,
         r#"
-        func f(i64) i64
-            $0 i64 = neg %0
-            ret i64 $0
+        func f(i32) i32
+            $0 i32 = neg %0
+            ret i32 $0
         "#,
     );
     // Double negation
@@ -445,10 +445,10 @@ fn test_unary_neg() {
         }
     "#,
         r#"
-        func f(i64) i64
-            $0 i64 = neg %0
-            $1 i64 = neg $0
-            ret i64 $1
+        func f(i32) i32
+            $0 i32 = neg %0
+            $1 i32 = neg $0
+            ret i32 $1
         "#,
     );
 }
@@ -494,10 +494,10 @@ fn test_unary_in_binary() {
         }
     "#,
         r#"
-        func f(i64, i64) i64
-            $0 i64 = neg %1
-            $1 i64 = add %0 $0
-            ret i64 $1
+        func f(i32, i32) i32
+            $0 i32 = neg %1
+            $1 i32 = add %0 $0
+            ret i32 $1
         "#,
     );
 }
@@ -516,11 +516,11 @@ fn test_variable_assign() {
     "#,
         r#"
         func f() void
-            $0 i64 = 0
-            $0 i64 = 1
-            $0 i64 = 2
-            $1 i64 = 3
-            $0 i64 = $1
+            $0 i32 = 0
+            $0 i32 = 1
+            $0 i32 = 2
+            $1 i32 = 3
+            $0 i32 = $1
             ret void
         "#,
     );

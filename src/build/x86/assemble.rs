@@ -253,21 +253,22 @@ impl<'a> FunctionAssembler<'a> {
                 self.vars.insert(ins.result, Dest::Reg(rax));
             }
             IRBinaryOp::Div => {
-                let r10 = UnsignedReg::R10.to_sized(result_size);
+                let r10 = UnsignedReg::R10.to_sized(result_size.clone());
                 self.push(Asm::Mov(Dest::Reg(rax.clone()), lhs));
                 self.push(Asm::Mov(Dest::Reg(r10.clone()), rhs));
-                self.push(Asm::Cqo);
+                self.push(sign_extend_ax(&result_size));
                 self.push(Asm::IDiv(Src::Reg(r10)));
                 self.vars.insert(ins.result, Dest::Reg(rax));
             }
             IRBinaryOp::Mod => {
-                // Operands are i64, result is u32 in edx after idiv
-                let rax64 = UnsignedReg::Rax.to_sized(Size::Qword);
-                let r10_64 = UnsignedReg::R10.to_sized(Size::Qword);
-                self.push(Asm::Mov(Dest::Reg(rax64.clone()), lhs));
-                self.push(Asm::Mov(Dest::Reg(r10_64.clone()), rhs));
-                self.push(Asm::Cqo);
-                self.push(Asm::IDiv(Src::Reg(r10_64)));
+                // Result is u32; operand size is derived from lhs.
+                let op_size = src_size(&lhs);
+                let rax_op = UnsignedReg::Rax.to_sized(op_size.clone());
+                let r10_op = UnsignedReg::R10.to_sized(op_size.clone());
+                self.push(Asm::Mov(Dest::Reg(rax_op.clone()), lhs));
+                self.push(Asm::Mov(Dest::Reg(r10_op.clone()), rhs));
+                self.push(sign_extend_ax(&op_size));
+                self.push(Asm::IDiv(Src::Reg(r10_op)));
                 self.vars.insert(ins.result, Dest::Reg(Reg::Edx));
             }
             IRBinaryOp::Eq | IRBinaryOp::Ne | IRBinaryOp::Gt | IRBinaryOp::Ge
@@ -497,6 +498,14 @@ fn type_size(unit: &Unit, ty: &IRTypeId) -> Size {
         4 => Size::Dword,
         8 => Size::Qword,
         _ => panic!("no size"),
+    }
+}
+
+/// Emit the correct sign-extend-into-rdx instruction for idiv based on operand size.
+fn sign_extend_ax(size: &Size) -> Asm {
+    match size {
+        Size::Qword => Asm::Cqo,
+        _ => Asm::Cdq,
     }
 }
 

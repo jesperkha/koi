@@ -168,7 +168,7 @@ impl<'a> FileChecker<'a> {
         }
 
         // If return type is not int
-        let return_type = self.ctx.types.primitive(PrimitiveType::I64);
+        let return_type = self.ctx.types.primitive(PrimitiveType::I32);
 
         if !self.ctx.types.equivalent(f.ret, return_type) {
             let msg = format!(
@@ -295,7 +295,7 @@ impl<'a> FileChecker<'a> {
 
     fn emit_literal(&mut self, tok: Token) -> Result<types::Expr, Report> {
         let ty = match &tok.kind {
-            TokenKind::IntLit(_) => self.ctx.types.primitive_type(PrimitiveType::I64),
+            TokenKind::IntLit(_) => self.ctx.types.primitive_type(PrimitiveType::I32),
             TokenKind::FloatLit(_) => self.ctx.types.primitive_type(PrimitiveType::F64),
             TokenKind::StringLit(_) => self.ctx.types.primitive_type(PrimitiveType::String),
             TokenKind::True | TokenKind::False => {

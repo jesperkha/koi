@@ -56,7 +56,7 @@ impl From<&TokenKind> for PrimitiveType {
             TokenKind::ByteType => PrimitiveType::Byte,
 
             // Builtin 'aliases'
-            TokenKind::IntType => PrimitiveType::I64,
+            TokenKind::IntType => PrimitiveType::I32,
             TokenKind::FloatType => PrimitiveType::F64,
 
             TokenKind::StringType => PrimitiveType::String,

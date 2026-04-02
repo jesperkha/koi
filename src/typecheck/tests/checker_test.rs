@@ -49,7 +49,7 @@ fn test_return_type() {
             return true
         }
     "#,
-        "incorrect return type: expected 'i64', got 'bool'",
+        "incorrect return type: expected 'i32', got 'bool'",
     );
     assert_error(
         r#"
@@ -57,7 +57,7 @@ fn test_return_type() {
             return a
         }
     "#,
-        "incorrect return type: expected 'bool', got 'i64'",
+        "incorrect return type: expected 'bool', got 'i32'",
     );
     assert_error(
         r#"
@@ -182,7 +182,7 @@ fn test_function_call_fail() {
             f(true)
         }
     "#,
-        "mismatched types in function call. expected 'i64', got 'bool'",
+        "mismatched types in function call. expected 'i32', got 'bool'",
     );
 }
 
@@ -264,7 +264,7 @@ fn test_variable_decl_error() {
             return a
         }
     "#,
-        "incorrect return type: expected 'i64', got 'bool'",
+        "incorrect return type: expected 'i32', got 'bool'",
     );
     assert_error(
         r#"
@@ -326,7 +326,7 @@ fn test_variable_assignment_fail() {
             a = true
         }
     "#,
-        "mismatched types in assignment. expected 'i64', got 'bool'",
+        "mismatched types in assignment. expected 'i32', got 'bool'",
     );
     assert_error(
         r#"
@@ -355,7 +355,7 @@ fn test_main_function_rules() {
             return
         }
     "#,
-        "main function must return 'i64'",
+        "main function must return 'i32'",
     );
     assert_error(
         r#"
@@ -376,7 +376,7 @@ fn test_member_error() {
             return 0
         }
     "#,
-        "type 'i64' has no fields",
+        "type 'i32' has no fields",
     );
     assert_error(
         r#"
@@ -453,7 +453,7 @@ fn test_return_from_call_mismatch() {
             return g()
         }
     "#,
-        "incorrect return type: expected 'i64', got 'bool'",
+        "incorrect return type: expected 'i32', got 'bool'",
     );
 }
 
@@ -554,7 +554,7 @@ fn test_binary_comparison_not_int() {
             return a == b
         }
     "#,
-        "incorrect return type: expected 'i64', got 'bool'",
+        "incorrect return type: expected 'i32', got 'bool'",
     );
     assert_error(
         r#"
@@ -562,7 +562,7 @@ fn test_binary_comparison_not_int() {
             return a < b
         }
     "#,
-        "incorrect return type: expected 'i64', got 'bool'",
+        "incorrect return type: expected 'i32', got 'bool'",
     );
 }
 
@@ -610,7 +610,7 @@ fn test_binary_modulo_yields_u32() {
             return a % b
         }
     "#,
-        "incorrect return type: expected 'i64', got 'u32'",
+        "incorrect return type: expected 'i32', got 'u32'",
     );
 }
 
@@ -622,7 +622,7 @@ fn test_binary_type_mismatch_error() {
             return a + b
         }
     "#,
-        "mismatched types in expression: 'i64' and 'bool'",
+        "mismatched types in expression: 'i32' and 'bool'",
     );
     assert_error(
         r#"
@@ -630,7 +630,7 @@ fn test_binary_type_mismatch_error() {
             return a == b
         }
     "#,
-        "mismatched types in expression: 'i64' and 'bool'",
+        "mismatched types in expression: 'i32' and 'bool'",
     );
     assert_error(
         r#"
@@ -638,7 +638,7 @@ fn test_binary_type_mismatch_error() {
             return a && b
         }
     "#,
-        "mismatched types in expression: 'bool' and 'i64'",
+        "mismatched types in expression: 'bool' and 'i32'",
     );
 }
 
@@ -683,7 +683,7 @@ fn test_binary_result_as_function_argument() {
             consume(a == b)
         }
     "#,
-        "mismatched types in function call. expected 'i64', got 'bool'",
+        "mismatched types in function call. expected 'i32', got 'bool'",
     );
 }
 
@@ -743,7 +743,7 @@ fn test_unary_not_type_error() {
             return !a
         }
     "#,
-        "'!' operator can only be used on type 'bool', got 'i64'",
+        "'!' operator can only be used on type 'bool', got 'i32'",
     );
     assert_error(
         r#"
@@ -751,7 +751,7 @@ fn test_unary_not_type_error() {
             return !1
         }
     "#,
-        "'!' operator can only be used on type 'bool', got 'i64'",
+        "'!' operator can only be used on type 'bool', got 'i32'",
     );
 }
 
@@ -764,7 +764,7 @@ fn test_unary_not_yields_bool() {
             return !a
         }
     "#,
-        "incorrect return type: expected 'i64', got 'bool'",
+        "incorrect return type: expected 'i32', got 'bool'",
     );
 }
 
@@ -813,7 +813,7 @@ fn test_unary_minus_preserves_type() {
             return -a
         }
     "#,
-        "incorrect return type: expected 'bool', got 'i64'",
+        "incorrect return type: expected 'bool', got 'i32'",
     );
 }
 
@@ -863,6 +863,6 @@ fn test_unary_as_function_argument() {
             consume(!a)
         }
     "#,
-        "mismatched types in function call. expected 'i64', got 'bool'",
+        "mismatched types in function call. expected 'i32', got 'bool'",
     );
 }

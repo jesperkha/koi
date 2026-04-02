@@ -31,7 +31,7 @@ func main() int {
 main:
     push rbp
     mov rbp, rsp
-    mov rax, 0
+    mov eax, 0
     leave
     ret
 
@@ -87,14 +87,14 @@ func f(a int, b string) int {
 f:
     push rbp
     mov rbp, rsp
-    sub rsp, 32
-    mov QWORD PTR [rbp-8], rdi
-    mov QWORD PTR [rbp-16], rsi
-    mov rdi, 1
+    sub rsp, 16
+    mov DWORD PTR [rbp-4], edi
+    mov QWORD PTR [rbp-12], rsi
+    mov edi, 1
     lea rsi, [rip + .D0]
     call f
-    mov QWORD PTR [rbp-24], rax
-    mov rax, QWORD PTR [rbp-24]
+    mov DWORD PTR [rbp-16], eax
+    mov eax, DWORD PTR [rbp-16]
     leave
     ret
 
@@ -126,8 +126,8 @@ f:
     sub rsp, 16
     mov BYTE PTR [rbp-1], 1
     mov BYTE PTR [rbp-1], 0
-    mov QWORD PTR [rbp-9], 1
-    mov QWORD PTR [rbp-9], 0
+    mov DWORD PTR [rbp-5], 1
+    mov DWORD PTR [rbp-5], 0
     leave
     ret
 
@@ -193,12 +193,12 @@ f:
     push rbp
     mov rbp, rsp
     sub rsp, 16
-    mov QWORD PTR [rbp-8], rdi
-    mov QWORD PTR [rbp-16], rsi
-    mov rax, QWORD PTR [rbp-8]
-    mov r10, QWORD PTR [rbp-16]
-    add rax, r10
-    mov rax, rax
+    mov DWORD PTR [rbp-4], edi
+    mov DWORD PTR [rbp-8], esi
+    mov eax, DWORD PTR [rbp-4]
+    mov r10d, DWORD PTR [rbp-8]
+    add eax, r10d
+    mov eax, eax
     leave
     ret
 
@@ -225,12 +225,12 @@ f:
     push rbp
     mov rbp, rsp
     sub rsp, 16
-    mov QWORD PTR [rbp-8], rdi
-    mov QWORD PTR [rbp-16], rsi
-    mov rax, QWORD PTR [rbp-8]
-    mov r10, QWORD PTR [rbp-16]
-    sub rax, r10
-    mov rax, rax
+    mov DWORD PTR [rbp-4], edi
+    mov DWORD PTR [rbp-8], esi
+    mov eax, DWORD PTR [rbp-4]
+    mov r10d, DWORD PTR [rbp-8]
+    sub eax, r10d
+    mov eax, eax
     leave
     ret
 
@@ -257,12 +257,12 @@ f:
     push rbp
     mov rbp, rsp
     sub rsp, 16
-    mov QWORD PTR [rbp-8], rdi
-    mov QWORD PTR [rbp-16], rsi
-    mov rax, QWORD PTR [rbp-8]
-    mov r10, QWORD PTR [rbp-16]
-    imul rax, r10
-    mov rax, rax
+    mov DWORD PTR [rbp-4], edi
+    mov DWORD PTR [rbp-8], esi
+    mov eax, DWORD PTR [rbp-4]
+    mov r10d, DWORD PTR [rbp-8]
+    imul eax, r10d
+    mov eax, eax
     leave
     ret
 
@@ -289,13 +289,13 @@ f:
     push rbp
     mov rbp, rsp
     sub rsp, 16
-    mov QWORD PTR [rbp-8], rdi
-    mov QWORD PTR [rbp-16], rsi
-    mov rax, QWORD PTR [rbp-8]
-    mov r10, QWORD PTR [rbp-16]
-    cqo
-    idiv r10
-    mov rax, rax
+    mov DWORD PTR [rbp-4], edi
+    mov DWORD PTR [rbp-8], esi
+    mov eax, DWORD PTR [rbp-4]
+    mov r10d, DWORD PTR [rbp-8]
+    cdq
+    idiv r10d
+    mov eax, eax
     leave
     ret
 
@@ -322,11 +322,11 @@ f:
     push rbp
     mov rbp, rsp
     sub rsp, 16
-    mov QWORD PTR [rbp-8], rdi
-    mov QWORD PTR [rbp-16], rsi
-    mov rax, QWORD PTR [rbp-8]
-    mov r10, QWORD PTR [rbp-16]
-    cmp rax, r10
+    mov DWORD PTR [rbp-4], edi
+    mov DWORD PTR [rbp-8], esi
+    mov eax, DWORD PTR [rbp-4]
+    mov r10d, DWORD PTR [rbp-8]
+    cmp eax, r10d
     sete al
     mov al, al
     leave
@@ -355,11 +355,11 @@ f:
     push rbp
     mov rbp, rsp
     sub rsp, 16
-    mov QWORD PTR [rbp-8], rdi
-    mov QWORD PTR [rbp-16], rsi
-    mov rax, QWORD PTR [rbp-8]
-    mov r10, QWORD PTR [rbp-16]
-    cmp rax, r10
+    mov DWORD PTR [rbp-4], edi
+    mov DWORD PTR [rbp-8], esi
+    mov eax, DWORD PTR [rbp-4]
+    mov r10d, DWORD PTR [rbp-8]
+    cmp eax, r10d
     setl al
     mov al, al
     leave
@@ -452,10 +452,10 @@ f:
     push rbp
     mov rbp, rsp
     sub rsp, 16
-    mov QWORD PTR [rbp-8], rdi
-    mov rax, QWORD PTR [rbp-8]
-    neg rax
-    mov rax, rax
+    mov DWORD PTR [rbp-4], edi
+    mov eax, DWORD PTR [rbp-4]
+    neg eax
+    mov eax, eax
     leave
     ret
 
@@ -515,13 +515,13 @@ f:
     push rbp
     mov rbp, rsp
     sub rsp, 32
-    mov QWORD PTR [rbp-8], rdi
-    mov BYTE PTR [rbp-9], sil
-    mov QWORD PTR [rbp-17], rdx
-    mov QWORD PTR [rbp-8], 0
-    mov BYTE PTR [rbp-9], 0
-    mov QWORD PTR [rbp-25], 123
-    mov rax, 0
+    mov DWORD PTR [rbp-4], edi
+    mov BYTE PTR [rbp-5], sil
+    mov QWORD PTR [rbp-13], rdx
+    mov DWORD PTR [rbp-4], 0
+    mov BYTE PTR [rbp-5], 0
+    mov DWORD PTR [rbp-17], 123
+    mov eax, 0
     leave
     ret
 
