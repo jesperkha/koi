@@ -527,4 +527,18 @@ fn test_binary_term() {
         }
     "#,
     );
+    assert_pass(
+        r#"
+        func f() {
+            1 + 2 * (3 - 4) == 1 - 3
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            g() && true == false || true
+        }
+    "#,
+    );
 }

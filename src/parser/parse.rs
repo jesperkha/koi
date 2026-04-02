@@ -441,16 +441,84 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expr(&mut self) -> Result<Expr, Report> {
-        self.parse_term()
+        self.parse_logical()
+    }
+
+    fn parse_logical(&mut self) -> Result<Expr, Report> {
+        let mut lhs = self.parse_equality()?;
+
+        while self.matches_any(&[TokenKind::AndAnd, TokenKind::OrOr]) {
+            let op = self.must_consume()?;
+            let rhs = self.parse_equality()?;
+            lhs = Expr::Binary(BinaryExpr {
+                op,
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            });
+        }
+
+        Ok(lhs)
+    }
+
+    fn parse_equality(&mut self) -> Result<Expr, Report> {
+        let mut lhs = self.parse_comparison()?;
+
+        while self.matches_any(&[TokenKind::EqEq, TokenKind::NotEq]) {
+            let op = self.must_consume()?;
+            let rhs = self.parse_comparison()?;
+            lhs = Expr::Binary(BinaryExpr {
+                op,
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            });
+        }
+
+        Ok(lhs)
+    }
+
+    fn parse_comparison(&mut self) -> Result<Expr, Report> {
+        let mut lhs = self.parse_term()?;
+
+        while self.matches_any(&[
+            TokenKind::Greater,
+            TokenKind::GreaterEq,
+            TokenKind::Less,
+            TokenKind::LessEq,
+        ]) {
+            let op = self.must_consume()?;
+            let rhs = self.parse_term()?;
+            lhs = Expr::Binary(BinaryExpr {
+                op,
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            });
+        }
+
+        Ok(lhs)
     }
 
     fn parse_term(&mut self) -> Result<Expr, Report> {
-        let mut lhs = self.parse_call_and_member()?;
+        let mut lhs = self.parse_factor()?;
 
         while self.matches_any(&[TokenKind::Plus, TokenKind::Minus]) {
             let op = self.must_consume()?;
-            let rhs = self.parse_call_and_member()?;
+            let rhs = self.parse_factor()?;
+            lhs = Expr::Binary(BinaryExpr {
+                op,
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            });
+        }
 
+        Ok(lhs)
+    }
+
+    fn parse_factor(&mut self) -> Result<Expr, Report> {
+        let mut lhs = self.parse_call_and_member()?;
+
+        while self.matches_any(&[TokenKind::Star, TokenKind::Slash]) {
+            let op = self.must_consume()?;
+            let rhs = self.parse_call_and_member()?;
             lhs = Expr::Binary(BinaryExpr {
                 op,
                 lhs: Box::new(lhs),
