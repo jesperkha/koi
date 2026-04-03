@@ -838,6 +838,152 @@ fn test_unary_minus_type_error() {
 }
 
 #[test]
+fn test_if_stmt_pass() {
+    assert_pass(
+        r#"
+        func f(a bool) {
+            if a {
+            }
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(a int, b int) {
+            if a == b {
+            }
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(a bool) {
+            if a {
+            } else {
+            }
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(a bool, b bool) {
+            if a {
+            } else if b {
+            } else {
+            }
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(a int, b int) {
+            if a < b {
+                a = 0
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_if_stmt_condition_must_be_bool() {
+    assert_error(
+        r#"
+        func f(a int) {
+            if a {
+            }
+        }
+    "#,
+        "expression must be of type 'bool', got 'i32'",
+    );
+    assert_error(
+        r#"
+        func f() {
+            if 1 {
+            }
+        }
+    "#,
+        "expression must be of type 'bool', got 'i32'",
+    );
+    assert_error(
+        r#"
+        func f(s string) {
+            if s {
+            }
+        }
+    "#,
+        "expression must be of type 'bool', got 'string'",
+    );
+    assert_error(
+        r#"
+        func g() int { return 0 }
+        func f() {
+            if g() {
+            }
+        }
+    "#,
+        "expression must be of type 'bool', got 'i32'",
+    );
+}
+
+#[test]
+fn test_if_elseif_condition_must_be_bool() {
+    assert_error(
+        r#"
+        func f(a bool, b int) {
+            if a {
+            } else if b {
+            }
+        }
+    "#,
+        "expression must be of type 'bool', got 'i32'",
+    );
+}
+
+#[test]
+fn test_if_block_scope() {
+    // variable declared inside if block is not visible outside
+    assert_error(
+        r#"
+        func f(a bool) int {
+            if a {
+                x := 1
+            }
+            return x
+        }
+    "#,
+        "not declared",
+    );
+    // variable declared in outer scope is accessible inside if block
+    assert_pass(
+        r#"
+        func f(a bool) int {
+            x := 0
+            if a {
+                x = 1
+            }
+            return x
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_if_stmt_body_is_checked() {
+    // type errors inside the if body are still caught
+    assert_error(
+        r#"
+        func f(a bool, b int) {
+            if a {
+                b = true
+            }
+        }
+    "#,
+        "mismatched types in assignment. expected 'i32', got 'bool'",
+    );
+}
+
+#[test]
 fn test_unary_as_function_argument() {
     assert_pass(
         r#"
@@ -864,5 +1010,226 @@ fn test_unary_as_function_argument() {
         }
     "#,
         "mismatched types in function call. expected 'i32', got 'bool'",
+    );
+}
+
+#[test]
+fn test_return_only_in_if_branch_is_not_exhaustive() {
+    // A return inside an if-only block does not guarantee a return —
+    // the else path is missing, so this should be a "missing return" error.
+    assert_error(
+        r#"
+        func f(a bool) int {
+            if a {
+                return 1
+            }
+        }
+    "#,
+        "missing return in function 'f'",
+    );
+}
+
+// --- Exhaustive return checks through if-else chains ---
+
+#[test]
+fn test_if_else_both_return_is_exhaustive() {
+    // Both branches return → should pass
+    assert_pass(
+        r#"
+        func f(a bool) int {
+            if a {
+                return 1
+            } else {
+                return 0
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_if_elseif_else_all_return_is_exhaustive() {
+    // All three branches return → should pass
+    assert_pass(
+        r#"
+        func f(a bool, b bool) int {
+            if a {
+                return 1
+            } else if b {
+                return 2
+            } else {
+                return 3
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_if_else_missing_return_in_if_branch() {
+    // else returns but if branch does not → not exhaustive
+    assert_error(
+        r#"
+        func f(a bool) int {
+            if a {
+            } else {
+                return 0
+            }
+        }
+    "#,
+        "missing return in function 'f'",
+    );
+}
+
+#[test]
+fn test_if_elseif_no_terminal_else_not_exhaustive() {
+    // No terminal else: if the else-if condition is also false nothing returns
+    assert_error(
+        r#"
+        func f(a bool, b bool) int {
+            if a {
+                return 1
+            } else if b {
+                return 2
+            }
+        }
+    "#,
+        "missing return in function 'f'",
+    );
+}
+
+#[test]
+fn test_if_elseif_missing_return_in_elseif_branch() {
+    // else-if branch has no return → not exhaustive
+    assert_error(
+        r#"
+        func f(a bool, b bool) int {
+            if a {
+                return 1
+            } else if b {
+            } else {
+                return 3
+            }
+        }
+    "#,
+        "missing return in function 'f'",
+    );
+}
+
+#[test]
+fn test_if_elseif_missing_return_in_else_branch() {
+    // else branch has no return → not exhaustive
+    assert_error(
+        r#"
+        func f(a bool, b bool) int {
+            if a {
+                return 1
+            } else if b {
+                return 2
+            } else {
+            }
+        }
+    "#,
+        "missing return in function 'f'",
+    );
+}
+
+// --- Nested if-else return exhaustiveness ---
+
+#[test]
+fn test_nested_if_else_exhaustive() {
+    // Inner if-else covers both paths of the outer if branch → exhaustive
+    assert_pass(
+        r#"
+        func f(a bool, b bool) int {
+            if a {
+                if b {
+                    return 1
+                } else {
+                    return 2
+                }
+            } else {
+                return 3
+            }
+        }
+    "#,
+    );
+    // Both branches of outer if-else contain exhaustive nested if-else
+    assert_pass(
+        r#"
+        func f(a bool, b bool) int {
+            if a {
+                if b {
+                    return 1
+                } else {
+                    return 2
+                }
+            } else {
+                if b {
+                    return 3
+                } else {
+                    return 4
+                }
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_nested_if_only_inside_branch_not_exhaustive() {
+    // Inner if has no else: the b=false path through the outer if branch doesn't return
+    assert_error(
+        r#"
+        func f(a bool, b bool) int {
+            if a {
+                if b {
+                    return 1
+                }
+            } else {
+                return 3
+            }
+        }
+    "#,
+        "missing return in function 'f'",
+    );
+}
+
+#[test]
+fn test_nested_exhaustive_if_else_without_outer_else_not_exhaustive() {
+    // Inner if-else is exhaustive, but the outer has no else → the a=false path doesn't return
+    assert_error(
+        r#"
+        func f(a bool, b bool) int {
+            if a {
+                if b {
+                    return 1
+                } else {
+                    return 2
+                }
+            }
+        }
+    "#,
+        "missing return in function 'f'",
+    );
+}
+
+#[test]
+fn test_nested_if_else_one_inner_branch_missing_return() {
+    // Outer else branch has a nested if-else where one arm doesn't return
+    assert_error(
+        r#"
+        func f(a bool, b bool) int {
+            if a {
+                return 1
+            } else {
+                if b {
+                    return 2
+                } else {
+                }
+            }
+        }
+    "#,
+        "missing return in function 'f'",
     );
 }

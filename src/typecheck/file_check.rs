@@ -217,7 +217,7 @@ impl<'a> FileChecker<'a> {
         let expr = self.emit_expr(node.expr)?;
 
         // Check if expr is bool
-        if self.ctx.types.equivalent(
+        if !self.ctx.types.equivalent(
             expr.type_id(),
             self.ctx.types.primitive(PrimitiveType::Bool),
         ) {
@@ -231,19 +231,34 @@ impl<'a> FileChecker<'a> {
         }
 
         let block = self.emit_block(node.block)?;
+        let this_returned = self.has_returned;
 
-        let elseif = if let Some(elseif) = node.elseif {
+        let (elseif, exhaustive_return) = if let Some(elseif) = node.elseif {
             match *elseif {
                 ast::ElseBlock::ElseIf(node) => {
-                    Some(Box::new(types::ElseBlock::ElseIf(self.emit_if(node)?)))
+                    self.has_returned = false;
+                    let block = self.emit_if(node)?;
+                    (
+                        Some(Box::new(types::ElseBlock::ElseIf(block))),
+                        self.has_returned,
+                    )
                 }
                 ast::ElseBlock::Else(node) => {
-                    Some(Box::new(types::ElseBlock::Else(self.emit_block(node)?)))
+                    self.has_returned = false;
+                    let block = self.emit_block(node)?;
+                    (
+                        Some(Box::new(types::ElseBlock::Else(block))),
+                        self.has_returned,
+                    )
                 }
             }
         } else {
-            None
+            (None, false)
         };
+
+        // If this if-block and all subsequent else-if and else blocks return,
+        // then we can mark the function as having returned.
+        self.has_returned = this_returned && exhaustive_return;
 
         Ok(types::IfNode {
             meta,
