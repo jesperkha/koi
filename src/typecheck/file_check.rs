@@ -95,7 +95,7 @@ impl<'a> FileChecker<'a> {
             ast::Stmt::VarDecl(node) => self.emit_var_decl(node),
             ast::Stmt::VarAssign(node) => self.emit_var_assign(node),
             ast::Stmt::Block(_) => panic!("block should be handled manually as list of stmt"),
-            ast::Stmt::If(_) => todo!(),
+            ast::Stmt::If(node) => self.emit_if(node),
         }
     }
 
@@ -204,6 +204,10 @@ impl<'a> FileChecker<'a> {
             meta,
             name,
         }))
+    }
+
+    fn emit_if(&mut self, node: ast::IfNode) -> Result<types::Stmt, Report> {
+        todo!()
     }
 
     fn emit_var_assign(&mut self, node: ast::VarAssignNode) -> Result<types::Stmt, Report> {

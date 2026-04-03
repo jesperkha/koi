@@ -544,6 +544,89 @@ fn test_binary() {
 }
 
 #[test]
+fn test_if_stmt() {
+    compare_string(
+        r#"
+        func f() {
+            if true {
+            }
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            if a == b {
+                return
+            }
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            if true {
+            } else {
+            }
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            if true {
+            } else if false {
+            }
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            if true {
+            } else if false {
+            } else {
+            }
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            if a && b {
+                f()
+            } else if !a {
+                g()
+            } else {
+                h()
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_if_stmt_error() {
+    expect_error(
+        r#"
+        func f() {
+            if {
+            }
+        }
+    "#,
+        "expected expression",
+    );
+    expect_error(
+        r#"
+        func f() {
+            if true
+        }
+    "#,
+        "expected {",
+    );
+}
+
+#[test]
 fn test_unary() {
     assert_pass(
         r#"
