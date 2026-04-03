@@ -95,6 +95,7 @@ impl<'a> FileChecker<'a> {
             ast::Stmt::VarDecl(node) => self.emit_var_decl(node),
             ast::Stmt::VarAssign(node) => self.emit_var_assign(node),
             ast::Stmt::Block(_) => panic!("block should be handled manually as list of stmt"),
+            ast::Stmt::If(_) => todo!(),
         }
     }
 

@@ -1,4 +1,6 @@
-use crate::ast::{Ast, BlockNode, FuncNode, ReturnNode, Stmt, Token, TypeNode, Visitable, Visitor};
+use crate::ast::{
+    Ast, BlockNode, ElseBlock, FuncNode, ReturnNode, Stmt, Token, TypeNode, Visitable, Visitor,
+};
 
 pub struct Printer {
     s: String,
@@ -70,6 +72,8 @@ impl Visitor<()> for Printer {
         }
 
         Stmt::Block(node.body.clone()).accept(self);
+        self.s += "\n";
+        self.s += "\n";
     }
 
     fn visit_block(&mut self, node: &BlockNode) {
@@ -88,8 +92,6 @@ impl Visitor<()> for Printer {
             self.s.push_str("    ");
         }
         self.s.push('}');
-        self.s.push('\n');
-        self.s.push('\n');
     }
 
     fn visit_type(&mut self, node: &super::TypeNode) {
@@ -186,12 +188,28 @@ impl Visitor<()> for Printer {
 
     fn visit_binary(&mut self, node: &super::BinaryExpr) {
         node.lhs.accept(self);
+        self.s += " ";
         self.visit_literal(&node.op);
+        self.s += " ";
         node.rhs.accept(self);
     }
 
     fn visit_unary(&mut self, node: &super::UnaryExpr) {
         self.visit_literal(&node.op);
         node.rhs.accept(self);
+    }
+
+    fn visit_if(&mut self, node: &super::IfNode) -> () {
+        self.s += "if ";
+        node.expr.accept(self);
+        self.s += " ";
+        self.visit_block(&node.block);
+        if let Some(elseif) = &node.elseif {
+            self.s += " else ";
+            match elseif.as_ref() {
+                ElseBlock::ElseIf(if_node) => self.visit_if(if_node),
+                ElseBlock::Else(block) => self.visit_block(block),
+            }
+        }
     }
 }
