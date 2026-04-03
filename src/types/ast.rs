@@ -1,6 +1,6 @@
 use crate::{
     ast::{Node, NodeId, Pos, TokenKind},
-    types::TypeId,
+    types::{NO_TYPE, TypeId},
 };
 
 pub trait TypedNode<'a> {
@@ -46,6 +46,7 @@ pub enum Stmt {
     VarDecl(VarDeclNode),
     VarAssign(VarAssignNode),
     ExprStmt(Expr),
+    If(IfNode),
 }
 
 pub enum Expr {
@@ -69,19 +70,35 @@ impl Expr {
     }
 }
 
+pub struct BlockNode {
+    pub stmts: Vec<Stmt>,
+}
+
 pub struct FuncNode {
     pub ty: TypeId,
     pub meta: NodeMeta,
     pub name: String,
     pub params: Vec<String>,
     pub public: bool,
-    pub body: Vec<Stmt>,
+    pub body: BlockNode,
 }
 
 pub struct ExternNode {
     pub ty: TypeId,
     pub meta: NodeMeta,
     pub name: String,
+}
+
+pub enum ElseBlock {
+    ElseIf(IfNode),
+    Else(BlockNode),
+}
+
+pub struct IfNode {
+    pub meta: NodeMeta,
+    pub expr: Expr,
+    pub block: BlockNode,
+    pub elseif: Option<Box<ElseBlock>>,
 }
 
 pub struct ReturnNode {
@@ -228,6 +245,7 @@ impl Node for Stmt {
             Stmt::VarDecl(node) => &node.meta.pos,
             Stmt::VarAssign(node) => &node.meta.pos,
             Stmt::ExprStmt(expr) => expr.pos(),
+            Stmt::If(node) => &node.meta.pos,
         }
     }
 
@@ -237,6 +255,7 @@ impl Node for Stmt {
             Stmt::VarDecl(node) => &node.meta.end,
             Stmt::VarAssign(node) => &node.meta.end,
             Stmt::ExprStmt(expr) => expr.end(),
+            Stmt::If(node) => &node.meta.end,
         }
     }
 
@@ -246,6 +265,7 @@ impl Node for Stmt {
             Stmt::VarDecl(node) => node.meta.id,
             Stmt::VarAssign(node) => node.meta.id,
             Stmt::ExprStmt(expr) => expr.id(),
+            Stmt::If(node) => node.meta.id,
         }
     }
 }
@@ -302,7 +322,8 @@ impl_typed_node_enum!(Stmt {
     Return,
     VarDecl,
     VarAssign,
-    ExprStmt
+    ExprStmt,
+    If,
 });
 impl_typed_node_enum!(Expr {
     Call,
@@ -312,6 +333,12 @@ impl_typed_node_enum!(Expr {
     Unary,
     Binary,
 });
+
+impl<'a> TypedNode<'a> for IfNode {
+    fn type_id(&self) -> TypeId {
+        NO_TYPE
+    }
+}
 
 macro_rules! impl_typed_node {
     ($($t:ty),* $(,)?) => {

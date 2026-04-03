@@ -232,7 +232,7 @@ impl<'a> FileEmitter<'a> {
             self.params.bind(param.clone(), i);
         }
 
-        let body = self.emit_func_block(&node.body)?;
+        let body = self.emit_func_block(&node.body.stmts)?;
         self.pop_scope();
 
         // Get function type
@@ -261,6 +261,7 @@ impl<'a> FileEmitter<'a> {
                 }
                 types::Stmt::VarDecl(node) => self.emit_var_decl(&mut ins, node)?,
                 types::Stmt::VarAssign(node) => self.emit_var_assign(&mut ins, node)?,
+                types::Stmt::If(node) => todo!(),
             };
         }
 
