@@ -177,6 +177,7 @@ impl<'a> FunctionAssembler<'a> {
             Ins::Binary(ins) => self.emit_binary(ins),
             Ins::Unary(ins) => self.emit_unary(ins),
             Ins::If(ins) => self.emit_if(ins),
+            Ins::While(ins) => todo!(),
         }
     }
 
