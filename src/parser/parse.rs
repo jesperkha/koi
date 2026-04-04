@@ -7,6 +7,7 @@ use crate::{
         Ast, BinaryExpr, BlockNode, CallExpr, Decl, ElseBlock, Expr, Field, File, FileSet,
         FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode, MemberNode, Node, ReturnNode,
         SourceMap, Stmt, Token, TokenKind, TypeNode, UnaryExpr, VarAssignNode, VarDeclNode,
+        WhileNode,
     },
     config::Config,
     error::{Diagnostics, Report, Res},
@@ -379,6 +380,7 @@ impl<'a> Parser<'a> {
         match token.kind {
             TokenKind::Return => Ok(Stmt::Return(self.parse_return()?)),
             TokenKind::If => Ok(Stmt::If(self.parse_if()?)),
+            TokenKind::While => Ok(Stmt::While(self.parse_while()?)),
             _ => {
                 let expr = self.parse_expr()?;
 
@@ -393,6 +395,13 @@ impl<'a> Parser<'a> {
                 }
             }
         }
+    }
+
+    fn parse_while(&mut self) -> Result<WhileNode, Report> {
+        let kw = self.expect(TokenKind::While)?;
+        let expr = self.parse_expr()?;
+        let block = self.parse_block()?;
+        Ok(WhileNode { kw, expr, block })
     }
 
     fn parse_if(&mut self) -> Result<IfNode, Report> {
