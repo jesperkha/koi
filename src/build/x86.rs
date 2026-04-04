@@ -3,7 +3,7 @@ use std::process::{Command, Stdio};
 use tracing::info;
 
 use crate::{
-    config::{Config, PathManager},
+    config::{Config, DriverPhase, PathManager},
     imports::LibrarySet,
     ir::ProgramIR,
     util::{FilePath, cmd, write_file},
@@ -57,9 +57,18 @@ pub fn build(
         let filepath = format!("{}/{}.s", buildcfg.tmpdir, unit.name);
         let source = assemble(unit, config);
 
-        info!("Writing file {}", filepath);
-        write_file(&filepath.as_str().into(), source.to_string())?;
-        asm_files.push(filepath);
+        if matches!(config.driver_phase, DriverPhase::Asm) {
+            println!("{}", source);
+        } else {
+            info!("Writing file {}", filepath);
+            write_file(&filepath.as_str().into(), source.to_string())?;
+            asm_files.push(filepath);
+        }
+    }
+
+    // Finished assembly phase, exit early if specified.
+    if matches!(config.driver_phase, DriverPhase::Asm) {
+        return Ok(());
     }
 
     let mut linker_flags = vec![];

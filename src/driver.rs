@@ -7,9 +7,9 @@ use tracing::{debug, info};
 use walkdir::WalkDir;
 
 use crate::{
-    ast::{FileSet, Source, SourceMap},
+    ast::{FileSet, Printer, Source, SourceMap},
     build::x86,
-    config::{Config, Options, PathManager, Project, ProjectType, Target},
+    config::{Config, DriverPhase, Options, PathManager, Project, ProjectType, Target},
     context::Context,
     imports::{LibrarySet, create_header_file, read_header_file},
     ir::{ProgramIR, Unit},
@@ -39,6 +39,12 @@ pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
     // Parse all of the sources and return a list of FileSet.
     let filesets = parse_source_dirs(&source_dirs, &config)?;
 
+    // Finished parser phase, exit early if specified.
+    if matches!(config.driver_phase, DriverPhase::Parse) {
+        print_all_asts(&filesets);
+        return Ok(());
+    }
+
     // Flatten the SourceMaps for error handling.
     let source_map = source_dirs
         .into_iter()
@@ -61,11 +67,16 @@ pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
 
     // Type check all file sets, turning them into Modules, and put
     // them in the Context along with all type information.
-    let ctx = create_modules(sort_result, &source_map, &libset, config)?;
+    let ctx = create_modules(sort_result, &source_map, &libset, config.clone())?;
 
     // Do some high level passes at a module level before lowering
     check_main_function_present(&ctx, &project)?;
     dump_debug_info(&ctx, &project)?;
+
+    // Finished type check phase, exit early if specified.
+    if matches!(config.driver_phase, DriverPhase::TypeCheck) {
+        return Ok(());
+    }
 
     // Create header files for package
     if matches!(project.project_type, ProjectType::Package) {
@@ -83,8 +94,22 @@ pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
         .map(|module| emit_module_ir(&ctx, &source_map, module.id))
         .collect::<Result<Vec<Unit>, String>>()?;
 
+    // Finished IR phase, exit early if specified.
+    if matches!(config.driver_phase, DriverPhase::Ir) {
+        units.iter().for_each(|u| print_ir(u));
+        return Ok(());
+    }
+
     // Build the final executable/libary file
-    build(ProgramIR { units }, &ctx.config, &project, &pm, &libset)
+    build(ProgramIR { units }, &config, &project, &pm, &libset)
+}
+
+fn print_all_asts(filesets: &[FileSet]) {
+    for fs in filesets {
+        for file in &fs.files {
+            Printer::print(&file.ast);
+        }
+    }
 }
 
 fn validate_external_imports(

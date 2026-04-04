@@ -49,6 +49,7 @@ pub trait Visitor<R> {
     fn visit_var_assign(&mut self, node: &VarAssignNode) -> R;
     fn visit_import(&mut self, node: &ImportNode) -> R;
     fn visit_if(&mut self, node: &IfNode) -> R;
+    fn visit_while(&mut self, node: &WhileNode) -> R;
 
     fn visit_member(&mut self, node: &MemberNode) -> R;
     fn visit_literal(&mut self, node: &Token) -> R;
@@ -78,6 +79,7 @@ pub enum Stmt {
     VarDecl(VarDeclNode),
     VarAssign(VarAssignNode),
     If(IfNode),
+    While(WhileNode),
 }
 
 /// Expressions are evaluated to produce a value. They can be used
@@ -182,6 +184,13 @@ pub struct IfNode {
     pub expr: Expr,
     pub block: BlockNode,
     pub elseif: Box<ElseBlock>,
+}
+
+#[derive(Debug, Clone)]
+pub struct WhileNode {
+    pub kw: Token,
+    pub expr: Expr,
+    pub block: BlockNode,
 }
 
 #[derive(Debug)]
@@ -340,6 +349,7 @@ impl Node for Stmt {
             Stmt::VarDecl(node) => node.pos(),
             Stmt::VarAssign(node) => node.pos(),
             Stmt::If(node) => node.pos(),
+            Stmt::While(node) => node.pos(),
         }
     }
 
@@ -351,6 +361,7 @@ impl Node for Stmt {
             Stmt::VarDecl(node) => node.end(),
             Stmt::VarAssign(node) => node.end(),
             Stmt::If(node) => node.end(),
+            Stmt::While(node) => node.end(),
         }
     }
 
@@ -362,7 +373,22 @@ impl Node for Stmt {
             Stmt::VarDecl(node) => node.id(),
             Stmt::VarAssign(node) => node.id(),
             Stmt::If(node) => node.id(),
+            Stmt::While(node) => node.id(),
         }
+    }
+}
+
+impl Node for WhileNode {
+    fn pos(&self) -> &Pos {
+        &self.kw.pos
+    }
+
+    fn end(&self) -> &Pos {
+        self.expr.end()
+    }
+
+    fn id(&self) -> NodeId {
+        self.kw.id
     }
 }
 
@@ -445,6 +471,7 @@ impl Visitable for Stmt {
             Stmt::VarDecl(node) => visitor.visit_var_decl(node),
             Stmt::VarAssign(node) => visitor.visit_var_assign(node),
             Stmt::If(node) => visitor.visit_if(node),
+            Stmt::While(node) => visitor.visit_while(node),
         }
     }
 }

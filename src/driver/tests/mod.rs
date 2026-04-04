@@ -61,6 +61,7 @@ fn new_config(case: &str) -> (Project, Options, Config) {
     };
 
     let config = Config {
+        driver_phase: crate::config::DriverPhase::Full,
         dump_types: false,
         print_symbol_tables: false,
         no_mangle_names: false,
@@ -95,6 +96,7 @@ fn library_config(
     };
 
     let config = Config {
+        driver_phase: crate::config::DriverPhase::Full,
         dump_types: false,
         print_symbol_tables: false,
         no_mangle_names: false,

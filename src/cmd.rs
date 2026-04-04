@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    config::{DEFAULT_KOI_TOML, ProjectType, load_config_file},
+    config::{DEFAULT_KOI_TOML, DriverPhase, ProjectType, load_config_file},
     driver::compile,
     imports::dump_header_symbols,
     util::{exec, write_file},
@@ -55,6 +55,8 @@ enum Command {
     Build {
         #[command(flatten)]
         overrides: ProjectOverrides,
+        #[arg(long)]
+        phase: Option<String>,
     },
     /// Read the contents of a header file
     Read { filename: String },
@@ -95,11 +97,25 @@ fn apply_overrides(
     project
 }
 
+fn get_driver_phase(s: Option<String>) -> DriverPhase {
+    s.map_or(DriverPhase::Full, |phase| match phase.as_str() {
+        "ast" => DriverPhase::Parse,
+        "check" => DriverPhase::TypeCheck,
+        "ir" => DriverPhase::Ir,
+        "asm" => DriverPhase::Asm,
+        _ => {
+            println!("invalid phase option '{}'", phase);
+            exit(1);
+        }
+    })
+}
+
 fn run_command(command: Command) -> Result<(), String> {
     match command {
         Command::Init => koi_init(),
-        Command::Build { overrides } => {
-            let (project, options, config) = load_config_file()?;
+        Command::Build { phase, overrides } => {
+            let (project, options, mut config) = load_config_file()?;
+            config.driver_phase = get_driver_phase(phase);
             let project = apply_overrides(project, overrides);
             info!("Building project: {}", project.name);
             init_logger(options.debug_mode);
