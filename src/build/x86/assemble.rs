@@ -94,6 +94,8 @@ struct FunctionAssembler<'a> {
     acc_offset: usize,
     params: Vec<Dest>,
     vars: HashMap<ConstId, Dest>,
+    cond_count: usize, // Number of condition labels
+    end_count: usize,  // Number of end labels
 }
 
 impl<'a> FunctionAssembler<'a> {
@@ -106,6 +108,8 @@ impl<'a> FunctionAssembler<'a> {
             vars: HashMap::new(),
             acc_offset: 0,
             params: Vec::new(),
+            cond_count: 0,
+            end_count: 0,
         }
     }
 
@@ -189,23 +193,22 @@ impl<'a> FunctionAssembler<'a> {
     }
 
     fn emit_if(&mut self, ifins: &IfIns) {
-        let mut cond_count = 0; // Keep track of number of branches for labeling
-
+        let end = self.next_end_label();
         self.evaluate_bool_and_cmp(&ifins.cond);
 
         // If there is no else-if or else branches, jump to end
         let jmp_label = if ifins.elseif.is_empty() && ifins.elseblock.is_none() {
-            ".end".into()
+            end.clone()
         } else {
-            format!("._if_cond_{}", cond_count)
+            self.cur_cond_label()
         };
         self.push(Asm::Jz(jmp_label));
         self.emit_block(&ifins.block);
-        self.push(Asm::Jmp(".end".into()));
+        self.push(Asm::Jmp(end.clone()));
 
         for (idx, elseif) in ifins.elseif.iter().enumerate() {
-            self.push(Asm::Label(format!("_if_cond_{}", cond_count)));
-            cond_count += 1;
+            let label = self.next_cond_label();
+            self.push(Asm::Label(label));
 
             // Evaluate condition
             for i in &elseif.cond_ins {
@@ -215,22 +218,22 @@ impl<'a> FunctionAssembler<'a> {
 
             // If this is the last else-if and there is no else, jump to end
             let jmp_label = if idx == ifins.elseif.len() - 1 && ifins.elseblock.is_none() {
-                ".end".into()
+                end.clone()
             } else {
-                format!("._if_cond_{}", cond_count)
+                self.cur_cond_label()
             };
             self.push(Asm::Jz(jmp_label));
 
             self.emit_block(&elseif.block);
-            self.push(Asm::Jmp(".end".into()));
+            self.push(Asm::Jmp(end.clone()));
         }
 
         if let Some(elseblock) = &ifins.elseblock {
-            self.push(Asm::Label(format!("_if_cond_{}", cond_count)));
+            self.push(Asm::Label(self.cur_cond_label()));
             self.emit_block(elseblock);
         }
 
-        self.push(Asm::Label("end".into()));
+        self.push(Asm::Label(end));
     }
 
     fn emit_store(&mut self, store: &StoreIns) {
@@ -397,6 +400,28 @@ impl<'a> FunctionAssembler<'a> {
                 self.vars.insert(ins.result, Dest::Reg(rax));
             }
         }
+    }
+
+    //      HELPER METHODS
+    // ----------------------------
+
+    /// Get current end label and increment end count
+    fn next_end_label(&mut self) -> String {
+        let l = format!("._end_{}", self.end_count);
+        self.end_count += 1;
+        l
+    }
+
+    /// Return current cond label and increment cond count
+    fn next_cond_label(&mut self) -> String {
+        let l = self.cur_cond_label();
+        self.cond_count += 1;
+        l
+    }
+
+    /// Get current cond label
+    fn cur_cond_label(&self) -> String {
+        format!("._cond_{}", self.cond_count)
     }
 
     /// Helper to automatically switch between mov and lea depending on value.

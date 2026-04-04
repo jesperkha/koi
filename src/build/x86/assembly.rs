@@ -287,7 +287,7 @@ impl Display for Asm {
             Asm::Call(label) => write!(f, "call {}", label),
             Asm::Jmp(label) => write!(f, "jmp {}", label),
             Asm::Jz(label) => write!(f, "jz {}", label),
-            Asm::Label(label) => write!(f, ".{}:", label),
+            Asm::Label(label) => write!(f, "{}:", label),
         }
     }
 }
