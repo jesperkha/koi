@@ -153,6 +153,8 @@ pub struct ElseIf {
 }
 
 pub struct WhileIns {
+    /// List of instructions to calculate the condition
+    pub cond_ins: Vec<Ins>,
     /// Boolean condition
     pub cond: RValue,
     /// Then-block

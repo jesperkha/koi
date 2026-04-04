@@ -297,9 +297,14 @@ impl<'a> FileEmitter<'a> {
     }
 
     fn emit_while(&mut self, ins: &mut Vec<Ins>, node: &types::WhileNode) -> Res<()> {
-        let cond = self.expr_to_rval(ins, &node.expr)?;
+        let mut cond_ins = Vec::new();
+        let cond = self.expr_to_rval(&mut cond_ins, &node.expr)?;
         let block = self.emit_block(&node.block)?;
-        ins.push(Ins::While(WhileIns { cond, block }));
+        ins.push(Ins::While(WhileIns {
+            cond_ins,
+            cond,
+            block,
+        }));
         Ok(())
     }
 

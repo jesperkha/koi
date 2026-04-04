@@ -9,7 +9,7 @@ use crate::{
     ir::{
         AssignIns, BinaryIns, Block, CallIns, ConstId, Data, Decl, ExternDecl, FuncDecl,
         IRBinaryOp, IRType, IRTypeId, IRUnaryOp, IfIns, Ins, LValue, Primitive, RValue, StoreIns,
-        UnaryIns, Unit, ins_to_string_oneline,
+        UnaryIns, Unit, WhileIns, ins_to_string_oneline,
     },
 };
 
@@ -177,7 +177,7 @@ impl<'a> FunctionAssembler<'a> {
             Ins::Binary(ins) => self.emit_binary(ins),
             Ins::Unary(ins) => self.emit_unary(ins),
             Ins::If(ins) => self.emit_if(ins),
-            Ins::While(ins) => todo!(),
+            Ins::While(ins) => self.emit_while(ins),
         }
     }
 
@@ -191,6 +191,27 @@ impl<'a> FunctionAssembler<'a> {
         } else {
             self.push(Asm::Cmp(bool_src, Src::Immediate(Immediate::Uint(0))));
         }
+    }
+
+    fn emit_while(&mut self, ins: &WhileIns) {
+        let end = self.next_end_label();
+        let label = self.next_cond_label();
+
+        self.push(Asm::Label(label.clone()));
+
+        // Eval and jump if false
+        for i in &ins.cond_ins {
+            self.emit_ins(i);
+        }
+        self.evaluate_bool_and_cmp(&ins.cond);
+        self.push(Asm::Jz(end.clone()));
+
+        // Run ins and jump back
+        self.emit_block(&ins.block);
+        self.push(Asm::Jmp(label));
+
+        // Finish
+        self.push(Asm::Label(end));
     }
 
     fn emit_if(&mut self, ifins: &IfIns) {
