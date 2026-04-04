@@ -204,12 +204,16 @@ impl Visitor<()> for Printer {
         node.expr.accept(self);
         self.s += " ";
         self.visit_block(&node.block);
-        if let Some(elseif) = &node.elseif {
-            self.s += " else ";
-            match elseif.as_ref() {
-                ElseBlock::ElseIf(if_node) => self.visit_if(if_node),
-                ElseBlock::Else(block) => self.visit_block(block),
+        match &*node.elseif {
+            ElseBlock::ElseIf(if_node) => {
+                self.s += " else ";
+                self.visit_if(&if_node);
             }
+            ElseBlock::Else(block) => {
+                self.s += " else ";
+                self.visit_block(&block);
+            }
+            ElseBlock::None => {}
         }
     }
 }

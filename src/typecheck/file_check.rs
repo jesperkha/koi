@@ -233,27 +233,18 @@ impl<'a> FileChecker<'a> {
         let block = self.emit_block(node.block)?;
         let this_returned = self.has_returned;
 
-        let (elseif, exhaustive_return) = if let Some(elseif) = node.elseif {
-            match *elseif {
-                ast::ElseBlock::ElseIf(node) => {
-                    self.has_returned = false;
-                    let block = self.emit_if(node)?;
-                    (
-                        Some(Box::new(types::ElseBlock::ElseIf(block))),
-                        self.has_returned,
-                    )
-                }
-                ast::ElseBlock::Else(node) => {
-                    self.has_returned = false;
-                    let block = self.emit_block(node)?;
-                    (
-                        Some(Box::new(types::ElseBlock::Else(block))),
-                        self.has_returned,
-                    )
-                }
+        let (elseif, exhaustive_return) = match *node.elseif {
+            ast::ElseBlock::ElseIf(node) => {
+                self.has_returned = false;
+                let block = self.emit_if(node)?;
+                (Box::new(types::ElseBlock::ElseIf(block)), self.has_returned)
             }
-        } else {
-            (None, false)
+            ast::ElseBlock::Else(node) => {
+                self.has_returned = false;
+                let block = self.emit_block(node)?;
+                (Box::new(types::ElseBlock::Else(block)), self.has_returned)
+            }
+            ast::ElseBlock::None => (Box::new(types::ElseBlock::None), false),
         };
 
         // If this if-block and all subsequent else-if and else blocks return,

@@ -92,13 +92,14 @@ pub struct ExternNode {
 pub enum ElseBlock {
     ElseIf(IfNode),
     Else(BlockNode),
+    None,
 }
 
 pub struct IfNode {
     pub meta: NodeMeta,
     pub expr: Expr,
     pub block: BlockNode,
-    pub elseif: Option<Box<ElseBlock>>,
+    pub elseif: Box<ElseBlock>,
 }
 
 pub struct ReturnNode {

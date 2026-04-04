@@ -158,7 +158,7 @@ impl<'a> FunctionAssembler<'a> {
 
     fn emit_ins(&mut self, ins: &Ins) {
         if self.config.comment_assembly {
-            self.push(Asm::Comment(ins_to_string(self.unit, ins)));
+            self.push(Asm::Comment(ins_to_string(self.unit, ins, 0)));
         }
 
         match ins {
@@ -169,6 +169,7 @@ impl<'a> FunctionAssembler<'a> {
             Ins::Intrinsic(_) => todo!(),
             Ins::Binary(ins) => self.emit_binary(ins),
             Ins::Unary(ins) => self.emit_unary(ins),
+            Ins::If(ins) => todo!(),
         }
     }
 
@@ -271,8 +272,12 @@ impl<'a> FunctionAssembler<'a> {
                 self.push(Asm::IDiv(Src::Reg(r10_op)));
                 self.vars.insert(ins.result, Dest::Reg(Reg::Edx));
             }
-            IRBinaryOp::Eq | IRBinaryOp::Ne | IRBinaryOp::Gt | IRBinaryOp::Ge
-            | IRBinaryOp::Lt | IRBinaryOp::Le => {
+            IRBinaryOp::Eq
+            | IRBinaryOp::Ne
+            | IRBinaryOp::Gt
+            | IRBinaryOp::Ge
+            | IRBinaryOp::Lt
+            | IRBinaryOp::Le => {
                 // Determine operand size from the non-immediate src; both operands have the same type.
                 let op_size = match (&lhs, &rhs) {
                     (Src::Immediate(_), Src::Immediate(_)) => Size::Qword,
@@ -524,18 +529,71 @@ fn src_size(src: &Src) -> Size {
 
 fn reg_to_size(reg: &Reg) -> Size {
     match reg {
-        Reg::Rax | Reg::Rbx | Reg::Rcx | Reg::Rdx | Reg::Rbp | Reg::Rsp | Reg::Rsi
-        | Reg::Rdi | Reg::R8 | Reg::R9 | Reg::R10 | Reg::R11 | Reg::R12 | Reg::R13
-        | Reg::R14 | Reg::R15 => Size::Qword,
-        Reg::Eax | Reg::Ebx | Reg::Ecx | Reg::Edx | Reg::Esi | Reg::Edi | Reg::R8d
-        | Reg::R9d | Reg::R10d | Reg::R11d | Reg::R12d | Reg::R13d | Reg::R14d | Reg::R15d => {
-            Size::Dword
-        }
-        Reg::Ax | Reg::Bx | Reg::Cx | Reg::Ex | Reg::Si | Reg::Di | Reg::R8w | Reg::R9w
-        | Reg::R10w | Reg::R11w | Reg::R12w | Reg::R13w | Reg::R14w | Reg::R15w => Size::Word,
-        Reg::Al | Reg::Bl | Reg::Cl | Reg::El | Reg::Sil | Reg::Dil | Reg::R8b | Reg::R9b
-        | Reg::R10b | Reg::R11b | Reg::R12b | Reg::R13b | Reg::R14b | Reg::R15b => Size::Byte,
-        Reg::Xmm0 | Reg::Xmm1 | Reg::Xmm2 | Reg::Xmm3 | Reg::Xmm4 | Reg::Xmm5 | Reg::Xmm6
+        Reg::Rax
+        | Reg::Rbx
+        | Reg::Rcx
+        | Reg::Rdx
+        | Reg::Rbp
+        | Reg::Rsp
+        | Reg::Rsi
+        | Reg::Rdi
+        | Reg::R8
+        | Reg::R9
+        | Reg::R10
+        | Reg::R11
+        | Reg::R12
+        | Reg::R13
+        | Reg::R14
+        | Reg::R15 => Size::Qword,
+        Reg::Eax
+        | Reg::Ebx
+        | Reg::Ecx
+        | Reg::Edx
+        | Reg::Esi
+        | Reg::Edi
+        | Reg::R8d
+        | Reg::R9d
+        | Reg::R10d
+        | Reg::R11d
+        | Reg::R12d
+        | Reg::R13d
+        | Reg::R14d
+        | Reg::R15d => Size::Dword,
+        Reg::Ax
+        | Reg::Bx
+        | Reg::Cx
+        | Reg::Ex
+        | Reg::Si
+        | Reg::Di
+        | Reg::R8w
+        | Reg::R9w
+        | Reg::R10w
+        | Reg::R11w
+        | Reg::R12w
+        | Reg::R13w
+        | Reg::R14w
+        | Reg::R15w => Size::Word,
+        Reg::Al
+        | Reg::Bl
+        | Reg::Cl
+        | Reg::El
+        | Reg::Sil
+        | Reg::Dil
+        | Reg::R8b
+        | Reg::R9b
+        | Reg::R10b
+        | Reg::R11b
+        | Reg::R12b
+        | Reg::R13b
+        | Reg::R14b
+        | Reg::R15b => Size::Byte,
+        Reg::Xmm0
+        | Reg::Xmm1
+        | Reg::Xmm2
+        | Reg::Xmm3
+        | Reg::Xmm4
+        | Reg::Xmm5
+        | Reg::Xmm6
         | Reg::Xmm7 => Size::Qword,
     }
 }

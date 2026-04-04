@@ -74,6 +74,7 @@ pub enum Ins {
     Return(IRTypeId, RValue),
     Binary(BinaryIns),
     Unary(UnaryIns),
+    If(IfIns),
 }
 
 pub enum IRBinaryOp {
@@ -128,6 +129,21 @@ pub struct AssignIns {
     pub lval: LValue,
     /// Value being assigned
     pub rval: RValue,
+}
+
+pub enum ElseBlock {
+    ElseIf(IfIns),
+    Else(Block),
+    None,
+}
+
+pub struct IfIns {
+    /// Boolean condition
+    pub cond: RValue,
+    /// Then-block
+    pub block: Block,
+    /// Either else-if or else block
+    pub elseif: Box<ElseBlock>,
 }
 
 pub struct CallIns {

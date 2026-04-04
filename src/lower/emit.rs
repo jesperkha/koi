@@ -4,9 +4,9 @@ use crate::{
     context::Context,
     error::{self, Diagnostics, Report},
     ir::{
-        AssignIns, BinaryIns, Block, CallIns, ConstId, Data, DataIndex, Decl, ExternDecl, FuncDecl,
-        IRBinaryOp, IRType, IRTypeInterner, IRUnaryOp, Ins, LValue, ParamId, Primitive, RValue,
-        StoreIns, UnaryIns, Unit,
+        AssignIns, BinaryIns, Block, CallIns, ConstId, Data, DataIndex, Decl, ElseBlock,
+        ExternDecl, FuncDecl, IRBinaryOp, IRType, IRTypeInterner, IRUnaryOp, IfIns, Ins, LValue,
+        ParamId, Primitive, RValue, StoreIns, UnaryIns, Unit,
     },
     module::{
         Module, ModuleId, ModuleKind, ModuleSourceFile, NamespaceList, Symbol, SymbolId,
@@ -254,15 +254,7 @@ impl<'a> FileEmitter<'a> {
         let mut ins = Vec::new();
 
         for node in nodes {
-            match node {
-                types::Stmt::Return(node) => self.emit_return(&mut ins, node)?,
-                types::Stmt::ExprStmt(node) => {
-                    let _ = self.expr_to_rval(&mut ins, node)?;
-                }
-                types::Stmt::VarDecl(node) => self.emit_var_decl(&mut ins, node)?,
-                types::Stmt::VarAssign(node) => self.emit_var_assign(&mut ins, node)?,
-                types::Stmt::If(node) => todo!(),
-            };
+            self.emit_stmt(&mut ins, node)?;
         }
 
         // Add explicit return statement if function has no return value
@@ -281,6 +273,49 @@ impl<'a> FileEmitter<'a> {
 
     // The methods below all emit a variable number of instructions and therefore return no value.
     // -------------------------------------------------------------------------------------------
+
+    fn emit_stmt(&mut self, ins: &mut Vec<Ins>, node: &types::Stmt) -> Res<()> {
+        match node {
+            types::Stmt::Return(node) => self.emit_return(ins, node)?,
+            types::Stmt::ExprStmt(node) => {
+                let _ = self.expr_to_rval(ins, node)?;
+            }
+            types::Stmt::VarDecl(node) => self.emit_var_decl(ins, node)?,
+            types::Stmt::VarAssign(node) => self.emit_var_assign(ins, node)?,
+            types::Stmt::If(node) => {
+                let if_ins = Ins::If(self.emit_if(ins, node)?);
+                ins.push(if_ins);
+            }
+        };
+        Ok(())
+    }
+
+    fn emit_block(&mut self, node: &types::BlockNode) -> Res<Block> {
+        let mut ins = Vec::new();
+        for stmt in &node.stmts {
+            self.emit_stmt(&mut ins, stmt)?;
+        }
+        Ok(Block { ins })
+    }
+
+    fn emit_if(&mut self, ins: &mut Vec<Ins>, node: &types::IfNode) -> Res<IfIns> {
+        let cond = self.expr_to_rval(ins, &node.expr)?;
+        let mut block = self.emit_block(&node.block)?;
+
+        let elseif = match &*node.elseif {
+            types::ElseBlock::ElseIf(node) => {
+                ElseBlock::ElseIf(self.emit_if(&mut block.ins, node)?)
+            }
+            types::ElseBlock::Else(node) => ElseBlock::Else(self.emit_block(node)?),
+            types::ElseBlock::None => ElseBlock::None,
+        };
+
+        Ok(IfIns {
+            cond,
+            block,
+            elseif: Box::new(elseif),
+        })
+    }
 
     fn emit_var_assign(&mut self, ins: &mut Vec<Ins>, node: &types::VarAssignNode) -> Res<()> {
         let ty = self.types.to_ir(self.ctx, node.ty);

@@ -1,4 +1,4 @@
-use crate::ir::{Decl, Ins, Unit};
+use crate::ir::{Decl, IfIns, Ins, Unit};
 
 pub fn print_ir(unit: &Unit) {
     println!("{}", unit_to_string(unit));
@@ -33,6 +33,7 @@ pub fn unit_to_string(unit: &Unit) -> String {
                     unit.types.type_to_string(func.ret),
                 );
                 s += &ins_to_string_indent(unit, &func.body.ins, 1);
+                s += "\n";
             }
         }
     }
@@ -40,11 +41,11 @@ pub fn unit_to_string(unit: &Unit) -> String {
     s
 }
 
-pub fn ins_to_string(unit: &Unit, ins: &Ins) -> String {
+pub fn ins_to_string(unit: &Unit, ins: &Ins, indent: usize) -> String {
     match ins {
         Ins::Store(ins) => {
             format!(
-                "${} {} = {}",
+                "${} {} = {}\n",
                 ins.const_id,
                 unit.types.type_to_string(ins.ty),
                 ins.rval
@@ -52,16 +53,16 @@ pub fn ins_to_string(unit: &Unit, ins: &Ins) -> String {
         }
         Ins::Assign(ins) => {
             format!(
-                "{} {} = {}",
+                "{} {} = {}\n",
                 ins.lval,
                 unit.types.type_to_string(ins.ty),
                 ins.rval
             )
         }
-        Ins::Return(ty, value) => format!("ret {} {}", unit.types.type_to_string(*ty), value),
+        Ins::Return(ty, value) => format!("ret {} {}\n", unit.types.type_to_string(*ty), value),
         Ins::Call(call) => {
             format!(
-                "{} {} = call {}({})",
+                "{} {} = call {}({})\n",
                 call.result,
                 unit.types.type_to_string(call.ty),
                 call.callee,
@@ -73,7 +74,7 @@ pub fn ins_to_string(unit: &Unit, ins: &Ins) -> String {
             )
         }
         Ins::Binary(ins) => format!(
-            "${} {} = {} {} {}",
+            "${} {} = {} {} {}\n",
             ins.result,
             unit.types.type_to_string(ins.ty),
             ins.op,
@@ -81,7 +82,7 @@ pub fn ins_to_string(unit: &Unit, ins: &Ins) -> String {
             ins.rhs,
         ),
         Ins::Unary(ins) => format!(
-            "${} {} = {} {}",
+            "${} {} = {} {}\n",
             ins.result,
             unit.types.type_to_string(ins.ty),
             ins.op,
@@ -89,7 +90,7 @@ pub fn ins_to_string(unit: &Unit, ins: &Ins) -> String {
         ),
         Ins::Intrinsic(int) => {
             format!(
-                "{}intrinsic {}({})",
+                "{}intrinsic {}({})\n",
                 int.result.as_ref().map_or("".into(), |dest| format!(
                     "{} {} = ",
                     dest,
@@ -103,19 +104,40 @@ pub fn ins_to_string(unit: &Unit, ins: &Ins) -> String {
                     .join(", "),
             )
         }
+        Ins::If(ins) => if_to_string(unit, ins, indent),
     }
+}
+
+fn if_to_string(unit: &Unit, ins: &IfIns, indent: usize) -> String {
+    format!(
+        "if {}\n{}{}",
+        ins.cond,
+        ins_to_string_indent(unit, &ins.block.ins, indent + 1),
+        match &*ins.elseif {
+            crate::ir::ElseBlock::ElseIf(ins) => {
+                format!(
+                    "{}else {}",
+                    "    ".repeat(indent),
+                    if_to_string(unit, ins, indent)
+                )
+            }
+            crate::ir::ElseBlock::Else(block) => {
+                format!(
+                    "{}else\n{}",
+                    "    ".repeat(indent),
+                    ins_to_string_indent(unit, &block.ins, indent + 1)
+                )
+            }
+            crate::ir::ElseBlock::None => "".into(),
+        }
+    )
 }
 
 fn ins_to_string_indent(unit: &Unit, ins: &Vec<Ins>, indent: usize) -> String {
     let mut s = String::new();
     for i in ins {
-        let ins = ins_to_string(unit, i);
-        s.push_str(format!("{}{}\n", "    ".repeat(indent), ins).as_str());
+        let ins = ins_to_string(unit, i, indent);
+        s.push_str(format!("{}{}", "    ".repeat(indent), ins).as_str());
     }
-
-    if indent > 0 {
-        s += "\n";
-    }
-
     s
 }

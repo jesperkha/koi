@@ -403,12 +403,12 @@ impl<'a> Parser<'a> {
         let elseif = if self.matches(TokenKind::Else) {
             self.consume(); // else
             if self.matches(TokenKind::If) {
-                Some(Box::new(ElseBlock::ElseIf(self.parse_if()?)))
+                Box::new(ElseBlock::ElseIf(self.parse_if()?))
             } else {
-                Some(Box::new(ElseBlock::Else(self.parse_block()?)))
+                Box::new(ElseBlock::Else(self.parse_block()?))
             }
         } else {
-            None
+            Box::new(ElseBlock::None)
         };
 
         Ok(IfNode {

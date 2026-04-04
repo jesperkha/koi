@@ -173,6 +173,7 @@ pub struct ReturnNode {
 pub enum ElseBlock {
     ElseIf(IfNode),
     Else(BlockNode),
+    None,
 }
 
 #[derive(Debug, Clone)]
@@ -180,7 +181,7 @@ pub struct IfNode {
     pub kw: Token,
     pub expr: Expr,
     pub block: BlockNode,
-    pub elseif: Option<Box<ElseBlock>>,
+    pub elseif: Box<ElseBlock>,
 }
 
 #[derive(Debug)]
