@@ -41,11 +41,11 @@ pub fn unit_to_string(unit: &Unit) -> String {
     s
 }
 
-pub fn ins_to_string(unit: &Unit, ins: &Ins, indent: usize) -> String {
+pub fn ins_to_string_oneline(unit: &Unit, ins: &Ins) -> String {
     match ins {
         Ins::Store(ins) => {
             format!(
-                "${} {} = {}\n",
+                "${} {} = {}",
                 ins.const_id,
                 unit.types.type_to_string(ins.ty),
                 ins.rval
@@ -53,16 +53,16 @@ pub fn ins_to_string(unit: &Unit, ins: &Ins, indent: usize) -> String {
         }
         Ins::Assign(ins) => {
             format!(
-                "{} {} = {}\n",
+                "{} {} = {}",
                 ins.lval,
                 unit.types.type_to_string(ins.ty),
                 ins.rval
             )
         }
-        Ins::Return(ty, value) => format!("ret {} {}\n", unit.types.type_to_string(*ty), value),
+        Ins::Return(ty, value) => format!("ret {} {}", unit.types.type_to_string(*ty), value),
         Ins::Call(call) => {
             format!(
-                "{} {} = call {}({})\n",
+                "{} {} = call {}({})",
                 call.result,
                 unit.types.type_to_string(call.ty),
                 call.callee,
@@ -74,7 +74,7 @@ pub fn ins_to_string(unit: &Unit, ins: &Ins, indent: usize) -> String {
             )
         }
         Ins::Binary(ins) => format!(
-            "${} {} = {} {} {}\n",
+            "${} {} = {} {} {}",
             ins.result,
             unit.types.type_to_string(ins.ty),
             ins.op,
@@ -82,7 +82,7 @@ pub fn ins_to_string(unit: &Unit, ins: &Ins, indent: usize) -> String {
             ins.rhs,
         ),
         Ins::Unary(ins) => format!(
-            "${} {} = {} {}\n",
+            "${} {} = {} {}",
             ins.result,
             unit.types.type_to_string(ins.ty),
             ins.op,
@@ -90,7 +90,7 @@ pub fn ins_to_string(unit: &Unit, ins: &Ins, indent: usize) -> String {
         ),
         Ins::Intrinsic(int) => {
             format!(
-                "{}intrinsic {}({})\n",
+                "{}intrinsic {}({})",
                 int.result.as_ref().map_or("".into(), |dest| format!(
                     "{} {} = ",
                     dest,
@@ -104,6 +104,12 @@ pub fn ins_to_string(unit: &Unit, ins: &Ins, indent: usize) -> String {
                     .join(", "),
             )
         }
+        Ins::If(if_ins) => format!("if {}", if_ins.cond),
+    }
+}
+
+fn ins_to_string(unit: &Unit, ins: &Ins, indent: usize) -> String {
+    match ins {
         Ins::If(ins) => format!(
             "if {}\n{}{}{}",
             ins.cond,
@@ -130,6 +136,7 @@ pub fn ins_to_string(unit: &Unit, ins: &Ins, indent: usize) -> String {
                 )
             })
         ),
+        _ => ins_to_string_oneline(unit, ins),
     }
 }
 
@@ -137,7 +144,7 @@ fn ins_to_string_indent(unit: &Unit, ins: &Vec<Ins>, indent: usize) -> String {
     let mut s = String::new();
     for i in ins {
         let ins = ins_to_string(unit, i, indent);
-        s.push_str(format!("{}{}", "    ".repeat(indent), ins).as_str());
+        s.push_str(format!("{}{}\n", "    ".repeat(indent), ins).as_str());
     }
     s
 }

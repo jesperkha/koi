@@ -7,9 +7,9 @@ use crate::{
     },
     config::Config,
     ir::{
-        AssignIns, BinaryIns, CallIns, ConstId, Data, Decl, ExternDecl, FuncDecl, IRBinaryOp,
-        IRType, IRTypeId, IRUnaryOp, IfIns, Ins, LValue, Primitive, RValue, StoreIns, UnaryIns,
-        Unit, ins_to_string,
+        AssignIns, BinaryIns, Block, CallIns, ConstId, Data, Decl, ExternDecl, FuncDecl,
+        IRBinaryOp, IRType, IRTypeId, IRUnaryOp, IfIns, Ins, LValue, Primitive, RValue, StoreIns,
+        UnaryIns, Unit, ins_to_string_oneline,
     },
 };
 
@@ -149,16 +149,19 @@ impl<'a> FunctionAssembler<'a> {
             self.params.push(dest);
         }
 
-        for i in &self.decl.body.ins {
+        self.emit_block(&self.decl.body);
+        self.asm
+    }
+
+    fn emit_block(&mut self, block: &Block) {
+        for i in &block.ins {
             self.emit_ins(i);
         }
-
-        self.asm
     }
 
     fn emit_ins(&mut self, ins: &Ins) {
         if self.config.comment_assembly {
-            self.push(Asm::Comment(ins_to_string(self.unit, ins, 0)));
+            self.push(Asm::Comment(ins_to_string_oneline(self.unit, ins)));
         }
 
         match ins {
@@ -173,11 +176,61 @@ impl<'a> FunctionAssembler<'a> {
         }
     }
 
-    fn emit_if(&mut self, ifins: &IfIns) {
-        let bool_src = self.rval_to_src(&ifins.cond);
-        self.push(Asm::Cmp(bool_src, Src::Immediate(Immediate::Uint(0))));
+    fn evaluate_bool_and_cmp(&mut self, cond: &RValue) {
+        let bool_src = self.rval_to_src(cond); // Evaluate condition
+        if matches!(bool_src, Src::Immediate(_)) {
+            // If bool_src is immediate it can only be either 1 or 0
+            // In this case we just compare it with an empty AL to set the zero flag
+            self.push(Asm::Xor(Dest::Reg(Reg::Al), Src::Reg(Reg::Al)));
+            self.push(Asm::Cmp(Src::Reg(Reg::Al), bool_src));
+        } else {
+            self.push(Asm::Cmp(bool_src, Src::Immediate(Immediate::Uint(0))));
+        }
+    }
 
-        todo!()
+    fn emit_if(&mut self, ifins: &IfIns) {
+        let mut cond_count = 0; // Keep track of number of branches for labeling
+
+        self.evaluate_bool_and_cmp(&ifins.cond);
+
+        // If there is no else-if or else branches, jump to end
+        let jmp_label = if ifins.elseif.is_empty() && ifins.elseblock.is_none() {
+            ".end".into()
+        } else {
+            format!("._if_cond_{}", cond_count)
+        };
+        self.push(Asm::Jz(jmp_label));
+        self.emit_block(&ifins.block);
+        self.push(Asm::Jmp(".end".into()));
+
+        for (idx, elseif) in ifins.elseif.iter().enumerate() {
+            self.push(Asm::Label(format!("_if_cond_{}", cond_count)));
+            cond_count += 1;
+
+            // Evaluate condition
+            for i in &elseif.cond_ins {
+                self.emit_ins(i);
+            }
+            self.evaluate_bool_and_cmp(&elseif.cond);
+
+            // If this is the last else-if and there is no else, jump to end
+            let jmp_label = if idx == ifins.elseif.len() - 1 && ifins.elseblock.is_none() {
+                ".end".into()
+            } else {
+                format!("._if_cond_{}", cond_count)
+            };
+            self.push(Asm::Jz(jmp_label));
+
+            self.emit_block(&elseif.block);
+            self.push(Asm::Jmp(".end".into()));
+        }
+
+        if let Some(elseblock) = &ifins.elseblock {
+            self.push(Asm::Label(format!("_if_cond_{}", cond_count)));
+            self.emit_block(elseblock);
+        }
+
+        self.push(Asm::Label("end".into()));
     }
 
     fn emit_store(&mut self, store: &StoreIns) {
