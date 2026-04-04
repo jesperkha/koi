@@ -4,9 +4,9 @@ use crate::{
     context::Context,
     error::{self, Diagnostics, Report},
     ir::{
-        AssignIns, BinaryIns, Block, CallIns, ConstId, Data, DataIndex, Decl, ElseBlock,
-        ExternDecl, FuncDecl, IRBinaryOp, IRType, IRTypeInterner, IRUnaryOp, IfIns, Ins, LValue,
-        ParamId, Primitive, RValue, StoreIns, UnaryIns, Unit,
+        AssignIns, BinaryIns, Block, CallIns, ConstId, Data, DataIndex, Decl, ElseIf, ExternDecl,
+        FuncDecl, IRBinaryOp, IRType, IRTypeInterner, IRUnaryOp, IfIns, Ins, LValue, ParamId,
+        Primitive, RValue, StoreIns, UnaryIns, Unit,
     },
     module::{
         Module, ModuleId, ModuleKind, ModuleSourceFile, NamespaceList, Symbol, SymbolId,
@@ -282,10 +282,7 @@ impl<'a> FileEmitter<'a> {
             }
             types::Stmt::VarDecl(node) => self.emit_var_decl(ins, node)?,
             types::Stmt::VarAssign(node) => self.emit_var_assign(ins, node)?,
-            types::Stmt::If(node) => {
-                let if_ins = Ins::If(self.emit_if(ins, node)?);
-                ins.push(if_ins);
-            }
+            types::Stmt::If(node) => self.emit_if(ins, node)?,
         };
         Ok(())
     }
@@ -298,23 +295,43 @@ impl<'a> FileEmitter<'a> {
         Ok(Block { ins })
     }
 
-    fn emit_if(&mut self, ins: &mut Vec<Ins>, node: &types::IfNode) -> Res<IfIns> {
+    fn emit_if(&mut self, ins: &mut Vec<Ins>, node: &types::IfNode) -> Res<()> {
         let cond = self.expr_to_rval(ins, &node.expr)?;
-        let mut block = self.emit_block(&node.block)?;
+        let block = self.emit_block(&node.block)?;
 
-        let elseif = match &*node.elseif {
-            types::ElseBlock::ElseIf(node) => {
-                ElseBlock::ElseIf(self.emit_if(&mut block.ins, node)?)
-            }
-            types::ElseBlock::Else(node) => ElseBlock::Else(self.emit_block(node)?),
-            types::ElseBlock::None => ElseBlock::None,
-        };
+        let mut elseifs = Vec::new();
+        let mut elseif = &*node.elseif;
+        let mut elseblock: Option<Block> = None;
 
-        Ok(IfIns {
+        loop {
+            match &*elseif {
+                types::ElseBlock::ElseIf(node) => {
+                    let mut cond_ins = Vec::new();
+                    let cond = self.expr_to_rval(&mut cond_ins, &node.expr)?;
+                    let block = self.emit_block(&node.block)?;
+                    elseifs.push(ElseIf {
+                        cond_ins,
+                        cond,
+                        block,
+                    });
+                    elseif = &node.elseif;
+                }
+                types::ElseBlock::Else(node) => {
+                    let block = self.emit_block(&node)?;
+                    elseblock = Some(block);
+                    break;
+                }
+                types::ElseBlock::None => break,
+            };
+        }
+
+        ins.push(Ins::If(IfIns {
             cond,
             block,
-            elseif: Box::new(elseif),
-        })
+            elseif: elseifs,
+            elseblock,
+        }));
+        Ok(())
     }
 
     fn emit_var_assign(&mut self, ins: &mut Vec<Ins>, node: &types::VarAssignNode) -> Res<()> {

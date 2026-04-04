@@ -8,8 +8,8 @@ use crate::{
     config::Config,
     ir::{
         AssignIns, BinaryIns, CallIns, ConstId, Data, Decl, ExternDecl, FuncDecl, IRBinaryOp,
-        IRType, IRTypeId, IRUnaryOp, Ins, LValue, Primitive, RValue, StoreIns, UnaryIns, Unit,
-        ins_to_string,
+        IRType, IRTypeId, IRUnaryOp, IfIns, Ins, LValue, Primitive, RValue, StoreIns, UnaryIns,
+        Unit, ins_to_string,
     },
 };
 
@@ -169,8 +169,15 @@ impl<'a> FunctionAssembler<'a> {
             Ins::Intrinsic(_) => todo!(),
             Ins::Binary(ins) => self.emit_binary(ins),
             Ins::Unary(ins) => self.emit_unary(ins),
-            Ins::If(ins) => todo!(),
+            Ins::If(ins) => self.emit_if(ins),
         }
+    }
+
+    fn emit_if(&mut self, ifins: &IfIns) {
+        let bool_src = self.rval_to_src(&ifins.cond);
+        self.push(Asm::Cmp(bool_src, Src::Immediate(Immediate::Uint(0))));
+
+        todo!()
     }
 
     fn emit_store(&mut self, store: &StoreIns) {

@@ -131,19 +131,24 @@ pub struct AssignIns {
     pub rval: RValue,
 }
 
-pub enum ElseBlock {
-    ElseIf(IfIns),
-    Else(Block),
-    None,
-}
-
 pub struct IfIns {
     /// Boolean condition
     pub cond: RValue,
     /// Then-block
     pub block: Block,
-    /// Either else-if or else block
-    pub elseif: Box<ElseBlock>,
+    /// List of else-if branches, or empty list
+    pub elseif: Vec<ElseIf>,
+    /// Optional final else block
+    pub elseblock: Option<Block>,
+}
+
+pub struct ElseIf {
+    /// List of instructions to calculate the condition
+    pub cond_ins: Vec<Ins>,
+    /// Boolean condition
+    pub cond: RValue,
+    /// Then-block
+    pub block: Block,
 }
 
 pub struct CallIns {

@@ -1,4 +1,4 @@
-use crate::ir::{Decl, IfIns, Ins, Unit};
+use crate::ir::{Decl, Ins, Unit};
 
 pub fn print_ir(unit: &Unit) {
     println!("{}", unit_to_string(unit));
@@ -104,33 +104,33 @@ pub fn ins_to_string(unit: &Unit, ins: &Ins, indent: usize) -> String {
                     .join(", "),
             )
         }
-        Ins::If(ins) => if_to_string(unit, ins, indent),
-    }
-}
-
-fn if_to_string(unit: &Unit, ins: &IfIns, indent: usize) -> String {
-    format!(
-        "if {}\n{}{}",
-        ins.cond,
-        ins_to_string_indent(unit, &ins.block.ins, indent + 1),
-        match &*ins.elseif {
-            crate::ir::ElseBlock::ElseIf(ins) => {
-                format!(
-                    "{}else {}",
-                    "    ".repeat(indent),
-                    if_to_string(unit, ins, indent)
-                )
-            }
-            crate::ir::ElseBlock::Else(block) => {
+        Ins::If(ins) => format!(
+            "if {}\n{}{}{}",
+            ins.cond,
+            ins_to_string_indent(unit, &ins.block.ins, indent + 1),
+            ins.elseif
+                .iter()
+                .map(|elseif| {
+                    format!(
+                        "{}else if (\n{}{}): {}\n{}",
+                        "    ".repeat(indent),
+                        ins_to_string_indent(unit, &elseif.cond_ins, indent + 1),
+                        "    ".repeat(indent),
+                        elseif.cond,
+                        ins_to_string_indent(unit, &elseif.block.ins, indent + 1)
+                    )
+                })
+                .collect::<Vec<String>>()
+                .join(""),
+            ins.elseblock.as_ref().map_or("".into(), |block| {
                 format!(
                     "{}else\n{}",
                     "    ".repeat(indent),
                     ins_to_string_indent(unit, &block.ins, indent + 1)
                 )
-            }
-            crate::ir::ElseBlock::None => "".into(),
-        }
-    )
+            })
+        ),
+    }
 }
 
 fn ins_to_string_indent(unit: &Unit, ins: &Vec<Ins>, indent: usize) -> String {

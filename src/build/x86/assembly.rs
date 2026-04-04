@@ -38,6 +38,8 @@ pub enum Asm {
     Call(String),
     Leave,
     Ret,
+    Jmp(String),
+    Jz(String),
 }
 
 pub enum Condition {
@@ -282,6 +284,8 @@ impl Display for Asm {
             Asm::Leave => write!(f, "leave"),
             Asm::Ret => write!(f, "ret"),
             Asm::Call(label) => write!(f, "call {}", label),
+            Asm::Jmp(label) => write!(f, "jmp {}", label),
+            Asm::Jz(label) => write!(f, "jz {}", label),
         }
     }
 }
