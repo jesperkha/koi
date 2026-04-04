@@ -47,6 +47,7 @@ pub enum Stmt {
     VarAssign(VarAssignNode),
     ExprStmt(Expr),
     If(IfNode),
+    While(WhileNode),
 }
 
 pub enum Expr {
@@ -100,6 +101,12 @@ pub struct IfNode {
     pub expr: Expr,
     pub block: BlockNode,
     pub elseif: Box<ElseBlock>,
+}
+
+pub struct WhileNode {
+    pub meta: NodeMeta,
+    pub expr: Expr,
+    pub block: BlockNode,
 }
 
 pub struct ReturnNode {
@@ -247,6 +254,7 @@ impl Node for Stmt {
             Stmt::VarAssign(node) => &node.meta.pos,
             Stmt::ExprStmt(expr) => expr.pos(),
             Stmt::If(node) => &node.meta.pos,
+            Stmt::While(node) => &node.meta.pos,
         }
     }
 
@@ -257,6 +265,7 @@ impl Node for Stmt {
             Stmt::VarAssign(node) => &node.meta.end,
             Stmt::ExprStmt(expr) => expr.end(),
             Stmt::If(node) => &node.meta.end,
+            Stmt::While(node) => &node.meta.end,
         }
     }
 
@@ -267,6 +276,7 @@ impl Node for Stmt {
             Stmt::VarAssign(node) => node.meta.id,
             Stmt::ExprStmt(expr) => expr.id(),
             Stmt::If(node) => node.meta.id,
+            Stmt::While(node) => node.meta.id,
         }
     }
 }
@@ -325,6 +335,7 @@ impl_typed_node_enum!(Stmt {
     VarAssign,
     ExprStmt,
     If,
+    While,
 });
 impl_typed_node_enum!(Expr {
     Call,
@@ -336,6 +347,12 @@ impl_typed_node_enum!(Expr {
 });
 
 impl<'a> TypedNode<'a> for IfNode {
+    fn type_id(&self) -> TypeId {
+        NO_TYPE
+    }
+}
+
+impl<'a> TypedNode<'a> for WhileNode {
     fn type_id(&self) -> TypeId {
         NO_TYPE
     }

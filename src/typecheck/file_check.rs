@@ -94,9 +94,9 @@ impl<'a> FileChecker<'a> {
             ast::Stmt::Return(node) => self.emit_return(node),
             ast::Stmt::VarDecl(node) => self.emit_var_decl(node),
             ast::Stmt::VarAssign(node) => self.emit_var_assign(node),
-            ast::Stmt::Block(_) => panic!("block should be handled manually as list of stmt"),
+            ast::Stmt::While(node) => self.emit_while(node),
             ast::Stmt::If(node) => Ok(types::Stmt::If(self.emit_if(node)?)),
-            ast::Stmt::While(_) => todo!(),
+            ast::Stmt::Block(_) => panic!("block should be handled manually as list of stmt"),
         }
     }
 
@@ -213,23 +213,24 @@ impl<'a> FileChecker<'a> {
         Ok(types::BlockNode { stmts })
     }
 
+    fn emit_while(&mut self, node: ast::WhileNode) -> Result<types::Stmt, Report> {
+        let meta = ast_node_to_meta(&node);
+
+        let expr = self.emit_expr(node.expr)?;
+        self.assert_expr_is_type(PrimitiveType::Bool, &expr)?;
+
+        let has_returned = self.has_returned;
+        let block = self.emit_block(node.block)?;
+        self.has_returned = has_returned;
+
+        Ok(types::Stmt::While(types::WhileNode { meta, expr, block }))
+    }
+
     fn emit_if(&mut self, node: ast::IfNode) -> Result<types::IfNode, Report> {
         let meta = ast_node_to_meta(&node);
-        let expr = self.emit_expr(node.expr)?;
 
-        // Check if expr is bool
-        if !self.ctx.types.equivalent(
-            expr.type_id(),
-            self.ctx.types.primitive(PrimitiveType::Bool),
-        ) {
-            return Err(self.error(
-                &format!(
-                    "expression must be of type 'bool', got '{}'",
-                    self.type_to_string(&expr)
-                ),
-                &expr,
-            ));
-        }
+        let expr = self.emit_expr(node.expr)?;
+        self.assert_expr_is_type(PrimitiveType::Bool, &expr)?;
 
         let block = self.emit_block(node.block)?;
         let this_returned = self.has_returned;
@@ -578,6 +579,22 @@ impl<'a> FileChecker<'a> {
     }
 
     // ----------------------- Utility methods ----------------------- //
+
+    /// Assert that the given expression is the given primitive type.
+    fn assert_expr_is_type(&self, expect: PrimitiveType, expr: &types::Expr) -> Result<(), Report> {
+        let expect_t = self.ctx.types.primitive(expect);
+        if !self.ctx.types.equivalent(expr.type_id(), expect_t) {
+            return Err(self.error(
+                &format!(
+                    "expression must be of type '{}', got '{}'",
+                    self.ctx.types.type_to_string(expect_t),
+                    self.type_to_string(expr)
+                ),
+                expr,
+            ));
+        }
+        Ok(())
+    }
 
     fn type_to_string(&self, node: &dyn TypedNode) -> String {
         self.ctx.types.type_to_string(node.type_id())
