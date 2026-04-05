@@ -529,3 +529,311 @@ f:
         "#,
     );
 }
+
+#[test]
+fn test_if_else() {
+    compare(
+        r#"
+func f(a bool) int {
+    if a {
+        return 0
+    } else {
+        return 1
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    cmp BYTE PTR [rbp-1], 0
+    jz ._cond_0
+    mov eax, 0
+    leave
+    ret
+    jmp ._end_0
+    ._cond_0:
+    mov eax, 1
+    leave
+    ret
+    ._end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_if_elseif_else() {
+    compare(
+        r#"
+func f(a bool, b bool) int {
+    if a {
+        return 0
+    } else if b {
+        return 1
+    } else {
+        return 2
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    mov BYTE PTR [rbp-2], sil
+    cmp BYTE PTR [rbp-1], 0
+    jz ._cond_0
+    mov eax, 0
+    leave
+    ret
+    jmp ._end_0
+    ._cond_0:
+    cmp BYTE PTR [rbp-2], 0
+    jz ._cond_1
+    mov eax, 1
+    leave
+    ret
+    jmp ._end_0
+    ._cond_1:
+    mov eax, 2
+    leave
+    ret
+    ._end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_if_elseif_else_computed() {
+    compare(
+        r#"
+func f(a int, b int) int {
+    if a > 0 {
+        return 1
+    } else if a < b {
+        return 2
+    } else {
+        return 3
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov DWORD PTR [rbp-4], edi
+    mov DWORD PTR [rbp-8], esi
+    mov eax, DWORD PTR [rbp-4]
+    mov r10d, 0
+    cmp eax, r10d
+    setg al
+    cmp al, 0
+    jz ._cond_0
+    mov eax, 1
+    leave
+    ret
+    jmp ._end_0
+    ._cond_0:
+    mov eax, DWORD PTR [rbp-4]
+    mov r10d, DWORD PTR [rbp-8]
+    cmp eax, r10d
+    setl al
+    cmp al, 0
+    jz ._cond_1
+    mov eax, 2
+    leave
+    ret
+    jmp ._end_0
+    ._cond_1:
+    mov eax, 3
+    leave
+    ret
+    ._end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_if_elseif_no_else() {
+    compare(
+        r#"
+func f(a bool, b bool) {
+    if a {
+        return
+    } else if b {
+        return
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    mov BYTE PTR [rbp-2], sil
+    cmp BYTE PTR [rbp-1], 0
+    jz ._cond_0
+    leave
+    ret
+    jmp ._end_0
+    ._cond_0:
+    cmp BYTE PTR [rbp-2], 0
+    jz ._end_0
+    leave
+    ret
+    jmp ._end_0
+    ._end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_if_else_nested_in_then() {
+    compare(
+        r#"
+func f(a bool, b bool) int {
+    if a {
+        if b {
+            return 0
+        } else {
+            return 1
+        }
+    } else {
+        return 2
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    mov BYTE PTR [rbp-2], sil
+    cmp BYTE PTR [rbp-1], 0
+    jz ._cond_0
+    cmp BYTE PTR [rbp-2], 0
+    jz ._cond_0
+    mov eax, 0
+    leave
+    ret
+    jmp ._end_1
+    ._cond_0:
+    mov eax, 1
+    leave
+    ret
+    ._end_1:
+    jmp ._end_0
+    ._cond_0:
+    mov eax, 2
+    leave
+    ret
+    ._end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_if_else_nested_in_else() {
+    compare(
+        r#"
+func f(a bool, b bool) int {
+    if a {
+        return 0
+    } else {
+        if b {
+            return 1
+        } else {
+            return 2
+        }
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    mov BYTE PTR [rbp-2], sil
+    cmp BYTE PTR [rbp-1], 0
+    jz ._cond_0
+    mov eax, 0
+    leave
+    ret
+    jmp ._end_0
+    ._cond_0:
+    cmp BYTE PTR [rbp-2], 0
+    jz ._cond_0
+    mov eax, 1
+    leave
+    ret
+    jmp ._end_1
+    ._cond_0:
+    mov eax, 2
+    leave
+    ret
+    ._end_1:
+    ._end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
