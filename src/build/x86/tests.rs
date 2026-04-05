@@ -837,3 +837,159 @@ f:
         "#,
     );
 }
+
+#[test]
+fn test_while_simple() {
+    compare(
+        r#"
+func f(a bool) {
+    while a {
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    ._cond_0:
+    cmp BYTE PTR [rbp-1], 0
+    jz ._end_0
+    jmp ._cond_0
+    ._end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_while_with_body() {
+    compare(
+        r#"
+func f(a bool) {
+    while a {
+        a = false
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    ._cond_0:
+    cmp BYTE PTR [rbp-1], 0
+    jz ._end_0
+    mov BYTE PTR [rbp-1], 0
+    jmp ._cond_0
+    ._end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_while_computed_condition() {
+    // Condition binary expression is re-evaluated at the top of every iteration
+    compare(
+        r#"
+func f(a int, b int) {
+    while a < b {
+        a = a + 1
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov DWORD PTR [rbp-4], edi
+    mov DWORD PTR [rbp-8], esi
+    ._cond_0:
+    mov eax, DWORD PTR [rbp-4]
+    mov r10d, DWORD PTR [rbp-8]
+    cmp eax, r10d
+    setl al
+    cmp al, 0
+    jz ._end_0
+    mov eax, DWORD PTR [rbp-4]
+    mov r10d, 1
+    add eax, r10d
+    mov DWORD PTR [rbp-4], eax
+    jmp ._cond_0
+    ._end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_while_nested() {
+    // Each while claims its own cond/end label pair via next_cond_label /
+    // next_end_label (both increment), so nested loops get distinct labels
+    // and there are no duplicate-label collisions.
+    compare(
+        r#"
+func f(a bool, b bool) {
+    while a {
+        while b {
+        }
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    mov BYTE PTR [rbp-2], sil
+    ._cond_0:
+    cmp BYTE PTR [rbp-1], 0
+    jz ._end_0
+    ._cond_1:
+    cmp BYTE PTR [rbp-2], 0
+    jz ._end_1
+    jmp ._cond_1
+    ._end_1:
+    jmp ._cond_0
+    ._end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}

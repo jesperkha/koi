@@ -627,6 +627,71 @@ fn test_if_stmt_error() {
 }
 
 #[test]
+fn test_while_stmt() {
+    compare_string(
+        r#"
+        func f() {
+            while true {
+            }
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            while a < b {
+                return
+            }
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f(a bool) {
+            while a {
+                a = false
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_while_stmt_nested() {
+    compare_string(
+        r#"
+        func f(a bool, b bool) {
+            while a {
+                while b {
+                }
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_while_stmt_error() {
+    expect_error(
+        r#"
+        func f() {
+            while {
+            }
+        }
+    "#,
+        "expected expression",
+    );
+    expect_error(
+        r#"
+        func f() {
+            while true
+        }
+    "#,
+        "expected {",
+    );
+}
+
+#[test]
 fn test_unary() {
     assert_pass(
         r#"
