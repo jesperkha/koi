@@ -525,3 +525,170 @@ fn test_variable_assign() {
         "#,
     );
 }
+
+#[test]
+fn test_if_else() {
+    expect_equal(
+        r#"
+        func f(a bool) int {
+            if a {
+                return 0
+            } else {
+                return 1
+            }
+        }
+    "#,
+        r#"
+        func f(u8) i32
+            if %0
+                ret i32 0
+            else
+                ret i32 1
+            ret void
+        "#,
+    );
+}
+
+#[test]
+fn test_if_elseif_else() {
+    // Simple bool params — elseif has no cond_ins
+    expect_equal(
+        r#"
+        func f(a bool, b bool) int {
+            if a {
+                return 0
+            } else if b {
+                return 1
+            } else {
+                return 2
+            }
+        }
+    "#,
+        r#"
+        func f(u8, u8) i32
+            if %0
+                ret i32 0
+            else if (
+            ): %1
+                ret i32 1
+            else
+                ret i32 2
+            ret void
+        "#,
+    );
+}
+
+#[test]
+fn test_if_elseif_else_computed() {
+    // Conditions require computation — elseif has cond_ins
+    expect_equal(
+        r#"
+        func f(a int, b int) int {
+            if a > 0 {
+                return 1
+            } else if a < b {
+                return 2
+            } else {
+                return 3
+            }
+        }
+    "#,
+        r#"
+        func f(i32, i32) i32
+            $0 u8 = gt %0 0
+            if $0
+                ret i32 1
+            else if (
+                $1 u8 = lt %0 %1
+            ): $1
+                ret i32 2
+            else
+                ret i32 3
+            ret void
+        "#,
+    );
+}
+
+#[test]
+fn test_if_elseif_no_else() {
+    expect_equal(
+        r#"
+        func f(a bool, b bool) {
+            if a {
+                return
+            } else if b {
+                return
+            }
+        }
+    "#,
+        r#"
+        func f(u8, u8) void
+            if %0
+                ret void
+            else if (
+            ): %1
+                ret void
+            ret void
+        "#,
+    );
+}
+
+#[test]
+fn test_if_else_nested_in_then() {
+    expect_equal(
+        r#"
+        func f(a bool, b bool) int {
+            if a {
+                if b {
+                    return 0
+                } else {
+                    return 1
+                }
+            } else {
+                return 2
+            }
+        }
+    "#,
+        r#"
+        func f(u8, u8) i32
+            if %0
+                if %1
+                    ret i32 0
+                else
+                    ret i32 1
+            else
+                ret i32 2
+            ret void
+        "#,
+    );
+}
+
+#[test]
+fn test_if_else_nested_in_else() {
+    expect_equal(
+        r#"
+        func f(a bool, b bool) int {
+            if a {
+                return 0
+            } else {
+                if b {
+                    return 1
+                } else {
+                    return 2
+                }
+            }
+        }
+    "#,
+        r#"
+        func f(u8, u8) i32
+            if %0
+                ret i32 0
+            else
+                if %1
+                    ret i32 1
+                else
+                    ret i32 2
+            ret void
+        "#,
+    );
+}

@@ -33,6 +33,7 @@ pub fn unit_to_string(unit: &Unit) -> String {
                     unit.types.type_to_string(func.ret),
                 );
                 s += &ins_to_string_indent(unit, &func.body.ins, 1);
+                s += "\n";
             }
         }
     }
@@ -40,7 +41,7 @@ pub fn unit_to_string(unit: &Unit) -> String {
     s
 }
 
-pub fn ins_to_string(unit: &Unit, ins: &Ins) -> String {
+pub fn ins_to_string_oneline(unit: &Unit, ins: &Ins) -> String {
     match ins {
         Ins::Store(ins) => {
             format!(
@@ -103,19 +104,47 @@ pub fn ins_to_string(unit: &Unit, ins: &Ins) -> String {
                     .join(", "),
             )
         }
+        Ins::If(if_ins) => format!("if {}", if_ins.cond),
+    }
+}
+
+fn ins_to_string(unit: &Unit, ins: &Ins, indent: usize) -> String {
+    match ins {
+        Ins::If(ins) => format!(
+            "if {}\n{}{}{}",
+            ins.cond,
+            ins_to_string_indent(unit, &ins.block.ins, indent + 1),
+            ins.elseif
+                .iter()
+                .map(|elseif| {
+                    format!(
+                        "{}else if (\n{}{}): {}\n{}",
+                        "    ".repeat(indent),
+                        ins_to_string_indent(unit, &elseif.cond_ins, indent + 1),
+                        "    ".repeat(indent),
+                        elseif.cond,
+                        ins_to_string_indent(unit, &elseif.block.ins, indent + 1)
+                    )
+                })
+                .collect::<Vec<String>>()
+                .join(""),
+            ins.elseblock.as_ref().map_or("".into(), |block| {
+                format!(
+                    "{}else\n{}",
+                    "    ".repeat(indent),
+                    ins_to_string_indent(unit, &block.ins, indent + 1)
+                )
+            })
+        ),
+        _ => ins_to_string_oneline(unit, ins),
     }
 }
 
 fn ins_to_string_indent(unit: &Unit, ins: &Vec<Ins>, indent: usize) -> String {
     let mut s = String::new();
     for i in ins {
-        let ins = ins_to_string(unit, i);
+        let ins = ins_to_string(unit, i, indent);
         s.push_str(format!("{}{}\n", "    ".repeat(indent), ins).as_str());
     }
-
-    if indent > 0 {
-        s += "\n";
-    }
-
     s
 }

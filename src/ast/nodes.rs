@@ -48,8 +48,9 @@ pub trait Visitor<R> {
     fn visit_var_decl(&mut self, node: &VarDeclNode) -> R;
     fn visit_var_assign(&mut self, node: &VarAssignNode) -> R;
     fn visit_import(&mut self, node: &ImportNode) -> R;
-    fn visit_member(&mut self, node: &MemberNode) -> R;
+    fn visit_if(&mut self, node: &IfNode) -> R;
 
+    fn visit_member(&mut self, node: &MemberNode) -> R;
     fn visit_literal(&mut self, node: &Token) -> R;
     fn visit_call(&mut self, node: &CallExpr) -> R;
     fn visit_group(&mut self, node: &GroupExpr) -> R;
@@ -76,6 +77,7 @@ pub enum Stmt {
     Block(BlockNode),
     VarDecl(VarDeclNode),
     VarAssign(VarAssignNode),
+    If(IfNode),
 }
 
 /// Expressions are evaluated to produce a value. They can be used
@@ -165,6 +167,21 @@ pub struct GroupExpr {
 pub struct ReturnNode {
     pub kw: Token,
     pub expr: Option<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub enum ElseBlock {
+    ElseIf(Box<IfNode>),
+    Else(Box<BlockNode>),
+    None,
+}
+
+#[derive(Debug, Clone)]
+pub struct IfNode {
+    pub kw: Token,
+    pub expr: Expr,
+    pub block: BlockNode,
+    pub elseif: Box<ElseBlock>,
 }
 
 #[derive(Debug)]
@@ -322,6 +339,7 @@ impl Node for Stmt {
             Stmt::Block(node) => node.pos(),
             Stmt::VarDecl(node) => node.pos(),
             Stmt::VarAssign(node) => node.pos(),
+            Stmt::If(node) => node.pos(),
         }
     }
 
@@ -332,6 +350,7 @@ impl Node for Stmt {
             Stmt::Block(node) => node.end(),
             Stmt::VarDecl(node) => node.end(),
             Stmt::VarAssign(node) => node.end(),
+            Stmt::If(node) => node.end(),
         }
     }
 
@@ -342,7 +361,22 @@ impl Node for Stmt {
             Stmt::Block(node) => node.id(),
             Stmt::VarDecl(node) => node.id(),
             Stmt::VarAssign(node) => node.id(),
+            Stmt::If(node) => node.id(),
         }
+    }
+}
+
+impl Node for IfNode {
+    fn pos(&self) -> &Pos {
+        &self.kw.pos
+    }
+
+    fn end(&self) -> &Pos {
+        self.expr.end()
+    }
+
+    fn id(&self) -> NodeId {
+        self.kw.id
     }
 }
 
@@ -410,6 +444,7 @@ impl Visitable for Stmt {
             Stmt::Block(node) => visitor.visit_block(node),
             Stmt::VarDecl(node) => visitor.visit_var_decl(node),
             Stmt::VarAssign(node) => visitor.visit_var_assign(node),
+            Stmt::If(node) => visitor.visit_if(node),
         }
     }
 }

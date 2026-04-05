@@ -7,9 +7,9 @@ use crate::{
     },
     config::Config,
     ir::{
-        AssignIns, BinaryIns, CallIns, ConstId, Data, Decl, ExternDecl, FuncDecl, IRBinaryOp,
-        IRType, IRTypeId, IRUnaryOp, Ins, LValue, Primitive, RValue, StoreIns, UnaryIns, Unit,
-        ins_to_string,
+        AssignIns, BinaryIns, Block, CallIns, ConstId, Data, Decl, ExternDecl, FuncDecl,
+        IRBinaryOp, IRType, IRTypeId, IRUnaryOp, IfIns, Ins, LValue, Primitive, RValue, StoreIns,
+        UnaryIns, Unit, ins_to_string_oneline,
     },
 };
 
@@ -94,6 +94,8 @@ struct FunctionAssembler<'a> {
     acc_offset: usize,
     params: Vec<Dest>,
     vars: HashMap<ConstId, Dest>,
+    cond_count: usize, // Number of condition labels
+    end_count: usize,  // Number of end labels
 }
 
 impl<'a> FunctionAssembler<'a> {
@@ -106,6 +108,8 @@ impl<'a> FunctionAssembler<'a> {
             vars: HashMap::new(),
             acc_offset: 0,
             params: Vec::new(),
+            cond_count: 0,
+            end_count: 0,
         }
     }
 
@@ -149,16 +153,19 @@ impl<'a> FunctionAssembler<'a> {
             self.params.push(dest);
         }
 
-        for i in &self.decl.body.ins {
+        self.emit_block(&self.decl.body);
+        self.asm
+    }
+
+    fn emit_block(&mut self, block: &Block) {
+        for i in &block.ins {
             self.emit_ins(i);
         }
-
-        self.asm
     }
 
     fn emit_ins(&mut self, ins: &Ins) {
         if self.config.comment_assembly {
-            self.push(Asm::Comment(ins_to_string(self.unit, ins)));
+            self.push(Asm::Comment(ins_to_string_oneline(self.unit, ins)));
         }
 
         match ins {
@@ -169,7 +176,64 @@ impl<'a> FunctionAssembler<'a> {
             Ins::Intrinsic(_) => todo!(),
             Ins::Binary(ins) => self.emit_binary(ins),
             Ins::Unary(ins) => self.emit_unary(ins),
+            Ins::If(ins) => self.emit_if(ins),
         }
+    }
+
+    fn evaluate_bool_and_cmp(&mut self, cond: &RValue) {
+        let bool_src = self.rval_to_src(cond); // Evaluate condition
+        if matches!(bool_src, Src::Immediate(_)) {
+            // If bool_src is immediate it can only be either 1 or 0
+            // In this case we just compare it with an empty AL to set the zero flag
+            self.push(Asm::Xor(Dest::Reg(Reg::Al), Src::Reg(Reg::Al)));
+            self.push(Asm::Cmp(Src::Reg(Reg::Al), bool_src));
+        } else {
+            self.push(Asm::Cmp(bool_src, Src::Immediate(Immediate::Uint(0))));
+        }
+    }
+
+    fn emit_if(&mut self, ifins: &IfIns) {
+        let end = self.next_end_label();
+        self.evaluate_bool_and_cmp(&ifins.cond);
+
+        // If there is no else-if or else branches, jump to end
+        let jmp_label = if ifins.elseif.is_empty() && ifins.elseblock.is_none() {
+            end.clone()
+        } else {
+            self.cur_cond_label()
+        };
+        self.push(Asm::Jz(jmp_label));
+        self.emit_block(&ifins.block);
+        self.push(Asm::Jmp(end.clone()));
+
+        for (idx, elseif) in ifins.elseif.iter().enumerate() {
+            let label = self.next_cond_label();
+            self.push(Asm::Label(label));
+
+            // Evaluate condition
+            for i in &elseif.cond_ins {
+                self.emit_ins(i);
+            }
+            self.evaluate_bool_and_cmp(&elseif.cond);
+
+            // If this is the last else-if and there is no else, jump to end
+            let jmp_label = if idx == ifins.elseif.len() - 1 && ifins.elseblock.is_none() {
+                end.clone()
+            } else {
+                self.cur_cond_label()
+            };
+            self.push(Asm::Jz(jmp_label));
+
+            self.emit_block(&elseif.block);
+            self.push(Asm::Jmp(end.clone()));
+        }
+
+        if let Some(elseblock) = &ifins.elseblock {
+            self.push(Asm::Label(self.cur_cond_label()));
+            self.emit_block(elseblock);
+        }
+
+        self.push(Asm::Label(end));
     }
 
     fn emit_store(&mut self, store: &StoreIns) {
@@ -271,8 +335,12 @@ impl<'a> FunctionAssembler<'a> {
                 self.push(Asm::IDiv(Src::Reg(r10_op)));
                 self.vars.insert(ins.result, Dest::Reg(Reg::Edx));
             }
-            IRBinaryOp::Eq | IRBinaryOp::Ne | IRBinaryOp::Gt | IRBinaryOp::Ge
-            | IRBinaryOp::Lt | IRBinaryOp::Le => {
+            IRBinaryOp::Eq
+            | IRBinaryOp::Ne
+            | IRBinaryOp::Gt
+            | IRBinaryOp::Ge
+            | IRBinaryOp::Lt
+            | IRBinaryOp::Le => {
                 // Determine operand size from the non-immediate src; both operands have the same type.
                 let op_size = match (&lhs, &rhs) {
                     (Src::Immediate(_), Src::Immediate(_)) => Size::Qword,
@@ -332,6 +400,28 @@ impl<'a> FunctionAssembler<'a> {
                 self.vars.insert(ins.result, Dest::Reg(rax));
             }
         }
+    }
+
+    //      HELPER METHODS
+    // ----------------------------
+
+    /// Get current end label and increment end count
+    fn next_end_label(&mut self) -> String {
+        let l = format!("._end_{}", self.end_count);
+        self.end_count += 1;
+        l
+    }
+
+    /// Return current cond label and increment cond count
+    fn next_cond_label(&mut self) -> String {
+        let l = self.cur_cond_label();
+        self.cond_count += 1;
+        l
+    }
+
+    /// Get current cond label
+    fn cur_cond_label(&self) -> String {
+        format!("._cond_{}", self.cond_count)
     }
 
     /// Helper to automatically switch between mov and lea depending on value.
@@ -524,18 +614,71 @@ fn src_size(src: &Src) -> Size {
 
 fn reg_to_size(reg: &Reg) -> Size {
     match reg {
-        Reg::Rax | Reg::Rbx | Reg::Rcx | Reg::Rdx | Reg::Rbp | Reg::Rsp | Reg::Rsi
-        | Reg::Rdi | Reg::R8 | Reg::R9 | Reg::R10 | Reg::R11 | Reg::R12 | Reg::R13
-        | Reg::R14 | Reg::R15 => Size::Qword,
-        Reg::Eax | Reg::Ebx | Reg::Ecx | Reg::Edx | Reg::Esi | Reg::Edi | Reg::R8d
-        | Reg::R9d | Reg::R10d | Reg::R11d | Reg::R12d | Reg::R13d | Reg::R14d | Reg::R15d => {
-            Size::Dword
-        }
-        Reg::Ax | Reg::Bx | Reg::Cx | Reg::Ex | Reg::Si | Reg::Di | Reg::R8w | Reg::R9w
-        | Reg::R10w | Reg::R11w | Reg::R12w | Reg::R13w | Reg::R14w | Reg::R15w => Size::Word,
-        Reg::Al | Reg::Bl | Reg::Cl | Reg::El | Reg::Sil | Reg::Dil | Reg::R8b | Reg::R9b
-        | Reg::R10b | Reg::R11b | Reg::R12b | Reg::R13b | Reg::R14b | Reg::R15b => Size::Byte,
-        Reg::Xmm0 | Reg::Xmm1 | Reg::Xmm2 | Reg::Xmm3 | Reg::Xmm4 | Reg::Xmm5 | Reg::Xmm6
+        Reg::Rax
+        | Reg::Rbx
+        | Reg::Rcx
+        | Reg::Rdx
+        | Reg::Rbp
+        | Reg::Rsp
+        | Reg::Rsi
+        | Reg::Rdi
+        | Reg::R8
+        | Reg::R9
+        | Reg::R10
+        | Reg::R11
+        | Reg::R12
+        | Reg::R13
+        | Reg::R14
+        | Reg::R15 => Size::Qword,
+        Reg::Eax
+        | Reg::Ebx
+        | Reg::Ecx
+        | Reg::Edx
+        | Reg::Esi
+        | Reg::Edi
+        | Reg::R8d
+        | Reg::R9d
+        | Reg::R10d
+        | Reg::R11d
+        | Reg::R12d
+        | Reg::R13d
+        | Reg::R14d
+        | Reg::R15d => Size::Dword,
+        Reg::Ax
+        | Reg::Bx
+        | Reg::Cx
+        | Reg::Ex
+        | Reg::Si
+        | Reg::Di
+        | Reg::R8w
+        | Reg::R9w
+        | Reg::R10w
+        | Reg::R11w
+        | Reg::R12w
+        | Reg::R13w
+        | Reg::R14w
+        | Reg::R15w => Size::Word,
+        Reg::Al
+        | Reg::Bl
+        | Reg::Cl
+        | Reg::El
+        | Reg::Sil
+        | Reg::Dil
+        | Reg::R8b
+        | Reg::R9b
+        | Reg::R10b
+        | Reg::R11b
+        | Reg::R12b
+        | Reg::R13b
+        | Reg::R14b
+        | Reg::R15b => Size::Byte,
+        Reg::Xmm0
+        | Reg::Xmm1
+        | Reg::Xmm2
+        | Reg::Xmm3
+        | Reg::Xmm4
+        | Reg::Xmm5
+        | Reg::Xmm6
         | Reg::Xmm7 => Size::Qword,
     }
 }

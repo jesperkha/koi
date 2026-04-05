@@ -95,6 +95,7 @@ impl<'a> FileChecker<'a> {
             ast::Stmt::VarDecl(node) => self.emit_var_decl(node),
             ast::Stmt::VarAssign(node) => self.emit_var_assign(node),
             ast::Stmt::Block(_) => panic!("block should be handled manually as list of stmt"),
+            ast::Stmt::If(node) => Ok(types::Stmt::If(self.emit_if(node)?)),
         }
     }
 
@@ -134,20 +135,14 @@ impl<'a> FileChecker<'a> {
             self.bind(name, *ty, false)?;
         }
 
-        let body = node
-            .body
-            .stmts
-            .into_iter()
-            .map(|s| self.emit_stmt(s))
-            .collect::<Result<Vec<types::Stmt>, Report>>()?;
-
+        let body = self.emit_block(node.body)?;
         self.vars.pop_scope();
 
         // There was no return when there should have been
         if !self.has_returned && f.ret != self.ctx.types.void() {
             return Err(self.error_token(
                 &format!("missing return in function '{}'", node.name.kind),
-                &node.body.rbrace,
+                &node.name,
             ));
         }
 
@@ -203,6 +198,71 @@ impl<'a> FileChecker<'a> {
             meta,
             name,
         }))
+    }
+
+    fn emit_block(&mut self, node: ast::BlockNode) -> Result<types::BlockNode, Report> {
+        self.vars.push_scope();
+        let stmts = node
+            .stmts
+            .into_iter()
+            .map(|s| self.emit_stmt(s))
+            .collect::<Result<Vec<types::Stmt>, Report>>()?;
+
+        self.vars.pop_scope();
+        Ok(types::BlockNode { stmts })
+    }
+
+    fn emit_if(&mut self, node: ast::IfNode) -> Result<types::IfNode, Report> {
+        let meta = ast_node_to_meta(&node);
+        let expr = self.emit_expr(node.expr)?;
+
+        // Check if expr is bool
+        if !self.ctx.types.equivalent(
+            expr.type_id(),
+            self.ctx.types.primitive(PrimitiveType::Bool),
+        ) {
+            return Err(self.error(
+                &format!(
+                    "expression must be of type 'bool', got '{}'",
+                    self.type_to_string(&expr)
+                ),
+                &expr,
+            ));
+        }
+
+        let block = self.emit_block(node.block)?;
+        let this_returned = self.has_returned;
+
+        let (elseif, exhaustive_return) = match *node.elseif {
+            ast::ElseBlock::ElseIf(node) => {
+                self.has_returned = false;
+                let block = self.emit_if(*node)?;
+                (
+                    Box::new(types::ElseBlock::ElseIf(Box::new(block))),
+                    self.has_returned,
+                )
+            }
+            ast::ElseBlock::Else(node) => {
+                self.has_returned = false;
+                let block = self.emit_block(*node)?;
+                (
+                    Box::new(types::ElseBlock::Else(Box::new(block))),
+                    self.has_returned,
+                )
+            }
+            ast::ElseBlock::None => (Box::new(types::ElseBlock::None), false),
+        };
+
+        // If this if-block and all subsequent else-if and else blocks return,
+        // then we can mark the function as having returned.
+        self.has_returned = this_returned && exhaustive_return;
+
+        Ok(types::IfNode {
+            meta,
+            expr,
+            block,
+            elseif,
+        })
     }
 
     fn emit_var_assign(&mut self, node: ast::VarAssignNode) -> Result<types::Stmt, Report> {

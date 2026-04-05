@@ -4,9 +4,9 @@ use tracing::info;
 
 use crate::{
     ast::{
-        Ast, BinaryExpr, BlockNode, CallExpr, Decl, Expr, Field, File, FileSet, FuncDeclNode,
-        FuncNode, GroupExpr, ImportNode, MemberNode, Node, ReturnNode, SourceMap, Stmt, Token,
-        TokenKind, TypeNode, UnaryExpr, VarAssignNode, VarDeclNode,
+        Ast, BinaryExpr, BlockNode, CallExpr, Decl, ElseBlock, Expr, Field, File, FileSet,
+        FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode, MemberNode, Node, ReturnNode,
+        SourceMap, Stmt, Token, TokenKind, TypeNode, UnaryExpr, VarAssignNode, VarDeclNode,
     },
     config::Config,
     error::{Diagnostics, Report, Res},
@@ -378,6 +378,7 @@ impl<'a> Parser<'a> {
 
         match token.kind {
             TokenKind::Return => Ok(Stmt::Return(self.parse_return()?)),
+            TokenKind::If => Ok(Stmt::If(self.parse_if()?)),
             _ => {
                 let expr = self.parse_expr()?;
 
@@ -392,6 +393,30 @@ impl<'a> Parser<'a> {
                 }
             }
         }
+    }
+
+    fn parse_if(&mut self) -> Result<IfNode, Report> {
+        let kw = self.expect(TokenKind::If)?;
+        let expr = self.parse_expr()?;
+        let block = self.parse_block()?;
+
+        let elseif = if self.matches(TokenKind::Else) {
+            self.consume(); // else
+            if self.matches(TokenKind::If) {
+                Box::new(ElseBlock::ElseIf(Box::new(self.parse_if()?)))
+            } else {
+                Box::new(ElseBlock::Else(Box::new(self.parse_block()?)))
+            }
+        } else {
+            Box::new(ElseBlock::None)
+        };
+
+        Ok(IfNode {
+            kw,
+            expr,
+            block,
+            elseif,
+        })
     }
 
     fn parse_var_assign(&mut self, lval: Expr) -> Result<Stmt, Report> {
