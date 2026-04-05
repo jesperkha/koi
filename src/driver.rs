@@ -12,7 +12,7 @@ use crate::{
     config::{Config, DriverPhase, Options, PathManager, Project, ProjectType, Target},
     context::Context,
     imports::{LibrarySet, create_header_file, read_header_file},
-    ir::{ProgramIR, Unit},
+    ir::{ProgramIR, Unit, print_ir},
     lower::emit_ir,
     module::{Module, ModuleId, ModulePath},
     parser::{SortResult, parse_source_map, sort_by_dependency_graph, validate_imports},
