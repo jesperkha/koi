@@ -236,13 +236,19 @@ impl<'a> FileChecker<'a> {
         let (elseif, exhaustive_return) = match *node.elseif {
             ast::ElseBlock::ElseIf(node) => {
                 self.has_returned = false;
-                let block = self.emit_if(node)?;
-                (Box::new(types::ElseBlock::ElseIf(block)), self.has_returned)
+                let block = self.emit_if(*node)?;
+                (
+                    Box::new(types::ElseBlock::ElseIf(Box::new(block))),
+                    self.has_returned,
+                )
             }
             ast::ElseBlock::Else(node) => {
                 self.has_returned = false;
-                let block = self.emit_block(node)?;
-                (Box::new(types::ElseBlock::Else(block)), self.has_returned)
+                let block = self.emit_block(*node)?;
+                (
+                    Box::new(types::ElseBlock::Else(Box::new(block))),
+                    self.has_returned,
+                )
             }
             ast::ElseBlock::None => (Box::new(types::ElseBlock::None), false),
         };

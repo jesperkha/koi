@@ -90,8 +90,8 @@ pub struct ExternNode {
 }
 
 pub enum ElseBlock {
-    ElseIf(IfNode),
-    Else(BlockNode),
+    ElseIf(Box<IfNode>),
+    Else(Box<BlockNode>),
     None,
 }
 

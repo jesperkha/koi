@@ -199,7 +199,7 @@ impl Visitor<()> for Printer {
         node.rhs.accept(self);
     }
 
-    fn visit_if(&mut self, node: &super::IfNode) -> () {
+    fn visit_if(&mut self, node: &super::IfNode) {
         self.s += "if ";
         node.expr.accept(self);
         self.s += " ";
@@ -207,11 +207,11 @@ impl Visitor<()> for Printer {
         match &*node.elseif {
             ElseBlock::ElseIf(if_node) => {
                 self.s += " else ";
-                self.visit_if(&if_node);
+                self.visit_if(if_node);
             }
             ElseBlock::Else(block) => {
                 self.s += " else ";
-                self.visit_block(&block);
+                self.visit_block(block);
             }
             ElseBlock::None => {}
         }

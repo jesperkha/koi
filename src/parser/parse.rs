@@ -403,9 +403,9 @@ impl<'a> Parser<'a> {
         let elseif = if self.matches(TokenKind::Else) {
             self.consume(); // else
             if self.matches(TokenKind::If) {
-                Box::new(ElseBlock::ElseIf(self.parse_if()?))
+                Box::new(ElseBlock::ElseIf(Box::new(self.parse_if()?)))
             } else {
-                Box::new(ElseBlock::Else(self.parse_block()?))
+                Box::new(ElseBlock::Else(Box::new(self.parse_block()?)))
             }
         } else {
             Box::new(ElseBlock::None)

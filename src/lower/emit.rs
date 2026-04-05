@@ -304,7 +304,7 @@ impl<'a> FileEmitter<'a> {
         let mut elseblock: Option<Block> = None;
 
         loop {
-            match &*elseif {
+            match elseif {
                 types::ElseBlock::ElseIf(node) => {
                     let mut cond_ins = Vec::new();
                     let cond = self.expr_to_rval(&mut cond_ins, &node.expr)?;
@@ -317,7 +317,7 @@ impl<'a> FileEmitter<'a> {
                     elseif = &node.elseif;
                 }
                 types::ElseBlock::Else(node) => {
-                    let block = self.emit_block(&node)?;
+                    let block = self.emit_block(node)?;
                     elseblock = Some(block);
                     break;
                 }
