@@ -692,6 +692,53 @@ fn test_while_stmt_error() {
 }
 
 #[test]
+fn test_break_continue() {
+    compare_string(
+        r#"
+        func f() {
+            while true {
+                break
+            }
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f() {
+            while true {
+                continue
+            }
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f(a bool) {
+            while a {
+                if a {
+                    break
+                } else {
+                    continue
+                }
+            }
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        func f(a bool, b bool) {
+            while a {
+                while b {
+                    break
+                }
+                continue
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
 fn test_unary() {
     assert_pass(
         r#"

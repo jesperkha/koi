@@ -284,6 +284,8 @@ impl<'a> FileEmitter<'a> {
             types::Stmt::VarAssign(node) => self.emit_var_assign(ins, node)?,
             types::Stmt::If(node) => self.emit_if(ins, node)?,
             types::Stmt::While(node) => self.emit_while(ins, node)?,
+            types::Stmt::Break(break_node) => todo!(),
+            types::Stmt::Continue(continue_node) => todo!(),
         };
         Ok(())
     }

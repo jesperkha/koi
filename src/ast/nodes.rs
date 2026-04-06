@@ -364,8 +364,8 @@ impl Node for Stmt {
             Stmt::VarAssign(node) => node.pos(),
             Stmt::If(node) => node.pos(),
             Stmt::While(node) => node.pos(),
-            Stmt::Break(node) => &node.kw.pos,
-            Stmt::Continue(node) => &node.kw.pos,
+            Stmt::Break(node) => node.pos(),
+            Stmt::Continue(node) => node.pos(),
         }
     }
 
@@ -378,8 +378,8 @@ impl Node for Stmt {
             Stmt::VarAssign(node) => node.end(),
             Stmt::If(node) => node.end(),
             Stmt::While(node) => node.end(),
-            Stmt::Break(node) => &node.kw.end_pos,
-            Stmt::Continue(node) => &node.kw.end_pos,
+            Stmt::Break(node) => node.end(),
+            Stmt::Continue(node) => node.end(),
         }
     }
 
@@ -392,8 +392,8 @@ impl Node for Stmt {
             Stmt::VarAssign(node) => node.id(),
             Stmt::If(node) => node.id(),
             Stmt::While(node) => node.id(),
-            Stmt::Break(node) => node.kw.id,
-            Stmt::Continue(node) => node.kw.id,
+            Stmt::Break(node) => node.id(),
+            Stmt::Continue(node) => node.id(),
         }
     }
 }
@@ -544,6 +544,34 @@ impl Node for CallExpr {
 
     fn id(&self) -> NodeId {
         self.lparen.id
+    }
+}
+
+impl Node for ContinueNode {
+    fn pos(&self) -> &Pos {
+        &self.kw.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.kw.end_pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.kw.id
+    }
+}
+
+impl Node for BreakNode {
+    fn pos(&self) -> &Pos {
+        &self.kw.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.kw.end_pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.kw.id
     }
 }
 

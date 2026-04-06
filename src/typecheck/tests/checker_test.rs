@@ -1125,6 +1125,116 @@ fn test_while_stmt_scoping() {
 }
 
 #[test]
+fn test_break_continue_in_loop() {
+    assert_pass(
+        r#"
+        func f(a bool) {
+            while a {
+                break
+            }
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(a bool) {
+            while a {
+                continue
+            }
+        }
+    "#,
+    );
+    // Both in the same loop
+    assert_pass(
+        r#"
+        func f(a bool, b bool) {
+            while a {
+                if b {
+                    break
+                } else {
+                    continue
+                }
+            }
+        }
+    "#,
+    );
+    // break/continue inside nested loop
+    assert_pass(
+        r#"
+        func f(a bool, b bool) {
+            while a {
+                while b {
+                    break
+                }
+                continue
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_break_continue_outside_loop() {
+    assert_error(
+        r#"
+        func f() {
+            break
+        }
+    "#,
+        "break cannot be used outside a loop",
+    );
+    assert_error(
+        r#"
+        func f() {
+            continue
+        }
+    "#,
+        "continue cannot be used outside a loop",
+    );
+    // break inside an if that is not inside a loop
+    assert_error(
+        r#"
+        func f(a bool) {
+            if a {
+                break
+            }
+        }
+    "#,
+        "break cannot be used outside a loop",
+    );
+}
+
+#[test]
+fn test_break_in_outer_loop_only() {
+    // break in inner loop does not affect outer loop's in_loop state
+    assert_pass(
+        r#"
+        func f(a bool, b bool) {
+            while a {
+                while b {
+                    break
+                }
+                break
+            }
+        }
+    "#,
+    );
+    // continue is valid in outer loop after inner loop with break
+    assert_pass(
+        r#"
+        func f(a bool, b bool) {
+            while a {
+                while b {
+                    continue
+                }
+                break
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
 fn test_unary_as_function_argument() {
     assert_pass(
         r#"
