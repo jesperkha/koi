@@ -4,10 +4,10 @@ use tracing::info;
 
 use crate::{
     ast::{
-        Ast, BinaryExpr, BlockNode, CallExpr, Decl, ElseBlock, Expr, Field, File, FileSet,
-        FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode, MemberNode, Node, ReturnNode,
-        SourceMap, Stmt, Token, TokenKind, TypeNode, UnaryExpr, VarAssignNode, VarDeclNode,
-        WhileNode,
+        Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, ContinueNode, Decl, ElseBlock, Expr,
+        Field, File, FileSet, FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode, MemberNode,
+        Node, ReturnNode, SourceMap, Stmt, Token, TokenKind, TypeNode, UnaryExpr, VarAssignNode,
+        VarDeclNode, WhileNode,
     },
     config::Config,
     error::{Diagnostics, Report, Res},
@@ -381,6 +381,14 @@ impl<'a> Parser<'a> {
             TokenKind::Return => Ok(Stmt::Return(self.parse_return()?)),
             TokenKind::If => Ok(Stmt::If(self.parse_if()?)),
             TokenKind::While => Ok(Stmt::While(self.parse_while()?)),
+            TokenKind::Break => {
+                let kw = self.expect(TokenKind::Break)?;
+                Ok(Stmt::Break(BreakNode { kw }))
+            }
+            TokenKind::Continue => {
+                let kw = self.expect(TokenKind::Continue)?;
+                Ok(Stmt::Continue(ContinueNode { kw }))
+            }
             _ => {
                 let expr = self.parse_expr()?;
 

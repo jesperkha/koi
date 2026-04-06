@@ -759,12 +759,12 @@ f:
     cmp BYTE PTR [rbp-1], 0
     jz ._cond_0
     cmp BYTE PTR [rbp-2], 0
-    jz ._cond_0
+    jz ._cond_1
     mov eax, 0
     leave
     ret
     jmp ._end_1
-    ._cond_0:
+    ._cond_1:
     mov eax, 1
     leave
     ret
@@ -819,12 +819,12 @@ f:
     jmp ._end_0
     ._cond_0:
     cmp BYTE PTR [rbp-2], 0
-    jz ._cond_0
+    jz ._cond_1
     mov eax, 1
     leave
     ret
     jmp ._end_1
-    ._cond_0:
+    ._cond_1:
     mov eax, 2
     leave
     ret

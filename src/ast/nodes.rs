@@ -50,6 +50,8 @@ pub trait Visitor<R> {
     fn visit_import(&mut self, node: &ImportNode) -> R;
     fn visit_if(&mut self, node: &IfNode) -> R;
     fn visit_while(&mut self, node: &WhileNode) -> R;
+    fn visit_break(&mut self, node: &BreakNode) -> R;
+    fn visit_continue(&mut self, node: &ContinueNode) -> R;
 
     fn visit_member(&mut self, node: &MemberNode) -> R;
     fn visit_literal(&mut self, node: &Token) -> R;
@@ -80,6 +82,8 @@ pub enum Stmt {
     VarAssign(VarAssignNode),
     If(IfNode),
     While(WhileNode),
+    Break(BreakNode),
+    Continue(ContinueNode),
 }
 
 /// Expressions are evaluated to produce a value. They can be used
@@ -191,6 +195,16 @@ pub struct WhileNode {
     pub kw: Token,
     pub expr: Expr,
     pub block: BlockNode,
+}
+
+#[derive(Debug, Clone)]
+pub struct BreakNode {
+    pub kw: Token,
+}
+
+#[derive(Debug, Clone)]
+pub struct ContinueNode {
+    pub kw: Token,
 }
 
 #[derive(Debug)]
@@ -350,6 +364,8 @@ impl Node for Stmt {
             Stmt::VarAssign(node) => node.pos(),
             Stmt::If(node) => node.pos(),
             Stmt::While(node) => node.pos(),
+            Stmt::Break(node) => &node.kw.pos,
+            Stmt::Continue(node) => &node.kw.pos,
         }
     }
 
@@ -362,6 +378,8 @@ impl Node for Stmt {
             Stmt::VarAssign(node) => node.end(),
             Stmt::If(node) => node.end(),
             Stmt::While(node) => node.end(),
+            Stmt::Break(node) => &node.kw.end_pos,
+            Stmt::Continue(node) => &node.kw.end_pos,
         }
     }
 
@@ -374,6 +392,8 @@ impl Node for Stmt {
             Stmt::VarAssign(node) => node.id(),
             Stmt::If(node) => node.id(),
             Stmt::While(node) => node.id(),
+            Stmt::Break(node) => node.kw.id,
+            Stmt::Continue(node) => node.kw.id,
         }
     }
 }
@@ -472,6 +492,8 @@ impl Visitable for Stmt {
             Stmt::VarAssign(node) => visitor.visit_var_assign(node),
             Stmt::If(node) => visitor.visit_if(node),
             Stmt::While(node) => visitor.visit_while(node),
+            Stmt::Break(node) => visitor.visit_break(node),
+            Stmt::Continue(node) => visitor.visit_continue(node),
         }
     }
 }
