@@ -199,12 +199,18 @@ impl From<&ModulePath> for ImportPath {
 
 impl From<&ImportNode> for ImportPath {
     fn from(import: &ImportNode) -> Self {
-        import
+        let path = import
             .names
             .iter()
             .map(|t| t.to_string())
             .collect::<Vec<_>>()
-            .join(".")
-            .into()
+            .join(".");
+
+        // Rewrite `std.foo` → `lib.std.foo` so users don't need the lib prefix.
+        if path == "std" || path.starts_with("std.") {
+            format!("lib.{}", path).into()
+        } else {
+            path.into()
+        }
     }
 }

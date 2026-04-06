@@ -23,6 +23,9 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
+/// Illegal module directory names reserved by the compiler
+static ILLEGAL_MODULE_NAMES: [&str; 3] = ["std", "core", "lib"];
+
 /// Result type shorthand used in this file.
 type Res<T> = Result<T, String>;
 
@@ -169,6 +172,12 @@ fn collect_all_source_dirs(
         }
 
         let modpath = filepath_to_module_path(dir, source_dir, project);
+        if ILLEGAL_MODULE_NAMES.contains(&modpath.path()) {
+            return Err(format!(
+                "error: module name '{}' is reserved and cannot be used",
+                modpath
+            ));
+        }
         let dir = SourceDir { modpath, map };
         dirs.push(dir);
     }
