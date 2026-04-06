@@ -180,3 +180,52 @@ fn test_block_comment() {
 fn test_illegal_token() {
     scan_and_error("@");
 }
+
+#[test]
+fn test_hex_literal() {
+    // Basic hex values
+    scan_and_then("0xff", |toks| {
+        assert_eq!(toks.len(), 1);
+        assert_eq!(toks[0].kind, TokenKind::IntLit(255));
+        assert_eq!(toks[0].length, 4);
+    });
+
+    scan_and_then("0xFF", |toks| {
+        assert_eq!(toks[0].kind, TokenKind::IntLit(255));
+    });
+
+    scan_and_then("0XFF", |toks| {
+        assert_eq!(toks[0].kind, TokenKind::IntLit(255));
+    });
+
+    // Zero
+    scan_and_then("0x0", |toks| {
+        assert_eq!(toks[0].kind, TokenKind::IntLit(0));
+    });
+
+    // Multi-digit
+    scan_and_then("0x1A2B", |toks| {
+        assert_eq!(toks[0].kind, TokenKind::IntLit(0x1A2B));
+        assert_eq!(toks[0].length, 6);
+    });
+
+    // Surrounded by other tokens
+    scan_and_then("a + 0xDEAD", |toks| {
+        assert_eq!(toks.len(), 3);
+        assert_eq!(toks[2].kind, TokenKind::IntLit(0xDEAD));
+    });
+
+    // 0x with no digits is an error
+    scan_and_error("0x");
+    scan_and_error("0X");
+
+    // Regular zero is still an int literal, not a hex prefix
+    scan_and_then("0", |toks| {
+        assert_eq!(toks[0].kind, TokenKind::IntLit(0));
+    });
+
+    // 0 followed by something other than x is still a normal int
+    scan_and_then("01", |toks| {
+        assert_eq!(toks[0].kind, TokenKind::IntLit(1));
+    });
+}
