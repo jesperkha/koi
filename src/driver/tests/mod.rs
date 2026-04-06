@@ -341,3 +341,31 @@ fn test_while_nested_continue() {
     // inner loop skips n++ when j==2; 3 outer × 4 inner = 12
     run_case_with_status("while_nested_continue", 12);
 }
+
+// --- binary operand ordering ---
+//
+// These tests guard against the bug where rhs of a binary op was already in
+// rax (from a prior arithmetic result) and `mov rax, lhs` clobbered it before
+// it was saved to r10, causing both operands to become lhs.
+//
+// With the bug: the comparisons below degenerate into `x op x` (always false
+// for lt/gt, always false for ne when equal) and all three return 0.
+// With the fix: each comparison uses the correct distinct operands and returns 1.
+
+#[test]
+fn test_operand_order_lt() {
+    // a=5, b=a+1=6: `a < b` → 5<6 (true→1). Bug: rhs(b) in rax clobbered → 5<5 (false→0).
+    run_case_with_status("operand_order_lt", 1);
+}
+
+#[test]
+fn test_operand_order_gt() {
+    // a=5, b=a-1=4: `a > b` → 5>4 (true→1). Bug: rhs(b) in rax clobbered → 5>5 (false→0).
+    run_case_with_status("operand_order_gt", 1);
+}
+
+#[test]
+fn test_operand_order_ne() {
+    // a=5, b=a*2=10: `a != b` → 5≠10 (true→1). Bug: rhs(b) in rax clobbered → 5≠5 (false→0).
+    run_case_with_status("operand_order_ne", 1);
+}
