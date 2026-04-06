@@ -751,6 +751,69 @@ fn test_while_nested() {
 }
 
 #[test]
+fn test_while_break() {
+    expect_equal(
+        r#"
+        func f(a bool) {
+            while a {
+                break
+            }
+        }
+    "#,
+        r#"
+        func f(u8) void
+            while %0
+                break
+            ret void
+        "#,
+    );
+}
+
+#[test]
+fn test_while_continue() {
+    expect_equal(
+        r#"
+        func f(a bool) {
+            while a {
+                continue
+            }
+        }
+    "#,
+        r#"
+        func f(u8) void
+            while %0
+                continue
+            ret void
+        "#,
+    );
+}
+
+#[test]
+fn test_while_break_continue_nested() {
+    // break exits inner loop, continue restarts outer loop
+    expect_equal(
+        r#"
+        func f(a bool, b bool) {
+            while a {
+                while b {
+                    break
+                }
+                continue
+            }
+        }
+    "#,
+        r#"
+        func f(u8, u8) void
+            while %0
+                while %1
+                    break
+                continue
+            ret void
+        "#,
+    );
+}
+
+#[test]
 fn test_while_computed_condition() {
     // Condition requires computation — cond_ins are stored inside WhileIns
     // and not shown in the IR text; only the resulting cond rvalue ($0) appears.

@@ -951,6 +951,122 @@ f:
 }
 
 #[test]
+fn test_while_break() {
+    compare(
+        r#"
+func f(a bool) {
+    while a {
+        break
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    .Lf_loop_0:
+    cmp BYTE PTR [rbp-1], 0
+    jz .Lf_loop_end_0
+    jmp .Lf_loop_end_0
+    jmp .Lf_loop_0
+    .Lf_loop_end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_while_continue() {
+    compare(
+        r#"
+func f(a bool) {
+    while a {
+        continue
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    .Lf_loop_0:
+    cmp BYTE PTR [rbp-1], 0
+    jz .Lf_loop_end_0
+    jmp .Lf_loop_0
+    jmp .Lf_loop_0
+    .Lf_loop_end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_while_break_continue_nested() {
+    // break exits inner loop; continue restarts outer loop
+    compare(
+        r#"
+func f(a bool, b bool) {
+    while a {
+        while b {
+            break
+        }
+        continue
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    mov BYTE PTR [rbp-2], sil
+    .Lf_loop_0:
+    cmp BYTE PTR [rbp-1], 0
+    jz .Lf_loop_end_0
+    .Lf_loop_1:
+    cmp BYTE PTR [rbp-2], 0
+    jz .Lf_loop_end_1
+    jmp .Lf_loop_end_1
+    jmp .Lf_loop_1
+    .Lf_loop_end_1:
+    jmp .Lf_loop_0
+    jmp .Lf_loop_0
+    .Lf_loop_end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
 fn test_while_nested() {
     // Each while claims its own cond/end label pair via next_cond_label /
     // next_end_label (both increment), so nested loops get distinct labels
