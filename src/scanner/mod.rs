@@ -147,28 +147,54 @@ impl<'a> Scanner<'a> {
 
                 // Number
                 v if Scanner::is_number(v) => {
-                    let mut length = self.peek_while(Scanner::is_numeric);
-                    let mut lexeme = self.source.str_range(self.pos, self.pos + length);
+                    // Hex literal: 0x… or 0X…
+                    if v == b'0' && matches!(self.peek(), Some(b'x') | Some(b'X')) {
+                        let prefix_len = 2; // "0x"
+                        let digits_start = self.pos + prefix_len;
+                        let digits_len = {
+                            let mut n = 0;
+                            while digits_start + n < self.len()
+                                && Scanner::is_hex_digit(self.source.src[digits_start + n])
+                            {
+                                n += 1;
+                            }
+                            n
+                        };
 
-                    // Ignore ending period for now, checked by Checker
-                    if lexeme.ends_with(".") {
-                        length -= 1;
-                        lexeme = lexeme.trim_end_matches(".");
-                    }
-
-                    let kind = if lexeme.contains('.') {
-                        match lexeme.parse() {
-                            Ok(f) => TokenKind::FloatLit(f),
-                            _ => return Err(self.error("invalid number literal", length)),
+                        if digits_len == 0 {
+                            return Err(self.error("hex literal has no digits", prefix_len));
                         }
+
+                        let length = prefix_len + digits_len;
+                        let digits = self.source.str_range(digits_start, digits_start + digits_len);
+                        let value = i64::from_str_radix(digits, 16)
+                            .map_err(|_| self.error("invalid hex literal", length))?;
+
+                        (Token::new(TokenKind::IntLit(value), length, self.pos()), length)
                     } else {
-                        match lexeme.parse() {
-                            Ok(f) => TokenKind::IntLit(f),
-                            _ => return Err(self.error("invalid number literal", length)),
-                        }
-                    };
+                        let mut length = self.peek_while(Scanner::is_numeric);
+                        let mut lexeme = self.source.str_range(self.pos, self.pos + length);
 
-                    (Token::new(kind, length, self.pos()), length)
+                        // Ignore ending period for now, checked by Checker
+                        if lexeme.ends_with(".") {
+                            length -= 1;
+                            lexeme = lexeme.trim_end_matches(".");
+                        }
+
+                        let kind = if lexeme.contains('.') {
+                            match lexeme.parse() {
+                                Ok(f) => TokenKind::FloatLit(f),
+                                _ => return Err(self.error("invalid number literal", length)),
+                            }
+                        } else {
+                            match lexeme.parse() {
+                                Ok(f) => TokenKind::IntLit(f),
+                                _ => return Err(self.error("invalid number literal", length)),
+                            }
+                        };
+
+                        (Token::new(kind, length, self.pos()), length)
+                    }
                 }
 
                 // String
@@ -311,6 +337,10 @@ impl<'a> Scanner<'a> {
 
     fn is_numeric(n: u8) -> bool {
         Scanner::is_number(n) || n == b'.'
+    }
+
+    fn is_hex_digit(n: u8) -> bool {
+        n.is_ascii_hexdigit()
     }
 
     fn is_whitespace(b: u8) -> bool {
