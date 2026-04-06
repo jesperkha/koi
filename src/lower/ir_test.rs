@@ -692,3 +692,145 @@ fn test_if_else_nested_in_else() {
         "#,
     );
 }
+
+#[test]
+fn test_while_simple() {
+    // Condition is a plain bool param — no cond_ins generated
+    expect_equal(
+        r#"
+        func f(a bool) {
+            while a {
+            }
+        }
+    "#,
+        r#"
+        func f(u8) void
+            while %0
+            ret void
+        "#,
+    );
+}
+
+#[test]
+fn test_while_with_body() {
+    expect_equal(
+        r#"
+        func f(a bool) {
+            while a {
+                a = false
+            }
+        }
+    "#,
+        r#"
+        func f(u8) void
+            while %0
+                %0 u8 = 0
+            ret void
+        "#,
+    );
+}
+
+#[test]
+fn test_while_nested() {
+    expect_equal(
+        r#"
+        func f(a bool, b bool) {
+            while a {
+                while b {
+                }
+            }
+        }
+    "#,
+        r#"
+        func f(u8, u8) void
+            while %0
+                while %1
+            ret void
+        "#,
+    );
+}
+
+#[test]
+fn test_while_break() {
+    expect_equal(
+        r#"
+        func f(a bool) {
+            while a {
+                break
+            }
+        }
+    "#,
+        r#"
+        func f(u8) void
+            while %0
+                break
+            ret void
+        "#,
+    );
+}
+
+#[test]
+fn test_while_continue() {
+    expect_equal(
+        r#"
+        func f(a bool) {
+            while a {
+                continue
+            }
+        }
+    "#,
+        r#"
+        func f(u8) void
+            while %0
+                continue
+            ret void
+        "#,
+    );
+}
+
+#[test]
+fn test_while_break_continue_nested() {
+    // break exits inner loop, continue restarts outer loop
+    expect_equal(
+        r#"
+        func f(a bool, b bool) {
+            while a {
+                while b {
+                    break
+                }
+                continue
+            }
+        }
+    "#,
+        r#"
+        func f(u8, u8) void
+            while %0
+                while %1
+                    break
+                continue
+            ret void
+        "#,
+    );
+}
+
+#[test]
+fn test_while_computed_condition() {
+    // Condition requires computation — cond_ins are stored inside WhileIns
+    // and not shown in the IR text; only the resulting cond rvalue ($0) appears.
+    expect_equal(
+        r#"
+        func f(a int, b int) {
+            while a < b {
+                a = a + 1
+            }
+        }
+    "#,
+        r#"
+        func f(i32, i32) void
+            while $0
+                $1 i32 = add %0 1
+                %0 i32 = $1
+            ret void
+        "#,
+    );
+}

@@ -216,4 +216,19 @@ impl Visitor<()> for Printer {
             ElseBlock::None => {}
         }
     }
+
+    fn visit_while(&mut self, node: &super::WhileNode) {
+        self.s += "while ";
+        node.expr.accept(self);
+        self.s += " ";
+        self.visit_block(&node.block);
+    }
+
+    fn visit_break(&mut self, _: &super::BreakNode) {
+        self.s += "break"
+    }
+
+    fn visit_continue(&mut self, _: &super::ContinueNode) {
+        self.s += "continue"
+    }
 }

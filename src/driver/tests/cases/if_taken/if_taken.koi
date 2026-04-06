@@ -1,0 +1,7 @@
+func main() int {
+    n := 0
+    if true {
+        n = 7
+    }
+    return n
+}

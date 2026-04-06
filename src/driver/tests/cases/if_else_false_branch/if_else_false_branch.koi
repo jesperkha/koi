@@ -1,0 +1,7 @@
+func main() int {
+    if false {
+        return 99
+    } else {
+        return 5
+    }
+}

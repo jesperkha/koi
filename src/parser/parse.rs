@@ -4,9 +4,10 @@ use tracing::info;
 
 use crate::{
     ast::{
-        Ast, BinaryExpr, BlockNode, CallExpr, Decl, ElseBlock, Expr, Field, File, FileSet,
-        FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode, MemberNode, Node, ReturnNode,
-        SourceMap, Stmt, Token, TokenKind, TypeNode, UnaryExpr, VarAssignNode, VarDeclNode,
+        Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, ContinueNode, Decl, ElseBlock, Expr,
+        Field, File, FileSet, FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode, MemberNode,
+        Node, ReturnNode, SourceMap, Stmt, Token, TokenKind, TypeNode, UnaryExpr, VarAssignNode,
+        VarDeclNode, WhileNode,
     },
     config::Config,
     error::{Diagnostics, Report, Res},
@@ -38,9 +39,6 @@ struct Parser<'a> {
     diag: Diagnostics,
     pos: usize,
 
-    /// List of accumulated comments. Clears after each blank line.
-    comments: Vec<String>,
-
     // Panic mode occurs when the parser encounters an unknown token sequence
     // and needs to synchronize to a 'clean' state. When panic mode starts,
     // the base position is set to the current position. When in panic mode
@@ -59,7 +57,6 @@ impl<'a> Parser<'a> {
             pos: 0,
             panic_mode: false,
             _config: config,
-            comments: Vec::new(),
         }
     }
 
@@ -105,24 +102,10 @@ impl<'a> Parser<'a> {
     /// Consume newlines until first non-newline token or eof.
     /// Returns true if not eof after consumption.
     fn skip_whitespace_and_not_eof(&mut self) -> bool {
-        let mut last_was_comment = false;
         while !self.eof_or_panic() {
-            if let Some(comment) = self.matches_comment() {
-                self.comments.push(comment);
-                self.consume();
-                last_was_comment = true;
-                continue;
-            }
-
             if !self.matches(TokenKind::Newline) {
                 break;
             }
-
-            if !last_was_comment {
-                self.comments.clear();
-            }
-
-            last_was_comment = false;
             self.consume();
         }
         !self.eof()
@@ -379,6 +362,15 @@ impl<'a> Parser<'a> {
         match token.kind {
             TokenKind::Return => Ok(Stmt::Return(self.parse_return()?)),
             TokenKind::If => Ok(Stmt::If(self.parse_if()?)),
+            TokenKind::While => Ok(Stmt::While(self.parse_while()?)),
+            TokenKind::Break => {
+                let kw = self.expect(TokenKind::Break)?;
+                Ok(Stmt::Break(BreakNode { kw }))
+            }
+            TokenKind::Continue => {
+                let kw = self.expect(TokenKind::Continue)?;
+                Ok(Stmt::Continue(ContinueNode { kw }))
+            }
             _ => {
                 let expr = self.parse_expr()?;
 
@@ -393,6 +385,13 @@ impl<'a> Parser<'a> {
                 }
             }
         }
+    }
+
+    fn parse_while(&mut self) -> Result<WhileNode, Report> {
+        let kw = self.expect(TokenKind::While)?;
+        let expr = self.parse_expr()?;
+        let block = self.parse_block()?;
+        Ok(WhileNode { kw, expr, block })
     }
 
     fn parse_if(&mut self) -> Result<IfNode, Report> {
@@ -734,16 +733,6 @@ impl<'a> Parser<'a> {
             }
         }
         false
-    }
-
-    /// Return comment string if current token is a comment.
-    fn matches_comment(&self) -> Option<String> {
-        if let Some(tok) = self.cur()
-            && let TokenKind::Comment(s) = tok.kind
-        {
-            return Some(s);
-        }
-        None
     }
 
     fn eof(&self) -> bool {

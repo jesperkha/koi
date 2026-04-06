@@ -9,7 +9,7 @@ use crate::{
     ir::{
         AssignIns, BinaryIns, Block, CallIns, ConstId, Data, Decl, ExternDecl, FuncDecl,
         IRBinaryOp, IRType, IRTypeId, IRUnaryOp, IfIns, Ins, LValue, Primitive, RValue, StoreIns,
-        UnaryIns, Unit, ins_to_string_oneline,
+        UnaryIns, Unit, WhileIns, ins_to_string_oneline,
     },
 };
 
@@ -94,8 +94,17 @@ struct FunctionAssembler<'a> {
     acc_offset: usize,
     params: Vec<Dest>,
     vars: HashMap<ConstId, Dest>,
-    cond_count: usize, // Number of condition labels
-    end_count: usize,  // Number of end labels
+
+    /// Scoped pairs of label+end
+    loop_labels: Vec<(String, String)>,
+
+    // Number of conditional and end labels
+    cond_count: usize,
+    cond_end_count: usize,
+
+    // Number of loop and end labels
+    loop_end_count: usize,
+    loop_count: usize,
 }
 
 impl<'a> FunctionAssembler<'a> {
@@ -109,7 +118,10 @@ impl<'a> FunctionAssembler<'a> {
             acc_offset: 0,
             params: Vec::new(),
             cond_count: 0,
-            end_count: 0,
+            cond_end_count: 0,
+            loop_count: 0,
+            loop_end_count: 0,
+            loop_labels: Vec::new(),
         }
     }
 
@@ -177,7 +189,20 @@ impl<'a> FunctionAssembler<'a> {
             Ins::Binary(ins) => self.emit_binary(ins),
             Ins::Unary(ins) => self.emit_unary(ins),
             Ins::If(ins) => self.emit_if(ins),
+            Ins::While(ins) => self.emit_while(ins),
+            Ins::Break => self.emit_break(),
+            Ins::Continue => self.emit_continue(),
         }
+    }
+
+    fn emit_break(&mut self) {
+        let (_, end) = self.cur_loop_labels();
+        self.push(Asm::Jmp(end.clone()));
+    }
+
+    fn emit_continue(&mut self) {
+        let (start, _) = self.cur_loop_labels();
+        self.push(Asm::Jmp(start.clone()));
     }
 
     fn evaluate_bool_and_cmp(&mut self, cond: &RValue) {
@@ -192,44 +217,69 @@ impl<'a> FunctionAssembler<'a> {
         }
     }
 
-    fn emit_if(&mut self, ifins: &IfIns) {
-        let end = self.next_end_label();
-        self.evaluate_bool_and_cmp(&ifins.cond);
+    fn emit_while(&mut self, ins: &WhileIns) {
+        let label = self.next_loop_label();
+        let end = self.next_loop_end_label();
 
-        // If there is no else-if or else branches, jump to end
-        let jmp_label = if ifins.elseif.is_empty() && ifins.elseblock.is_none() {
-            end.clone()
+        self.push(Asm::Label(label.clone()));
+
+        // Eval and jump if false
+        for i in &ins.cond_ins {
+            self.emit_ins(i);
+        }
+        self.evaluate_bool_and_cmp(&ins.cond);
+        self.push(Asm::Jz(end.clone()));
+
+        // Run ins and jump back
+        self.push_loop_labels(label.clone(), end.clone());
+        self.emit_block(&ins.block);
+        self.push(Asm::Jmp(label));
+        self.pop_loop_labels();
+
+        // Finish
+        self.push(Asm::Label(end));
+    }
+
+    fn emit_if(&mut self, ifins: &IfIns) {
+        let end = self.next_cond_end_label();
+        let has_branches = !ifins.elseif.is_empty() || ifins.elseblock.is_some();
+
+        // Allocate the label for the first else-if or else branch
+        let mut next_label = if has_branches {
+            Some(self.next_cond_label())
         } else {
-            self.cur_cond_label()
+            None
         };
-        self.push(Asm::Jz(jmp_label));
+
+        // Emit if block; jump to next branch on false, or end if no branches
+        self.evaluate_bool_and_cmp(&ifins.cond);
+        self.push(Asm::Jz(next_label.clone().unwrap_or(end.clone())));
         self.emit_block(&ifins.block);
         self.push(Asm::Jmp(end.clone()));
 
+        // Emit else-if branches; each one consumes next_label and allocates the
+        // label for the branch that follows it
         for (idx, elseif) in ifins.elseif.iter().enumerate() {
-            let label = self.next_cond_label();
-            self.push(Asm::Label(label));
+            self.push(Asm::Label(next_label.take().unwrap()));
 
-            // Evaluate condition
+            let is_last = idx == ifins.elseif.len() - 1;
+            next_label = if is_last && ifins.elseblock.is_none() {
+                None // false falls through to end
+            } else {
+                Some(self.next_cond_label()) // label for next else-if or else
+            };
+
             for i in &elseif.cond_ins {
                 self.emit_ins(i);
             }
             self.evaluate_bool_and_cmp(&elseif.cond);
-
-            // If this is the last else-if and there is no else, jump to end
-            let jmp_label = if idx == ifins.elseif.len() - 1 && ifins.elseblock.is_none() {
-                end.clone()
-            } else {
-                self.cur_cond_label()
-            };
-            self.push(Asm::Jz(jmp_label));
-
+            self.push(Asm::Jz(next_label.clone().unwrap_or(end.clone())));
             self.emit_block(&elseif.block);
             self.push(Asm::Jmp(end.clone()));
         }
 
         if let Some(elseblock) = &ifins.elseblock {
-            self.push(Asm::Label(self.cur_cond_label()));
+            self.push(Asm::Label(next_label.unwrap()));
             self.emit_block(elseblock);
         }
 
@@ -405,23 +455,40 @@ impl<'a> FunctionAssembler<'a> {
     //      HELPER METHODS
     // ----------------------------
 
-    /// Get current end label and increment end count
-    fn next_end_label(&mut self) -> String {
-        let l = format!("._end_{}", self.end_count);
-        self.end_count += 1;
+    fn next_cond_end_label(&mut self) -> String {
+        let l = format!(".L{}_cond_end_{}", self.decl.name, self.cond_end_count);
+        self.cond_end_count += 1;
         l
     }
 
-    /// Return current cond label and increment cond count
     fn next_cond_label(&mut self) -> String {
-        let l = self.cur_cond_label();
+        let l = format!(".L{}_cond_{}", self.decl.name, self.cond_count);
         self.cond_count += 1;
         l
     }
 
-    /// Get current cond label
-    fn cur_cond_label(&self) -> String {
-        format!("._cond_{}", self.cond_count)
+    fn next_loop_end_label(&mut self) -> String {
+        let l = format!(".L{}_loop_end_{}", self.decl.name, self.loop_end_count);
+        self.loop_end_count += 1;
+        l
+    }
+
+    fn next_loop_label(&mut self) -> String {
+        let l = format!(".L{}_loop_{}", self.decl.name, self.loop_count);
+        self.loop_count += 1;
+        l
+    }
+
+    fn push_loop_labels(&mut self, label: String, end: String) {
+        self.loop_labels.push((label, end));
+    }
+
+    fn pop_loop_labels(&mut self) -> (String, String) {
+        self.loop_labels.pop().unwrap()
+    }
+
+    fn cur_loop_labels(&self) -> &(String, String) {
+        self.loop_labels.last().unwrap()
     }
 
     /// Helper to automatically switch between mov and lea depending on value.

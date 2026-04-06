@@ -554,16 +554,16 @@ f:
     sub rsp, 16
     mov BYTE PTR [rbp-1], dil
     cmp BYTE PTR [rbp-1], 0
-    jz ._cond_0
+    jz .Lf_cond_0
     mov eax, 0
     leave
     ret
-    jmp ._end_0
-    ._cond_0:
+    jmp .Lf_cond_end_0
+    .Lf_cond_0:
     mov eax, 1
     leave
     ret
-    ._end_0:
+    .Lf_cond_end_0:
     leave
     ret
 
@@ -599,23 +599,23 @@ f:
     mov BYTE PTR [rbp-1], dil
     mov BYTE PTR [rbp-2], sil
     cmp BYTE PTR [rbp-1], 0
-    jz ._cond_0
+    jz .Lf_cond_0
     mov eax, 0
     leave
     ret
-    jmp ._end_0
-    ._cond_0:
+    jmp .Lf_cond_end_0
+    .Lf_cond_0:
     cmp BYTE PTR [rbp-2], 0
-    jz ._cond_1
+    jz .Lf_cond_1
     mov eax, 1
     leave
     ret
-    jmp ._end_0
-    ._cond_1:
+    jmp .Lf_cond_end_0
+    .Lf_cond_1:
     mov eax, 2
     leave
     ret
-    ._end_0:
+    .Lf_cond_end_0:
     leave
     ret
 
@@ -655,27 +655,27 @@ f:
     cmp eax, r10d
     setg al
     cmp al, 0
-    jz ._cond_0
+    jz .Lf_cond_0
     mov eax, 1
     leave
     ret
-    jmp ._end_0
-    ._cond_0:
+    jmp .Lf_cond_end_0
+    .Lf_cond_0:
     mov eax, DWORD PTR [rbp-4]
     mov r10d, DWORD PTR [rbp-8]
     cmp eax, r10d
     setl al
     cmp al, 0
-    jz ._cond_1
+    jz .Lf_cond_1
     mov eax, 2
     leave
     ret
-    jmp ._end_0
-    ._cond_1:
+    jmp .Lf_cond_end_0
+    .Lf_cond_1:
     mov eax, 3
     leave
     ret
-    ._end_0:
+    .Lf_cond_end_0:
     leave
     ret
 
@@ -709,17 +709,17 @@ f:
     mov BYTE PTR [rbp-1], dil
     mov BYTE PTR [rbp-2], sil
     cmp BYTE PTR [rbp-1], 0
-    jz ._cond_0
+    jz .Lf_cond_0
     leave
     ret
-    jmp ._end_0
-    ._cond_0:
+    jmp .Lf_cond_end_0
+    .Lf_cond_0:
     cmp BYTE PTR [rbp-2], 0
-    jz ._end_0
+    jz .Lf_cond_end_0
     leave
     ret
-    jmp ._end_0
-    ._end_0:
+    jmp .Lf_cond_end_0
+    .Lf_cond_end_0:
     leave
     ret
 
@@ -757,24 +757,24 @@ f:
     mov BYTE PTR [rbp-1], dil
     mov BYTE PTR [rbp-2], sil
     cmp BYTE PTR [rbp-1], 0
-    jz ._cond_0
+    jz .Lf_cond_0
     cmp BYTE PTR [rbp-2], 0
-    jz ._cond_0
+    jz .Lf_cond_1
     mov eax, 0
     leave
     ret
-    jmp ._end_1
-    ._cond_0:
+    jmp .Lf_cond_end_1
+    .Lf_cond_1:
     mov eax, 1
     leave
     ret
-    ._end_1:
-    jmp ._end_0
-    ._cond_0:
+    .Lf_cond_end_1:
+    jmp .Lf_cond_end_0
+    .Lf_cond_0:
     mov eax, 2
     leave
     ret
-    ._end_0:
+    .Lf_cond_end_0:
     leave
     ret
 
@@ -812,24 +812,296 @@ f:
     mov BYTE PTR [rbp-1], dil
     mov BYTE PTR [rbp-2], sil
     cmp BYTE PTR [rbp-1], 0
-    jz ._cond_0
+    jz .Lf_cond_0
     mov eax, 0
     leave
     ret
-    jmp ._end_0
-    ._cond_0:
+    jmp .Lf_cond_end_0
+    .Lf_cond_0:
     cmp BYTE PTR [rbp-2], 0
-    jz ._cond_0
+    jz .Lf_cond_1
     mov eax, 1
     leave
     ret
-    jmp ._end_1
-    ._cond_0:
+    jmp .Lf_cond_end_1
+    .Lf_cond_1:
     mov eax, 2
     leave
     ret
-    ._end_1:
-    ._end_0:
+    .Lf_cond_end_1:
+    .Lf_cond_end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_while_simple() {
+    compare(
+        r#"
+func f(a bool) {
+    while a {
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    .Lf_loop_0:
+    cmp BYTE PTR [rbp-1], 0
+    jz .Lf_loop_end_0
+    jmp .Lf_loop_0
+    .Lf_loop_end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_while_with_body() {
+    compare(
+        r#"
+func f(a bool) {
+    while a {
+        a = false
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    .Lf_loop_0:
+    cmp BYTE PTR [rbp-1], 0
+    jz .Lf_loop_end_0
+    mov BYTE PTR [rbp-1], 0
+    jmp .Lf_loop_0
+    .Lf_loop_end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_while_computed_condition() {
+    // Condition binary expression is re-evaluated at the top of every iteration
+    compare(
+        r#"
+func f(a int, b int) {
+    while a < b {
+        a = a + 1
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov DWORD PTR [rbp-4], edi
+    mov DWORD PTR [rbp-8], esi
+    .Lf_loop_0:
+    mov eax, DWORD PTR [rbp-4]
+    mov r10d, DWORD PTR [rbp-8]
+    cmp eax, r10d
+    setl al
+    cmp al, 0
+    jz .Lf_loop_end_0
+    mov eax, DWORD PTR [rbp-4]
+    mov r10d, 1
+    add eax, r10d
+    mov DWORD PTR [rbp-4], eax
+    jmp .Lf_loop_0
+    .Lf_loop_end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_while_break() {
+    compare(
+        r#"
+func f(a bool) {
+    while a {
+        break
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    .Lf_loop_0:
+    cmp BYTE PTR [rbp-1], 0
+    jz .Lf_loop_end_0
+    jmp .Lf_loop_end_0
+    jmp .Lf_loop_0
+    .Lf_loop_end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_while_continue() {
+    compare(
+        r#"
+func f(a bool) {
+    while a {
+        continue
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    .Lf_loop_0:
+    cmp BYTE PTR [rbp-1], 0
+    jz .Lf_loop_end_0
+    jmp .Lf_loop_0
+    jmp .Lf_loop_0
+    .Lf_loop_end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_while_break_continue_nested() {
+    // break exits inner loop; continue restarts outer loop
+    compare(
+        r#"
+func f(a bool, b bool) {
+    while a {
+        while b {
+            break
+        }
+        continue
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    mov BYTE PTR [rbp-2], sil
+    .Lf_loop_0:
+    cmp BYTE PTR [rbp-1], 0
+    jz .Lf_loop_end_0
+    .Lf_loop_1:
+    cmp BYTE PTR [rbp-2], 0
+    jz .Lf_loop_end_1
+    jmp .Lf_loop_end_1
+    jmp .Lf_loop_1
+    .Lf_loop_end_1:
+    jmp .Lf_loop_0
+    jmp .Lf_loop_0
+    .Lf_loop_end_0:
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_while_nested() {
+    // Each while claims its own cond/end label pair via next_cond_label /
+    // next_end_label (both increment), so nested loops get distinct labels
+    // and there are no duplicate-label collisions.
+    compare(
+        r#"
+func f(a bool, b bool) {
+    while a {
+        while b {
+        }
+    }
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov BYTE PTR [rbp-1], dil
+    mov BYTE PTR [rbp-2], sil
+    .Lf_loop_0:
+    cmp BYTE PTR [rbp-1], 0
+    jz .Lf_loop_end_0
+    .Lf_loop_1:
+    cmp BYTE PTR [rbp-2], 0
+    jz .Lf_loop_end_1
+    jmp .Lf_loop_1
+    .Lf_loop_end_1:
+    jmp .Lf_loop_0
+    .Lf_loop_end_0:
     leave
     ret
 

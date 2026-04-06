@@ -96,8 +96,6 @@ pub enum TokenKind {
     StringLit(String), // String does not include quotes
     CharLit(u8),
 
-    Comment(String),
-
     // Keywords
     True,
     False,
@@ -105,6 +103,7 @@ pub enum TokenKind {
     Func,
     If,
     Else,
+    While,
     For,
     Import,
     Null,
@@ -112,6 +111,8 @@ pub enum TokenKind {
     Error,
     Extern,
     As,
+    Break,
+    Continue,
 
     // Math
     Plus,
@@ -172,6 +173,7 @@ static RESERVED: &[(&str, TokenKind)] = &[
     ("return", TokenKind::Return),
     ("func", TokenKind::Func),
     ("if", TokenKind::If),
+    ("while", TokenKind::While),
     ("else", TokenKind::Else),
     ("for", TokenKind::For),
     ("import", TokenKind::Import),
@@ -180,6 +182,8 @@ static RESERVED: &[(&str, TokenKind)] = &[
     ("error", TokenKind::Error),
     ("extern", TokenKind::Extern),
     ("as", TokenKind::As),
+    ("break", TokenKind::Break),
+    ("continue", TokenKind::Continue),
     // Math
     ("+", TokenKind::Plus),
     ("-", TokenKind::Minus),
@@ -246,8 +250,6 @@ impl fmt::Display for TokenKind {
             TokenKind::Invalid => "INVALID",
             TokenKind::Eof => "EOF",
             TokenKind::Newline => "NEWLINE",
-
-            TokenKind::Comment(comment) => &format!("// {}", comment),
 
             // Literals
             TokenKind::IdentLit(ident) => ident,

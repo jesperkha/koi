@@ -37,6 +37,8 @@ pub(crate) struct FileChecker<'a> {
     has_returned: bool,
     /// Whether we are in the main module.
     is_main: bool,
+    /// Currently checking a loop body? Used for break/continue checks.
+    in_loop: bool,
 }
 
 impl<'a> FileChecker<'a> {
@@ -54,6 +56,7 @@ impl<'a> FileChecker<'a> {
             rtype: NO_TYPE,
             has_returned: false,
             is_main,
+            in_loop: false,
         }
     }
 
@@ -94,8 +97,23 @@ impl<'a> FileChecker<'a> {
             ast::Stmt::Return(node) => self.emit_return(node),
             ast::Stmt::VarDecl(node) => self.emit_var_decl(node),
             ast::Stmt::VarAssign(node) => self.emit_var_assign(node),
-            ast::Stmt::Block(_) => panic!("block should be handled manually as list of stmt"),
+            ast::Stmt::While(node) => self.emit_while(node),
             ast::Stmt::If(node) => Ok(types::Stmt::If(self.emit_if(node)?)),
+            ast::Stmt::Block(_) => panic!("block should be handled manually as list of stmt"),
+            ast::Stmt::Break(node) => {
+                if !self.in_loop {
+                    return Err(self.error("break cannot be used outside a loop", &node));
+                }
+                let meta = ast_node_to_meta(&node);
+                Ok(types::Stmt::Break(types::BreakNode { meta }))
+            }
+            ast::Stmt::Continue(node) => {
+                if !self.in_loop {
+                    return Err(self.error("continue cannot be used outside a loop", &node));
+                }
+                let meta = ast_node_to_meta(&node);
+                Ok(types::Stmt::Continue(types::ContinueNode { meta }))
+            }
         }
     }
 
@@ -212,23 +230,28 @@ impl<'a> FileChecker<'a> {
         Ok(types::BlockNode { stmts })
     }
 
-    fn emit_if(&mut self, node: ast::IfNode) -> Result<types::IfNode, Report> {
+    fn emit_while(&mut self, node: ast::WhileNode) -> Result<types::Stmt, Report> {
         let meta = ast_node_to_meta(&node);
         let expr = self.emit_expr(node.expr)?;
+        self.assert_expr_is_type(PrimitiveType::Bool, &expr)?;
 
-        // Check if expr is bool
-        if !self.ctx.types.equivalent(
-            expr.type_id(),
-            self.ctx.types.primitive(PrimitiveType::Bool),
-        ) {
-            return Err(self.error(
-                &format!(
-                    "expression must be of type 'bool', got '{}'",
-                    self.type_to_string(&expr)
-                ),
-                &expr,
-            ));
-        }
+        let prev_in_loop = self.in_loop;
+        let has_returned = self.has_returned;
+        self.in_loop = true;
+
+        let block = self.emit_block(node.block)?;
+
+        self.in_loop = prev_in_loop;
+        self.has_returned = has_returned;
+
+        Ok(types::Stmt::While(types::WhileNode { meta, expr, block }))
+    }
+
+    fn emit_if(&mut self, node: ast::IfNode) -> Result<types::IfNode, Report> {
+        let meta = ast_node_to_meta(&node);
+
+        let expr = self.emit_expr(node.expr)?;
+        self.assert_expr_is_type(PrimitiveType::Bool, &expr)?;
 
         let block = self.emit_block(node.block)?;
         let this_returned = self.has_returned;
@@ -577,6 +600,22 @@ impl<'a> FileChecker<'a> {
     }
 
     // ----------------------- Utility methods ----------------------- //
+
+    /// Assert that the given expression is the given primitive type.
+    fn assert_expr_is_type(&self, expect: PrimitiveType, expr: &types::Expr) -> Result<(), Report> {
+        let expect_t = self.ctx.types.primitive(expect);
+        if !self.ctx.types.equivalent(expr.type_id(), expect_t) {
+            return Err(self.error(
+                &format!(
+                    "expression must be of type '{}', got '{}'",
+                    self.ctx.types.type_to_string(expect_t),
+                    self.type_to_string(expr)
+                ),
+                expr,
+            ));
+        }
+        Ok(())
+    }
 
     fn type_to_string(&self, node: &dyn TypedNode) -> String {
         self.ctx.types.type_to_string(node.type_id())

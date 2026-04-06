@@ -61,6 +61,7 @@ fn new_config(case: &str) -> (Project, Options, Config) {
     };
 
     let config = Config {
+        driver_phase: crate::config::DriverPhase::Full,
         dump_types: false,
         print_symbol_tables: false,
         no_mangle_names: false,
@@ -95,6 +96,7 @@ fn library_config(
     };
 
     let config = Config {
+        driver_phase: crate::config::DriverPhase::Full,
         dump_types: false,
         print_symbol_tables: false,
         no_mangle_names: false,
@@ -244,4 +246,98 @@ fn test_binary_compare() {
 #[test]
 fn test_unary_not() {
     run_case_with_status("unary_not", 0);
+}
+
+// --- if / else ---
+
+#[test]
+fn test_if_taken() {
+    // condition true, no else: body executes
+    run_case_with_status("if_taken", 7);
+}
+
+#[test]
+fn test_if_not_taken() {
+    // condition false, no else: body skipped, n stays 0
+    run_case_with_status("if_not_taken", 0);
+}
+
+#[test]
+fn test_if_else_true_branch() {
+    // condition true: if-body runs, else does NOT (tests jmp-past-else)
+    run_case_with_status("if_else_true_branch", 3);
+}
+
+#[test]
+fn test_if_else_false_branch() {
+    // condition false: else-body runs
+    run_case_with_status("if_else_false_branch", 5);
+}
+
+#[test]
+fn test_if_elseif_first() {
+    // first condition true: if-body runs, elseif+else skipped
+    run_case_with_status("if_elseif_first", 10);
+}
+
+#[test]
+fn test_if_elseif_middle() {
+    // first condition false, elseif true: elseif-body runs, else skipped
+    run_case_with_status("if_elseif_middle", 20);
+}
+
+#[test]
+fn test_if_elseif_last() {
+    // both conditions false: else-body runs
+    run_case_with_status("if_elseif_last", 30);
+}
+
+#[test]
+fn test_if_nested() {
+    // outer true, inner false → inner else executes; outer else skipped
+    run_case_with_status("if_nested", 4);
+}
+
+#[test]
+fn test_if_computed() {
+    // classify(3,5)=1, classify(9,4)=2, classify(6,6)=0 → sum=3
+    run_case_with_status("if_computed", 3);
+}
+
+// --- while / break / continue ---
+
+#[test]
+fn test_while_count() {
+    // count from 0 to 10, return final counter
+    run_case_with_status("while_count", 10);
+}
+
+#[test]
+fn test_while_zero_iters() {
+    // condition false at entry: body never executes, n stays 42
+    run_case_with_status("while_zero_iters", 42);
+}
+
+#[test]
+fn test_while_break() {
+    // infinite loop; break when i==5: exits with i==5
+    run_case_with_status("while_break", 5);
+}
+
+#[test]
+fn test_while_continue() {
+    // 10 iterations, continue skips n++ when i==5: n==9
+    run_case_with_status("while_continue", 9);
+}
+
+#[test]
+fn test_while_nested_break() {
+    // inner loop breaks at j==2; outer runs 3 times: n==6
+    run_case_with_status("while_nested_break", 6);
+}
+
+#[test]
+fn test_while_nested_continue() {
+    // inner loop skips n++ when j==2; 3 outer × 4 inner = 12
+    run_case_with_status("while_nested_continue", 12);
 }

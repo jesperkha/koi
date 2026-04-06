@@ -984,6 +984,257 @@ fn test_if_stmt_body_is_checked() {
 }
 
 #[test]
+fn test_while_stmt_pass() {
+    assert_pass(
+        r#"
+        func f(a bool) {
+            while a {
+            }
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(a int, b int) {
+            while a < b {
+                a = a + 1
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_while_stmt_condition_must_be_bool() {
+    assert_error(
+        r#"
+        func f(a int) {
+            while a {
+            }
+        }
+    "#,
+        "expression must be of type 'bool', got 'i32'",
+    );
+    assert_error(
+        r#"
+        func f() {
+            while 1 {
+            }
+        }
+    "#,
+        "expression must be of type 'bool', got 'i32'",
+    );
+}
+
+#[test]
+fn test_while_stmt_body_is_checked() {
+    assert_error(
+        r#"
+        func f(a bool, b int) {
+            while a {
+                b = true
+            }
+        }
+    "#,
+        "mismatched types in assignment. expected 'i32', got 'bool'",
+    );
+}
+
+#[test]
+fn test_while_does_not_satisfy_return() {
+    // A return inside a while body doesn't satisfy the exhaustive return check
+    assert_error(
+        r#"
+        func f() int {
+            while true {
+                return 0
+            }
+        }
+    "#,
+        "missing return in function 'f'",
+    );
+}
+
+#[test]
+fn test_while_stmt_nested() {
+    assert_pass(
+        r#"
+        func f(a bool, b bool) {
+            while a {
+                while b {
+                }
+            }
+        }
+    "#,
+    );
+    // Outer-scope variable is readable and writable from the inner loop
+    assert_pass(
+        r#"
+        func f(a bool, b bool) int {
+            x := 0
+            while a {
+                while b {
+                    x = x + 1
+                }
+            }
+            return x
+        }
+    "#,
+    );
+    // Inner loop body return still does not satisfy outer function return
+    assert_error(
+        r#"
+        func f(a bool, b bool) int {
+            while a {
+                while b {
+                    return 0
+                }
+            }
+        }
+    "#,
+        "missing return in function 'f'",
+    );
+}
+
+#[test]
+fn test_while_stmt_scoping() {
+    // Variables declared inside while body are not accessible outside
+    assert_error(
+        r#"
+        func f(a bool) int {
+            while a {
+                x := 0
+            }
+            return x
+        }
+    "#,
+        "not declared",
+    );
+    // Variables declared in outer scope are accessible inside while body
+    assert_pass(
+        r#"
+        func f(a bool) int {
+            x := 0
+            while a {
+                x = 1
+            }
+            return x
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_break_continue_in_loop() {
+    assert_pass(
+        r#"
+        func f(a bool) {
+            while a {
+                break
+            }
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f(a bool) {
+            while a {
+                continue
+            }
+        }
+    "#,
+    );
+    // Both in the same loop
+    assert_pass(
+        r#"
+        func f(a bool, b bool) {
+            while a {
+                if b {
+                    break
+                } else {
+                    continue
+                }
+            }
+        }
+    "#,
+    );
+    // break/continue inside nested loop
+    assert_pass(
+        r#"
+        func f(a bool, b bool) {
+            while a {
+                while b {
+                    break
+                }
+                continue
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_break_continue_outside_loop() {
+    assert_error(
+        r#"
+        func f() {
+            break
+        }
+    "#,
+        "break cannot be used outside a loop",
+    );
+    assert_error(
+        r#"
+        func f() {
+            continue
+        }
+    "#,
+        "continue cannot be used outside a loop",
+    );
+    // break inside an if that is not inside a loop
+    assert_error(
+        r#"
+        func f(a bool) {
+            if a {
+                break
+            }
+        }
+    "#,
+        "break cannot be used outside a loop",
+    );
+}
+
+#[test]
+fn test_break_in_outer_loop_only() {
+    // break in inner loop does not affect outer loop's in_loop state
+    assert_pass(
+        r#"
+        func f(a bool, b bool) {
+            while a {
+                while b {
+                    break
+                }
+                break
+            }
+        }
+    "#,
+    );
+    // continue is valid in outer loop after inner loop with break
+    assert_pass(
+        r#"
+        func f(a bool, b bool) {
+            while a {
+                while b {
+                    continue
+                }
+                break
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
 fn test_unary_as_function_argument() {
     assert_pass(
         r#"

@@ -82,12 +82,30 @@ pub struct Project {
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Options {
+    /// Run in debug mode. Print logs and debug info.
     pub debug_mode: bool,
-    /// Custom path to installation directory
+    /// Custom path to installation directory.
     pub install_dir: Option<String>,
 }
 
+/// DriverPhase tells the driver at which phase compilation should be terminated.
+/// This is purely a debug/dev tools for inspecting the source code at each stage.
+#[derive(Debug, Clone)]
+pub enum DriverPhase {
+    /// Fully compile the source code.
+    Full,
+    /// Only parse the source and print the reconstructed ASTs.
+    Parse,
+    /// Parse and type check. In debug mode this will output type files.
+    TypeCheck,
+    /// Emit and print IR units.
+    Ir,
+    /// Assemble and print source but do not compile with gcc/as.
+    Asm,
+}
+
 /// Internal compiler configuration
+#[derive(Debug, Clone)]
 pub struct Config {
     /// Print type info after type checking.
     pub dump_types: bool,
@@ -95,8 +113,10 @@ pub struct Config {
     pub print_symbol_tables: bool,
     /// Dont mangle any symbol names, used primarily for testing.
     pub no_mangle_names: bool,
-    /// Add comments to assembly showing source IR code
+    /// Add comments to assembly showing source IR code.
     pub comment_assembly: bool,
+    /// Which phase of compilation to terminate at.
+    pub driver_phase: DriverPhase,
 }
 
 impl Config {
@@ -106,6 +126,7 @@ impl Config {
             no_mangle_names: false,
             print_symbol_tables: false,
             comment_assembly: true,
+            driver_phase: DriverPhase::Full,
         }
     }
 
@@ -115,6 +136,7 @@ impl Config {
             no_mangle_names: true,
             print_symbol_tables: false,
             comment_assembly: false,
+            driver_phase: DriverPhase::Full,
         }
     }
 
@@ -124,6 +146,7 @@ impl Config {
             no_mangle_names: false,
             print_symbol_tables: true,
             comment_assembly: true,
+            driver_phase: DriverPhase::Full,
         }
     }
 }

@@ -75,6 +75,9 @@ pub enum Ins {
     Binary(BinaryIns),
     Unary(UnaryIns),
     If(IfIns),
+    While(WhileIns),
+    Break,
+    Continue,
 }
 
 pub enum IRBinaryOp {
@@ -143,6 +146,15 @@ pub struct IfIns {
 }
 
 pub struct ElseIf {
+    /// List of instructions to calculate the condition
+    pub cond_ins: Vec<Ins>,
+    /// Boolean condition
+    pub cond: RValue,
+    /// Then-block
+    pub block: Block,
+}
+
+pub struct WhileIns {
     /// List of instructions to calculate the condition
     pub cond_ins: Vec<Ins>,
     /// Boolean condition

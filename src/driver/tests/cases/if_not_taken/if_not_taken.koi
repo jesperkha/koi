@@ -1,0 +1,7 @@
+func main() int {
+    n := 0
+    if false {
+        n = 99
+    }
+    return n
+}

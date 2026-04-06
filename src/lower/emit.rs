@@ -6,7 +6,7 @@ use crate::{
     ir::{
         AssignIns, BinaryIns, Block, CallIns, ConstId, Data, DataIndex, Decl, ElseIf, ExternDecl,
         FuncDecl, IRBinaryOp, IRType, IRTypeInterner, IRUnaryOp, IfIns, Ins, LValue, ParamId,
-        Primitive, RValue, StoreIns, UnaryIns, Unit,
+        Primitive, RValue, StoreIns, UnaryIns, Unit, WhileIns,
     },
     module::{
         Module, ModuleId, ModuleKind, ModuleSourceFile, NamespaceList, Symbol, SymbolId,
@@ -283,6 +283,9 @@ impl<'a> FileEmitter<'a> {
             types::Stmt::VarDecl(node) => self.emit_var_decl(ins, node)?,
             types::Stmt::VarAssign(node) => self.emit_var_assign(ins, node)?,
             types::Stmt::If(node) => self.emit_if(ins, node)?,
+            types::Stmt::While(node) => self.emit_while(ins, node)?,
+            types::Stmt::Break(_) => ins.push(Ins::Break),
+            types::Stmt::Continue(_) => ins.push(Ins::Continue),
         };
         Ok(())
     }
@@ -293,6 +296,18 @@ impl<'a> FileEmitter<'a> {
             self.emit_stmt(&mut ins, stmt)?;
         }
         Ok(Block { ins })
+    }
+
+    fn emit_while(&mut self, ins: &mut Vec<Ins>, node: &types::WhileNode) -> Res<()> {
+        let mut cond_ins = Vec::new();
+        let cond = self.expr_to_rval(&mut cond_ins, &node.expr)?;
+        let block = self.emit_block(&node.block)?;
+        ins.push(Ins::While(WhileIns {
+            cond_ins,
+            cond,
+            block,
+        }));
+        Ok(())
     }
 
     fn emit_if(&mut self, ins: &mut Vec<Ins>, node: &types::IfNode) -> Res<()> {
