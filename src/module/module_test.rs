@@ -1,6 +1,6 @@
 use crate::{
     module::{ImportPath, ModulePath},
-    util::FilePath,
+    util::{FilePath, must, parse_string},
 };
 
 #[test]
@@ -88,4 +88,29 @@ fn test_modpath_from_impath() {
     assert_eq!(modpath.prefix(), "");
     assert_eq!(modpath.package(), "");
     assert_eq!(modpath.path(), "cmd");
+}
+
+#[test]
+fn test_std_import_rewritten_to_lib_std() {
+    // `std.foo` written by the user must be normalised to `lib.std.foo`
+    // before any downstream code sees it.
+    let ast = must(parse_string("import std.io"));
+    let impath = ImportPath::from(&ast.imports[0]);
+    assert_eq!(impath.path(), "lib.std.io");
+    assert!(impath.is_library());
+    assert!(!impath.is_stdlib());
+
+    // Multi-segment: std.foo.bar → lib.std.foo.bar
+    let ast = must(parse_string("import std.collections.list"));
+    let impath = ImportPath::from(&ast.imports[0]);
+    assert_eq!(impath.path(), "lib.std.collections.list");
+
+    // Non-std imports are untouched
+    let ast = must(parse_string("import lib.mylib.util"));
+    let impath = ImportPath::from(&ast.imports[0]);
+    assert_eq!(impath.path(), "lib.mylib.util");
+
+    let ast = must(parse_string("import myapp.utils"));
+    let impath = ImportPath::from(&ast.imports[0]);
+    assert_eq!(impath.path(), "myapp.utils");
 }
