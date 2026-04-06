@@ -96,8 +96,6 @@ pub enum TokenKind {
     StringLit(String), // String does not include quotes
     CharLit(u8),
 
-    Comment(String),
-
     // Keywords
     True,
     False,
@@ -252,8 +250,6 @@ impl fmt::Display for TokenKind {
             TokenKind::Invalid => "INVALID",
             TokenKind::Eof => "EOF",
             TokenKind::Newline => "NEWLINE",
-
-            TokenKind::Comment(comment) => &format!("// {}", comment),
 
             // Literals
             TokenKind::IdentLit(ident) => ident,

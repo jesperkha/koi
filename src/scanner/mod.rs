@@ -82,9 +82,7 @@ impl<'a> Scanner<'a> {
                 // Line comment
                 b'/' if matches!(self.peek(), Some(b'/')) => {
                     let len = self.peek_while(|b| b != b'\n');
-                    let lexeme = self.source.str_range(self.pos, self.pos + len);
-                    let tok = Token::new(TokenKind::Comment(lexeme.to_owned()), len, self.pos());
-                    (tok, len)
+                    (Token::new(TokenKind::Whitespace, 0, self.pos()), len)
                 }
 
                 // Block comment
