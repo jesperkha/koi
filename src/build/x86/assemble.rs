@@ -353,8 +353,8 @@ impl<'a> FunctionAssembler<'a> {
         match &ins.op {
             IRBinaryOp::Add | IRBinaryOp::Sub | IRBinaryOp::Mul => {
                 let r10 = UnsignedReg::R10.to_sized(result_size);
-                self.push(Asm::Mov(Dest::Reg(rax.clone()), lhs));
                 self.push(Asm::Mov(Dest::Reg(r10.clone()), rhs));
+                self.push(Asm::Mov(Dest::Reg(rax.clone()), lhs));
                 let op = match &ins.op {
                     IRBinaryOp::Add => Asm::Add(Dest::Reg(rax.clone()), Src::Reg(r10)),
                     IRBinaryOp::Sub => Asm::Sub(Dest::Reg(rax.clone()), Src::Reg(r10)),
@@ -366,8 +366,8 @@ impl<'a> FunctionAssembler<'a> {
             }
             IRBinaryOp::Div => {
                 let r10 = UnsignedReg::R10.to_sized(result_size.clone());
-                self.push(Asm::Mov(Dest::Reg(rax.clone()), lhs));
                 self.push(Asm::Mov(Dest::Reg(r10.clone()), rhs));
+                self.push(Asm::Mov(Dest::Reg(rax.clone()), lhs));
                 self.push(sign_extend_ax(&result_size));
                 self.push(Asm::IDiv(Src::Reg(r10)));
                 self.vars.insert(ins.result, Dest::Reg(rax));
@@ -377,8 +377,8 @@ impl<'a> FunctionAssembler<'a> {
                 let op_size = src_size(&lhs);
                 let rax_op = UnsignedReg::Rax.to_sized(op_size.clone());
                 let r10_op = UnsignedReg::R10.to_sized(op_size.clone());
-                self.push(Asm::Mov(Dest::Reg(rax_op.clone()), lhs));
                 self.push(Asm::Mov(Dest::Reg(r10_op.clone()), rhs));
+                self.push(Asm::Mov(Dest::Reg(rax_op.clone()), lhs));
                 self.push(sign_extend_ax(&op_size));
                 self.push(Asm::IDiv(Src::Reg(r10_op)));
                 self.vars.insert(ins.result, Dest::Reg(Reg::Edx));
@@ -397,8 +397,8 @@ impl<'a> FunctionAssembler<'a> {
                 };
                 let rax_op = UnsignedReg::Rax.to_sized(op_size.clone());
                 let r10_op = UnsignedReg::R10.to_sized(op_size);
-                self.push(Asm::Mov(Dest::Reg(rax_op.clone()), lhs));
                 self.push(Asm::Mov(Dest::Reg(r10_op.clone()), rhs));
+                self.push(Asm::Mov(Dest::Reg(rax_op.clone()), lhs));
                 self.push(Asm::Cmp(Src::Reg(rax_op), Src::Reg(r10_op)));
                 let cond = match &ins.op {
                     IRBinaryOp::Eq => Condition::E,
@@ -414,8 +414,8 @@ impl<'a> FunctionAssembler<'a> {
             }
             IRBinaryOp::And | IRBinaryOp::Or => {
                 let r10 = UnsignedReg::R10.to_sized(result_size);
-                self.push(Asm::Mov(Dest::Reg(rax.clone()), lhs));
                 self.push(Asm::Mov(Dest::Reg(r10.clone()), rhs));
+                self.push(Asm::Mov(Dest::Reg(rax.clone()), lhs));
                 let op = match &ins.op {
                     IRBinaryOp::And => Asm::And(Dest::Reg(rax.clone()), Src::Reg(r10)),
                     IRBinaryOp::Or => Asm::Or(Dest::Reg(rax.clone()), Src::Reg(r10)),
