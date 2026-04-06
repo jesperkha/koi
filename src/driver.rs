@@ -96,7 +96,7 @@ pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
 
     // Finished IR phase, exit early if specified.
     if matches!(config.driver_phase, DriverPhase::Ir) {
-        units.iter().for_each(|u| print_ir(u));
+        units.iter().for_each(print_ir);
         return Ok(());
     }
 
