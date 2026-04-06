@@ -106,6 +106,8 @@ pub fn ins_to_string_oneline(unit: &Unit, ins: &Ins) -> String {
         }
         Ins::If(if_ins) => format!("if {}", if_ins.cond),
         Ins::While(if_ins) => format!("while {}", if_ins.cond),
+        Ins::Break => "break".into(),
+        Ins::Continue => "continue".into(),
     }
 }
 

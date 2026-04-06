@@ -95,6 +95,9 @@ struct FunctionAssembler<'a> {
     params: Vec<Dest>,
     vars: HashMap<ConstId, Dest>,
 
+    /// Scoped pairs of label+end
+    loop_labels: Vec<(String, String)>,
+
     // Number of conditional and end labels
     cond_count: usize,
     cond_end_count: usize,
@@ -118,6 +121,7 @@ impl<'a> FunctionAssembler<'a> {
             cond_end_count: 0,
             loop_count: 0,
             loop_end_count: 0,
+            loop_labels: Vec::new(),
         }
     }
 
@@ -186,7 +190,19 @@ impl<'a> FunctionAssembler<'a> {
             Ins::Unary(ins) => self.emit_unary(ins),
             Ins::If(ins) => self.emit_if(ins),
             Ins::While(ins) => self.emit_while(ins),
+            Ins::Break => self.emit_break(),
+            Ins::Continue => self.emit_continue(),
         }
+    }
+
+    fn emit_break(&mut self) {
+        let (_, end) = self.cur_loop_labels();
+        self.push(Asm::Jmp(end.clone()));
+    }
+
+    fn emit_continue(&mut self) {
+        let (start, _) = self.cur_loop_labels();
+        self.push(Asm::Jmp(start.clone()));
     }
 
     fn evaluate_bool_and_cmp(&mut self, cond: &RValue) {
@@ -215,8 +231,10 @@ impl<'a> FunctionAssembler<'a> {
         self.push(Asm::Jz(end.clone()));
 
         // Run ins and jump back
+        self.push_loop_labels(label.clone(), end.clone());
         self.emit_block(&ins.block);
         self.push(Asm::Jmp(label));
+        self.pop_loop_labels();
 
         // Finish
         self.push(Asm::Label(end));
@@ -450,23 +468,27 @@ impl<'a> FunctionAssembler<'a> {
     }
 
     fn next_loop_end_label(&mut self) -> String {
-        let l = self.cur_loop_end_label();
+        let l = format!(".L{}_loop_end_{}", self.decl.name, self.loop_end_count);
         self.loop_end_count += 1;
         l
     }
 
-    fn cur_loop_end_label(&mut self) -> String {
-        format!(".L{}_loop_end_{}", self.decl.name, self.loop_end_count)
-    }
-
     fn next_loop_label(&mut self) -> String {
-        let l = self.cur_loop_label();
+        let l = format!(".L{}_loop_{}", self.decl.name, self.loop_count);
         self.loop_count += 1;
         l
     }
 
-    fn cur_loop_label(&mut self) -> String {
-        format!(".L{}_loop_{}", self.decl.name, self.loop_count)
+    fn push_loop_labels(&mut self, label: String, end: String) {
+        self.loop_labels.push((label, end));
+    }
+
+    fn pop_loop_labels(&mut self) -> (String, String) {
+        self.loop_labels.pop().unwrap()
+    }
+
+    fn cur_loop_labels(&self) -> &(String, String) {
+        self.loop_labels.last().unwrap()
     }
 
     /// Helper to automatically switch between mov and lea depending on value.

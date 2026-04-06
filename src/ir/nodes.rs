@@ -76,6 +76,8 @@ pub enum Ins {
     Unary(UnaryIns),
     If(IfIns),
     While(WhileIns),
+    Break,
+    Continue,
 }
 
 pub enum IRBinaryOp {
