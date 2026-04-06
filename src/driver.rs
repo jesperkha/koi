@@ -24,7 +24,7 @@ use crate::{
 mod tests;
 
 /// Illegal module directory names reserved by the compiler
-static ILLEGAL_MODULE_NAMES: [&str; 2] = ["std", "core"];
+static ILLEGAL_MODULE_NAMES: [&str; 3] = ["std", "core", "lib"];
 
 /// Result type shorthand used in this file.
 type Res<T> = Result<T, String>;
