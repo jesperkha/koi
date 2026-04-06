@@ -1,0 +1,9 @@
+func main() int {
+    if false {
+        return 10
+    } else if true {
+        return 20
+    } else {
+        return 30
+    }
+}

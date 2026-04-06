@@ -1,0 +1,16 @@
+func main() int {
+    i := 0
+    n := 0
+    while i < 3 {
+        i = i + 1
+        j := 0
+        while j < 5 {
+            j = j + 1
+            if j == 2 {
+                continue
+            }
+            n = n + 1
+        }
+    }
+    return n
+}

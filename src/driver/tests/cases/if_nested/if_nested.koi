@@ -1,0 +1,13 @@
+func main() int {
+    n := 0
+    if true {
+        if false {
+            n = 1
+        } else {
+            n = 4
+        }
+    } else {
+        n = 99
+    }
+    return n
+}
