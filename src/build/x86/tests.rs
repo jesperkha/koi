@@ -554,16 +554,16 @@ f:
     sub rsp, 16
     mov BYTE PTR [rbp-1], dil
     cmp BYTE PTR [rbp-1], 0
-    jz ._cond_0
+    jz .Lf_cond_0
     mov eax, 0
     leave
     ret
-    jmp ._end_0
-    ._cond_0:
+    jmp .Lf_cond_end_0
+    .Lf_cond_0:
     mov eax, 1
     leave
     ret
-    ._end_0:
+    .Lf_cond_end_0:
     leave
     ret
 
@@ -599,23 +599,23 @@ f:
     mov BYTE PTR [rbp-1], dil
     mov BYTE PTR [rbp-2], sil
     cmp BYTE PTR [rbp-1], 0
-    jz ._cond_0
+    jz .Lf_cond_0
     mov eax, 0
     leave
     ret
-    jmp ._end_0
-    ._cond_0:
+    jmp .Lf_cond_end_0
+    .Lf_cond_0:
     cmp BYTE PTR [rbp-2], 0
-    jz ._cond_1
+    jz .Lf_cond_1
     mov eax, 1
     leave
     ret
-    jmp ._end_0
-    ._cond_1:
+    jmp .Lf_cond_end_0
+    .Lf_cond_1:
     mov eax, 2
     leave
     ret
-    ._end_0:
+    .Lf_cond_end_0:
     leave
     ret
 
@@ -655,27 +655,27 @@ f:
     cmp eax, r10d
     setg al
     cmp al, 0
-    jz ._cond_0
+    jz .Lf_cond_0
     mov eax, 1
     leave
     ret
-    jmp ._end_0
-    ._cond_0:
+    jmp .Lf_cond_end_0
+    .Lf_cond_0:
     mov eax, DWORD PTR [rbp-4]
     mov r10d, DWORD PTR [rbp-8]
     cmp eax, r10d
     setl al
     cmp al, 0
-    jz ._cond_1
+    jz .Lf_cond_1
     mov eax, 2
     leave
     ret
-    jmp ._end_0
-    ._cond_1:
+    jmp .Lf_cond_end_0
+    .Lf_cond_1:
     mov eax, 3
     leave
     ret
-    ._end_0:
+    .Lf_cond_end_0:
     leave
     ret
 
@@ -709,17 +709,17 @@ f:
     mov BYTE PTR [rbp-1], dil
     mov BYTE PTR [rbp-2], sil
     cmp BYTE PTR [rbp-1], 0
-    jz ._cond_0
+    jz .Lf_cond_0
     leave
     ret
-    jmp ._end_0
-    ._cond_0:
+    jmp .Lf_cond_end_0
+    .Lf_cond_0:
     cmp BYTE PTR [rbp-2], 0
-    jz ._end_0
+    jz .Lf_cond_end_0
     leave
     ret
-    jmp ._end_0
-    ._end_0:
+    jmp .Lf_cond_end_0
+    .Lf_cond_end_0:
     leave
     ret
 
@@ -757,24 +757,24 @@ f:
     mov BYTE PTR [rbp-1], dil
     mov BYTE PTR [rbp-2], sil
     cmp BYTE PTR [rbp-1], 0
-    jz ._cond_0
+    jz .Lf_cond_0
     cmp BYTE PTR [rbp-2], 0
-    jz ._cond_1
+    jz .Lf_cond_1
     mov eax, 0
     leave
     ret
-    jmp ._end_1
-    ._cond_1:
+    jmp .Lf_cond_end_1
+    .Lf_cond_1:
     mov eax, 1
     leave
     ret
-    ._end_1:
-    jmp ._end_0
-    ._cond_0:
+    .Lf_cond_end_1:
+    jmp .Lf_cond_end_0
+    .Lf_cond_0:
     mov eax, 2
     leave
     ret
-    ._end_0:
+    .Lf_cond_end_0:
     leave
     ret
 
@@ -812,24 +812,24 @@ f:
     mov BYTE PTR [rbp-1], dil
     mov BYTE PTR [rbp-2], sil
     cmp BYTE PTR [rbp-1], 0
-    jz ._cond_0
+    jz .Lf_cond_0
     mov eax, 0
     leave
     ret
-    jmp ._end_0
-    ._cond_0:
+    jmp .Lf_cond_end_0
+    .Lf_cond_0:
     cmp BYTE PTR [rbp-2], 0
-    jz ._cond_1
+    jz .Lf_cond_1
     mov eax, 1
     leave
     ret
-    jmp ._end_1
-    ._cond_1:
+    jmp .Lf_cond_end_1
+    .Lf_cond_1:
     mov eax, 2
     leave
     ret
-    ._end_1:
-    ._end_0:
+    .Lf_cond_end_1:
+    .Lf_cond_end_0:
     leave
     ret
 
@@ -858,11 +858,11 @@ f:
     mov rbp, rsp
     sub rsp, 16
     mov BYTE PTR [rbp-1], dil
-    ._cond_0:
+    .Lf_loop_0:
     cmp BYTE PTR [rbp-1], 0
-    jz ._end_0
-    jmp ._cond_0
-    ._end_0:
+    jz .Lf_loop_end_0
+    jmp .Lf_loop_0
+    .Lf_loop_end_0:
     leave
     ret
 
@@ -892,12 +892,12 @@ f:
     mov rbp, rsp
     sub rsp, 16
     mov BYTE PTR [rbp-1], dil
-    ._cond_0:
+    .Lf_loop_0:
     cmp BYTE PTR [rbp-1], 0
-    jz ._end_0
+    jz .Lf_loop_end_0
     mov BYTE PTR [rbp-1], 0
-    jmp ._cond_0
-    ._end_0:
+    jmp .Lf_loop_0
+    .Lf_loop_end_0:
     leave
     ret
 
@@ -929,19 +929,19 @@ f:
     sub rsp, 16
     mov DWORD PTR [rbp-4], edi
     mov DWORD PTR [rbp-8], esi
-    ._cond_0:
+    .Lf_loop_0:
     mov eax, DWORD PTR [rbp-4]
     mov r10d, DWORD PTR [rbp-8]
     cmp eax, r10d
     setl al
     cmp al, 0
-    jz ._end_0
+    jz .Lf_loop_end_0
     mov eax, DWORD PTR [rbp-4]
     mov r10d, 1
     add eax, r10d
     mov DWORD PTR [rbp-4], eax
-    jmp ._cond_0
-    ._end_0:
+    jmp .Lf_loop_0
+    .Lf_loop_end_0:
     leave
     ret
 
@@ -976,16 +976,16 @@ f:
     sub rsp, 16
     mov BYTE PTR [rbp-1], dil
     mov BYTE PTR [rbp-2], sil
-    ._cond_0:
+    .Lf_loop_0:
     cmp BYTE PTR [rbp-1], 0
-    jz ._end_0
-    ._cond_1:
+    jz .Lf_loop_end_0
+    .Lf_loop_1:
     cmp BYTE PTR [rbp-2], 0
-    jz ._end_1
-    jmp ._cond_1
-    ._end_1:
-    jmp ._cond_0
-    ._end_0:
+    jz .Lf_loop_end_1
+    jmp .Lf_loop_1
+    .Lf_loop_end_1:
+    jmp .Lf_loop_0
+    .Lf_loop_end_0:
     leave
     ret
 

@@ -94,8 +94,14 @@ struct FunctionAssembler<'a> {
     acc_offset: usize,
     params: Vec<Dest>,
     vars: HashMap<ConstId, Dest>,
-    cond_count: usize, // Number of condition labels
-    end_count: usize,  // Number of end labels
+
+    // Number of conditional and end labels
+    cond_count: usize,
+    cond_end_count: usize,
+
+    // Number of loop and end labels
+    loop_end_count: usize,
+    loop_count: usize,
 }
 
 impl<'a> FunctionAssembler<'a> {
@@ -109,7 +115,9 @@ impl<'a> FunctionAssembler<'a> {
             acc_offset: 0,
             params: Vec::new(),
             cond_count: 0,
-            end_count: 0,
+            cond_end_count: 0,
+            loop_count: 0,
+            loop_end_count: 0,
         }
     }
 
@@ -194,8 +202,8 @@ impl<'a> FunctionAssembler<'a> {
     }
 
     fn emit_while(&mut self, ins: &WhileIns) {
-        let end = self.next_end_label();
-        let label = self.next_cond_label();
+        let label = self.next_loop_label();
+        let end = self.next_loop_end_label();
 
         self.push(Asm::Label(label.clone()));
 
@@ -215,7 +223,7 @@ impl<'a> FunctionAssembler<'a> {
     }
 
     fn emit_if(&mut self, ifins: &IfIns) {
-        let end = self.next_end_label();
+        let end = self.next_cond_end_label();
         let has_branches = !ifins.elseif.is_empty() || ifins.elseblock.is_some();
 
         // Allocate the label for the first else-if or else branch
@@ -429,18 +437,36 @@ impl<'a> FunctionAssembler<'a> {
     //      HELPER METHODS
     // ----------------------------
 
-    /// Get current end label and increment end count
-    fn next_end_label(&mut self) -> String {
-        let l = format!("._end_{}", self.end_count);
-        self.end_count += 1;
+    fn next_cond_end_label(&mut self) -> String {
+        let l = format!(".L{}_cond_end_{}", self.decl.name, self.cond_end_count);
+        self.cond_end_count += 1;
         l
     }
 
-    /// Return current cond label and increment cond count
     fn next_cond_label(&mut self) -> String {
-        let l = format!("._cond_{}", self.cond_count);
+        let l = format!(".L{}_cond_{}", self.decl.name, self.cond_count);
         self.cond_count += 1;
         l
+    }
+
+    fn next_loop_end_label(&mut self) -> String {
+        let l = self.cur_loop_end_label();
+        self.loop_end_count += 1;
+        l
+    }
+
+    fn cur_loop_end_label(&mut self) -> String {
+        format!(".L{}_loop_end_{}", self.decl.name, self.loop_end_count)
+    }
+
+    fn next_loop_label(&mut self) -> String {
+        let l = self.cur_loop_label();
+        self.loop_count += 1;
+        l
+    }
+
+    fn cur_loop_label(&mut self) -> String {
+        format!(".L{}_loop_{}", self.decl.name, self.loop_count)
     }
 
     /// Helper to automatically switch between mov and lea depending on value.
