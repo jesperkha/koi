@@ -220,13 +220,27 @@ impl<'a> ModuleChecker<'a> {
             }));
 
         let is_extern = matches!(origin, SymbolOrigin::Extern);
-        let no_mangle = is_extern;
+        let mut no_mangle = is_extern;
+        let mut is_inline = false;
+        let mut is_naked = false;
+
+        // Evaluate modifiers
+        for m in &node.modifiers {
+            match m.modifier.to_string().as_str() {
+                "nomangle" => no_mangle = true,
+                "inline" => is_inline = true,
+                "naked" => is_naked = true,
+                _ => {
+                    return Err(Report::code_error("unknown modifier", m.pos(), m.end()));
+                }
+            }
+        }
 
         let symbol = CreateSymbol {
             name: node.name.to_string(),
             kind: SymbolKind::Function {
-                is_inline: false,
-                is_naked: false,
+                is_inline,
+                is_naked,
             },
             no_mangle,
             ty,

@@ -50,6 +50,10 @@ impl Visitor<()> for Printer {
     }
 
     fn visit_func(&mut self, node: &FuncNode) {
+        for m in &node.modifiers {
+            self.s += &format!("@{}\n", m.modifier);
+        }
+
         self.s.push_str("func ");
         self.token(&node.name);
         self.s.push('(');
@@ -119,6 +123,10 @@ impl Visitor<()> for Printer {
     }
 
     fn visit_extern(&mut self, node: &super::FuncDeclNode) {
+        for m in &node.modifiers {
+            self.s += &format!("@{}\n", m.modifier);
+        }
+
         self.s.push_str("extern func ");
         self.token(&node.name);
         self.s.push('(');

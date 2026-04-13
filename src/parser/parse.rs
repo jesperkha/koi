@@ -242,7 +242,7 @@ impl<'a> Parser<'a> {
         match token.kind {
             TokenKind::Pub => self.parse_public_decl(modifiers),
             TokenKind::Func => self.parse_function(false, modifiers),
-            TokenKind::Extern => self.parse_extern(false),
+            TokenKind::Extern => self.parse_extern(false, modifiers),
             _ => Err(self.error_token("expected declaration")),
         }
     }
@@ -253,18 +253,22 @@ impl<'a> Parser<'a> {
 
         match token.kind {
             TokenKind::Func => self.parse_function(true, modifiers),
-            TokenKind::Extern => self.parse_extern(true),
+            TokenKind::Extern => self.parse_extern(true, modifiers),
             _ => Err(self.error_token("illegal public declaration")),
         }
     }
 
-    fn parse_extern(&mut self, public: bool) -> Result<Decl, Report> {
+    fn parse_extern(&mut self, public: bool, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
         self.consume(); // extern
-        self.parse_function_def(public)
+        self.parse_function_def(public, modifiers)
             .map(|decl| Decl::Extern(Box::new(decl)))
     }
 
-    fn parse_function_def(&mut self, public: bool) -> Result<FuncDeclNode, Report> {
+    fn parse_function_def(
+        &mut self,
+        public: bool,
+        modifiers: Vec<Modifier>,
+    ) -> Result<FuncDeclNode, Report> {
         self.expect(TokenKind::Func)?;
 
         let name = self.expect_identifier("function name")?;
@@ -312,6 +316,7 @@ impl<'a> Parser<'a> {
         };
 
         Ok(FuncDeclNode {
+            modifiers,
             public,
             name,
             lparen,
@@ -323,7 +328,7 @@ impl<'a> Parser<'a> {
 
     fn parse_function(&mut self, public: bool, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
         let mut public = public;
-        let decl = self.parse_function_def(public)?;
+        let decl = self.parse_function_def(public, vec![])?;
 
         // Automatically set main as public for convenience
         if decl.name.to_string() == "main" {
