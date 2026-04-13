@@ -762,3 +762,114 @@ fn test_unary() {
     "#,
     );
 }
+
+#[test]
+fn test_modifier_on_func() {
+    compare_string(
+        r#"
+        @nomangle
+        func f() {
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        @inline
+        func f() {
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        @naked
+        func f() {
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_modifier_multiple_on_func() {
+    compare_string(
+        r#"
+        @inline
+        @naked
+        func f() {
+        }
+    "#,
+    );
+    compare_string(
+        r#"
+        @nomangle
+        @inline
+        @naked
+        func f() {
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_modifier_on_extern() {
+    compare_string(
+        r#"
+        @nomangle
+        extern func write(fd int, s string, len int) int
+    "#,
+    );
+    compare_string(
+        r#"
+        @inline
+        @naked
+        extern func puts(s string)
+    "#,
+    );
+}
+
+#[test]
+fn test_modifier_on_pub_func() {
+    assert_pass(r#"
+        @nomangle
+        pub func f() {
+        }
+    "#);
+    assert_pass(r#"
+        @inline
+        @naked
+        pub func f() {
+        }
+    "#);
+}
+
+#[test]
+fn test_modifier_on_pub_extern() {
+    assert_pass(r#"
+        @nomangle
+        pub extern func write(fd int, s string, len int) int
+    "#);
+}
+
+#[test]
+fn test_modifier_missing_decl_error() {
+    expect_error(
+        r#"
+        @nomangle
+
+        func f() {
+        }
+    "#,
+        "expected declaration after modifier",
+    );
+}
+
+#[test]
+fn test_modifier_missing_name_error() {
+    expect_error(
+        r#"
+        @
+        func f() {
+        }
+    "#,
+        "expected modifier name",
+    );
+}
