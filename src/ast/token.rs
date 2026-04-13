@@ -155,6 +155,7 @@ pub enum TokenKind {
     ColonEq,
     ColonColon,
     Question,
+    At,
 
     // Primitive types
     Void,
@@ -222,6 +223,7 @@ static RESERVED: &[(&str, TokenKind)] = &[
     (":=", TokenKind::ColonEq),
     ("::", TokenKind::ColonColon),
     ("?", TokenKind::Question),
+    ("@", TokenKind::At),
     // Primitive types
     ("void", TokenKind::Void),
     ("int", TokenKind::IntType),

@@ -177,11 +177,6 @@ fn test_block_comment() {
 }
 
 #[test]
-fn test_illegal_token() {
-    scan_and_error("@");
-}
-
-#[test]
 fn test_hex_literal() {
     // Basic hex values
     scan_and_then("0xff", |toks| {

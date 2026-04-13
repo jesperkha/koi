@@ -207,6 +207,12 @@ pub struct ContinueNode {
     pub kw: Token,
 }
 
+#[derive(Debug, Clone)]
+pub struct Modifier {
+    pub sym: Token, // @
+    pub modifier: Token,
+}
+
 #[derive(Debug)]
 pub struct FuncDeclNode {
     pub public: bool,
@@ -219,6 +225,7 @@ pub struct FuncDeclNode {
 
 #[derive(Debug, Clone)]
 pub struct FuncNode {
+    pub modifiers: Vec<Modifier>,
     pub public: bool,
     pub name: Token,
     pub lparen: Token,
