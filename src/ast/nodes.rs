@@ -207,8 +207,15 @@ pub struct ContinueNode {
     pub kw: Token,
 }
 
+#[derive(Debug, Clone)]
+pub struct Modifier {
+    pub sym: Token, // @
+    pub modifier: Token,
+}
+
 #[derive(Debug)]
 pub struct FuncDeclNode {
+    pub modifiers: Vec<Modifier>,
     pub public: bool,
     pub name: Token,
     pub lparen: Token,
@@ -219,6 +226,7 @@ pub struct FuncDeclNode {
 
 #[derive(Debug, Clone)]
 pub struct FuncNode {
+    pub modifiers: Vec<Modifier>,
     pub public: bool,
     pub name: Token,
     pub lparen: Token,
@@ -231,6 +239,7 @@ pub struct FuncNode {
 impl From<FuncNode> for FuncDeclNode {
     fn from(f: FuncNode) -> Self {
         FuncDeclNode {
+            modifiers: f.modifiers,
             public: f.public,
             name: f.name,
             lparen: f.lparen,
@@ -300,6 +309,20 @@ impl Node for Decl {
             Decl::Func(node) => node.id(),
             Decl::Extern(node) => node.id(),
         }
+    }
+}
+
+impl Node for Modifier {
+    fn pos(&self) -> &Pos {
+        &self.sym.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.modifier.end_pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.sym.id
     }
 }
 

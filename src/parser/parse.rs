@@ -6,8 +6,8 @@ use crate::{
     ast::{
         Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, ContinueNode, Decl, ElseBlock, Expr,
         Field, File, FileSet, FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode, MemberNode,
-        Node, ReturnNode, SourceMap, Stmt, Token, TokenKind, TypeNode, UnaryExpr, VarAssignNode,
-        VarDeclNode, WhileNode,
+        Modifier, Node, ReturnNode, SourceMap, Stmt, Token, TokenKind, TypeNode, UnaryExpr,
+        VarAssignNode, VarDeclNode, WhileNode,
     },
     config::Config,
     error::{Diagnostics, Report, Res},
@@ -82,7 +82,7 @@ impl<'a> Parser<'a> {
         let mut decls = Vec::new();
 
         while self.skip_whitespace_and_not_eof() {
-            match self.parse_decl() {
+            match self.parse_modifier() {
                 Ok(decl) => decls.push(decl),
                 Err(err) => {
                     self.diag.add(err);
@@ -214,35 +214,61 @@ impl<'a> Parser<'a> {
         Ok(items)
     }
 
-    fn parse_decl(&mut self) -> Result<Decl, Report> {
+    fn parse_modifier(&mut self) -> Result<Decl, Report> {
+        let mut modifiers = Vec::new();
+
+        while !self.eof() {
+            let token = self.cur_must("unexpected end of input")?;
+            match token.kind {
+                TokenKind::At => {
+                    let sym = self.must_consume()?; // @
+                    let modifier = self.expect_identifier("modifier name")?;
+                    modifiers.push(Modifier { sym, modifier });
+                    self.expect(TokenKind::Newline)?;
+                }
+                TokenKind::Newline => {
+                    return Err(self.error_token("expected declaration after modifier"));
+                }
+                _ => return self.parse_decl(modifiers),
+            }
+        }
+
+        Err(self.error_token("unexpected end of input"))
+    }
+
+    fn parse_decl(&mut self, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
         let token = self.cur_must("unexpected end of input")?;
 
         match token.kind {
-            TokenKind::Pub => self.parse_public_decl(),
-            TokenKind::Func => self.parse_function(false),
-            TokenKind::Extern => self.parse_extern(false),
+            TokenKind::Pub => self.parse_public_decl(modifiers),
+            TokenKind::Func => self.parse_function(false, modifiers),
+            TokenKind::Extern => self.parse_extern(false, modifiers),
             _ => Err(self.error_token("expected declaration")),
         }
     }
 
-    fn parse_public_decl(&mut self) -> Result<Decl, Report> {
+    fn parse_public_decl(&mut self, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
         self.consume(); // pub
         let token = self.cur_must("unexpected end of input")?;
 
         match token.kind {
-            TokenKind::Func => self.parse_function(true),
-            TokenKind::Extern => self.parse_extern(true),
+            TokenKind::Func => self.parse_function(true, modifiers),
+            TokenKind::Extern => self.parse_extern(true, modifiers),
             _ => Err(self.error_token("illegal public declaration")),
         }
     }
 
-    fn parse_extern(&mut self, public: bool) -> Result<Decl, Report> {
+    fn parse_extern(&mut self, public: bool, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
         self.consume(); // extern
-        self.parse_function_def(public)
+        self.parse_function_def(public, modifiers)
             .map(|decl| Decl::Extern(Box::new(decl)))
     }
 
-    fn parse_function_def(&mut self, public: bool) -> Result<FuncDeclNode, Report> {
+    fn parse_function_def(
+        &mut self,
+        public: bool,
+        modifiers: Vec<Modifier>,
+    ) -> Result<FuncDeclNode, Report> {
         self.expect(TokenKind::Func)?;
 
         let name = self.expect_identifier("function name")?;
@@ -290,6 +316,7 @@ impl<'a> Parser<'a> {
         };
 
         Ok(FuncDeclNode {
+            modifiers,
             public,
             name,
             lparen,
@@ -299,9 +326,9 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_function(&mut self, public: bool) -> Result<Decl, Report> {
+    fn parse_function(&mut self, public: bool, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
         let mut public = public;
-        let decl = self.parse_function_def(public)?;
+        let decl = self.parse_function_def(public, vec![])?;
 
         // Automatically set main as public for convenience
         if decl.name.to_string() == "main" {
@@ -311,6 +338,7 @@ impl<'a> Parser<'a> {
         let body = self.parse_block()?;
 
         Ok(Decl::Func(Box::new(FuncNode {
+            modifiers,
             public,
             name: decl.name,
             lparen: decl.lparen,

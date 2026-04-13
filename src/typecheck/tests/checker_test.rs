@@ -1484,3 +1484,101 @@ fn test_nested_if_else_one_inner_branch_missing_return() {
         "missing return in function 'f'",
     );
 }
+
+#[test]
+fn test_modifier_known_modifiers_pass() {
+    assert_pass(
+        r#"
+        @nomangle
+        func f() {
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        @inline
+        func f() {
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        @naked
+        func f() {
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_modifier_multiple_on_func_pass() {
+    assert_pass(
+        r#"
+        @inline
+        @naked
+        func f() {
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        @nomangle
+        @inline
+        @naked
+        func f() {
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_modifier_on_extern_pass() {
+    assert_pass(
+        r#"
+        @nomangle
+        extern func write(fd int, s string, len int) int
+    "#,
+    );
+    assert_pass(
+        r#"
+        @inline
+        extern func puts(s string)
+    "#,
+    );
+}
+
+#[test]
+fn test_modifier_unknown_error() {
+    assert_error(
+        r#"
+        @unknown
+        func f() {
+        }
+    "#,
+        "unknown modifier",
+    );
+    assert_error(
+        r#"
+        @foo
+        extern func puts(s string)
+    "#,
+        "unknown modifier",
+    );
+}
+
+#[test]
+fn test_modifier_does_not_affect_call() {
+    // A function with a modifier can still be called normally
+    assert_pass(
+        r#"
+        @nomangle
+        func add(a int, b int) int {
+            return a + b
+        }
+
+        func main() int {
+            return add(1, 2)
+        }
+    "#,
+    );
+}
