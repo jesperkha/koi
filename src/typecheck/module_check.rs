@@ -223,8 +223,7 @@ impl<'a> ModuleChecker<'a> {
         let mut no_mangle = is_extern;
         let mut is_inline = false;
         let mut is_naked = false;
-        let name = node.name.to_string(); // Actual name of symbol
-        let mut mapped_name = name.clone(); // Name the symbol is mapped to (allows semantic rename)
+        let name = node.name.to_string();
 
         // Evaluate modifiers
         for m in &node.modifiers {
@@ -258,26 +257,25 @@ impl<'a> ModuleChecker<'a> {
                     }
                     is_naked = true;
                 }
-                // @rename <name>
-                // Rename (external) symbol.
-                "rename" => {
+                // @alias <name>
+                // Create alias for external symbol.
+                "alias" => {
                     if !is_extern {
                         return Err(
-                            self.error("'rename' modifier is only allowed for extern functions", m)
+                            self.error("'alias' modifier is only allowed for extern functions", m)
                         );
                     }
                     if m.args.len() != 1 {
                         return Err(self.error(
                             &format!(
-                                "'rename' modifier expects exactly one argument, got {}",
+                                "'alias' modifier expects exactly one argument, got {}",
                                 m.args.len()
                             ),
                             m,
                         ));
                     }
                     let new_name = m.args[0].to_string(); // len asserted
-                    mapped_name = new_name.clone();
-                    self.symbols.rename(name.clone(), new_name);
+                    self.symbols.alias(name.clone(), new_name);
                 }
                 _ => {
                     return Err(self.error("unknown modifier", m));
@@ -315,7 +313,7 @@ impl<'a> ModuleChecker<'a> {
             return Err(report);
         };
 
-        let _ = self.create_symbol(mapped_name, symbol);
+        let _ = self.create_symbol(symbol);
         Ok(())
     }
 
@@ -390,7 +388,7 @@ impl<'a> ModuleChecker<'a> {
     }
 
     /// Create a new symbol and add it to the local cache. Returns "already declared" on error.
-    fn create_symbol(&mut self, name: String, symbol: CreateSymbol) -> Result<SymbolId, String> {
+    fn create_symbol(&mut self, symbol: CreateSymbol) -> Result<SymbolId, String> {
         if self.symbols.get(&symbol.name).is_ok() {
             return Err("already declared".to_string());
         }
@@ -401,6 +399,7 @@ impl<'a> ModuleChecker<'a> {
         };
 
         let exported = symbol.is_exported;
+        let name = symbol.name.clone();
         let id = self.ctx.symbols.add(symbol);
         let _ = self.symbols.add(name, ModuleSymbol { id, kind, exported }); // Checked earlier
         Ok(id)
