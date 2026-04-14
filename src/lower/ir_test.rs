@@ -816,6 +816,49 @@ fn test_while_break_continue_nested() {
 }
 
 #[test]
+fn test_global_const_decl() {
+    expect_equal(
+        r#"
+        N :: 42
+        func f() int {
+            return N
+        }
+    "#,
+        r#"
+        const N i32 42
+        func f() i32
+            ret i32 @N
+        "#,
+    );
+    expect_equal(
+        r#"
+        MSG :: "hello"
+        func f() string {
+            return MSG
+        }
+    "#,
+        r#"
+        const MSG string .0
+        func f() string
+            ret string @MSG
+        "#,
+    );
+    expect_equal(
+        r#"
+        FLAG :: true
+        func f() bool {
+            return FLAG
+        }
+    "#,
+        r#"
+        const FLAG u8 1
+        func f() u8
+            ret u8 @FLAG
+        "#,
+    );
+}
+
+#[test]
 fn test_while_computed_condition() {
     // Condition requires computation — cond_ins are stored inside WhileIns
     // and not shown in the IR text; only the resulting cond rvalue ($0) appears.

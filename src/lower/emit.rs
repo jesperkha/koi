@@ -199,6 +199,7 @@ impl<'a> FileEmitter<'a> {
         for decl in &self.ast.decls {
             let res = match decl {
                 types::Decl::Func(node) => self.emit_func(node),
+                types::Decl::Const(node) => self.emit_const(node),
 
                 // extern symbols are declared at top using modules symbols list
                 types::Decl::Extern(_) => continue,
@@ -247,6 +248,13 @@ impl<'a> FileEmitter<'a> {
             params,
             ret,
         }))
+    }
+
+    fn emit_const(&mut self, node: &types::ConstNode) -> Res<Decl> {
+        let ty = self.types.to_ir(self.ctx, node.ty);
+        let value = self.expr_to_rval(&mut Vec::new(), &node.value)?;
+        let name = self.to_mangled_name(&node.name);
+        Ok(Decl::Const(ConstDecl { name, ty, value }))
     }
 
     fn emit_func_block(&mut self, nodes: &Vec<types::Stmt>) -> Res<Block> {
@@ -533,12 +541,16 @@ impl<'a> FileEmitter<'a> {
         self.params.pop_scope();
     }
 
-    /// Get the RValue of a named value (variable or parameter).
+    /// Get the RValue of a named value (variable, parameter, or global constant).
     fn get_variable_rval(&self, name: &str) -> RValue {
         if let Some(id) = self.vars.get(name) {
             RValue::Const(*id)
+        } else if let Some(id) = self.params.get(name) {
+            RValue::Param(*id)
         } else {
-            RValue::Param(*self.params.get(name).expect("not an assigned name"))
+            // Must be a global constant
+            let mangled = self.to_mangled_name(name);
+            RValue::GlobalConst(mangled)
         }
     }
 

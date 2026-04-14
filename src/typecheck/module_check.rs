@@ -1,7 +1,7 @@
 use tracing::{debug, info};
 
 use crate::{
-    ast::{self, Node},
+    ast::{self, Node, TokenKind},
     context::{Context, CreateModule, CreateSymbol},
     error::{Diagnostics, Report, Res},
     module::{
@@ -192,6 +192,72 @@ impl<'a> ModuleChecker<'a> {
                 let origin = SymbolOrigin::Extern;
                 self.declare_function_definition(node, origin)
             }
+            ast::Decl::Const(node) => {
+                let origin = SymbolOrigin::Module {
+                    modpath: modpath.clone(),
+                    pos: node.pos().clone(),
+                    filename: filename.into(),
+                };
+                self.declare_const(node, origin)
+            }
+        }
+    }
+
+    fn declare_const(
+        &mut self,
+        node: &ast::ConstDeclNode,
+        origin: SymbolOrigin,
+    ) -> Result<(), Report> {
+        let ty = self.eval_literal_expr_type(&node.expr)?;
+        let name = node.name.to_string();
+
+        let symbol = CreateSymbol {
+            name: name.clone(),
+            kind: SymbolKind::Const,
+            no_mangle: false,
+            ty,
+            origin,
+            is_exported: node.public,
+        };
+
+        if let Ok(sym) = self.get_symbol(&name) {
+            let mut report =
+                Report::code_error("already declared", &node.name.pos, &node.name.end_pos);
+            if let SymbolOrigin::Module { pos, filename, .. } = &sym.origin {
+                report = report.with_info(&format!(
+                    "previously declared in {}, line {}",
+                    filename,
+                    pos.row + 1
+                ));
+            }
+            return Err(report);
+        }
+
+        let _ = self.create_symbol(symbol);
+        Ok(())
+    }
+
+    fn eval_literal_expr_type(&self, expr: &ast::Expr) -> Result<TypeId, Report> {
+        match expr {
+            ast::Expr::Literal(tok) => match &tok.kind {
+                TokenKind::IntLit(_) => Ok(self.ctx.types.primitive(PrimitiveType::I32)),
+                TokenKind::FloatLit(_) => Ok(self.ctx.types.primitive(PrimitiveType::F64)),
+                TokenKind::StringLit(_) => Ok(self.ctx.types.primitive(PrimitiveType::String)),
+                TokenKind::True | TokenKind::False => {
+                    Ok(self.ctx.types.primitive(PrimitiveType::Bool))
+                }
+                TokenKind::CharLit(_) => Ok(self.ctx.types.primitive(PrimitiveType::U8)),
+                _ => Err(Report::code_error(
+                    "constant expression must be a literal value",
+                    &tok.pos,
+                    &tok.end_pos,
+                )),
+            },
+            _ => Err(Report::code_error(
+                "constant expression must be a literal value",
+                expr.pos(),
+                expr.end(),
+            )),
         }
     }
 

@@ -57,6 +57,7 @@ impl fmt::Display for Symbol {
                     specs.push("naked");
                 }
             }
+            SymbolKind::Const => {}
         }
         write!(
             f,
@@ -107,6 +108,7 @@ pub enum SymbolKind {
         /// code added by the compiler).
         is_naked: bool,
     },
+    Const,
 }
 
 impl fmt::Display for SymbolKind {
@@ -116,6 +118,7 @@ impl fmt::Display for SymbolKind {
             "{}",
             match self {
                 SymbolKind::Function { .. } => "function",
+                SymbolKind::Const => "const",
             }
         )
     }

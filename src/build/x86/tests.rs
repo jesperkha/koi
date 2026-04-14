@@ -1067,6 +1067,118 @@ f:
 }
 
 #[test]
+fn test_global_const_int() {
+    compare(
+        r#"
+N :: 42
+func f() int {
+    return N
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    mov eax, 42
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_global_const_bool() {
+    compare(
+        r#"
+FLAG :: true
+func f() bool {
+    return FLAG
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    mov al, 1
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_global_const_string() {
+    compare(
+        r#"
+MSG :: "hello"
+func f() string {
+    return MSG
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.D0: .asciz "hello"
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    lea rax, [rip + .D0]
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
+fn test_global_const_used_in_var() {
+    compare(
+        r#"
+N :: 10
+func f() int {
+    x := N
+    return x
+}
+        "#,
+        r#"
+.intel_syntax noprefix
+.section .data
+
+.section .text
+
+f:
+    push rbp
+    mov rbp, rsp
+    sub rsp, 16
+    mov DWORD PTR [rbp-4], 10
+    mov eax, DWORD PTR [rbp-4]
+    leave
+    ret
+
+.section .note.GNU-stack,"",@progbits
+        "#,
+    );
+}
+
+#[test]
 fn test_while_nested() {
     // Each while claims its own cond/end label pair via next_cond_label /
     // next_end_label (both increment), so nested loops get distinct labels

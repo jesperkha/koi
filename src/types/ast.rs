@@ -39,6 +39,15 @@ pub fn ast_node_to_meta(node: &dyn Node) -> NodeMeta {
 pub enum Decl {
     Extern(ExternNode),
     Func(FuncNode),
+    Const(ConstNode),
+}
+
+pub struct ConstNode {
+    pub ty: TypeId,
+    pub meta: NodeMeta,
+    pub name: String,
+    pub value: Expr,
+    pub public: bool,
 }
 
 pub enum Stmt {
@@ -238,6 +247,7 @@ impl Node for Decl {
         match self {
             Decl::Extern(node) => &node.meta.pos,
             Decl::Func(node) => &node.meta.pos,
+            Decl::Const(node) => &node.meta.pos,
         }
     }
 
@@ -245,6 +255,7 @@ impl Node for Decl {
         match self {
             Decl::Extern(node) => &node.meta.end,
             Decl::Func(node) => &node.meta.end,
+            Decl::Const(node) => &node.meta.end,
         }
     }
 
@@ -252,6 +263,7 @@ impl Node for Decl {
         match self {
             Decl::Extern(node) => node.meta.id,
             Decl::Func(node) => node.meta.id,
+            Decl::Const(node) => node.meta.id,
         }
     }
 }
@@ -344,7 +356,7 @@ macro_rules! impl_typed_node_enum {
     };
 }
 
-impl_typed_node_enum!(Decl { Func, Extern });
+impl_typed_node_enum!(Decl { Func, Extern, Const });
 impl_typed_node_enum!(Stmt {
     Return,
     VarDecl,
@@ -403,6 +415,7 @@ macro_rules! impl_typed_node {
 impl_typed_node!(
     ExternNode,
     FuncNode,
+    ConstNode,
     LiteralNode,
     CallNode,
     ReturnNode,

@@ -23,6 +23,8 @@ pub struct Assembler<'a> {
     unit: Unit,
     data: Vec<DataDecl>,
     text: Vec<TextDecl>,
+    /// Global constant declarations extracted from the unit for inline injection
+    consts: Vec<ConstDecl>,
 }
 
 impl<'a> Assembler<'a> {
@@ -32,6 +34,7 @@ impl<'a> Assembler<'a> {
             unit,
             data: Vec::new(),
             text: Vec::new(),
+            consts: Vec::new(),
         }
     }
 
@@ -39,14 +42,28 @@ impl<'a> Assembler<'a> {
         let decls = take(&mut self.unit.decls);
         let data = take(&mut self.unit.data);
 
-        // Assemble all declarations
-        for decl in decls {
-            let text_decl = match decl {
-                Decl::Extern(decl) => self.emit_extern(decl),
-                Decl::Func(decl) => self.emit_func(decl),
-            };
+        // Collect global constants first so they are available when assembling functions
+        let (const_decls, other_decls): (Vec<_>, Vec<_>) = decls
+            .into_iter()
+            .partition(|d| matches!(d, Decl::Const(_)));
+        self.consts = const_decls
+            .into_iter()
+            .map(|d| if let Decl::Const(c) = d { c } else { unreachable!() })
+            .collect();
 
-            self.text.push(text_decl);
+        // Assemble all declarations
+        for decl in other_decls {
+            match decl {
+                Decl::Extern(decl) => {
+                    let text_decl = self.emit_extern(decl);
+                    self.text.push(text_decl);
+                }
+                Decl::Func(decl) => {
+                    let text_decl = self.emit_func(decl);
+                    self.text.push(text_decl);
+                }
+                Decl::Const(_) => unreachable!(),
+            }
         }
 
         // Declare all data segments
@@ -72,7 +89,7 @@ impl<'a> Assembler<'a> {
     }
 
     fn emit_func(&mut self, decl: FuncDecl) -> TextDecl {
-        let fasm = FunctionAssembler::new(&self.unit, &decl, self.config);
+        let fasm = FunctionAssembler::new(&self.unit, &decl, self.config, &self.consts);
         let ins = fasm.assemble();
 
         TextDecl::Function {
@@ -87,6 +104,7 @@ struct FunctionAssembler<'a> {
     unit: &'a Unit,
     decl: &'a FuncDecl,
     config: &'a Config,
+    consts: &'a [ConstDecl],
 
     asm: Vec<Asm>,
     acc_offset: usize,
@@ -106,11 +124,12 @@ struct FunctionAssembler<'a> {
 }
 
 impl<'a> FunctionAssembler<'a> {
-    fn new(unit: &'a Unit, decl: &'a FuncDecl, config: &'a Config) -> Self {
+    fn new(unit: &'a Unit, decl: &'a FuncDecl, config: &'a Config, consts: &'a [ConstDecl]) -> Self {
         Self {
             unit,
             decl,
             config,
+            consts,
             asm: Vec::new(),
             vars: HashMap::new(),
             acc_offset: 0,
@@ -528,6 +547,16 @@ impl<'a> FunctionAssembler<'a> {
             RValue::Data(idx) => Src::Label(Label {
                 name: to_data_label(*idx),
             }),
+            RValue::GlobalConst(name) => {
+                // Inject the constant value inline at the use site
+                let value = self
+                    .consts
+                    .iter()
+                    .find(|c| &c.name == name)
+                    .map(|c| &c.value)
+                    .unwrap_or_else(|| panic!("global constant '{}' not found", name));
+                self.rval_to_src(value)
+            }
 
             RValue::Void => todo!(),
             RValue::Function(_) => todo!(),
