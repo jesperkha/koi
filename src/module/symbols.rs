@@ -136,6 +136,8 @@ pub enum ModuleSymbolKind {
 }
 
 pub struct SymbolList {
+    /// Mapping of node id to new name for functions with rename modifier
+    renames: HashMap<String, String>,
     symbols: HashMap<String, ModuleSymbol>,
 }
 
@@ -149,6 +151,7 @@ impl SymbolList {
     pub fn new() -> Self {
         Self {
             symbols: HashMap::new(),
+            renames: HashMap::new(),
         }
     }
 
@@ -158,7 +161,12 @@ impl SymbolList {
             .map_or(Ok(()), |_| Err("already declared".to_string()))
     }
 
+    pub fn rename(&mut self, from: String, to: String) {
+        self.renames.insert(from, to);
+    }
+
     pub fn get(&self, name: &str) -> Result<&ModuleSymbol, String> {
+        let name = self.renames.get(name).map_or(name, |s| s.as_str());
         self.symbols.get(name).ok_or("not declared".to_string())
     }
 
@@ -182,6 +190,9 @@ impl SymbolList {
 
 impl From<HashMap<String, ModuleSymbol>> for SymbolList {
     fn from(symbols: HashMap<String, ModuleSymbol>) -> Self {
-        Self { symbols }
+        Self {
+            symbols,
+            renames: HashMap::new(),
+        }
     }
 }

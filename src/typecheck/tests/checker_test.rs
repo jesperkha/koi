@@ -1533,17 +1533,19 @@ fn test_modifier_multiple_on_func_pass() {
 
 #[test]
 fn test_modifier_on_extern_pass() {
-    assert_pass(
+    assert_error(
         r#"
         @nomangle
         extern func write(fd int, s string, len int) int
     "#,
+        "'nomangle' modifier is only allowed for local functions",
     );
-    assert_pass(
+    assert_error(
         r#"
         @inline
         extern func puts(s string)
     "#,
+        "'inline' modifier is only allowed for local functions",
     );
 }
 
