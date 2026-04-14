@@ -223,21 +223,68 @@ impl<'a> ModuleChecker<'a> {
         let mut no_mangle = is_extern;
         let mut is_inline = false;
         let mut is_naked = false;
+        let name = node.name.to_string();
 
         // Evaluate modifiers
         for m in &node.modifiers {
             match m.modifier.to_string().as_str() {
-                "nomangle" => no_mangle = true,
-                "inline" => is_inline = true,
-                "naked" => is_naked = true,
+                // @nomangle
+                // Require the symbol name not to be mangled.
+                "nomangle" => {
+                    if is_extern {
+                        return Err(self
+                            .error("'nomangle' modifier is only allowed for local functions", m));
+                    }
+                    no_mangle = true;
+                }
+                // @inline
+                // Require that the function is inlined.
+                "inline" => {
+                    if is_extern {
+                        return Err(
+                            self.error("'inline' modifier is only allowed for local functions", m)
+                        );
+                    }
+                    is_inline = true;
+                }
+                // @naked
+                // Omit function entry/exit protocol.
+                "naked" => {
+                    if is_extern {
+                        return Err(
+                            self.error("'naked' modifier is only allowed for local functions", m)
+                        );
+                    }
+                    is_naked = true;
+                }
+                // @alias <name>
+                // Create alias for external symbol.
+                "alias" => {
+                    if !is_extern {
+                        return Err(
+                            self.error("'alias' modifier is only allowed for extern functions", m)
+                        );
+                    }
+                    if m.args.len() != 1 {
+                        return Err(self.error(
+                            &format!(
+                                "'alias' modifier expects exactly one argument, got {}",
+                                m.args.len()
+                            ),
+                            m,
+                        ));
+                    }
+                    let new_name = m.args[0].to_string(); // len asserted
+                    self.symbols.alias(name.clone(), new_name);
+                }
                 _ => {
-                    return Err(Report::code_error("unknown modifier", m.pos(), m.end()));
+                    return Err(self.error("unknown modifier", m));
                 }
             }
         }
 
         let symbol = CreateSymbol {
-            name: node.name.to_string(),
+            name,
             kind: SymbolKind::Function {
                 is_inline,
                 is_naked,
@@ -301,6 +348,10 @@ impl<'a> ModuleChecker<'a> {
     }
 
     // ----------------------- Shared helpers ----------------------- //
+
+    fn error(&self, msg: &str, node: &dyn ast::Node) -> Report {
+        Report::code_error(msg, node.pos(), node.end())
+    }
 
     /// Evaluate an AST type node to its semantic type id.
     fn eval_type(&self, node: &ast::TypeNode) -> Result<TypeId, Report> {

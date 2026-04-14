@@ -223,7 +223,17 @@ impl<'a> Parser<'a> {
                 TokenKind::At => {
                     let sym = self.must_consume()?; // @
                     let modifier = self.expect_identifier("modifier name")?;
-                    modifiers.push(Modifier { sym, modifier });
+
+                    let mut args = Vec::new();
+                    while !self.eof() && !self.matches(TokenKind::Newline) {
+                        args.push(self.must_consume()?);
+                    }
+
+                    modifiers.push(Modifier {
+                        sym,
+                        modifier,
+                        args,
+                    });
                     self.expect(TokenKind::Newline)?;
                 }
                 TokenKind::Newline => {

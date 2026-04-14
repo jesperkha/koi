@@ -211,6 +211,7 @@ pub struct ContinueNode {
 pub struct Modifier {
     pub sym: Token, // @
     pub modifier: Token,
+    pub args: Vec<Token>,
 }
 
 #[derive(Debug)]
