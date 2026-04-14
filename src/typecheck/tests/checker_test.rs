@@ -1532,7 +1532,7 @@ fn test_modifier_multiple_on_func_pass() {
 }
 
 #[test]
-fn test_modifier_on_extern_pass() {
+fn test_modifier_on_extern_error() {
     assert_error(
         r#"
         @nomangle
@@ -1546,6 +1546,13 @@ fn test_modifier_on_extern_pass() {
         extern func puts(s string)
     "#,
         "'inline' modifier is only allowed for local functions",
+    );
+    assert_error(
+        r#"
+        @alias foo bar
+        extern func puts(s string)
+    "#,
+        "'alias' modifier expects exactly one argument, got 2",
     );
 }
 
@@ -1580,6 +1587,30 @@ fn test_modifier_does_not_affect_call() {
 
         func main() int {
             return add(1, 2)
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_modifier_on_extern_pass() {
+    assert_pass(
+        r#"
+        @alias foo
+        extern func write(fd int, s string, len int) int
+    "#,
+    );
+}
+
+#[test]
+fn test_alias_modifier() {
+    assert_pass(
+        r#"
+        @alias foo
+        extern func write(fd int, s string, len int) int
+
+        func f() {
+            foo(1, "hello", 0)
         }
     "#,
     );
