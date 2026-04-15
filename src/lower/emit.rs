@@ -132,13 +132,18 @@ impl<'a> ModuleEmitter<'a> {
 
     fn emit_extern(&mut self, id: SymbolId) -> Res<Decl> {
         let symbol = self.ctx.symbols.get(id);
-        let func = self.ctx.types.try_function(symbol.ty).unwrap();
-
-        Ok(Decl::Extern(ExternDecl {
-            name: mangle_symbol_name(self.ctx, symbol),
-            params: self.types.to_ir_type_list(self.ctx, &func.params),
-            ret: self.types.to_ir(self.ctx, func.ret),
-        }))
+        if let Some(func) = self.ctx.types.try_function(symbol.ty) {
+            Ok(Decl::Extern(ExternDecl {
+                name: mangle_symbol_name(self.ctx, symbol),
+                params: self.types.to_ir_type_list(self.ctx, &func.params),
+                ret: self.types.to_ir(self.ctx, func.ret),
+            }))
+        } else {
+            // TODO: (doing) constants
+            // When accessing foo.FOO as a namespace, FOO is added to externs
+            // Figure out how to declare constants in the file importing it
+            todo!()
+        }
     }
 }
 
