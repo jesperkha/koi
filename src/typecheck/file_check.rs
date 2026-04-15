@@ -223,19 +223,6 @@ impl<'a> FileChecker<'a> {
         let meta = ast_node_to_meta(&node);
         let typed_expr = self.emit_expr(node.expr)?;
 
-        // Only literal values are allowed, not identifiers or complex expressions
-        let is_valid = matches!(
-            &typed_expr,
-            types::Expr::Literal(lit) if !matches!(lit.kind, types::LiteralKind::Ident(_))
-        );
-
-        if !is_valid {
-            return Err(self.error(
-                "constant expression must be a literal value, not an identifier",
-                &typed_expr,
-            ));
-        }
-
         Ok(types::Decl::Const(types::ConstNode {
             meta,
             name: node.name.to_string(),
