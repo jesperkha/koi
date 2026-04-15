@@ -132,10 +132,9 @@ impl<'a> ModuleChecker<'a> {
             // Check if the symbol exists
             let Some(id) = module_exports.get(&symbol_name) else {
                 // Module did not contain the symbol
-                diag.add(Report::code_error(
+                diag.add(self.error_token(
                     &format!("module '{}' has no export '{}'", module.name(), symbol_name),
-                    &tok.pos,
-                    &tok.end_pos,
+                    tok,
                 ));
                 continue;
             };
@@ -148,7 +147,7 @@ impl<'a> ModuleChecker<'a> {
 
             // If it was already declared, add error
             if let Err(err) = self.symbols.add(symbol_name, modsym) {
-                diag.add(Report::code_error(&err, &tok.pos, &tok.end_pos));
+                diag.add(self.error_token(&err, tok));
             }
         }
     }
@@ -208,7 +207,7 @@ impl<'a> ModuleChecker<'a> {
         node: &ast::ConstDeclNode,
         origin: SymbolOrigin,
     ) -> Result<(), Report> {
-        let ty = self.eval_literal_expr_type(&node.expr)?;
+        let ty = self.eval_global_const_expr(&node.expr)?;
         let name = node.name.to_string();
 
         let symbol = CreateSymbol {
@@ -220,24 +219,12 @@ impl<'a> ModuleChecker<'a> {
             is_exported: node.public,
         };
 
-        if let Ok(sym) = self.get_symbol(&name) {
-            let mut report =
-                Report::code_error("already declared", &node.name.pos, &node.name.end_pos);
-            if let SymbolOrigin::Module { pos, filename, .. } = &sym.origin {
-                report = report.with_info(&format!(
-                    "previously declared in {}, line {}",
-                    filename,
-                    pos.row + 1
-                ));
-            }
-            return Err(report);
-        }
-
+        self.check_symbol_already_declared(&symbol, node)?;
         let _ = self.create_symbol(symbol);
         Ok(())
     }
 
-    fn eval_literal_expr_type(&self, expr: &ast::Expr) -> Result<TypeId, Report> {
+    fn eval_global_const_expr(&self, expr: &ast::Expr) -> Result<TypeId, Report> {
         match expr {
             ast::Expr::Literal(tok) => match &tok.kind {
                 TokenKind::IntLit(_) => Ok(self.ctx.types.primitive(PrimitiveType::I32)),
@@ -247,17 +234,9 @@ impl<'a> ModuleChecker<'a> {
                     Ok(self.ctx.types.primitive(PrimitiveType::Bool))
                 }
                 TokenKind::CharLit(_) => Ok(self.ctx.types.primitive(PrimitiveType::U8)),
-                _ => Err(Report::code_error(
-                    "constant expression must be a literal value",
-                    &tok.pos,
-                    &tok.end_pos,
-                )),
+                _ => Err(self.error_token("constant expression must be a literal value", tok)),
             },
-            _ => Err(Report::code_error(
-                "constant expression must be a literal value",
-                expr.pos(),
-                expr.end(),
-            )),
+            _ => Err(self.error("constant expression must be a literal value", expr)),
         }
     }
 
@@ -363,22 +342,7 @@ impl<'a> ModuleChecker<'a> {
 
         debug!("declaring function: {:?}", symbol);
 
-        // If symbol already exists, return error
-        if let Ok(sym) = self.get_symbol(&symbol.name) {
-            let mut report =
-                Report::code_error("already declared", &node.name.pos, &node.name.end_pos);
-
-            if let SymbolOrigin::Module { pos, filename, .. } = &sym.origin {
-                report = report.with_info(&format!(
-                    "previously declared in {}, line {}",
-                    filename,
-                    pos.row + 1
-                ));
-            }
-
-            return Err(report);
-        };
-
+        self.check_symbol_already_declared(&symbol, node)?;
         let _ = self.create_symbol(symbol);
         Ok(())
     }
@@ -415,8 +379,35 @@ impl<'a> ModuleChecker<'a> {
 
     // ----------------------- Shared helpers ----------------------- //
 
+    /// Return error if symbol is already declared and hint to where if in this module.
+    fn check_symbol_already_declared(
+        &self,
+        symbol: &CreateSymbol,
+        node: &dyn ast::Node,
+    ) -> Result<(), Report> {
+        // If symbol already exists, return error
+        if let Ok(sym) = self.get_symbol(&symbol.name) {
+            let mut report = self.error("already declared", node);
+
+            if let SymbolOrigin::Module { pos, filename, .. } = &sym.origin {
+                report = report.with_info(&format!(
+                    "previously declared in {}, line {}",
+                    filename,
+                    pos.row + 1
+                ));
+            }
+
+            return Err(report);
+        };
+        Ok(())
+    }
+
     fn error(&self, msg: &str, node: &dyn ast::Node) -> Report {
         Report::code_error(msg, node.pos(), node.end())
+    }
+
+    fn error_token(&self, msg: &str, token: &ast::Token) -> Report {
+        Report::code_error(msg, &token.pos, &token.end_pos)
     }
 
     /// Evaluate an AST type node to its semantic type id.
@@ -428,7 +419,7 @@ impl<'a> ModuleChecker<'a> {
             }
             ast::TypeNode::Ident(token) => self
                 .get_symbol_type_id(token)
-                .ok_or(Report::code_error("not a type", &token.pos, &token.end_pos)),
+                .ok_or(self.error_token("not a type", token)),
         }
     }
 
