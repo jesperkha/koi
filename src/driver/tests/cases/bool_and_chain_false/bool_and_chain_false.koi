@@ -1,0 +1,15 @@
+// a < b (T) && c > d (F) && d < 100 (T)
+// = true && false && true = false → skip the if → return 0.
+//
+// Tests a three-term && chain where the false term is in the middle.
+// Short-circuit must stop at the false term and not evaluate the third.
+func main() int {
+    a := 1
+    b := 2
+    c := 3
+    d := 4
+    if a < b && c > d && d < 100 {
+        return 1
+    }
+    return 0
+}

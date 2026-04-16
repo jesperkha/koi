@@ -1,0 +1,13 @@
+// a > b (F) || a == 10 (T) || b == 5 (F)
+// = false || true || false = true → enter the if → return 1.
+//
+// Tests a three-term || chain where the true term is in the middle.
+// Short-circuit must stop at the true term and not evaluate the third.
+func main() int {
+    a := 10
+    b := 20
+    if a > b || a == 10 || b == 5 {
+        return 1
+    }
+    return 0
+}
