@@ -381,6 +381,54 @@ fn test_bool_mixed_chain() {
     run_case_with_status("bool_mixed_chain", 1);
 }
 
+// --- variable shadowing and branch-local variables ---
+//
+// These tests cover three distinct scenarios:
+//
+// 1. Shadowing (:=): declaring a new variable with the same name as an outer
+//    one inside a block must not affect the outer variable.
+//
+// 2. Assignment (=): writing to an outer variable from inside a block must
+//    update the outer variable and remain visible after the block exits.
+//
+// 3. Stack slot allocation across branches: each branch of an if/elseif/else
+//    is a separate scope. Variables declared in different branches must not
+//    interfere. The "reuse" test uses the same variable name in every branch —
+//    since those scopes are mutually exclusive, each declaration is independent.
+
+#[test]
+fn test_var_shadow() {
+    // Inner x:=9 shadows outer x:=5; outer x must remain 5 after the block.
+    run_case_with_status("var_shadow", 5);
+}
+
+#[test]
+fn test_var_shadow_assign() {
+    // Inner x=7 (assignment) updates outer x:=1; outer x must be 7 afterward.
+    run_case_with_status("var_shadow_assign", 7);
+}
+
+#[test]
+fn test_var_shadow_inner() {
+    // Variable declared inside an if block is usable within that block.
+    // result = n(4) + extra(3) = 7.
+    run_case_with_status("var_shadow_inner", 7);
+}
+
+#[test]
+fn test_var_shadow_branches() {
+    // Uniquely-named inner variables in each branch; elseif taken → result=2.
+    run_case_with_status("var_shadow_branches", 2);
+}
+
+#[test]
+fn test_var_shadow_reuse() {
+    // Same variable name 'val' in each branch; elseif taken → val=20 → result=20.
+    // Guards against the IR emitter's flat scope causing the elseif branch to
+    // read the if-branch's unwritten stack slot.
+    run_case_with_status("var_shadow_reuse", 20);
+}
+
 // --- binary operand ordering ---
 //
 // These tests guard against the bug where rhs of a binary op was already in

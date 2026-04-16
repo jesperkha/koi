@@ -1,0 +1,12 @@
+// A variable declared inside an if block must be usable within that block.
+// Here the inner variable participates in an expression whose result is
+// written to an outer accumulator.
+func main() int {
+    result := 0
+    n := 4
+    if n > 2 {
+        extra := 3
+        result = n + extra
+    }
+    return result   // 4 + 3 = 7
+}

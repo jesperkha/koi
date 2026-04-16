@@ -1,0 +1,9 @@
+// Declaring a new variable with the same name inside an if block shadows
+// the outer variable. The outer variable must be unchanged after the block.
+func main() int {
+    x := 5
+    if x > 0 {
+        x := 9   // new declaration: shadows outer x
+    }
+    return x     // outer x = 5
+}

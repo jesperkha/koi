@@ -130,6 +130,7 @@ impl<'a> FileChecker<'a> {
 
     fn emit_func(&mut self, node: ast::FuncNode) -> Result<types::Decl, Report> {
         let meta = ast_node_to_meta(&node);
+        self.vars.clear(); // Make sure table is clean
 
         // Get declared function
         let func_type = self.get_symbol_type(&node.name)?.clone(); // moved later
