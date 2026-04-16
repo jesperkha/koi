@@ -371,7 +371,7 @@ fn test_binary_logical() {
     "#,
         r#"
         func f(u8, u8) u8
-            $0 u8 = and %0 %1
+            $0 = cond %0 and %1
             ret u8 $0
         "#,
     );
@@ -383,7 +383,7 @@ fn test_binary_logical() {
     "#,
         r#"
         func f(u8, u8) u8
-            $0 u8 = or %0 %1
+            $0 = cond %0 or %1
             ret u8 $0
         "#,
     );
@@ -413,11 +413,13 @@ fn test_binary_chained() {
     "#,
         r#"
         func f(i32, i32, i32, u8) u8
-            $0 i32 = neg %1
-            $1 i32 = add %0 $0
-            $2 i32 = mul $1 %2
-            $3 u8 = eq $2 0
-            $4 u8 = and $3 %3
+            $4 = cond $3 and %3
+                $0 i32 = neg %1
+                $1 i32 = add %0 $0
+                $2 i32 = mul $1 %2
+                $3 u8 = eq $2 0
+
+
             ret u8 $4
         "#,
     );

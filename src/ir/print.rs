@@ -108,6 +108,9 @@ pub fn ins_to_string_oneline(unit: &Unit, ins: &Ins) -> String {
         Ins::While(if_ins) => format!("while {}", if_ins.cond),
         Ins::Break => "break".into(),
         Ins::Continue => "continue".into(),
+        Ins::Conditional(ins) => {
+            format!("${} = cond {} {} {}", ins.result, ins.lhs, ins.op, ins.rhs)
+        }
     }
 }
 
@@ -144,6 +147,16 @@ fn ins_to_string(unit: &Unit, ins: &Ins, indent: usize) -> String {
             ins.cond,
             ins_to_string_indent(unit, &ins.block.ins, indent + 1),
         ),
+        Ins::Conditional(ins) => format!(
+            "${} = cond {} {} {}\n{}\n{}",
+            ins.result,
+            ins.lhs,
+            ins.op,
+            ins.rhs,
+            ins_to_string_indent(unit, &ins.lhs_ins, indent + 1),
+            ins_to_string_indent(unit, &ins.rhs_ins, indent + 1)
+        ),
+        // TODO: print cond ins
         _ => ins_to_string_oneline(unit, ins),
     }
 }

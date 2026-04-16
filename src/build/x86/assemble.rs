@@ -7,9 +7,9 @@ use crate::{
     },
     config::Config,
     ir::{
-        AssignIns, BinaryIns, Block, CallIns, ConstId, Data, Decl, ExternDecl, FuncDecl,
-        IRBinaryOp, IRType, IRTypeId, IRUnaryOp, IfIns, Ins, LValue, Primitive, RValue, StoreIns,
-        UnaryIns, Unit, WhileIns, ins_to_string_oneline,
+        AssignIns, BinaryIns, Block, CallIns, CondIns, ConstId, Data, Decl, ExternDecl, FuncDecl,
+        IRBinaryOp, IRCondOp, IRType, IRTypeId, IRUnaryOp, IfIns, Ins, LValue, Primitive, RValue,
+        StoreIns, UnaryIns, Unit, WhileIns, ins_to_string_oneline,
     },
 };
 
@@ -167,10 +167,14 @@ impl<'a> FunctionAssembler<'a> {
         self.asm
     }
 
-    fn emit_block(&mut self, block: &Block) {
-        for i in &block.ins {
+    fn emit_ins_vec(&mut self, ins: &[Ins]) {
+        for i in ins {
             self.emit_ins(i);
         }
+    }
+
+    fn emit_block(&mut self, block: &Block) {
+        self.emit_ins_vec(&block.ins);
     }
 
     fn emit_ins(&mut self, ins: &Ins) {
@@ -190,7 +194,26 @@ impl<'a> FunctionAssembler<'a> {
             Ins::While(ins) => self.emit_while(ins),
             Ins::Break => self.emit_break(),
             Ins::Continue => self.emit_continue(),
+            Ins::Conditional(ins) => self.emit_conditional(ins),
         }
+    }
+
+    fn emit_conditional(&mut self, ins: &CondIns) {
+        let label = self.next_cond_label();
+
+        // Both lhs and rhs end with result bool put in al
+
+        self.emit_ins_vec(&ins.lhs_ins);
+        self.evaluate_bool_and_cmp(&ins.lhs);
+        match &ins.op {
+            IRCondOp::And => self.push(Asm::Jz(label.clone())),
+            IRCondOp::Or => self.push(Asm::Jnz(label.clone())),
+        }
+
+        self.emit_ins_vec(&ins.rhs_ins);
+
+        self.push(Asm::Label(label));
+        self.vars.insert(ins.result, Dest::Reg(Reg::Al));
     }
 
     fn emit_break(&mut self) {
@@ -222,9 +245,7 @@ impl<'a> FunctionAssembler<'a> {
         self.push(Asm::Label(label.clone()));
 
         // Eval and jump if false
-        for i in &ins.cond_ins {
-            self.emit_ins(i);
-        }
+        self.emit_ins_vec(&ins.cond_ins);
         self.evaluate_bool_and_cmp(&ins.cond);
         self.push(Asm::Jz(end.clone()));
 
@@ -267,9 +288,7 @@ impl<'a> FunctionAssembler<'a> {
                 Some(self.next_cond_label()) // label for next else-if or else
             };
 
-            for i in &elseif.cond_ins {
-                self.emit_ins(i);
-            }
+            self.emit_ins_vec(&elseif.cond_ins);
             self.evaluate_bool_and_cmp(&elseif.cond);
             self.push(Asm::Jz(next_label.clone().unwrap_or(end.clone())));
             self.emit_block(&elseif.block);
@@ -353,8 +372,8 @@ impl<'a> FunctionAssembler<'a> {
         match &ins.op {
             IRBinaryOp::Add | IRBinaryOp::Sub | IRBinaryOp::Mul => {
                 let r10 = UnsignedReg::R10.to_sized(result_size);
-                self.push(Asm::Mov(Dest::Reg(rax.clone()), lhs));
                 self.push(Asm::Mov(Dest::Reg(r10.clone()), rhs));
+                self.push(Asm::Mov(Dest::Reg(rax.clone()), lhs));
                 let op = match &ins.op {
                     IRBinaryOp::Add => Asm::Add(Dest::Reg(rax.clone()), Src::Reg(r10)),
                     IRBinaryOp::Sub => Asm::Sub(Dest::Reg(rax.clone()), Src::Reg(r10)),
@@ -366,8 +385,8 @@ impl<'a> FunctionAssembler<'a> {
             }
             IRBinaryOp::Div => {
                 let r10 = UnsignedReg::R10.to_sized(result_size.clone());
-                self.push(Asm::Mov(Dest::Reg(rax.clone()), lhs));
                 self.push(Asm::Mov(Dest::Reg(r10.clone()), rhs));
+                self.push(Asm::Mov(Dest::Reg(rax.clone()), lhs));
                 self.push(sign_extend_ax(&result_size));
                 self.push(Asm::IDiv(Src::Reg(r10)));
                 self.vars.insert(ins.result, Dest::Reg(rax));
@@ -377,8 +396,8 @@ impl<'a> FunctionAssembler<'a> {
                 let op_size = src_size(&lhs);
                 let rax_op = UnsignedReg::Rax.to_sized(op_size.clone());
                 let r10_op = UnsignedReg::R10.to_sized(op_size.clone());
-                self.push(Asm::Mov(Dest::Reg(rax_op.clone()), lhs));
                 self.push(Asm::Mov(Dest::Reg(r10_op.clone()), rhs));
+                self.push(Asm::Mov(Dest::Reg(rax_op.clone()), lhs));
                 self.push(sign_extend_ax(&op_size));
                 self.push(Asm::IDiv(Src::Reg(r10_op)));
                 self.vars.insert(ins.result, Dest::Reg(Reg::Edx));
@@ -397,8 +416,8 @@ impl<'a> FunctionAssembler<'a> {
                 };
                 let rax_op = UnsignedReg::Rax.to_sized(op_size.clone());
                 let r10_op = UnsignedReg::R10.to_sized(op_size);
-                self.push(Asm::Mov(Dest::Reg(rax_op.clone()), lhs));
                 self.push(Asm::Mov(Dest::Reg(r10_op.clone()), rhs));
+                self.push(Asm::Mov(Dest::Reg(rax_op.clone()), lhs));
                 self.push(Asm::Cmp(Src::Reg(rax_op), Src::Reg(r10_op)));
                 let cond = match &ins.op {
                     IRBinaryOp::Eq => Condition::E,
@@ -411,18 +430,6 @@ impl<'a> FunctionAssembler<'a> {
                 };
                 self.push(Asm::Set(cond, Dest::Reg(Reg::Al)));
                 self.vars.insert(ins.result, Dest::Reg(Reg::Al));
-            }
-            IRBinaryOp::And | IRBinaryOp::Or => {
-                let r10 = UnsignedReg::R10.to_sized(result_size);
-                self.push(Asm::Mov(Dest::Reg(rax.clone()), lhs));
-                self.push(Asm::Mov(Dest::Reg(r10.clone()), rhs));
-                let op = match &ins.op {
-                    IRBinaryOp::And => Asm::And(Dest::Reg(rax.clone()), Src::Reg(r10)),
-                    IRBinaryOp::Or => Asm::Or(Dest::Reg(rax.clone()), Src::Reg(r10)),
-                    _ => unreachable!(),
-                };
-                self.push(op);
-                self.vars.insert(ins.result, Dest::Reg(rax));
             }
         }
     }

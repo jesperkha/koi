@@ -76,8 +76,31 @@ pub enum Ins {
     Unary(UnaryIns),
     If(IfIns),
     While(WhileIns),
+    Conditional(CondIns),
     Break,
     Continue,
+}
+
+pub enum IRCondOp {
+    /// Short circuit (skip rhs) if lhs is false
+    And,
+    /// Short circuit (skip rhs) if lhs is true
+    Or,
+}
+
+pub struct CondIns {
+    pub op: IRCondOp,
+    /// Instructions to compute lhs value
+    pub lhs_ins: Vec<Ins>,
+    /// Resulting lhs value
+    pub lhs: RValue,
+    /// Instructions to compute rhs value
+    /// These are skipped if lhs requires short circuit
+    pub rhs_ins: Vec<Ins>,
+    /// Resulting rhs value
+    pub rhs: RValue,
+    /// Boolean result destination
+    pub result: ConstId,
 }
 
 pub enum IRBinaryOp {
@@ -92,8 +115,6 @@ pub enum IRBinaryOp {
     Ge,
     Lt,
     Le,
-    And,
-    Or,
 }
 
 pub enum IRUnaryOp {
@@ -221,32 +242,49 @@ impl fmt::Display for RValue {
 
 impl fmt::Display for IRBinaryOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            IRBinaryOp::Add => "add",
-            IRBinaryOp::Sub => "sub",
-            IRBinaryOp::Mul => "mul",
-            IRBinaryOp::Div => "div",
-            IRBinaryOp::Mod => "mod",
-            IRBinaryOp::Eq => "eq",
-            IRBinaryOp::Ne => "ne",
-            IRBinaryOp::Gt => "gt",
-            IRBinaryOp::Ge => "ge",
-            IRBinaryOp::Lt => "lt",
-            IRBinaryOp::Le => "le",
-            IRBinaryOp::And => "and",
-            IRBinaryOp::Or => "or",
-        };
-        write!(f, "{}", s)
+        write!(
+            f,
+            "{}",
+            match self {
+                IRBinaryOp::Add => "add",
+                IRBinaryOp::Sub => "sub",
+                IRBinaryOp::Mul => "mul",
+                IRBinaryOp::Div => "div",
+                IRBinaryOp::Mod => "mod",
+                IRBinaryOp::Eq => "eq",
+                IRBinaryOp::Ne => "ne",
+                IRBinaryOp::Gt => "gt",
+                IRBinaryOp::Ge => "ge",
+                IRBinaryOp::Lt => "lt",
+                IRBinaryOp::Le => "le",
+            }
+        )
+    }
+}
+
+impl fmt::Display for IRCondOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                IRCondOp::And => "and",
+                IRCondOp::Or => "or",
+            }
+        )
     }
 }
 
 impl fmt::Display for IRUnaryOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            IRUnaryOp::Neg => "neg",
-            IRUnaryOp::Not => "not",
-        };
-        write!(f, "{}", s)
+        write!(
+            f,
+            "{}",
+            match self {
+                IRUnaryOp::Neg => "neg",
+                IRUnaryOp::Not => "not",
+            }
+        )
     }
 }
 

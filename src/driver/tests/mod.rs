@@ -339,3 +339,72 @@ fn test_while_nested_continue() {
     // inner loop skips n++ when j==2; 3 outer × 4 inner = 12
     run_case_with_status("while_nested_continue", 12);
 }
+
+// --- short-circuit boolean evaluation ---
+//
+// These tests guard against two related bugs:
+// 1. Register clobbering: all comparisons store their result in AL, so a
+//    chained expression like `a > b && c < 10` has the second comparison
+//    overwrite AL before the first result is consumed. Both operands of &&
+//    end up as the second comparison's value, producing the wrong result.
+// 2. Missing short-circuit: the RHS of && must not be evaluated when the
+//    LHS is already false, and the RHS of || must not be evaluated when
+//    the LHS is already true.
+
+#[test]
+fn test_bool_and_false_lhs() {
+    // a>b (F) && c<100 (T) → false. Bug: second cmp clobbers AL → 1&&1=1 (wrong).
+    run_case_with_status("bool_and_false_lhs", 0);
+}
+
+#[test]
+fn test_bool_or_true_lhs() {
+    // a>b (T) || c<100 (F) → true. Bug: second cmp clobbers AL → 0||0=0 (wrong).
+    run_case_with_status("bool_or_true_lhs", 1);
+}
+
+#[test]
+fn test_bool_and_chain_false() {
+    // a<b (T) && c>d (F) && d<100 (T) → false. Three-term && with false in middle.
+    run_case_with_status("bool_and_chain_false", 0);
+}
+
+#[test]
+fn test_bool_or_chain_true() {
+    // a>b (F) || a==10 (T) || b==5 (F) → true. Three-term || with true in middle.
+    run_case_with_status("bool_or_chain_true", 1);
+}
+
+#[test]
+fn test_bool_mixed_chain() {
+    // (1>2 && 3<10) || 1+2==3 → (F&&T)||T = true. Mixed &&/|| with correct precedence.
+    run_case_with_status("bool_mixed_chain", 1);
+}
+
+// --- binary operand ordering ---
+//
+// These tests guard against the bug where rhs of a binary op was already in
+// rax (from a prior arithmetic result) and `mov rax, lhs` clobbered it before
+// it was saved to r10, causing both operands to become lhs.
+//
+// With the bug: the comparisons below degenerate into `x op x` (always false
+// for lt/gt, always false for ne when equal) and all three return 0.
+// With the fix: each comparison uses the correct distinct operands and returns 1.
+
+#[test]
+fn test_operand_order_lt() {
+    // a=5, b=a+1=6: `a < b` → 5<6 (true→1). Bug: rhs(b) in rax clobbered → 5<5 (false→0).
+    run_case_with_status("operand_order_lt", 1);
+}
+
+#[test]
+fn test_operand_order_gt() {
+    // a=5, b=a-1=4: `a > b` → 5>4 (true→1). Bug: rhs(b) in rax clobbered → 5>5 (false→0).
+    run_case_with_status("operand_order_gt", 1);
+}
+
+#[test]
+fn test_operand_order_ne() {
+    // a=5, b=a*2=10: `a != b` → 5≠10 (true→1). Bug: rhs(b) in rax clobbered → 5≠5 (false→0).
+    run_case_with_status("operand_order_ne", 1);
+}

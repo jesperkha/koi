@@ -195,8 +195,8 @@ f:
     sub rsp, 16
     mov DWORD PTR [rbp-4], edi
     mov DWORD PTR [rbp-8], esi
-    mov eax, DWORD PTR [rbp-4]
     mov r10d, DWORD PTR [rbp-8]
+    mov eax, DWORD PTR [rbp-4]
     add eax, r10d
     mov eax, eax
     leave
@@ -227,8 +227,8 @@ f:
     sub rsp, 16
     mov DWORD PTR [rbp-4], edi
     mov DWORD PTR [rbp-8], esi
-    mov eax, DWORD PTR [rbp-4]
     mov r10d, DWORD PTR [rbp-8]
+    mov eax, DWORD PTR [rbp-4]
     sub eax, r10d
     mov eax, eax
     leave
@@ -259,8 +259,8 @@ f:
     sub rsp, 16
     mov DWORD PTR [rbp-4], edi
     mov DWORD PTR [rbp-8], esi
-    mov eax, DWORD PTR [rbp-4]
     mov r10d, DWORD PTR [rbp-8]
+    mov eax, DWORD PTR [rbp-4]
     imul eax, r10d
     mov eax, eax
     leave
@@ -291,8 +291,8 @@ f:
     sub rsp, 16
     mov DWORD PTR [rbp-4], edi
     mov DWORD PTR [rbp-8], esi
-    mov eax, DWORD PTR [rbp-4]
     mov r10d, DWORD PTR [rbp-8]
+    mov eax, DWORD PTR [rbp-4]
     cdq
     idiv r10d
     mov eax, eax
@@ -324,8 +324,8 @@ f:
     sub rsp, 16
     mov DWORD PTR [rbp-4], edi
     mov DWORD PTR [rbp-8], esi
-    mov eax, DWORD PTR [rbp-4]
     mov r10d, DWORD PTR [rbp-8]
+    mov eax, DWORD PTR [rbp-4]
     cmp eax, r10d
     sete al
     mov al, al
@@ -357,8 +357,8 @@ f:
     sub rsp, 16
     mov DWORD PTR [rbp-4], edi
     mov DWORD PTR [rbp-8], esi
-    mov eax, DWORD PTR [rbp-4]
     mov r10d, DWORD PTR [rbp-8]
+    mov eax, DWORD PTR [rbp-4]
     cmp eax, r10d
     setl al
     mov al, al
@@ -390,9 +390,9 @@ f:
     sub rsp, 16
     mov BYTE PTR [rbp-1], dil
     mov BYTE PTR [rbp-2], sil
-    mov al, BYTE PTR [rbp-1]
-    mov r10b, BYTE PTR [rbp-2]
-    and al, r10b
+    cmp BYTE PTR [rbp-1], 0
+    jz .Lf_cond_0
+    .Lf_cond_0:
     mov al, al
     leave
     ret
@@ -422,9 +422,9 @@ f:
     sub rsp, 16
     mov BYTE PTR [rbp-1], dil
     mov BYTE PTR [rbp-2], sil
-    mov al, BYTE PTR [rbp-1]
-    mov r10b, BYTE PTR [rbp-2]
-    or al, r10b
+    cmp BYTE PTR [rbp-1], 0
+    jnz .Lf_cond_0
+    .Lf_cond_0:
     mov al, al
     leave
     ret
@@ -650,8 +650,8 @@ f:
     sub rsp, 16
     mov DWORD PTR [rbp-4], edi
     mov DWORD PTR [rbp-8], esi
-    mov eax, DWORD PTR [rbp-4]
     mov r10d, 0
+    mov eax, DWORD PTR [rbp-4]
     cmp eax, r10d
     setg al
     cmp al, 0
@@ -661,8 +661,8 @@ f:
     ret
     jmp .Lf_cond_end_0
     .Lf_cond_0:
-    mov eax, DWORD PTR [rbp-4]
     mov r10d, DWORD PTR [rbp-8]
+    mov eax, DWORD PTR [rbp-4]
     cmp eax, r10d
     setl al
     cmp al, 0
@@ -930,14 +930,14 @@ f:
     mov DWORD PTR [rbp-4], edi
     mov DWORD PTR [rbp-8], esi
     .Lf_loop_0:
-    mov eax, DWORD PTR [rbp-4]
     mov r10d, DWORD PTR [rbp-8]
+    mov eax, DWORD PTR [rbp-4]
     cmp eax, r10d
     setl al
     cmp al, 0
     jz .Lf_loop_end_0
-    mov eax, DWORD PTR [rbp-4]
     mov r10d, 1
+    mov eax, DWORD PTR [rbp-4]
     add eax, r10d
     mov DWORD PTR [rbp-4], eax
     jmp .Lf_loop_0
