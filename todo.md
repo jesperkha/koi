@@ -7,14 +7,6 @@
 
 ## Known bugs
 
-- Variable shadowing doesnt work
-    - Separate scopes should overlap stack memory when assembling
-- Function variable scope does not get dropped after an error is raised inside a function body
-    -   1. Declare `x := 0` in function `f`
-    -   2. Produce and error `io.println(b)` (not defined)
-    -   3. Declare `x := 0` in function `g` below
-    - Results in "`b` is not defined" _and_ "`x` is already defined"
-
 ## Language features
 
 - For-loop
