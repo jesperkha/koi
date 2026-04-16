@@ -1,0 +1,21 @@
+// The same variable name appears in each branch of an if/elseif/else.
+// Because branches are mutually exclusive scopes, each 'val' is an
+// independent variable. Only the taken branch's 'val' is ever live,
+// so result must equal the value assigned in the taken branch.
+//
+// a=6: elseif taken → val=20 → result=20
+func main() int {
+    result := 0
+    a := 6
+    if a < 4 {
+        val := 10
+        result = val
+    } else if a < 8 {
+        val := 20
+        result = val
+    } else {
+        val := 30
+        result = val
+    }
+    return result
+}

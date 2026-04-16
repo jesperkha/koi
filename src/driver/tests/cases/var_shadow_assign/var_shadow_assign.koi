@@ -1,0 +1,10 @@
+// Assigning (=) to an outer variable from inside an if block must update
+// the outer variable. This is distinct from shadowing (:= declares a new
+// inner variable; = writes to an existing one).
+func main() int {
+    x := 1
+    if x > 0 {
+        x = 7   // assignment to outer x
+    }
+    return x    // x = 7
+}

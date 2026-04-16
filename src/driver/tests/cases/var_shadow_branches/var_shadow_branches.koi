@@ -1,0 +1,22 @@
+// Variables declared in if/elseif/else branches must be independent from
+// each other and must not interfere with outer variables. Each branch here
+// declares a uniquely-named inner variable and writes its value to an outer
+// accumulator. Only the taken branch runs, so result must equal that
+// branch's value.
+//
+// a=6: a<4 false, a<8 true → elseif taken → result = 2
+func main() int {
+    result := 0
+    a := 6
+    if a < 4 {
+        low := 1
+        result = low
+    } else if a < 8 {
+        mid := 2
+        result = mid
+    } else {
+        high := 3
+        result = high
+    }
+    return result
+}
