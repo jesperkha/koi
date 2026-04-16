@@ -89,6 +89,9 @@ pub enum TokenKind {
     Newline,
     Eof,
 
+    LineComment,
+    BlockComment,
+
     // Literals, contain the literal value
     IdentLit(String),
     IntLit(i64),
