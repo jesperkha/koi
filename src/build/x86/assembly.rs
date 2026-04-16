@@ -2,11 +2,39 @@ use std::fmt::Display;
 
 pub struct File {
     pub data_section: Vec<DataDecl>,
+    pub rodata_section: Vec<RodataDecl>,
     pub text_section: Vec<TextDecl>,
 }
 
 pub enum DataDecl {
+    /// An auto-labeled string (e.g. `.D0: .asciz "hello"`) used for anonymous string literals.
     String { label: String, content: String },
+    /// A named, optionally-global string (e.g. `.globl sym\nsym: .asciz "hello"`).
+    NamedString { global: bool, name: String, content: String },
+}
+
+/// A read-only data declaration emitted into `.rodata`.
+pub enum RodataDecl {
+    /// An integer, bool, or char constant.
+    Integer {
+        global: bool,
+        name: String,
+        /// Size in bytes: 1, 2, 4, or 8.
+        bytes: usize,
+        value: i64,
+    },
+    /// A 64-bit float constant.
+    Float64 {
+        global: bool,
+        name: String,
+        value: f64,
+    },
+    /// A 32-bit float constant.
+    Float32 {
+        global: bool,
+        name: String,
+        value: f32,
+    },
 }
 
 pub enum TextDecl {
@@ -224,6 +252,13 @@ impl Display for File {
             writeln!(f, "{}", decl)?;
         }
 
+        if !self.rodata_section.is_empty() {
+            write!(f, ".section .rodata\n\n")?;
+            for decl in &self.rodata_section {
+                writeln!(f, "{}", decl)?;
+            }
+        }
+
         write!(f, ".section .text\n\n")?;
         for decl in &self.text_section {
             writeln!(f, "{}", decl)?;
@@ -239,6 +274,44 @@ impl Display for DataDecl {
         match self {
             DataDecl::String { label, content } => {
                 write!(f, ".{}: .asciz \"{}\"", label, content)
+            }
+            DataDecl::NamedString { global, name, content } => {
+                if *global {
+                    writeln!(f, ".globl {}", name)?;
+                }
+                write!(f, "{}: .asciz \"{}\"", name, content)
+            }
+        }
+    }
+}
+
+impl Display for RodataDecl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RodataDecl::Integer { global, name, bytes, value } => {
+                if *global {
+                    writeln!(f, ".globl {}", name)?;
+                }
+                let directive = match bytes {
+                    1 => ".byte",
+                    2 => ".short",
+                    4 => ".long",
+                    8 => ".quad",
+                    _ => panic!("unsupported const size: {}", bytes),
+                };
+                write!(f, "{}:\n    {} {}", name, directive, value)
+            }
+            RodataDecl::Float64 { global, name, value } => {
+                if *global {
+                    writeln!(f, ".globl {}", name)?;
+                }
+                write!(f, "{}:\n    .double {}", name, value)
+            }
+            RodataDecl::Float32 { global, name, value } => {
+                if *global {
+                    writeln!(f, ".globl {}", name)?;
+                }
+                write!(f, "{}:\n    .float {}", name, value)
             }
         }
     }

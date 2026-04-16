@@ -2,8 +2,8 @@ use std::{collections::HashMap, mem::take};
 
 use crate::{
     build::x86::{
-        Asm, Condition, DataDecl, Dest, File, Immediate, Label, Reg, Size, Src, StackOffset,
-        TextDecl, UnsignedReg,
+        Asm, Condition, DataDecl, Dest, File, Immediate, Label, Reg, RodataDecl, Size, Src,
+        StackOffset, TextDecl, UnsignedReg,
     },
     config::Config,
     ir::{
@@ -22,6 +22,7 @@ pub struct Assembler<'a> {
     config: &'a Config,
     unit: Unit,
     data: Vec<DataDecl>,
+    rodata: Vec<RodataDecl>,
     text: Vec<TextDecl>,
     /// Global constant declarations extracted from the unit for inline injection
     consts: Vec<ConstDecl>,
@@ -33,6 +34,7 @@ impl<'a> Assembler<'a> {
             config,
             unit,
             data: Vec::new(),
+            rodata: Vec::new(),
             text: Vec::new(),
             consts: Vec::new(),
         }
@@ -66,21 +68,87 @@ impl<'a> Assembler<'a> {
             }
         }
 
-        // Declare all data segments
-        for (i, data) in data.into_iter().enumerate() {
-            let data_decl = match data {
+        // Declare all anonymous data segments
+        for (i, data_item) in data.iter().enumerate() {
+            let data_decl = match data_item {
                 Data::String(s) => DataDecl::String {
                     label: to_data_label(i),
                     content: s.clone(),
                 },
             };
-
             self.data.push(data_decl);
+        }
+
+        // Emit public constants as assembly symbols (for C ABI / cross-module access).
+        // Clone the needed info to avoid holding a borrow on self.consts while mutating
+        // self.rodata and self.data.
+        let public_consts: Vec<(String, usize, RValue)> = self
+            .consts
+            .iter()
+            .filter(|c| c.public)
+            .map(|c| (c.name.clone(), c.ty, c.value.clone()))
+            .collect();
+        for (name, ty, value) in public_consts {
+            self.emit_public_const_symbol(&name, ty, &value, &data);
         }
 
         File {
             data_section: self.data,
+            rodata_section: self.rodata,
             text_section: self.text,
+        }
+    }
+
+    /// Emit an exported constant as an assembly symbol for C ABI compatibility.
+    /// Numeric/bool/char constants go to `.rodata`; string constants get a named
+    /// label in `.data`.
+    fn emit_public_const_symbol(&mut self, name: &str, ty: usize, value: &RValue, data: &[Data]) {
+        match value {
+            RValue::Int(n) => {
+                let bytes = self.unit.types.sizeof(ty);
+                self.rodata.push(RodataDecl::Integer {
+                    global: true,
+                    name: name.to_owned(),
+                    bytes,
+                    value: *n,
+                });
+            }
+            RValue::Uint(n) => {
+                let bytes = self.unit.types.sizeof(ty);
+                self.rodata.push(RodataDecl::Integer {
+                    global: true,
+                    name: name.to_owned(),
+                    bytes,
+                    value: *n as i64,
+                });
+            }
+            RValue::Float(n) => {
+                let bytes = self.unit.types.sizeof(ty);
+                if bytes == 4 {
+                    self.rodata.push(RodataDecl::Float32 {
+                        global: true,
+                        name: name.to_owned(),
+                        value: *n as f32,
+                    });
+                } else {
+                    self.rodata.push(RodataDecl::Float64 {
+                        global: true,
+                        name: name.to_owned(),
+                        value: *n,
+                    });
+                }
+            }
+            RValue::Data(idx) => {
+                // String constant: emit a named label in .data
+                if let Some(Data::String(content)) = data.get(*idx) {
+                    self.data.push(DataDecl::NamedString {
+                        global: true,
+                        name: name.to_owned(),
+                        content: content.clone(),
+                    });
+                }
+            }
+            _ => {}
         }
     }
 

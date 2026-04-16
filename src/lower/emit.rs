@@ -9,8 +9,8 @@ use crate::{
         LValue, ParamId, Primitive, RValue, StoreIns, UnaryIns, Unit, WhileIns,
     },
     module::{
-        Module, ModuleId, ModuleKind, ModuleSourceFile, NamespaceList, Symbol, SymbolId,
-        SymbolList, SymbolOrigin,
+        ConstValue, Module, ModuleId, ModuleKind, ModuleSourceFile, NamespaceList, Symbol,
+        SymbolId, SymbolKind, SymbolList, SymbolOrigin,
     },
     types::{self, Expr, LiteralKind, TypedAst, TypedNode},
     util::VarTable,
@@ -69,6 +69,7 @@ struct ModuleEmitter<'a> {
     ctx: &'a Context,
     module: &'a Module,
     types: IRTypeInterner,
+    data: DataInterner,
 }
 
 impl<'a> ModuleEmitter<'a> {
@@ -77,6 +78,7 @@ impl<'a> ModuleEmitter<'a> {
             ctx,
             module,
             types: IRTypeInterner::new(),
+            data: DataInterner::new(),
         }
     }
 
@@ -86,7 +88,6 @@ impl<'a> ModuleEmitter<'a> {
             unreachable!();
         };
 
-        let mut data = DataInterner::new();
         let mut externs = HashSet::new();
         let mut decls = Vec::new();
 
@@ -97,7 +98,7 @@ impl<'a> ModuleEmitter<'a> {
                 &self.module.symbols,
                 &mut self.types,
                 file,
-                &mut data,
+                &mut self.data,
             );
             let result = emitter.emit()?;
             decls.extend(result.decls);
@@ -124,25 +125,41 @@ impl<'a> ModuleEmitter<'a> {
 
         Ok(Unit {
             name: self.module.modpath.to_underscore(),
-            data: data.into_data(),
+            data: self.data.into_data(),
             types: self.types,
             decls: extern_decls,
         })
     }
 
     fn emit_extern(&mut self, id: SymbolId) -> Res<Decl> {
-        let symbol = self.ctx.symbols.get(id);
-        if let Some(func) = self.ctx.types.try_function(symbol.ty) {
+        // Clone everything we need from ctx before any mutable operations
+        let (mangled_name, symbol_ty, symbol_kind, func_info) = {
+            let symbol = self.ctx.symbols.get(id);
+            let mangled = mangle_symbol_name(self.ctx, symbol);
+            let ty = symbol.ty;
+            let kind = symbol.kind.clone();
+            let func = self.ctx.types.try_function(ty).map(|f| (f.params.clone(), f.ret));
+            (mangled, ty, kind, func)
+        };
+
+        if let Some((params, ret)) = func_info {
             Ok(Decl::Extern(ExternDecl {
-                name: mangle_symbol_name(self.ctx, symbol),
-                params: self.types.to_ir_type_list(self.ctx, &func.params),
-                ret: self.types.to_ir(self.ctx, func.ret),
+                name: mangled_name,
+                params: self.types.to_ir_type_list(self.ctx, &params),
+                ret: self.types.to_ir(self.ctx, ret),
             }))
+        } else if let SymbolKind::Const(const_value) = symbol_kind {
+            // Emit a local const declaration so the assembler can inline the value.
+            let ty = self.types.to_ir(self.ctx, symbol_ty);
+            let value = match const_value {
+                ConstValue::Int(n) => RValue::Int(n),
+                ConstValue::Uint(n) => RValue::Uint(n),
+                ConstValue::Float(n) => RValue::Float(n),
+                ConstValue::String(s) => RValue::Data(self.data.get_or_intern_string(s)),
+            };
+            Ok(Decl::Const(ConstDecl { name: mangled_name, ty, value, public: false }))
         } else {
-            // TODO: (doing) constants
-            // When accessing foo.FOO as a namespace, FOO is added to externs
-            // Figure out how to declare constants in the file importing it
-            todo!()
+            panic!("cannot emit extern for non-function, non-const symbol (id={})", id)
         }
     }
 }
@@ -259,7 +276,7 @@ impl<'a> FileEmitter<'a> {
         let ty = self.types.to_ir(self.ctx, node.ty);
         let value = self.expr_to_rval(&mut Vec::new(), &node.value)?;
         let name = self.to_mangled_name(&node.name);
-        Ok(Decl::Const(ConstDecl { name, ty, value }))
+        Ok(Decl::Const(ConstDecl { name, ty, value, public: node.public }))
     }
 
     fn emit_func_block(&mut self, nodes: &Vec<types::Stmt>) -> Res<Block> {
@@ -485,9 +502,13 @@ impl<'a> FileEmitter<'a> {
         let symbol_id = self.nsl.get(&node.name).unwrap().get(&node.field).unwrap();
         let symbol = self.ctx.symbols.get(symbol_id);
         let mangled_name = mangle_symbol_name(self.ctx, symbol);
+        let symbol_kind = symbol.kind.clone();
         self.externs.insert(symbol_id);
 
-        Ok(RValue::Function(mangled_name))
+        match symbol_kind {
+            SymbolKind::Const(_) => Ok(RValue::GlobalConst(mangled_name)),
+            SymbolKind::Function { .. } => Ok(RValue::Function(mangled_name)),
+        }
     }
 
     fn call_to_rval(&mut self, ins: &mut Vec<Ins>, node: &types::CallNode) -> Res<RValue> {

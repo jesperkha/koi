@@ -41,6 +41,8 @@ pub struct ConstDecl {
     pub ty: IRTypeId,
     /// The constant value (always an inline literal: Int, Uint, Float, or Data)
     pub value: RValue,
+    /// Whether this constant is exported (visible outside its compilation unit).
+    pub public: bool,
 }
 
 pub struct ExternDecl {
@@ -216,6 +218,7 @@ pub struct IntrinsicIns {
     pub result: Option<LValue>,
 }
 
+#[derive(Clone)]
 pub enum RValue {
     Void,
     Float(f64),

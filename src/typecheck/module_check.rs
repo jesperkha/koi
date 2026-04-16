@@ -5,8 +5,9 @@ use crate::{
     context::{Context, CreateModule, CreateSymbol},
     error::{Diagnostics, Report, Res},
     module::{
-        ImportPath, ModuleKind, ModulePath, ModuleSourceFile, ModuleSymbol, ModuleSymbolKind,
-        Namespace, NamespaceList, Symbol, SymbolId, SymbolKind, SymbolList, SymbolOrigin,
+        ConstValue, ImportPath, ModuleKind, ModulePath, ModuleSourceFile, ModuleSymbol,
+        ModuleSymbolKind, Namespace, NamespaceList, Symbol, SymbolId, SymbolKind, SymbolList,
+        SymbolOrigin,
     },
     typecheck::file_check::FileChecker,
     types::{FunctionType, PrimitiveType, TypeId, TypeKind, TypedAst},
@@ -207,12 +208,12 @@ impl<'a> ModuleChecker<'a> {
         node: &ast::ConstDeclNode,
         origin: SymbolOrigin,
     ) -> Result<(), Report> {
-        let ty = self.eval_global_const_expr(&node.expr)?;
+        let (ty, value) = self.eval_global_const_expr(&node.expr)?;
         let name = node.name.to_string();
 
         let symbol = CreateSymbol {
             name: name.clone(),
-            kind: SymbolKind::Const,
+            kind: SymbolKind::Const(value),
             no_mangle: false,
             ty,
             origin,
@@ -224,16 +225,29 @@ impl<'a> ModuleChecker<'a> {
         Ok(())
     }
 
-    fn eval_global_const_expr(&self, expr: &ast::Expr) -> Result<TypeId, Report> {
+    fn eval_global_const_expr(&self, expr: &ast::Expr) -> Result<(TypeId, ConstValue), Report> {
         match expr {
             ast::Expr::Literal(tok) => match &tok.kind {
-                TokenKind::IntLit(_) => Ok(self.ctx.types.primitive(PrimitiveType::I32)),
-                TokenKind::FloatLit(_) => Ok(self.ctx.types.primitive(PrimitiveType::F64)),
-                TokenKind::StringLit(_) => Ok(self.ctx.types.primitive(PrimitiveType::String)),
-                TokenKind::True | TokenKind::False => {
-                    Ok(self.ctx.types.primitive(PrimitiveType::Bool))
+                TokenKind::IntLit(n) => {
+                    Ok((self.ctx.types.primitive(PrimitiveType::I32), ConstValue::Int(*n)))
                 }
-                TokenKind::CharLit(_) => Ok(self.ctx.types.primitive(PrimitiveType::U8)),
+                TokenKind::FloatLit(n) => {
+                    Ok((self.ctx.types.primitive(PrimitiveType::F64), ConstValue::Float(*n)))
+                }
+                TokenKind::StringLit(s) => Ok((
+                    self.ctx.types.primitive(PrimitiveType::String),
+                    ConstValue::String(s.clone()),
+                )),
+                TokenKind::True => {
+                    Ok((self.ctx.types.primitive(PrimitiveType::Bool), ConstValue::Uint(1)))
+                }
+                TokenKind::False => {
+                    Ok((self.ctx.types.primitive(PrimitiveType::Bool), ConstValue::Uint(0)))
+                }
+                TokenKind::CharLit(c) => Ok((
+                    self.ctx.types.primitive(PrimitiveType::U8),
+                    ConstValue::Uint(*c as u64),
+                )),
                 _ => Err(self.error_token("constant expression must be a literal value", tok)),
             },
             _ => Err(self.error("constant expression must be a literal value", expr)),

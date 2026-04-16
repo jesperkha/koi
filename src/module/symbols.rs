@@ -5,6 +5,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::{ast::Pos, context::Context, module::ModulePath, types::TypeId};
 
+/// Compile-time value of a global constant.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum ConstValue {
+    Int(i64),
+    Uint(u64),
+    Float(f64),
+    String(String),
+}
+
 pub type SymbolId = usize;
 
 #[derive(Clone, Debug)]
@@ -57,7 +66,7 @@ impl fmt::Display for Symbol {
                     specs.push("naked");
                 }
             }
-            SymbolKind::Const => {}
+            SymbolKind::Const(_) => {}
         }
         write!(
             f,
@@ -108,7 +117,8 @@ pub enum SymbolKind {
         /// code added by the compiler).
         is_naked: bool,
     },
-    Const,
+    /// A global compile-time constant carrying its literal value.
+    Const(ConstValue),
 }
 
 impl fmt::Display for SymbolKind {
@@ -118,7 +128,7 @@ impl fmt::Display for SymbolKind {
             "{}",
             match self {
                 SymbolKind::Function { .. } => "function",
-                SymbolKind::Const => "const",
+                SymbolKind::Const(_) => "const",
             }
         )
     }

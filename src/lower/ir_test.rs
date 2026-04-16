@@ -859,6 +859,24 @@ fn test_global_const_decl() {
 }
 
 #[test]
+fn test_public_global_const_decl() {
+    // pub const should be marked as public in the IR
+    expect_equal(
+        r#"
+        pub N :: 42
+        func f() int {
+            return N
+        }
+    "#,
+        r#"
+        pub const N i32 42
+        func f() i32
+            ret i32 @N
+        "#,
+    );
+}
+
+#[test]
 fn test_while_computed_condition() {
     // Condition requires computation — cond_ins are stored inside WhileIns
     // and not shown in the IR text; only the resulting cond rvalue ($0) appears.
