@@ -1,0 +1,119 @@
+file
+    = { import }, { { modifier }, extern }, { { modifier }, func };
+
+import
+    = "import", Ident, { ".", Ident }, [ "{", Ident, { ",", Ident }, "}" ];
+
+modifier
+    = "@", Ident, [ Ident ];
+
+extern
+    = [ "pub" ], "extern", func_decl;
+
+func_decl
+    = "func", Ident, param_list, [ type ];
+
+func
+    = [ "pub" ], func_decl, block;
+
+param_list
+    = "(", [ param, { ",", param } ], ")";
+
+param
+    = Ident, type;
+
+type
+    = Ident
+    | array_type;
+
+array_type
+    = "[", "]", type;
+
+block
+    = "{", { stmt }, "}";
+
+stmt
+    = stmt_expr
+    | stmt_decl
+    | stmt_assign
+    | stmt_if
+    | stmt_while
+    | "break"
+    | "continue"
+    | stmt_return;
+
+stmt_expr
+    = expr;
+
+stmt_decl
+    = Ident, ":=", expr;
+
+stmt_assign
+    = Ident, "=", expr;
+
+stmt_if
+    = "if", expr, block, [ else_if ];
+
+else_if
+    = "else", if, 
+    | "else", block;
+
+stmt_while
+    = "while", expr, block;
+
+stmt_return
+    = "return", [ expr ];
+
+expr
+    = expr_primary
+    | expr_unary
+    | expr_binary
+    | expr_call
+    | expr_member;
+
+expr_primary
+    = Ident
+    | expr_literal
+    | "(", expr, ")";
+
+expr_binary
+    = expr, binary_op, expr;
+
+binary_op
+    = "*"
+    | "/"
+    | "+"
+    | "-"
+    | "%"
+    | "=="
+    | "!="
+    | "<"
+    | ">"
+    | "<="
+    | ">="
+    | "&&"
+    | "||";
+
+expr_unary
+    = unary_op, expr;
+
+unary_op
+    = "!"
+    | "-";
+
+expr_literal
+    = Int
+    | String
+    | Float
+    | Char
+    | "true"
+    | "false";
+
+expr_call
+    = expr, arg_list;
+
+arg_list
+    = "(", [ expr, { ",", expr }, [ "," ],  ], ")";
+
+expr_member
+    = expr, ".", Ident;
