@@ -4,15 +4,15 @@ use crate::{
     context::Context,
     error::{self, Diagnostics, Report},
     ir::{
-        AssignIns, BinaryIns, Block, CallIns, ConstId, Data, DataIndex, Decl, ElseIf, ExternDecl,
-        FuncDecl, IRBinaryOp, IRType, IRTypeInterner, IRUnaryOp, IfIns, Ins, LValue, ParamId,
-        Primitive, RValue, StoreIns, UnaryIns, Unit, WhileIns,
+        AssignIns, BinaryIns, Block, CallIns, CondIns, ConstId, Data, DataIndex, Decl, ElseIf,
+        ExternDecl, FuncDecl, IRBinaryOp, IRCondOp, IRType, IRTypeInterner, IRUnaryOp, IfIns, Ins,
+        LValue, ParamId, Primitive, RValue, StoreIns, UnaryIns, Unit, WhileIns,
     },
     module::{
         Module, ModuleId, ModuleKind, ModuleSourceFile, NamespaceList, Symbol, SymbolId,
         SymbolList, SymbolOrigin,
     },
-    types::{self, BinaryOp, Expr, LiteralKind, TypedAst, TypedNode, UnaryOp},
+    types::{self, Expr, LiteralKind, TypedAst, TypedNode},
     util::VarTable,
 };
 
@@ -408,6 +408,13 @@ impl<'a> FileEmitter<'a> {
     }
 
     fn binary_to_rval(&mut self, ins: &mut Vec<Ins>, node: &types::BinaryNode) -> Res<RValue> {
+        if matches!(
+            node.op,
+            types::BinaryOp::LogicAnd | types::BinaryOp::LogicOr
+        ) {
+            return self.conditional_to_rval(ins, node);
+        }
+
         let ty = self.types.to_ir(self.ctx, node.ty);
         let lhs = self.expr_to_rval(ins, &node.lhs)?;
         let rhs = self.expr_to_rval(ins, &node.rhs)?;
@@ -419,6 +426,32 @@ impl<'a> FileEmitter<'a> {
             rhs,
             result,
         }));
+        Ok(RValue::Const(result))
+    }
+
+    fn conditional_to_rval(&mut self, ins: &mut Vec<Ins>, node: &types::BinaryNode) -> Res<RValue> {
+        let mut lhs_ins = Vec::new();
+        let lhs = self.expr_to_rval(&mut lhs_ins, &node.lhs)?;
+
+        let mut rhs_ins = Vec::new();
+        let rhs = self.expr_to_rval(&mut rhs_ins, &node.rhs)?;
+
+        let op = match &node.op {
+            types::BinaryOp::LogicAnd => IRCondOp::And,
+            types::BinaryOp::LogicOr => IRCondOp::Or,
+            _ => unreachable!(),
+        };
+
+        let result = self.next_id();
+        ins.push(Ins::Conditional(CondIns {
+            op,
+            lhs_ins,
+            lhs,
+            rhs_ins,
+            rhs,
+            result,
+        }));
+
         Ok(RValue::Const(result))
     }
 
@@ -526,31 +559,31 @@ impl<'a> FileEmitter<'a> {
     }
 }
 
-impl From<BinaryOp> for IRBinaryOp {
-    fn from(op: BinaryOp) -> Self {
+impl From<types::BinaryOp> for IRBinaryOp {
+    fn from(op: types::BinaryOp) -> Self {
         match op {
-            BinaryOp::Plus => IRBinaryOp::Add,
-            BinaryOp::Minus => IRBinaryOp::Sub,
-            BinaryOp::Mult => IRBinaryOp::Mul,
-            BinaryOp::Divide => IRBinaryOp::Div,
-            BinaryOp::Modulo => IRBinaryOp::Mod,
-            BinaryOp::Equal => IRBinaryOp::Eq,
-            BinaryOp::NotEqual => IRBinaryOp::Ne,
-            BinaryOp::Greater => IRBinaryOp::Gt,
-            BinaryOp::GreaterEq => IRBinaryOp::Ge,
-            BinaryOp::Less => IRBinaryOp::Lt,
-            BinaryOp::LessEq => IRBinaryOp::Le,
-            BinaryOp::LogicAnd => IRBinaryOp::And,
-            BinaryOp::LogicOr => IRBinaryOp::Or,
+            types::BinaryOp::Plus => IRBinaryOp::Add,
+            types::BinaryOp::Minus => IRBinaryOp::Sub,
+            types::BinaryOp::Mult => IRBinaryOp::Mul,
+            types::BinaryOp::Divide => IRBinaryOp::Div,
+            types::BinaryOp::Modulo => IRBinaryOp::Mod,
+            types::BinaryOp::Equal => IRBinaryOp::Eq,
+            types::BinaryOp::NotEqual => IRBinaryOp::Ne,
+            types::BinaryOp::Greater => IRBinaryOp::Gt,
+            types::BinaryOp::GreaterEq => IRBinaryOp::Ge,
+            types::BinaryOp::Less => IRBinaryOp::Lt,
+            types::BinaryOp::LessEq => IRBinaryOp::Le,
+            // AND and OR handled separately
+            _ => unreachable!(),
         }
     }
 }
 
-impl From<UnaryOp> for IRUnaryOp {
-    fn from(op: UnaryOp) -> Self {
+impl From<types::UnaryOp> for IRUnaryOp {
+    fn from(op: types::UnaryOp) -> Self {
         match op {
-            UnaryOp::Minus => IRUnaryOp::Neg,
-            UnaryOp::LogicNot => IRUnaryOp::Not,
+            types::UnaryOp::Minus => IRUnaryOp::Neg,
+            types::UnaryOp::LogicNot => IRUnaryOp::Not,
         }
     }
 }

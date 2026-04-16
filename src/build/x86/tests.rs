@@ -390,9 +390,9 @@ f:
     sub rsp, 16
     mov BYTE PTR [rbp-1], dil
     mov BYTE PTR [rbp-2], sil
-    mov r10b, BYTE PTR [rbp-2]
-    mov al, BYTE PTR [rbp-1]
-    and al, r10b
+    cmp BYTE PTR [rbp-1], 0
+    jz .Lf_cond_0
+    .Lf_cond_0:
     mov al, al
     leave
     ret
@@ -422,9 +422,9 @@ f:
     sub rsp, 16
     mov BYTE PTR [rbp-1], dil
     mov BYTE PTR [rbp-2], sil
-    mov r10b, BYTE PTR [rbp-2]
-    mov al, BYTE PTR [rbp-1]
-    or al, r10b
+    cmp BYTE PTR [rbp-1], 0
+    jnz .Lf_cond_0
+    .Lf_cond_0:
     mov al, al
     leave
     ret

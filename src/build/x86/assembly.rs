@@ -30,8 +30,6 @@ pub enum Asm {
     Cqo,
     Cdq,
     Neg(Dest),
-    And(Dest, Src),
-    Or(Dest, Src),
     Xor(Dest, Src),
     Cmp(Src, Src),
     Set(Condition, Dest),
@@ -40,6 +38,7 @@ pub enum Asm {
     Ret,
     Jmp(String),
     Jz(String),
+    Jnz(String),
     Label(String),
 }
 
@@ -276,8 +275,6 @@ impl Display for Asm {
             Asm::Cqo => write!(f, "cqo"),
             Asm::Cdq => write!(f, "cdq"),
             Asm::Neg(dst) => write!(f, "neg {}", dst),
-            Asm::And(dst, src) => write!(f, "and {}, {}", dst, src),
-            Asm::Or(dst, src) => write!(f, "or {}, {}", dst, src),
             Asm::Xor(dst, src) => write!(f, "xor {}, {}", dst, src),
             Asm::Cmp(src1, src2) => write!(f, "cmp {}, {}", src1, src2),
             Asm::Set(cond, dst) => write!(f, "set{} {}", cond, dst),
@@ -287,6 +284,7 @@ impl Display for Asm {
             Asm::Call(label) => write!(f, "call {}", label),
             Asm::Jmp(label) => write!(f, "jmp {}", label),
             Asm::Jz(label) => write!(f, "jz {}", label),
+            Asm::Jnz(label) => write!(f, "jnz {}", label),
             Asm::Label(label) => write!(f, "{}:", label),
         }
     }
