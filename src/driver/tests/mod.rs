@@ -151,9 +151,7 @@ fn test_assignment() {
 
 #[test]
 fn test_call() {
-    // TODO: bool x86 implementation is incorrect
-    // as it doesnt use sized registers
-    // run_case_with_status("call", 3);
+    run_case_with_status("call", 3);
 }
 
 #[test]
