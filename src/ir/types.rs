@@ -110,7 +110,7 @@ impl IRTypeInterner {
             return *id;
         }
         let id = self.types.len();
-        self.types.push(ty.clone()); // TODO: need this clone?
+        self.types.push(ty.clone());
         self.cache.insert(ty, id);
         id
     }

@@ -401,8 +401,6 @@ impl<'a> FileChecker<'a> {
             _ => todo!(),
         };
 
-        // TODO: token to type??
-
         Ok(types::Expr::Literal(types::LiteralNode {
             meta: NodeMeta {
                 id: tok.id,

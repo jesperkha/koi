@@ -13,8 +13,6 @@ use crate::{
     },
 };
 
-// TODO: floating point literals and return register
-
 pub fn assemble(unit: Unit, config: &Config) -> File {
     let assembler = Assembler::new(unit, config);
     assembler.assemble()
