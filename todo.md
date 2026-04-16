@@ -7,7 +7,6 @@
 
 ## Known bugs
 
-- Comments mess up line count in lexer (error messages)
 - Variable shadowing doesnt work
     - Separate scopes should overlap stack memory when assembling
 - Function variable scope does not get dropped after an error is raised inside a function body
