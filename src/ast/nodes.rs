@@ -42,6 +42,7 @@ pub trait Visitable {
 pub trait Visitor<R> {
     fn visit_func(&mut self, node: &FuncNode) -> R;
     fn visit_extern(&mut self, node: &FuncDeclNode) -> R;
+    fn visit_const(&mut self, node: &ConstDeclNode) -> R;
     fn visit_block(&mut self, node: &BlockNode) -> R;
     fn visit_return(&mut self, node: &ReturnNode) -> R;
     fn visit_type(&mut self, node: &TypeNode) -> R;
@@ -69,6 +70,15 @@ pub trait Visitor<R> {
 pub enum Decl {
     Func(Box<FuncNode>),
     Extern(Box<FuncDeclNode>),
+    Const(Box<ConstDeclNode>),
+}
+
+#[derive(Debug, Clone)]
+pub struct ConstDeclNode {
+    pub public: bool,
+    pub name: Token,
+    pub symbol: Token,
+    pub expr: Expr,
 }
 
 /// Statements are found inside blocks. They have side effects and do
@@ -290,11 +300,26 @@ impl Visitable for TypeNode {
     }
 }
 
+impl Node for ConstDeclNode {
+    fn pos(&self) -> &Pos {
+        &self.name.pos
+    }
+
+    fn end(&self) -> &Pos {
+        self.expr.end()
+    }
+
+    fn id(&self) -> NodeId {
+        self.name.id
+    }
+}
+
 impl Node for Decl {
     fn pos(&self) -> &Pos {
         match self {
             Decl::Func(node) => node.pos(),
             Decl::Extern(node) => node.pos(),
+            Decl::Const(node) => node.pos(),
         }
     }
 
@@ -302,6 +327,7 @@ impl Node for Decl {
         match self {
             Decl::Func(node) => node.end(),
             Decl::Extern(node) => node.end(),
+            Decl::Const(node) => node.end(),
         }
     }
 
@@ -309,6 +335,7 @@ impl Node for Decl {
         match self {
             Decl::Func(node) => node.id(),
             Decl::Extern(node) => node.id(),
+            Decl::Const(node) => node.id(),
         }
     }
 }
@@ -374,6 +401,7 @@ impl Visitable for Decl {
         match self {
             Decl::Func(node) => visitor.visit_func(node),
             Decl::Extern(node) => visitor.visit_extern(node),
+            Decl::Const(node) => visitor.visit_const(node),
         }
     }
 }

@@ -764,6 +764,51 @@ fn test_unary() {
 }
 
 #[test]
+fn test_const_decl() {
+    compare_string(
+        r#"
+        N :: 42
+    "#,
+    );
+    compare_string(
+        r#"
+        PI :: 3.14
+    "#,
+    );
+    compare_string(
+        r#"
+        MSG :: "hello"
+    "#,
+    );
+    compare_string(
+        r#"
+        FLAG :: true
+    "#,
+    );
+    compare_string(
+        r#"
+        pub N :: 42
+    "#,
+    );
+}
+
+#[test]
+fn test_const_decl_error() {
+    expect_error(
+        r#"
+        N ::
+    "#,
+        "expected expression",
+    );
+    expect_error(
+        r#"
+        N
+    "#,
+        "expected ::",
+    );
+}
+
+#[test]
 fn test_modifier_on_func() {
     compare_string(
         r#"

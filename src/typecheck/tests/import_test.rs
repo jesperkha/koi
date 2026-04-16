@@ -541,6 +541,127 @@ fn test_import_private_symbol_error() {
 }
 
 #[test]
+fn test_import_const_namespace() {
+    assert_pass(&vec![
+        file(
+            "foo",
+            r#"
+            pub VALUE :: 42
+        "#,
+        ),
+        file(
+            "main",
+            r#"
+            import foo
+
+            func main() int {
+                return foo.VALUE
+            }
+        "#,
+        ),
+    ]);
+}
+
+#[test]
+fn test_import_const_explicit() {
+    assert_pass(&vec![
+        file(
+            "foo",
+            r#"
+            pub VALUE :: 42
+        "#,
+        ),
+        file(
+            "main",
+            r#"
+            import foo { VALUE }
+
+            func main() int {
+                return VALUE
+            }
+        "#,
+        ),
+    ]);
+}
+
+#[test]
+fn test_import_const_string() {
+    assert_pass(&vec![
+        file(
+            "foo",
+            r#"
+            pub MSG :: "hello"
+        "#,
+        ),
+        file(
+            "main",
+            r#"
+            import foo
+
+            func get() string {
+                return foo.MSG
+            }
+
+            func main() int {
+                return 0
+            }
+        "#,
+        ),
+    ]);
+}
+
+#[test]
+fn test_import_const_bool() {
+    assert_pass(&vec![
+        file(
+            "foo",
+            r#"
+            pub FLAG :: true
+        "#,
+        ),
+        file(
+            "main",
+            r#"
+            import foo
+
+            func get() bool {
+                return foo.FLAG
+            }
+
+            func main() int {
+                return 0
+            }
+        "#,
+        ),
+    ]);
+}
+
+#[test]
+fn test_import_private_const_error() {
+    assert_error(
+        &vec![
+            file(
+                "foo",
+                r#"
+                PRIVATE :: 42
+            "#,
+            ),
+            file(
+                "main",
+                r#"
+                import foo { PRIVATE }
+
+                func main() int {
+                    return 0
+                }
+            "#,
+            ),
+        ],
+        "module 'foo' has no export 'PRIVATE'",
+    );
+}
+
+#[test]
 fn test_no_reexport() {
     assert_error(
         &vec![

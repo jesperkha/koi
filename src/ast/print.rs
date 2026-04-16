@@ -1,5 +1,6 @@
 use crate::ast::{
-    Ast, BlockNode, ElseBlock, FuncNode, ReturnNode, Stmt, Token, TypeNode, Visitable, Visitor,
+    Ast, BlockNode, ConstDeclNode, ElseBlock, FuncNode, ReturnNode, Stmt, Token, TypeNode,
+    Visitable, Visitor,
 };
 
 pub struct Printer {
@@ -120,6 +121,16 @@ impl Visitor<()> for Printer {
         self.s.push('(');
         node.inner.accept(self);
         self.s.push(')');
+    }
+
+    fn visit_const(&mut self, node: &ConstDeclNode) {
+        if node.public {
+            self.s.push_str("pub ");
+        }
+        self.s.push_str(&format!("{} :: ", node.name));
+        node.expr.accept(self);
+        self.s += "\n";
+        self.s += "\n";
     }
 
     fn visit_extern(&mut self, node: &super::FuncDeclNode) {

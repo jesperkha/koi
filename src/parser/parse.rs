@@ -4,10 +4,10 @@ use tracing::info;
 
 use crate::{
     ast::{
-        Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, ContinueNode, Decl, ElseBlock, Expr,
-        Field, File, FileSet, FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode, MemberNode,
-        Modifier, Node, ReturnNode, SourceMap, Stmt, Token, TokenKind, TypeNode, UnaryExpr,
-        VarAssignNode, VarDeclNode, WhileNode,
+        Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, ConstDeclNode, ContinueNode, Decl,
+        ElseBlock, Expr, Field, File, FileSet, FuncDeclNode, FuncNode, GroupExpr, IfNode,
+        ImportNode, MemberNode, Modifier, Node, ReturnNode, SourceMap, Stmt, Token, TokenKind,
+        TypeNode, UnaryExpr, VarAssignNode, VarDeclNode, WhileNode,
     },
     config::Config,
     error::{Diagnostics, Report, Res},
@@ -253,6 +253,7 @@ impl<'a> Parser<'a> {
             TokenKind::Pub => self.parse_public_decl(modifiers),
             TokenKind::Func => self.parse_function(false, modifiers),
             TokenKind::Extern => self.parse_extern(false, modifiers),
+            TokenKind::IdentLit(_) => self.parse_const(false),
             _ => Err(self.error_token("expected declaration")),
         }
     }
@@ -264,8 +265,21 @@ impl<'a> Parser<'a> {
         match token.kind {
             TokenKind::Func => self.parse_function(true, modifiers),
             TokenKind::Extern => self.parse_extern(true, modifiers),
+            TokenKind::IdentLit(_) => self.parse_const(true),
             _ => Err(self.error_token("illegal public declaration")),
         }
+    }
+
+    fn parse_const(&mut self, public: bool) -> Result<Decl, Report> {
+        let name = self.expect_identifier("constant name")?;
+        let symbol = self.expect(TokenKind::ColonColon)?;
+        let expr = self.parse_expr()?;
+        Ok(Decl::Const(Box::new(ConstDeclNode {
+            public,
+            name,
+            symbol,
+            expr,
+        })))
     }
 
     fn parse_extern(&mut self, public: bool, modifiers: Vec<Modifier>) -> Result<Decl, Report> {

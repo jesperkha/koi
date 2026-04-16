@@ -88,6 +88,7 @@ impl<'a> FileChecker<'a> {
         match decl {
             ast::Decl::Func(node) => self.emit_func(*node),
             ast::Decl::Extern(node) => self.emit_extern(*node),
+            ast::Decl::Const(node) => self.emit_const(*node),
         }
     }
 
@@ -215,6 +216,19 @@ impl<'a> FileChecker<'a> {
             ty: sym.ty,
             meta,
             name,
+        }))
+    }
+
+    fn emit_const(&mut self, node: ast::ConstDeclNode) -> Result<types::Decl, Report> {
+        let meta = ast_node_to_meta(&node);
+        let typed_expr = self.emit_expr(node.expr)?;
+
+        Ok(types::Decl::Const(types::ConstNode {
+            meta,
+            name: node.name.to_string(),
+            ty: typed_expr.type_id(),
+            value: typed_expr,
+            public: node.public,
         }))
     }
 
@@ -703,7 +717,14 @@ impl<'a> FileChecker<'a> {
     fn is_constant(&self, lval: &ast::Expr) -> bool {
         match lval {
             ast::Expr::Literal(token) => match &token.kind {
-                TokenKind::IdentLit(name) => self.vars.get(name).is_some_and(|sym| sym.is_const),
+                TokenKind::IdentLit(name) => {
+                    if let Some(sym) = self.vars.get(name) {
+                        sym.is_const
+                    } else {
+                        // Global symbols (functions, global constants) are always constant
+                        self.get_symbol(name).is_ok()
+                    }
+                }
                 _ => false,
             },
             ast::Expr::Group(_) | ast::Expr::Call(_) => true,

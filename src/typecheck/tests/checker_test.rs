@@ -1603,6 +1603,76 @@ fn test_modifier_on_extern_pass() {
 }
 
 #[test]
+fn test_global_const_decl() {
+    assert_pass(
+        r#"
+        N :: 42
+        func f() int {
+            return N
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        PI :: 3.14
+        func f() float {
+            return PI
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        FLAG :: true
+        func f() bool {
+            return FLAG
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        MSG :: "hello"
+        func f() string {
+            return MSG
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_global_const_not_identifier() {
+    assert_error(
+        r#"
+        N :: other
+    "#,
+        "constant expression must be a literal value",
+    );
+}
+
+#[test]
+fn test_global_const_duplicate() {
+    assert_error(
+        r#"
+        N :: 42
+        N :: 43
+    "#,
+        "already declared",
+    );
+}
+
+#[test]
+fn test_global_const_cannot_assign() {
+    assert_error(
+        r#"
+        N :: 42
+        func f() {
+            N = 1
+        }
+    "#,
+        "cannot assign new value to a constant",
+    );
+}
+
+#[test]
 fn test_alias_modifier() {
     assert_pass(
         r#"

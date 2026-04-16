@@ -31,6 +31,18 @@ pub enum Data {
 pub enum Decl {
     Extern(ExternDecl),
     Func(FuncDecl),
+    Const(ConstDecl),
+}
+
+pub struct ConstDecl {
+    /// The (mangled) symbol name
+    pub name: String,
+    /// Type of the constant value
+    pub ty: IRTypeId,
+    /// The constant value (always an inline literal: Int, Uint, Float, or Data)
+    pub value: RValue,
+    /// Whether this constant is exported (visible outside its compilation unit).
+    pub public: bool,
 }
 
 pub struct ExternDecl {
@@ -206,6 +218,7 @@ pub struct IntrinsicIns {
     pub result: Option<LValue>,
 }
 
+#[derive(Clone)]
 pub enum RValue {
     Void,
     Float(f64),
@@ -215,6 +228,8 @@ pub enum RValue {
     Param(usize),
     Function(String),
     Data(DataIndex),
+    /// Reference to a global constant by its mangled name
+    GlobalConst(String),
 }
 
 impl fmt::Display for IntrinsicKind {
@@ -236,6 +251,7 @@ impl fmt::Display for RValue {
             RValue::Param(s) => write!(f, "%{}", s),
             RValue::Function(s) => write!(f, "{}", s),
             RValue::Data(s) => write!(f, ".{}", s),
+            RValue::GlobalConst(s) => write!(f, "@{}", s),
         }
     }
 }

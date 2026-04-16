@@ -2,14 +2,14 @@ use std::{collections::HashMap, mem::take};
 
 use crate::{
     build::x86::{
-        Asm, Condition, DataDecl, Dest, File, Immediate, Label, Reg, Size, Src, StackOffset,
-        TextDecl, UnsignedReg,
+        Asm, Condition, DataDecl, Dest, File, Immediate, Label, Reg, RodataDecl, Size, Src,
+        StackOffset, TextDecl, UnsignedReg,
     },
     config::Config,
     ir::{
-        AssignIns, BinaryIns, Block, CallIns, CondIns, ConstId, Data, Decl, ExternDecl, FuncDecl,
-        IRBinaryOp, IRCondOp, IRType, IRTypeId, IRUnaryOp, IfIns, Ins, LValue, Primitive, RValue,
-        StoreIns, UnaryIns, Unit, WhileIns, ins_to_string_oneline,
+        AssignIns, BinaryIns, Block, CallIns, CondIns, ConstDecl, ConstId, Data, Decl, ExternDecl,
+        FuncDecl, IRBinaryOp, IRCondOp, IRType, IRTypeId, IRUnaryOp, IfIns, Ins, LValue, Primitive,
+        RValue, StoreIns, UnaryIns, Unit, WhileIns, ins_to_string_oneline,
     },
 };
 
@@ -22,7 +22,10 @@ pub struct Assembler<'a> {
     config: &'a Config,
     unit: Unit,
     data: Vec<DataDecl>,
+    rodata: Vec<RodataDecl>,
     text: Vec<TextDecl>,
+    /// Global constant declarations extracted from the unit for inline injection
+    consts: Vec<ConstDecl>,
 }
 
 impl<'a> Assembler<'a> {
@@ -31,7 +34,9 @@ impl<'a> Assembler<'a> {
             config,
             unit,
             data: Vec::new(),
+            rodata: Vec::new(),
             text: Vec::new(),
+            consts: Vec::new(),
         }
     }
 
@@ -39,31 +44,116 @@ impl<'a> Assembler<'a> {
         let decls = take(&mut self.unit.decls);
         let data = take(&mut self.unit.data);
 
-        // Assemble all declarations
-        for decl in decls {
-            let text_decl = match decl {
-                Decl::Extern(decl) => self.emit_extern(decl),
-                Decl::Func(decl) => self.emit_func(decl),
-            };
+        // Collect global constants first so they are available when assembling functions
+        let (const_decls, other_decls): (Vec<_>, Vec<_>) =
+            decls.into_iter().partition(|d| matches!(d, Decl::Const(_)));
+        self.consts = const_decls
+            .into_iter()
+            .map(|d| {
+                if let Decl::Const(c) = d {
+                    c
+                } else {
+                    unreachable!()
+                }
+            })
+            .collect();
 
-            self.text.push(text_decl);
+        // Assemble all declarations
+        for decl in other_decls {
+            match decl {
+                Decl::Extern(decl) => {
+                    let text_decl = self.emit_extern(decl);
+                    self.text.push(text_decl);
+                }
+                Decl::Func(decl) => {
+                    let text_decl = self.emit_func(decl);
+                    self.text.push(text_decl);
+                }
+                Decl::Const(_) => unreachable!(),
+            }
         }
 
-        // Declare all data segments
-        for (i, data) in data.into_iter().enumerate() {
-            let data_decl = match data {
+        // Declare all anonymous data segments
+        for (i, data_item) in data.iter().enumerate() {
+            let data_decl = match data_item {
                 Data::String(s) => DataDecl::String {
                     label: to_data_label(i),
                     content: s.clone(),
                 },
             };
-
             self.data.push(data_decl);
+        }
+
+        // Emit public constants as assembly symbols (for C ABI / cross-module access).
+        // Clone the needed info to avoid holding a borrow on self.consts while mutating
+        // self.rodata and self.data.
+        let public_consts: Vec<(String, usize, RValue)> = self
+            .consts
+            .iter()
+            .filter(|c| c.public)
+            .map(|c| (c.name.clone(), c.ty, c.value.clone()))
+            .collect();
+        for (name, ty, value) in public_consts {
+            self.emit_public_const_symbol(&name, ty, &value, &data);
         }
 
         File {
             data_section: self.data,
+            rodata_section: self.rodata,
             text_section: self.text,
+        }
+    }
+
+    /// Emit an exported constant as an assembly symbol for C ABI compatibility.
+    /// Numeric/bool/char constants go to `.rodata`; string constants get a named
+    /// label in `.data`.
+    fn emit_public_const_symbol(&mut self, name: &str, ty: usize, value: &RValue, data: &[Data]) {
+        match value {
+            RValue::Int(n) => {
+                let bytes = self.unit.types.sizeof(ty);
+                self.rodata.push(RodataDecl::Integer {
+                    global: true,
+                    name: name.to_owned(),
+                    bytes,
+                    value: *n,
+                });
+            }
+            RValue::Uint(n) => {
+                let bytes = self.unit.types.sizeof(ty);
+                self.rodata.push(RodataDecl::Integer {
+                    global: true,
+                    name: name.to_owned(),
+                    bytes,
+                    value: *n as i64,
+                });
+            }
+            RValue::Float(n) => {
+                let bytes = self.unit.types.sizeof(ty);
+                if bytes == 4 {
+                    self.rodata.push(RodataDecl::Float32 {
+                        global: true,
+                        name: name.to_owned(),
+                        value: *n as f32,
+                    });
+                } else {
+                    self.rodata.push(RodataDecl::Float64 {
+                        global: true,
+                        name: name.to_owned(),
+                        value: *n,
+                    });
+                }
+            }
+            RValue::Data(idx) => {
+                // String constant: emit a named label in .data
+                if let Some(Data::String(content)) = data.get(*idx) {
+                    self.data.push(DataDecl::NamedString {
+                        global: true,
+                        name: name.to_owned(),
+                        content: content.clone(),
+                    });
+                }
+            }
+            _ => {}
         }
     }
 
@@ -72,7 +162,7 @@ impl<'a> Assembler<'a> {
     }
 
     fn emit_func(&mut self, decl: FuncDecl) -> TextDecl {
-        let fasm = FunctionAssembler::new(&self.unit, &decl, self.config);
+        let fasm = FunctionAssembler::new(&self.unit, &decl, self.config, &self.consts);
         let ins = fasm.assemble();
 
         TextDecl::Function {
@@ -87,6 +177,7 @@ struct FunctionAssembler<'a> {
     unit: &'a Unit,
     decl: &'a FuncDecl,
     config: &'a Config,
+    consts: &'a [ConstDecl],
 
     asm: Vec<Asm>,
     acc_offset: usize,
@@ -106,11 +197,17 @@ struct FunctionAssembler<'a> {
 }
 
 impl<'a> FunctionAssembler<'a> {
-    fn new(unit: &'a Unit, decl: &'a FuncDecl, config: &'a Config) -> Self {
+    fn new(
+        unit: &'a Unit,
+        decl: &'a FuncDecl,
+        config: &'a Config,
+        consts: &'a [ConstDecl],
+    ) -> Self {
         Self {
             unit,
             decl,
             config,
+            consts,
             asm: Vec::new(),
             vars: HashMap::new(),
             acc_offset: 0,
@@ -528,6 +625,16 @@ impl<'a> FunctionAssembler<'a> {
             RValue::Data(idx) => Src::Label(Label {
                 name: to_data_label(*idx),
             }),
+            RValue::GlobalConst(name) => {
+                // Inject the constant value inline at the use site
+                let value = self
+                    .consts
+                    .iter()
+                    .find(|c| &c.name == name)
+                    .map(|c| &c.value)
+                    .unwrap_or_else(|| panic!("global constant '{}' not found", name));
+                self.rval_to_src(value)
+            }
 
             RValue::Void => todo!(),
             RValue::Function(_) => todo!(),

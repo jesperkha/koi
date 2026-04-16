@@ -35,6 +35,16 @@ pub fn unit_to_string(unit: &Unit) -> String {
                 s += &ins_to_string_indent(unit, &func.body.ins, 1);
                 s += "\n";
             }
+            Decl::Const(c) => {
+                let prefix = if c.public { "pub " } else { "" };
+                s += &format!(
+                    "{}const {} {} {}\n",
+                    prefix,
+                    c.name,
+                    unit.types.type_to_string(c.ty),
+                    c.value,
+                );
+            }
         }
     }
 
