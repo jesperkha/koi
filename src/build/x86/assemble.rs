@@ -273,7 +273,13 @@ impl<'a> FunctionAssembler<'a> {
         // Emit if block; jump to next branch on false, or end if no branches
         self.evaluate_bool_and_cmp(&ifins.cond);
         self.push(Asm::Jz(next_label.clone().unwrap_or(end.clone())));
+
+        // Store current offset to go back to before evaluating else-if and else blocks.
+        // This ensures that stack slots are reused across all blocks.
+        // This is safe because all blocks are mutually exclusive.
+        let base_offset = self.cur_stack_offset();
         self.emit_block(&ifins.block);
+
         self.push(Asm::Jmp(end.clone()));
 
         // Emit else-if branches; each one consumes next_label and allocates the
@@ -291,12 +297,15 @@ impl<'a> FunctionAssembler<'a> {
             self.emit_ins_vec(&elseif.cond_ins);
             self.evaluate_bool_and_cmp(&elseif.cond);
             self.push(Asm::Jz(next_label.clone().unwrap_or(end.clone())));
+
+            self.set_stack_offset(base_offset);
             self.emit_block(&elseif.block);
             self.push(Asm::Jmp(end.clone()));
         }
 
         if let Some(elseblock) = &ifins.elseblock {
             self.push(Asm::Label(next_label.unwrap()));
+            self.set_stack_offset(base_offset);
             self.emit_block(elseblock);
         }
 
@@ -562,6 +571,16 @@ impl<'a> FunctionAssembler<'a> {
             offset: self.acc_offset,
             size: self.type_size(ty),
         })
+    }
+
+    /// Get current stack offset in bytes
+    fn cur_stack_offset(&self) -> usize {
+        self.acc_offset
+    }
+
+    /// Set stack offset. Used for scoping to reuse memory slots in mutually exclusive blocks.
+    fn set_stack_offset(&mut self, off: usize) {
+        self.acc_offset = off;
     }
 
     fn type_size(&self, ty: &IRTypeId) -> Size {
