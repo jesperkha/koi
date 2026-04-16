@@ -82,7 +82,7 @@ impl<'a> Scanner<'a> {
                 // Line comment
                 b'/' if matches!(self.peek(), Some(b'/')) => {
                     let len = self.peek_while(|b| b != b'\n');
-                    (Token::new(TokenKind::Whitespace, 0, self.pos()), len)
+                    (Token::new(TokenKind::LineComment, 0, self.pos()), len)
                 }
 
                 // Block comment
@@ -91,20 +91,11 @@ impl<'a> Scanner<'a> {
                     let mut i = self.pos + 2; // Skip opening /*
 
                     while i + 1 < self.len() && depth > 0 {
-                        let c1 = self.at(i);
-                        let c2 = self.at(i + 1);
-
-                        if c1 == b'/' && c2 == b'*' {
-                            depth += 1;
-                            i += 2;
-                            continue;
-                        } else if c1 == b'*' && c2 == b'/' {
-                            depth -= 1;
-                            i += 2;
-                            continue;
+                        match (self.at(i), self.at(i + 1)) {
+                            (b'/', b'*') => { depth += 1; i += 2; }
+                            (b'*', b'/') => { depth -= 1; i += 2; }
+                            _ => { i += 1; }
                         }
-
-                        i += 1;
                     }
 
                     if depth != 0 {
@@ -115,8 +106,18 @@ impl<'a> Scanner<'a> {
                         ));
                     }
 
+                    // Update row/col/line_begin by scanning consumed bytes once
+                    for j in self.pos..i {
+                        if self.source.src[j] == b'\n' {
+                            self.row += 1;
+                            self.line_begin = j + 1;
+                            self.col = 0;
+                        }
+                    }
+                    self.col = i - self.line_begin;
+
                     (
-                        Token::new(TokenKind::Whitespace, 0, self.pos()),
+                        Token::new(TokenKind::BlockComment, 0, self.pos()),
                         i - self.pos,
                     )
                 }
@@ -166,11 +167,16 @@ impl<'a> Scanner<'a> {
                         }
 
                         let length = prefix_len + digits_len;
-                        let digits = self.source.str_range(digits_start, digits_start + digits_len);
+                        let digits = self
+                            .source
+                            .str_range(digits_start, digits_start + digits_len);
                         let value = i64::from_str_radix(digits, 16)
                             .map_err(|_| self.error("invalid hex literal", length))?;
 
-                        (Token::new(TokenKind::IntLit(value), length, self.pos()), length)
+                        (
+                            Token::new(TokenKind::IntLit(value), length, self.pos()),
+                            length,
+                        )
                     } else {
                         let mut length = self.peek_while(Scanner::is_numeric);
                         let mut lexeme = self.source.str_range(self.pos, self.pos + length);
@@ -238,11 +244,15 @@ impl<'a> Scanner<'a> {
             // Col must not advance after a newline. It is reset to 0 above and must remain 0
             // before next iteration. Incrementing now would cause the first token on the new
             // line to have col=1
-            if !token.kind.eq(&TokenKind::Newline) {
+            // Block comment must also be skipped here to not add all of the comments content to col
+            if !matches!(token.kind, TokenKind::Newline | TokenKind::BlockComment) {
                 self.col += consumed;
             }
 
-            if !token.kind.eq(&TokenKind::Whitespace) {
+            if !matches!(
+                token.kind,
+                TokenKind::Whitespace | TokenKind::BlockComment | TokenKind::LineComment
+            ) {
                 tokens.push(token);
             }
         }
