@@ -94,6 +94,10 @@ impl<'a> Scanner<'a> {
                         let c1 = self.at(i);
                         let c2 = self.at(i + 1);
 
+                        if c1 == b'\n' {
+                            self.row += 1;
+                        }
+
                         if c1 == b'/' && c2 == b'*' {
                             depth += 1;
                             i += 2;
@@ -166,11 +170,16 @@ impl<'a> Scanner<'a> {
                         }
 
                         let length = prefix_len + digits_len;
-                        let digits = self.source.str_range(digits_start, digits_start + digits_len);
+                        let digits = self
+                            .source
+                            .str_range(digits_start, digits_start + digits_len);
                         let value = i64::from_str_radix(digits, 16)
                             .map_err(|_| self.error("invalid hex literal", length))?;
 
-                        (Token::new(TokenKind::IntLit(value), length, self.pos()), length)
+                        (
+                            Token::new(TokenKind::IntLit(value), length, self.pos()),
+                            length,
+                        )
                     } else {
                         let mut length = self.peek_while(Scanner::is_numeric);
                         let mut lexeme = self.source.str_range(self.pos, self.pos + length);
