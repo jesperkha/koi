@@ -4,9 +4,9 @@ use crate::{
     context::Context,
     error::{self, Diagnostics, Report},
     ir::{
-        AssignIns, BinaryIns, Block, CallIns, CondIns, ConstId, Data, DataIndex, Decl, ElseIf,
-        ExternDecl, FuncDecl, IRBinaryOp, IRCondOp, IRType, IRTypeInterner, IRUnaryOp, IfIns, Ins,
-        LValue, ParamId, Primitive, RValue, StoreIns, UnaryIns, Unit, WhileIns,
+        AssignIns, BinaryIns, Block, CallIns, CondIns, ConstDecl, ConstId, Data, DataIndex, Decl,
+        ElseIf, ExternDecl, FuncDecl, IRBinaryOp, IRCondOp, IRType, IRTypeInterner, IRUnaryOp,
+        IfIns, Ins, LValue, ParamId, Primitive, RValue, StoreIns, UnaryIns, Unit, WhileIns,
     },
     module::{
         ConstValue, Module, ModuleId, ModuleKind, ModuleSourceFile, NamespaceList, Symbol,
@@ -138,7 +138,11 @@ impl<'a> ModuleEmitter<'a> {
             let mangled = mangle_symbol_name(self.ctx, symbol);
             let ty = symbol.ty;
             let kind = symbol.kind.clone();
-            let func = self.ctx.types.try_function(ty).map(|f| (f.params.clone(), f.ret));
+            let func = self
+                .ctx
+                .types
+                .try_function(ty)
+                .map(|f| (f.params.clone(), f.ret));
             (mangled, ty, kind, func)
         };
 
@@ -157,9 +161,17 @@ impl<'a> ModuleEmitter<'a> {
                 ConstValue::Float(n) => RValue::Float(n),
                 ConstValue::String(s) => RValue::Data(self.data.get_or_intern_string(s)),
             };
-            Ok(Decl::Const(ConstDecl { name: mangled_name, ty, value, public: false }))
+            Ok(Decl::Const(ConstDecl {
+                name: mangled_name,
+                ty,
+                value,
+                public: false,
+            }))
         } else {
-            panic!("cannot emit extern for non-function, non-const symbol (id={})", id)
+            panic!(
+                "cannot emit extern for non-function, non-const symbol (id={})",
+                id
+            )
         }
     }
 }
@@ -276,7 +288,12 @@ impl<'a> FileEmitter<'a> {
         let ty = self.types.to_ir(self.ctx, node.ty);
         let value = self.expr_to_rval(&mut Vec::new(), &node.value)?;
         let name = self.to_mangled_name(&node.name);
-        Ok(Decl::Const(ConstDecl { name, ty, value, public: node.public }))
+        Ok(Decl::Const(ConstDecl {
+            name,
+            ty,
+            value,
+            public: node.public,
+        }))
     }
 
     fn emit_func_block(&mut self, nodes: &Vec<types::Stmt>) -> Res<Block> {

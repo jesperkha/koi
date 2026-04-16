@@ -7,9 +7,9 @@ use crate::{
     },
     config::Config,
     ir::{
-        AssignIns, BinaryIns, Block, CallIns, CondIns, ConstId, Data, Decl, ExternDecl, FuncDecl,
-        IRBinaryOp, IRCondOp, IRType, IRTypeId, IRUnaryOp, IfIns, Ins, LValue, Primitive, RValue,
-        StoreIns, UnaryIns, Unit, WhileIns, ins_to_string_oneline,
+        AssignIns, BinaryIns, Block, CallIns, CondIns, ConstDecl, ConstId, Data, Decl, ExternDecl,
+        FuncDecl, IRBinaryOp, IRCondOp, IRType, IRTypeId, IRUnaryOp, IfIns, Ins, LValue, Primitive,
+        RValue, StoreIns, UnaryIns, Unit, WhileIns, ins_to_string_oneline,
     },
 };
 
@@ -45,12 +45,17 @@ impl<'a> Assembler<'a> {
         let data = take(&mut self.unit.data);
 
         // Collect global constants first so they are available when assembling functions
-        let (const_decls, other_decls): (Vec<_>, Vec<_>) = decls
-            .into_iter()
-            .partition(|d| matches!(d, Decl::Const(_)));
+        let (const_decls, other_decls): (Vec<_>, Vec<_>) =
+            decls.into_iter().partition(|d| matches!(d, Decl::Const(_)));
         self.consts = const_decls
             .into_iter()
-            .map(|d| if let Decl::Const(c) = d { c } else { unreachable!() })
+            .map(|d| {
+                if let Decl::Const(c) = d {
+                    c
+                } else {
+                    unreachable!()
+                }
+            })
             .collect();
 
         // Assemble all declarations
@@ -192,7 +197,12 @@ struct FunctionAssembler<'a> {
 }
 
 impl<'a> FunctionAssembler<'a> {
-    fn new(unit: &'a Unit, decl: &'a FuncDecl, config: &'a Config, consts: &'a [ConstDecl]) -> Self {
+    fn new(
+        unit: &'a Unit,
+        decl: &'a FuncDecl,
+        config: &'a Config,
+        consts: &'a [ConstDecl],
+    ) -> Self {
         Self {
             unit,
             decl,
