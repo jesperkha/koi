@@ -110,6 +110,7 @@ impl HeaderFile {
             .into_iter()
             .map(|s| {
                 let create_symbol = CreateSymbol {
+                    alias: None, // TODO: header alias
                     kind: s.kind,
                     name: s.name,
                     no_mangle: s.no_mangle,

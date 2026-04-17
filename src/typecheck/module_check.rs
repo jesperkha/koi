@@ -224,6 +224,7 @@ impl<'a> ModuleChecker<'a> {
         let mut is_inline = false;
         let mut is_naked = false;
         let name = node.name.to_string();
+        let mut alias = None;
 
         // Evaluate modifiers
         for m in &node.modifiers {
@@ -275,7 +276,8 @@ impl<'a> ModuleChecker<'a> {
                         ));
                     }
                     let new_name = m.args[0].to_string(); // len asserted
-                    self.symbols.alias(name.clone(), new_name);
+                    self.symbols.set_alias(name.clone(), new_name.clone());
+                    alias = Some(new_name);
                 }
                 _ => {
                     return Err(self.error("unknown modifier", m));
@@ -285,6 +287,7 @@ impl<'a> ModuleChecker<'a> {
 
         let symbol = CreateSymbol {
             name,
+            alias,
             kind: SymbolKind::Function {
                 is_inline,
                 is_naked,
@@ -399,7 +402,10 @@ impl<'a> ModuleChecker<'a> {
         };
 
         let exported = symbol.is_exported;
-        let name = symbol.name.clone();
+        let name = symbol
+            .alias
+            .as_ref()
+            .map_or(symbol.name.clone(), |alias| alias.clone());
         let id = self.ctx.symbols.add(symbol);
         let _ = self.symbols.add(name, ModuleSymbol { id, kind, exported }); // Checked earlier
         Ok(id)

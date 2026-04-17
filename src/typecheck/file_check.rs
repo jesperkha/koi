@@ -207,7 +207,15 @@ impl<'a> FileChecker<'a> {
 
     fn emit_extern(&mut self, node: ast::FuncDeclNode) -> Result<types::Decl, Report> {
         let meta = ast_node_to_meta(&node);
-        let name = node.name.to_string();
+
+        // If symbol has an alias, get in before fetching symbol
+        let real_name = node.name.to_string();
+        let name = if let Some(alias) = self.symbols.get_alias(&real_name) {
+            alias.clone()
+        } else {
+            real_name
+        };
+
         let sym = self
             .get_symbol(&name)
             .expect("should have been declared in global pass");
