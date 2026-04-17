@@ -12,3 +12,7 @@ todo:
 # Count lines of code, ignoring test files
 cloc:
     cloc src --not-match-f='(_test\.rs$|tests?\.rs$|tests?/|/test_)'
+
+# Build stdlib
+std:
+    cd lib/std && cargo run build --out=../../koi/lib/std
