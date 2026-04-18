@@ -39,6 +39,7 @@ impl SymbolInterner {
             kind: symbol.kind,
             ty: symbol.ty,
             name: symbol.name,
+            alias: symbol.alias,
             origin: symbol.origin,
             is_exported: symbol.is_exported,
             no_mangle: symbol.no_mangle,

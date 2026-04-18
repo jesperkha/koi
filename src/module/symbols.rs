@@ -11,12 +11,16 @@ pub type SymbolId = usize;
 pub struct Symbol {
     /// Unique identifier
     pub id: SymbolId,
+    /// The symbol name as it was declared.
+    pub name: String,
+    /// Extern symbols may be aliased. This contains that name.
+    /// When fetching symbols during type checks, the original
+    /// name is not used.
+    pub alias: Option<String>,
     /// Symbol kind contains additional, more specific, symbol information.
     pub kind: SymbolKind,
     /// The symbols type.
     pub ty: TypeId,
-    /// The symbol name as it was declared.
-    pub name: String,
     /// Where the symbol originates from.
     pub origin: SymbolOrigin,
     /// If this symbol is exported from its origin module.

@@ -77,6 +77,7 @@ impl HeaderFile {
 
                 HeaderSymbol {
                     name: symbol.name.clone(),
+                    alias: symbol.alias.clone(),
                     ty: *mappings
                         .get(&symbol.ty)
                         .expect("all types should be mapped"),
@@ -110,7 +111,7 @@ impl HeaderFile {
             .into_iter()
             .map(|s| {
                 let create_symbol = CreateSymbol {
-                    alias: None, // TODO: header alias
+                    alias: s.alias,
                     kind: s.kind,
                     name: s.name,
                     no_mangle: s.no_mangle,
@@ -122,7 +123,11 @@ impl HeaderFile {
                     },
                 };
 
-                let name = create_symbol.name.clone();
+                let name = create_symbol
+                    .alias
+                    .as_ref()
+                    .map_or(&create_symbol.name, |alias| alias)
+                    .clone();
                 let id = ctx.symbols.add(create_symbol);
                 let modsym = ModuleSymbol {
                     id,
@@ -149,6 +154,7 @@ impl HeaderFile {
 #[derive(Debug, Serialize, Deserialize)]
 struct HeaderSymbol {
     name: String,
+    alias: Option<String>,
     ty: usize,
     kind: SymbolKind,
     no_mangle: bool,
