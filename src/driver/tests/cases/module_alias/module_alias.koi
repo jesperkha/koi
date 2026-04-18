@@ -1,0 +1,5 @@
+import alias { len }
+
+func main() int {
+    return len("Ole Magnus")
+}

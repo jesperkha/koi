@@ -456,3 +456,14 @@ fn test_operand_order_ne() {
     // a=5, b=a*2=10: `a != b` → 5≠10 (true→1). Bug: rhs(b) in rax clobbered → 5≠5 (false→0).
     run_case_with_status("operand_order_ne", 1);
 }
+
+#[test]
+fn test_local_alias() {
+    run_case_with_status("local_alias", 10);
+}
+
+#[test]
+fn test_module_alias() {
+    run_case_with_status("module_alias", 10);
+}
+

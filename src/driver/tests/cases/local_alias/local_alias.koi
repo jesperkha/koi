@@ -1,0 +1,6 @@
+@alias len
+extern func strlen(s string) int
+
+func main() int {
+    return len("Ole Magnus")
+}

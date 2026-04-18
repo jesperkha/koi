@@ -7,9 +7,10 @@ pub const INVALID_SYMBOL_ID: SymbolId = usize::MAX;
 
 #[derive(Debug)]
 pub struct CreateSymbol {
+    pub name: String,
+    pub alias: Option<String>,
     pub kind: SymbolKind,
     pub ty: TypeId,
-    pub name: String,
     pub origin: SymbolOrigin,
     pub is_exported: bool,
     pub no_mangle: bool,
@@ -38,6 +39,7 @@ impl SymbolInterner {
             kind: symbol.kind,
             ty: symbol.ty,
             name: symbol.name,
+            alias: symbol.alias,
             origin: symbol.origin,
             is_exported: symbol.is_exported,
             no_mangle: symbol.no_mangle,

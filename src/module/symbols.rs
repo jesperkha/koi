@@ -11,12 +11,16 @@ pub type SymbolId = usize;
 pub struct Symbol {
     /// Unique identifier
     pub id: SymbolId,
+    /// The symbol name as it was declared.
+    pub name: String,
+    /// Extern symbols may be aliased. This contains that name.
+    /// When fetching symbols during type checks, the original
+    /// name is not used.
+    pub alias: Option<String>,
     /// Symbol kind contains additional, more specific, symbol information.
     pub kind: SymbolKind,
     /// The symbols type.
     pub ty: TypeId,
-    /// The symbol name as it was declared.
-    pub name: String,
     /// Where the symbol originates from.
     pub origin: SymbolOrigin,
     /// If this symbol is exported from its origin module.
@@ -136,7 +140,6 @@ pub enum ModuleSymbolKind {
 }
 
 pub struct SymbolList {
-    /// Mapping of node id to new name for functions with alias modifier
     aliases: HashMap<String, String>,
     symbols: HashMap<String, ModuleSymbol>,
 }
@@ -161,17 +164,20 @@ impl SymbolList {
             .map_or(Ok(()), |_| Err("already declared".to_string()))
     }
 
-    pub fn alias(&mut self, from: String, to: String) {
-        self.aliases.insert(to, from);
-    }
-
     pub fn get(&self, name: &str) -> Result<&ModuleSymbol, String> {
-        let name = self.aliases.get(name).map_or(name, |s| s.as_str());
         self.symbols.get(name).ok_or("not declared".to_string())
     }
 
     pub fn symbols(&self) -> &HashMap<String, ModuleSymbol> {
         &self.symbols
+    }
+
+    pub fn set_alias(&mut self, from: String, to: String) {
+        self.aliases.insert(from, to);
+    }
+
+    pub fn get_alias(&self, real_name: &String) -> Option<&String> {
+        self.aliases.get(real_name)
     }
 
     pub fn dump(&self, ctx: &Context, filepath: &str) -> String {

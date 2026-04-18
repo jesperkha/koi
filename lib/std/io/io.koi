@@ -1,8 +1,5 @@
-extern func puts(s string)
-
-pub func println(s string) {
-    puts(s)
-}
+@alias println
+pub extern func puts(s string)
 
 pub extern func write(fd int, s string, len int)
 pub extern func close(fd int)
