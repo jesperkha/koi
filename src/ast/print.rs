@@ -240,7 +240,7 @@ impl Visitor<()> for Printer {
         self.s += "continue"
     }
 
-    fn visit_for(&mut self, node: &super::ForNode) -> () {
+    fn visit_for(&mut self, node: &super::ForNode) {
         self.s += "for ";
         node.initializer.accept(self);
         self.s += "; ";
