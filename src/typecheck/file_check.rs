@@ -98,6 +98,7 @@ impl<'a> FileChecker<'a> {
             ast::Stmt::VarDecl(node) => self.emit_var_decl(node),
             ast::Stmt::VarAssign(node) => self.emit_var_assign(node),
             ast::Stmt::While(node) => self.emit_while(node),
+            ast::Stmt::For(node) => self.emit_for(node),
             ast::Stmt::If(node) => Ok(types::Stmt::If(self.emit_if(node)?)),
             ast::Stmt::Block(_) => panic!("block should be handled manually as list of stmt"),
             ast::Stmt::Break(node) => {
@@ -237,6 +238,25 @@ impl<'a> FileChecker<'a> {
 
         self.vars.pop_scope();
         Ok(types::BlockNode { stmts })
+    }
+
+    fn emit_for(&mut self, node: ast::ForNode) -> Result<types::Stmt, Report> {
+        let meta = ast_node_to_meta(&node);
+
+        let initializer = Box::new(self.emit_stmt(*node.initializer)?);
+        let condition = Box::new(self.emit_expr(*node.condition)?);
+        self.assert_expr_is_type(PrimitiveType::Bool, &condition)?;
+
+        let increment = Box::new(self.emit_stmt(*node.increment)?);
+        let block = self.emit_block(node.block)?;
+
+        Ok(types::Stmt::For(types::ForNode {
+            meta,
+            initializer,
+            condition,
+            increment,
+            block,
+        }))
     }
 
     fn emit_while(&mut self, node: ast::WhileNode) -> Result<types::Stmt, Report> {

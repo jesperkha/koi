@@ -239,4 +239,15 @@ impl Visitor<()> for Printer {
     fn visit_continue(&mut self, _: &super::ContinueNode) {
         self.s += "continue"
     }
+
+    fn visit_for(&mut self, node: &super::ForNode) -> () {
+        self.s += "for ";
+        node.initializer.accept(self);
+        self.s += "; ";
+        node.condition.accept(self);
+        self.s += "; ";
+        node.increment.accept(self);
+        self.s += " ";
+        self.visit_block(&node.block);
+    }
 }

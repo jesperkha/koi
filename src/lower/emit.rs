@@ -283,6 +283,7 @@ impl<'a> FileEmitter<'a> {
             types::Stmt::VarAssign(node) => self.emit_var_assign(ins, node)?,
             types::Stmt::If(node) => self.emit_if(ins, node)?,
             types::Stmt::While(node) => self.emit_while(ins, node)?,
+            types::Stmt::For(node) => self.emit_for(ins, node)?,
             types::Stmt::Break(_) => ins.push(Ins::Break),
             types::Stmt::Continue(_) => ins.push(Ins::Continue),
         };
@@ -295,6 +296,23 @@ impl<'a> FileEmitter<'a> {
             self.emit_stmt(&mut ins, stmt)?;
         }
         Ok(Block { ins })
+    }
+
+    fn emit_for(&mut self, ins: &mut Vec<Ins>, node: &types::ForNode) -> Res<()> {
+        self.emit_stmt(ins, &node.initializer)?;
+
+        let mut cond_ins = Vec::new();
+        let cond = self.expr_to_rval(&mut cond_ins, &node.condition)?;
+
+        let mut block = self.emit_block(&node.block)?;
+        self.emit_stmt(&mut block.ins, &node.increment)?;
+
+        ins.push(Ins::While(WhileIns {
+            cond_ins,
+            cond,
+            block,
+        }));
+        Ok(())
     }
 
     fn emit_while(&mut self, ins: &mut Vec<Ins>, node: &types::WhileNode) -> Res<()> {
