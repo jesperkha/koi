@@ -248,7 +248,7 @@ impl<'a> FileChecker<'a> {
         self.assert_expr_is_type(PrimitiveType::Bool, &condition)?;
 
         let increment = Box::new(self.emit_stmt(*node.increment)?);
-        let block = self.emit_block(node.block)?;
+        let block = self.emit_loop_block(node.block)?;
 
         Ok(types::Stmt::For(types::ForNode {
             meta,
@@ -263,17 +263,20 @@ impl<'a> FileChecker<'a> {
         let meta = ast_node_to_meta(&node);
         let expr = self.emit_expr(node.expr)?;
         self.assert_expr_is_type(PrimitiveType::Bool, &expr)?;
+        let block = self.emit_loop_block(node.block)?;
 
+        Ok(types::Stmt::While(types::WhileNode { meta, expr, block }))
+    }
+
+    /// Emit block node while preserving return status and setting the loop flag.
+    fn emit_loop_block(&mut self, block: ast::BlockNode) -> Result<types::BlockNode, Report> {
         let prev_in_loop = self.in_loop;
         let has_returned = self.has_returned;
         self.in_loop = true;
-
-        let block = self.emit_block(node.block)?;
-
+        let block = self.emit_block(block)?;
         self.in_loop = prev_in_loop;
         self.has_returned = has_returned;
-
-        Ok(types::Stmt::While(types::WhileNode { meta, expr, block }))
+        Ok(block)
     }
 
     fn emit_if(&mut self, node: ast::IfNode) -> Result<types::IfNode, Report> {
