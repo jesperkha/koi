@@ -2,7 +2,6 @@
 
 ## Doing
 
-- `feat/for-loop`: C for loop
 - `feat/global-const`: Global constants
     - Local top-level constants which can be exported and imported in modules
 

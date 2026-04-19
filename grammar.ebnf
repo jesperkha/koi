@@ -38,6 +38,7 @@ stmt
     | stmt_assign
     | stmt_if
     | stmt_while
+    | stmt_for
     | "break"
     | "continue"
     | stmt_return;
@@ -60,6 +61,9 @@ else_if
 
 stmt_while
     = "while", expr, block;
+
+stmt_for
+    = "for", stmt, ";", expr, ";", stmt, block;
 
 stmt_return
     = "return", [ expr ];
