@@ -1602,3 +1602,30 @@ fn test_alias_modifier() {
     "#,
     );
 }
+
+#[test]
+fn test_for_loop() {
+    assert_pass(
+        r#"
+        func f() {
+            for i := 0; i < 10; i = i + 1 {
+                f()
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_for_loop_expression() {
+    assert_error(
+        r#"
+        func f() {
+            for false; 1 + 2; false {
+                f()
+            }
+        }
+    "#,
+        "expression must be of type 'bool', got 'i32'",
+    );
+}
