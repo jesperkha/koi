@@ -242,7 +242,22 @@ impl<'a> FunctionAssembler<'a> {
         let label = self.next_loop_label();
         let end = self.next_loop_end_label();
 
-        self.push(Asm::Label(label.clone()));
+        if let Some(post_cond) = &ins.post {
+            // For loops have a post condition which must run before the next iteration of each
+            // loop, but not before. This condition (list of instructions) is put before the loop
+            // body. We simply jump past it the first time.
+
+            // Label to skip initial post condition
+            let post = self.next_loop_label();
+
+            // Skip over post condition code first iteration
+            self.push(Asm::Jmp(post.clone()));
+            self.push(Asm::Label(label.clone()));
+            self.emit_ins_vec(post_cond);
+            self.push(Asm::Label(post));
+        } else {
+            self.push(Asm::Label(label.clone()));
+        }
 
         // Eval and jump if false
         self.emit_ins_vec(&ins.cond_ins);

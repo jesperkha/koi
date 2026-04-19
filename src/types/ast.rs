@@ -48,6 +48,7 @@ pub enum Stmt {
     ExprStmt(Expr),
     If(IfNode),
     While(WhileNode),
+    For(ForNode),
     Break(BreakNode),
     Continue(ContinueNode),
 }
@@ -116,6 +117,14 @@ pub struct IfNode {
 pub struct WhileNode {
     pub meta: NodeMeta,
     pub expr: Expr,
+    pub block: BlockNode,
+}
+
+pub struct ForNode {
+    pub meta: NodeMeta,
+    pub initializer: Box<Stmt>,
+    pub condition: Box<Expr>,
+    pub increment: Box<Stmt>,
     pub block: BlockNode,
 }
 
@@ -265,6 +274,7 @@ impl Node for Stmt {
             Stmt::ExprStmt(expr) => expr.pos(),
             Stmt::If(node) => &node.meta.pos,
             Stmt::While(node) => &node.meta.pos,
+            Stmt::For(node) => &node.meta.pos,
             Stmt::Break(node) => &node.meta.pos,
             Stmt::Continue(node) => &node.meta.pos,
         }
@@ -278,6 +288,7 @@ impl Node for Stmt {
             Stmt::ExprStmt(expr) => expr.end(),
             Stmt::If(node) => &node.meta.end,
             Stmt::While(node) => &node.meta.end,
+            Stmt::For(node) => &node.meta.end,
             Stmt::Break(node) => &node.meta.end,
             Stmt::Continue(node) => &node.meta.end,
         }
@@ -291,6 +302,7 @@ impl Node for Stmt {
             Stmt::ExprStmt(expr) => expr.id(),
             Stmt::If(node) => node.meta.id,
             Stmt::While(node) => node.meta.id,
+            Stmt::For(node) => node.meta.id,
             Stmt::Break(node) => node.meta.id,
             Stmt::Continue(node) => node.meta.id,
         }
@@ -354,6 +366,7 @@ impl_typed_node_enum!(Stmt {
     While,
     Break,
     Continue,
+    For,
 });
 impl_typed_node_enum!(Expr {
     Call,
@@ -363,6 +376,12 @@ impl_typed_node_enum!(Expr {
     Unary,
     Binary,
 });
+
+impl<'a> TypedNode<'a> for ForNode {
+    fn type_id(&self) -> TypeId {
+        NO_TYPE
+    }
+}
 
 impl<'a> TypedNode<'a> for IfNode {
     fn type_id(&self) -> TypeId {

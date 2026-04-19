@@ -98,6 +98,7 @@ impl<'a> FileChecker<'a> {
             ast::Stmt::VarDecl(node) => self.emit_var_decl(node),
             ast::Stmt::VarAssign(node) => self.emit_var_assign(node),
             ast::Stmt::While(node) => self.emit_while(node),
+            ast::Stmt::For(node) => self.emit_for(node),
             ast::Stmt::If(node) => Ok(types::Stmt::If(self.emit_if(node)?)),
             ast::Stmt::Block(_) => panic!("block should be handled manually as list of stmt"),
             ast::Stmt::Break(node) => {
@@ -239,21 +240,43 @@ impl<'a> FileChecker<'a> {
         Ok(types::BlockNode { stmts })
     }
 
+    fn emit_for(&mut self, node: ast::ForNode) -> Result<types::Stmt, Report> {
+        let meta = ast_node_to_meta(&node);
+
+        let initializer = Box::new(self.emit_stmt(*node.initializer)?);
+        let condition = Box::new(self.emit_expr(*node.condition)?);
+        self.assert_expr_is_type(PrimitiveType::Bool, &condition)?;
+
+        let increment = Box::new(self.emit_stmt(*node.increment)?);
+        let block = self.emit_loop_block(node.block)?;
+
+        Ok(types::Stmt::For(types::ForNode {
+            meta,
+            initializer,
+            condition,
+            increment,
+            block,
+        }))
+    }
+
     fn emit_while(&mut self, node: ast::WhileNode) -> Result<types::Stmt, Report> {
         let meta = ast_node_to_meta(&node);
         let expr = self.emit_expr(node.expr)?;
         self.assert_expr_is_type(PrimitiveType::Bool, &expr)?;
+        let block = self.emit_loop_block(node.block)?;
 
+        Ok(types::Stmt::While(types::WhileNode { meta, expr, block }))
+    }
+
+    /// Emit block node while preserving return status and setting the loop flag.
+    fn emit_loop_block(&mut self, block: ast::BlockNode) -> Result<types::BlockNode, Report> {
         let prev_in_loop = self.in_loop;
         let has_returned = self.has_returned;
         self.in_loop = true;
-
-        let block = self.emit_block(node.block)?;
-
+        let block = self.emit_block(block)?;
         self.in_loop = prev_in_loop;
         self.has_returned = has_returned;
-
-        Ok(types::Stmt::While(types::WhileNode { meta, expr, block }))
+        Ok(block)
     }
 
     fn emit_if(&mut self, node: ast::IfNode) -> Result<types::IfNode, Report> {

@@ -9,7 +9,6 @@
 
 ## Language features
 
-- For-loop
 - Operator assignment (`a += 1`)
 - Typedef
 - Floats

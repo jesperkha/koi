@@ -5,9 +5,9 @@ use tracing::info;
 use crate::{
     ast::{
         Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, ContinueNode, Decl, ElseBlock, Expr,
-        Field, File, FileSet, FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode, MemberNode,
-        Modifier, Node, ReturnNode, SourceMap, Stmt, Token, TokenKind, TypeNode, UnaryExpr,
-        VarAssignNode, VarDeclNode, WhileNode,
+        Field, File, FileSet, ForNode, FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode,
+        MemberNode, Modifier, Node, ReturnNode, SourceMap, Stmt, Token, TokenKind, TypeNode,
+        UnaryExpr, VarAssignNode, VarDeclNode, WhileNode,
     },
     config::Config,
     error::{Diagnostics, Report, Res},
@@ -401,6 +401,7 @@ impl<'a> Parser<'a> {
             TokenKind::Return => Ok(Stmt::Return(self.parse_return()?)),
             TokenKind::If => Ok(Stmt::If(self.parse_if()?)),
             TokenKind::While => Ok(Stmt::While(self.parse_while()?)),
+            TokenKind::For => Ok(Stmt::For(self.parse_for()?)),
             TokenKind::Break => {
                 let kw = self.expect(TokenKind::Break)?;
                 Ok(Stmt::Break(BreakNode { kw }))
@@ -423,6 +424,24 @@ impl<'a> Parser<'a> {
                 }
             }
         }
+    }
+
+    fn parse_for(&mut self) -> Result<ForNode, Report> {
+        let kw = self.expect(TokenKind::For)?;
+        let initializer = Box::new(self.parse_stmt()?);
+        self.expect(TokenKind::Semi)?;
+        let condition = Box::new(self.parse_expr()?);
+        self.expect(TokenKind::Semi)?;
+        let increment = Box::new(self.parse_stmt()?);
+        let block = self.parse_block()?;
+
+        Ok(ForNode {
+            kw,
+            initializer,
+            condition,
+            increment,
+            block,
+        })
     }
 
     fn parse_while(&mut self) -> Result<WhileNode, Report> {

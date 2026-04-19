@@ -50,6 +50,7 @@ pub trait Visitor<R> {
     fn visit_import(&mut self, node: &ImportNode) -> R;
     fn visit_if(&mut self, node: &IfNode) -> R;
     fn visit_while(&mut self, node: &WhileNode) -> R;
+    fn visit_for(&mut self, node: &ForNode) -> R;
     fn visit_break(&mut self, node: &BreakNode) -> R;
     fn visit_continue(&mut self, node: &ContinueNode) -> R;
 
@@ -82,6 +83,7 @@ pub enum Stmt {
     VarAssign(VarAssignNode),
     If(IfNode),
     While(WhileNode),
+    For(ForNode),
     Break(BreakNode),
     Continue(ContinueNode),
 }
@@ -194,6 +196,15 @@ pub struct IfNode {
 pub struct WhileNode {
     pub kw: Token,
     pub expr: Expr,
+    pub block: BlockNode,
+}
+
+#[derive(Debug, Clone)]
+pub struct ForNode {
+    pub kw: Token,
+    pub initializer: Box<Stmt>,
+    pub condition: Box<Expr>,
+    pub increment: Box<Stmt>,
     pub block: BlockNode,
 }
 
@@ -390,6 +401,7 @@ impl Node for Stmt {
             Stmt::While(node) => node.pos(),
             Stmt::Break(node) => node.pos(),
             Stmt::Continue(node) => node.pos(),
+            Stmt::For(node) => node.pos(),
         }
     }
 
@@ -404,6 +416,7 @@ impl Node for Stmt {
             Stmt::While(node) => node.end(),
             Stmt::Break(node) => node.end(),
             Stmt::Continue(node) => node.end(),
+            Stmt::For(node) => node.end(),
         }
     }
 
@@ -418,7 +431,22 @@ impl Node for Stmt {
             Stmt::While(node) => node.id(),
             Stmt::Break(node) => node.id(),
             Stmt::Continue(node) => node.id(),
+            Stmt::For(node) => node.id(),
         }
+    }
+}
+
+impl Node for ForNode {
+    fn pos(&self) -> &Pos {
+        &self.kw.pos
+    }
+
+    fn end(&self) -> &Pos {
+        self.increment.end()
+    }
+
+    fn id(&self) -> NodeId {
+        self.kw.id
     }
 }
 
@@ -518,6 +546,7 @@ impl Visitable for Stmt {
             Stmt::While(node) => visitor.visit_while(node),
             Stmt::Break(node) => visitor.visit_break(node),
             Stmt::Continue(node) => visitor.visit_continue(node),
+            Stmt::For(node) => visitor.visit_for(node),
         }
     }
 }

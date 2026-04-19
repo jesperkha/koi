@@ -182,6 +182,8 @@ pub struct WhileIns {
     pub cond: RValue,
     /// Then-block
     pub block: Block,
+    /// Post condition to execute before next iteration
+    pub post: Option<Vec<Ins>>,
 }
 
 pub struct CallIns {

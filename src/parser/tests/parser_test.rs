@@ -828,25 +828,31 @@ fn test_modifier_on_extern() {
 
 #[test]
 fn test_modifier_on_pub_func() {
-    assert_pass(r#"
+    assert_pass(
+        r#"
         @nomangle
         pub func f() {
         }
-    "#);
-    assert_pass(r#"
+    "#,
+    );
+    assert_pass(
+        r#"
         @inline
         @naked
         pub func f() {
         }
-    "#);
+    "#,
+    );
 }
 
 #[test]
 fn test_modifier_on_pub_extern() {
-    assert_pass(r#"
+    assert_pass(
+        r#"
         @nomangle
         pub extern func write(fd int, s string, len int) int
-    "#);
+    "#,
+    );
 }
 
 #[test]
@@ -871,5 +877,53 @@ fn test_modifier_missing_name_error() {
         }
     "#,
         "expected modifier name",
+    );
+}
+
+#[test]
+fn test_for_loop() {
+    assert_pass(
+        r#"
+        func f() {
+            for i := 0; i < 10; i = i + 1 {
+                g()
+            }
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            for i := foo(0); true; i = foo(i) {
+
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_complex_for_loop_expressions() {
+    assert_pass(
+        r#"
+        func f() {
+            for println("Hello"); true; return 0 {
+                println("World")
+            }
+        }
+    "#,
+    );
+    assert_pass(
+        r#"
+        func f() {
+            for if true {
+                return
+            }; false; for i := 0; i < 10; i = i + 1 {
+                break
+            } {
+                g()
+            }
+        }
+    "#,
     );
 }

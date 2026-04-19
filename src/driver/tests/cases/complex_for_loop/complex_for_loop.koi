@@ -1,0 +1,9 @@
+func main() int {
+    i := 0
+    for 0; i < 10; if i == 5 { return 0 } {
+        i = i + 1
+    }
+
+    return 1
+}
+

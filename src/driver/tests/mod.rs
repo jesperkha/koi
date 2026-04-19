@@ -467,3 +467,12 @@ fn test_module_alias() {
     run_case_with_status("module_alias", 10);
 }
 
+#[test]
+fn test_for_loop() {
+    run_case_with_status("for_loop", 10);
+}
+
+#[test]
+fn test_complex_for_loop() {
+    run_case_with_status("complex_for_loop", 0);
+}
