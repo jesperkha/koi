@@ -239,10 +239,23 @@ impl<'a> FunctionAssembler<'a> {
     }
 
     fn emit_while(&mut self, ins: &WhileIns) {
-        let label = self.next_loop_label();
-        let end = self.next_loop_end_label();
+        let label = self.next_loop_label(); // Loop label
+        let end = self.next_loop_end_label(); // Loop end label
 
-        self.push(Asm::Label(label.clone()));
+        if let Some(post_cond) = &ins.post {
+            // Label to skip initial post condition
+            let post = self.next_loop_label();
+
+            // Skip over post condition code first iteration
+            self.push(Asm::Jmp(post.clone()));
+            self.push(Asm::Label(label.clone()));
+
+            self.emit_ins_vec(post_cond);
+
+            self.push(Asm::Label(post));
+        } else {
+            self.push(Asm::Label(label.clone()));
+        }
 
         // Eval and jump if false
         self.emit_ins_vec(&ins.cond_ins);

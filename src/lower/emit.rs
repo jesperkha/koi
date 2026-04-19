@@ -304,13 +304,16 @@ impl<'a> FileEmitter<'a> {
         let mut cond_ins = Vec::new();
         let cond = self.expr_to_rval(&mut cond_ins, &node.condition)?;
 
-        let mut block = self.emit_block(&node.block)?;
-        self.emit_stmt(&mut block.ins, &node.increment)?;
+        let block = self.emit_block(&node.block)?;
+
+        let mut post = Vec::new();
+        self.emit_stmt(&mut post, &node.increment)?;
 
         ins.push(Ins::While(WhileIns {
             cond_ins,
             cond,
             block,
+            post: Some(post),
         }));
         Ok(())
     }
@@ -323,6 +326,7 @@ impl<'a> FileEmitter<'a> {
             cond_ins,
             cond,
             block,
+            post: None,
         }));
         Ok(())
     }
