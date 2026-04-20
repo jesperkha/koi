@@ -17,13 +17,17 @@ Koi is a very simple systems language. Both the modern syntax and module system 
 
 ## Install
 
-Install with a single command:
+### Download latest release
+
+This script downloads and installs Koi to `$HOME/.local/koi`. Make sure `$HOME/.local/koi/bin` is in your `$PATH`.
 
 ```sh
 curl -sL https://raw.githubusercontent.com/jesperkha/koi/main/setup.sh | bash
 ```
 
-### Building from source
+### Or build from source
+
+The install script builds the Koi binary along with the standard library and creates the installation directory `$HOME/.local/koi`. Make sure `$HOME/.local/koi/bin` is in your `$PATH`.
 
 ```sh
 git clone https://github.com/jesperkha/koi.git

@@ -3,13 +3,16 @@ nav:
     - About: index.md
     - Getting Started:
           - Creating a Project: getstarted/create_project.md
-          - Hello World: getstarted/hello_world.md
-    - Documentation:
-          - Main Function: docs/main.md
+          - The Main Function: getstarted/main_function.md
+          - Modules: getstarted/modules.md
+          - Control Flow: getstarted/control-flow.md
+          - External Symbols: getstarted/external-symbols.md
+          - Project Config: getstarted/project-config.md
     - Examples:
           - Working with C: examples/work_with_c.md
 theme:
     name: material
     features:
         - content.code.copy
-        - navigation.footer
+extra_css:
+    - stylesheets/extra.css
