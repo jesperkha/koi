@@ -242,108 +242,88 @@ pub struct UnaryNode {
     pub rhs: Box<Expr>,
 }
 
-impl Node for Decl {
-    fn pos(&self) -> &Pos {
-        match self {
-            Decl::Extern(node) => &node.meta.pos,
-            Decl::Func(node) => &node.meta.pos,
+/// Implement ast::Node trait for a typed ast enum.
+macro_rules! impl_node_for_enum {
+    (
+        $enum_name:ident {
+            meta => [ $( $meta_variant:ident ),* $(,)? ],
+            delegate => [ $( $delegate_variant:ident ),* $(,)? ]
         }
-    }
+    ) => {
+        impl Node for $enum_name {
+            fn pos(&self) -> &Pos {
+                match self {
+                    $(
+                        $enum_name::$meta_variant(node) => &node.meta.pos,
+                    )*
+                    $(
+                        $enum_name::$delegate_variant(node) => node.pos(),
+                    )*
+                }
+            }
 
-    fn end(&self) -> &Pos {
-        match self {
-            Decl::Extern(node) => &node.meta.end,
-            Decl::Func(node) => &node.meta.end,
-        }
-    }
+            fn end(&self) -> &Pos {
+                match self {
+                    $(
+                        $enum_name::$meta_variant(node) => &node.meta.end,
+                    )*
+                    $(
+                        $enum_name::$delegate_variant(node) => node.end(),
+                    )*
+                }
+            }
 
-    fn id(&self) -> NodeId {
-        match self {
-            Decl::Extern(node) => node.meta.id,
-            Decl::Func(node) => node.meta.id,
+            fn id(&self) -> NodeId {
+                match self {
+                    $(
+                        $enum_name::$meta_variant(node) => node.meta.id,
+                    )*
+                    $(
+                        $enum_name::$delegate_variant(node) => node.id(),
+                    )*
+                }
+            }
         }
-    }
+    };
 }
 
-impl Node for Stmt {
-    fn pos(&self) -> &Pos {
-        match self {
-            Stmt::Return(node) => &node.meta.pos,
-            Stmt::VarDecl(node) => &node.meta.pos,
-            Stmt::VarAssign(node) => &node.meta.pos,
-            Stmt::ExprStmt(expr) => expr.pos(),
-            Stmt::If(node) => &node.meta.pos,
-            Stmt::While(node) => &node.meta.pos,
-            Stmt::For(node) => &node.meta.pos,
-            Stmt::Break(node) => &node.meta.pos,
-            Stmt::Continue(node) => &node.meta.pos,
-        }
-    }
+impl_node_for_enum!(Decl {
+    meta => [
+        Func,
+        Extern,
+    ],
+    delegate => []
+});
 
-    fn end(&self) -> &Pos {
-        match self {
-            Stmt::Return(node) => &node.meta.end,
-            Stmt::VarDecl(node) => &node.meta.end,
-            Stmt::VarAssign(node) => &node.meta.end,
-            Stmt::ExprStmt(expr) => expr.end(),
-            Stmt::If(node) => &node.meta.end,
-            Stmt::While(node) => &node.meta.end,
-            Stmt::For(node) => &node.meta.end,
-            Stmt::Break(node) => &node.meta.end,
-            Stmt::Continue(node) => &node.meta.end,
-        }
-    }
+impl_node_for_enum!(Stmt {
+    meta => [
+        Return,
+        VarDecl,
+        VarAssign,
+        If,
+        While,
+        For,
+        Break,
+        Continue,
+    ],
+    delegate => [
+        ExprStmt,
+    ]
+});
 
-    fn id(&self) -> NodeId {
-        match self {
-            Stmt::Return(node) => node.meta.id,
-            Stmt::VarDecl(node) => node.meta.id,
-            Stmt::VarAssign(node) => node.meta.id,
-            Stmt::ExprStmt(expr) => expr.id(),
-            Stmt::If(node) => node.meta.id,
-            Stmt::While(node) => node.meta.id,
-            Stmt::For(node) => node.meta.id,
-            Stmt::Break(node) => node.meta.id,
-            Stmt::Continue(node) => node.meta.id,
-        }
-    }
-}
+impl_node_for_enum!(Expr {
+    meta => [
+        Literal,
+        Call,
+        Member,
+        NamespaceMember,
+        Binary,
+        Unary,
+    ],
+    delegate => []
+});
 
-impl Node for Expr {
-    fn pos(&self) -> &Pos {
-        match self {
-            Expr::Literal(node) => &node.meta.pos,
-            Expr::Call(node) => &node.meta.pos,
-            Expr::Member(node) => &node.meta.pos,
-            Expr::NamespaceMember(node) => &node.meta.pos,
-            Expr::Binary(node) => &node.meta.pos,
-            Expr::Unary(node) => &node.meta.pos,
-        }
-    }
-
-    fn end(&self) -> &Pos {
-        match self {
-            Expr::Literal(node) => &node.meta.end,
-            Expr::Call(node) => &node.meta.end,
-            Expr::Member(node) => &node.meta.end,
-            Expr::NamespaceMember(node) => &node.meta.end,
-            Expr::Binary(node) => &node.meta.end,
-            Expr::Unary(node) => &node.meta.end,
-        }
-    }
-
-    fn id(&self) -> NodeId {
-        match self {
-            Expr::Literal(node) => node.meta.id,
-            Expr::Call(node) => node.meta.id,
-            Expr::Member(node) => node.meta.id,
-            Expr::NamespaceMember(node) => node.meta.id,
-            Expr::Binary(node) => node.meta.id,
-            Expr::Unary(node) => node.meta.id,
-        }
-    }
-}
-
+/// Implement types::TypedNode trait for the whole enum.
 macro_rules! impl_typed_node_enum {
     ($enum:ty { $($variant:ident),* $(,)? }) => {
         impl<'a> TypedNode<'a> for $enum {
@@ -356,7 +336,11 @@ macro_rules! impl_typed_node_enum {
     };
 }
 
-impl_typed_node_enum!(Decl { Func, Extern });
+impl_typed_node_enum!(Decl {
+    Func,
+    Extern,
+});
+
 impl_typed_node_enum!(Stmt {
     Return,
     VarDecl,
@@ -368,6 +352,7 @@ impl_typed_node_enum!(Stmt {
     Continue,
     For,
 });
+
 impl_typed_node_enum!(Expr {
     Call,
     Literal,
@@ -377,36 +362,28 @@ impl_typed_node_enum!(Expr {
     Binary,
 });
 
-impl<'a> TypedNode<'a> for ForNode {
-    fn type_id(&self) -> TypeId {
-        NO_TYPE
+/// Implement types::TypedNode trait for variants with no type.
+macro_rules! impl_no_type_node {
+    ($($t:ty),* $(,)?) => {
+        $(
+            impl<'a> TypedNode<'a> for $t {
+                fn type_id(&self) -> TypeId {
+                    NO_TYPE
+                }
+            }
+        )*
     }
 }
 
-impl<'a> TypedNode<'a> for IfNode {
-    fn type_id(&self) -> TypeId {
-        NO_TYPE
-    }
-}
+impl_no_type_node!(
+    WhileNode,
+    IfNode,
+    ForNode,
+    BreakNode,
+    ContinueNode,
+);
 
-impl<'a> TypedNode<'a> for BreakNode {
-    fn type_id(&self) -> TypeId {
-        NO_TYPE
-    }
-}
-
-impl<'a> TypedNode<'a> for ContinueNode {
-    fn type_id(&self) -> TypeId {
-        NO_TYPE
-    }
-}
-
-impl<'a> TypedNode<'a> for WhileNode {
-    fn type_id(&self) -> TypeId {
-        NO_TYPE
-    }
-}
-
+/// Implement TypedNode for each enum variant.
 macro_rules! impl_typed_node {
     ($($t:ty),* $(,)?) => {
         $(
