@@ -92,9 +92,17 @@ impl<'a> Scanner<'a> {
 
                     while i + 1 < self.len() && depth > 0 {
                         match (self.at(i), self.at(i + 1)) {
-                            (b'/', b'*') => { depth += 1; i += 2; }
-                            (b'*', b'/') => { depth -= 1; i += 2; }
-                            _ => { i += 1; }
+                            (b'/', b'*') => {
+                                depth += 1;
+                                i += 2;
+                            }
+                            (b'*', b'/') => {
+                                depth -= 1;
+                                i += 2;
+                            }
+                            _ => {
+                                i += 1;
+                            }
                         }
                     }
 

@@ -336,10 +336,7 @@ macro_rules! impl_typed_node_enum {
     };
 }
 
-impl_typed_node_enum!(Decl {
-    Func,
-    Extern,
-});
+impl_typed_node_enum!(Decl { Func, Extern });
 
 impl_typed_node_enum!(Stmt {
     Return,
@@ -375,13 +372,7 @@ macro_rules! impl_no_type_node {
     }
 }
 
-impl_no_type_node!(
-    WhileNode,
-    IfNode,
-    ForNode,
-    BreakNode,
-    ContinueNode,
-);
+impl_no_type_node!(WhileNode, IfNode, ForNode, BreakNode, ContinueNode,);
 
 /// Implement TypedNode for each enum variant.
 macro_rules! impl_typed_node {
