@@ -275,6 +275,51 @@ pub struct Field {
     pub typ: TypeNode,
 }
 
+impl Visitable for Decl {
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
+        match self {
+            Decl::Func(node) => visitor.visit_func(node),
+            Decl::Extern(node) => visitor.visit_extern(node),
+        }
+    }
+}
+
+impl Visitable for Stmt {
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
+        match self {
+            Stmt::ExprStmt(node) => node.accept(visitor),
+            Stmt::Return(node) => visitor.visit_return(node),
+            Stmt::Block(node) => visitor.visit_block(node),
+            Stmt::VarDecl(node) => visitor.visit_var_decl(node),
+            Stmt::VarAssign(node) => visitor.visit_var_assign(node),
+            Stmt::If(node) => visitor.visit_if(node),
+            Stmt::While(node) => visitor.visit_while(node),
+            Stmt::Break(node) => visitor.visit_break(node),
+            Stmt::Continue(node) => visitor.visit_continue(node),
+            Stmt::For(node) => visitor.visit_for(node),
+        }
+    }
+}
+
+impl Visitable for Expr {
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
+        match self {
+            Expr::Literal(token) => visitor.visit_literal(token),
+            Expr::Call(call) => visitor.visit_call(call),
+            Expr::Group(grp) => visitor.visit_group(grp),
+            Expr::Member(node) => visitor.visit_member(node),
+            Expr::Binary(node) => visitor.visit_binary(node),
+            Expr::Unary(node) => visitor.visit_unary(node),
+        }
+    }
+}
+
+impl Visitable for TypeNode {
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
+        visitor.visit_type(self)
+    }
+}
+
 impl Node for TypeNode {
     fn pos(&self) -> &Pos {
         match self {
@@ -295,143 +340,82 @@ impl Node for TypeNode {
     }
 }
 
-impl Visitable for TypeNode {
-    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
-        visitor.visit_type(self)
-    }
+macro_rules! impl_node_enum {
+    ($enum_name:ident { $( $variant:ident ),+ $(,)? }) => {
+        impl Node for $enum_name {
+            fn pos(&self) -> &Pos {
+                match self {
+                    $(
+                        $enum_name::$variant(node) => node.pos(),
+                    )+
+                }
+            }
+
+            fn end(&self) -> &Pos {
+                match self {
+                    $(
+                        $enum_name::$variant(node) => node.end(),
+                    )+
+                }
+            }
+
+            fn id(&self) -> NodeId {
+                match self {
+                    $(
+                        $enum_name::$variant(node) => node.id(),
+                    )+
+                }
+            }
+        }
+    };
 }
 
-impl Node for Decl {
+impl_node_enum!(Decl { Func, Extern });
+
+impl_node_enum!(Stmt {
+    ExprStmt,
+    Return,
+    Block,
+    VarDecl,
+    VarAssign,
+    If,
+    While,
+    Break,
+    Continue,
+    For,
+});
+
+impl Node for Expr {
     fn pos(&self) -> &Pos {
         match self {
-            Decl::Func(node) => node.pos(),
-            Decl::Extern(node) => node.pos(),
+            Expr::Literal(token) => &token.pos,
+            Expr::Call(call) => call.pos(),
+            Expr::Group(grp) => &grp.lparen.pos,
+            Expr::Member(node) => node.expr.pos(),
+            Expr::Binary(node) => node.pos(),
+            Expr::Unary(node) => node.pos(),
         }
     }
 
     fn end(&self) -> &Pos {
         match self {
-            Decl::Func(node) => node.end(),
-            Decl::Extern(node) => node.end(),
-        }
-    }
-
-    fn id(&self) -> usize {
-        match self {
-            Decl::Func(node) => node.id(),
-            Decl::Extern(node) => node.id(),
-        }
-    }
-}
-
-impl Node for Modifier {
-    fn pos(&self) -> &Pos {
-        &self.sym.pos
-    }
-
-    fn end(&self) -> &Pos {
-        &self.modifier.end_pos
-    }
-
-    fn id(&self) -> NodeId {
-        self.sym.id
-    }
-}
-
-impl Node for ImportNode {
-    fn pos(&self) -> &Pos {
-        &self.kw.pos
-    }
-
-    fn end(&self) -> &Pos {
-        &self.end_tok.end_pos
-    }
-
-    fn id(&self) -> NodeId {
-        self.kw.id
-    }
-}
-
-impl Node for FuncNode {
-    fn pos(&self) -> &Pos {
-        &self.name.pos
-    }
-
-    fn end(&self) -> &Pos {
-        &self.name.end_pos
-    }
-
-    fn id(&self) -> NodeId {
-        self.name.id
-    }
-}
-
-impl Node for FuncDeclNode {
-    fn pos(&self) -> &Pos {
-        &self.name.pos
-    }
-
-    fn end(&self) -> &Pos {
-        &self.name.end_pos
-    }
-
-    fn id(&self) -> NodeId {
-        self.name.id
-    }
-}
-
-impl Visitable for Decl {
-    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
-        match self {
-            Decl::Func(node) => visitor.visit_func(node),
-            Decl::Extern(node) => visitor.visit_extern(node),
-        }
-    }
-}
-
-impl Node for Stmt {
-    fn pos(&self) -> &Pos {
-        match self {
-            Stmt::ExprStmt(node) => node.pos(),
-            Stmt::Return(node) => node.pos(),
-            Stmt::Block(node) => node.pos(),
-            Stmt::VarDecl(node) => node.pos(),
-            Stmt::VarAssign(node) => node.pos(),
-            Stmt::If(node) => node.pos(),
-            Stmt::While(node) => node.pos(),
-            Stmt::Break(node) => node.pos(),
-            Stmt::Continue(node) => node.pos(),
-            Stmt::For(node) => node.pos(),
-        }
-    }
-
-    fn end(&self) -> &Pos {
-        match self {
-            Stmt::ExprStmt(node) => node.end(),
-            Stmt::Return(node) => node.end(),
-            Stmt::Block(node) => node.end(),
-            Stmt::VarDecl(node) => node.end(),
-            Stmt::VarAssign(node) => node.end(),
-            Stmt::If(node) => node.end(),
-            Stmt::While(node) => node.end(),
-            Stmt::Break(node) => node.end(),
-            Stmt::Continue(node) => node.end(),
-            Stmt::For(node) => node.end(),
+            Expr::Literal(token) => &token.end_pos,
+            Expr::Call(call) => call.end(),
+            Expr::Member(node) => &node.field.end_pos,
+            Expr::Group(grp) => &grp.rparen.end_pos,
+            Expr::Binary(node) => node.end(),
+            Expr::Unary(node) => node.end(),
         }
     }
 
     fn id(&self) -> usize {
         match self {
-            Stmt::ExprStmt(node) => node.id(),
-            Stmt::Return(node) => node.id(),
-            Stmt::Block(node) => node.id(),
-            Stmt::VarDecl(node) => node.id(),
-            Stmt::VarAssign(node) => node.id(),
-            Stmt::If(node) => node.id(),
-            Stmt::While(node) => node.id(),
-            Stmt::Break(node) => node.id(),
-            Stmt::Continue(node) => node.id(),
-            Stmt::For(node) => node.id(),
+            Expr::Literal(token) => token.id,
+            Expr::Call(call) => call.id(),
+            Expr::Group(grp) => grp.rparen.id,
+            Expr::Member(node) => node.dot.id,
+            Expr::Binary(node) => node.id(),
+            Expr::Unary(node) => node.id(),
         }
     }
 }
@@ -534,58 +518,6 @@ impl Node for BlockNode {
     }
 }
 
-impl Visitable for Stmt {
-    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
-        match self {
-            Stmt::ExprStmt(node) => node.accept(visitor),
-            Stmt::Return(node) => visitor.visit_return(node),
-            Stmt::Block(node) => visitor.visit_block(node),
-            Stmt::VarDecl(node) => visitor.visit_var_decl(node),
-            Stmt::VarAssign(node) => visitor.visit_var_assign(node),
-            Stmt::If(node) => visitor.visit_if(node),
-            Stmt::While(node) => visitor.visit_while(node),
-            Stmt::Break(node) => visitor.visit_break(node),
-            Stmt::Continue(node) => visitor.visit_continue(node),
-            Stmt::For(node) => visitor.visit_for(node),
-        }
-    }
-}
-
-impl Node for Expr {
-    fn pos(&self) -> &Pos {
-        match self {
-            Expr::Literal(token) => &token.pos,
-            Expr::Call(call) => call.pos(),
-            Expr::Group(grp) => &grp.lparen.pos,
-            Expr::Member(node) => node.expr.pos(),
-            Expr::Binary(node) => node.pos(),
-            Expr::Unary(node) => node.pos(),
-        }
-    }
-
-    fn end(&self) -> &Pos {
-        match self {
-            Expr::Literal(token) => &token.end_pos,
-            Expr::Call(call) => call.end(),
-            Expr::Member(node) => &node.field.end_pos,
-            Expr::Group(grp) => &grp.rparen.end_pos,
-            Expr::Binary(node) => node.end(),
-            Expr::Unary(node) => node.end(),
-        }
-    }
-
-    fn id(&self) -> usize {
-        match self {
-            Expr::Literal(token) => token.id,
-            Expr::Call(call) => call.id(),
-            Expr::Group(grp) => grp.rparen.id,
-            Expr::Member(node) => node.dot.id,
-            Expr::Binary(node) => node.id(),
-            Expr::Unary(node) => node.id(),
-        }
-    }
-}
-
 impl Node for CallExpr {
     fn pos(&self) -> &Pos {
         self.callee.pos()
@@ -670,15 +602,58 @@ impl Node for BinaryExpr {
     }
 }
 
-impl Visitable for Expr {
-    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
-        match self {
-            Expr::Literal(token) => visitor.visit_literal(token),
-            Expr::Call(call) => visitor.visit_call(call),
-            Expr::Group(grp) => visitor.visit_group(grp),
-            Expr::Member(node) => visitor.visit_member(node),
-            Expr::Binary(node) => visitor.visit_binary(node),
-            Expr::Unary(node) => visitor.visit_unary(node),
-        }
+impl Node for Modifier {
+    fn pos(&self) -> &Pos {
+        &self.sym.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.modifier.end_pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.sym.id
+    }
+}
+
+impl Node for ImportNode {
+    fn pos(&self) -> &Pos {
+        &self.kw.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.end_tok.end_pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.kw.id
+    }
+}
+
+impl Node for FuncNode {
+    fn pos(&self) -> &Pos {
+        &self.name.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.name.end_pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.name.id
+    }
+}
+
+impl Node for FuncDeclNode {
+    fn pos(&self) -> &Pos {
+        &self.name.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.name.end_pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.name.id
     }
 }
