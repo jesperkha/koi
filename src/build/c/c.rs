@@ -2,9 +2,19 @@ use std::fmt::Display;
 
 use crate::ir::{self, IRType};
 
-pub enum Node {
+pub enum Decl {
+    Extern(ExternNode),
     Function(FunctionNode),
     Block(BlockNode),
+}
+
+pub enum Stmt {
+    Return(Option<Expr>),
+}
+
+pub enum Expr {
+    Void,
+    Int(i64),
 }
 
 pub enum CType {
@@ -29,20 +39,27 @@ pub struct TypeModifier {
     pub unsigned: bool,
 }
 
+pub struct ExternNode {
+    pub name: String,
+    pub args: Vec<CType>,
+    pub ret: CType,
+}
+
 pub struct FunctionNode {
+    pub name: String,
     pub args: Vec<CType>,
     pub body: BlockNode,
     pub ret: CType,
 }
 
 pub struct BlockNode {
-    pub nodes: Vec<Node>,
+    pub stmts: Vec<Stmt>,
 }
 
 impl Display for CType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
-            CType::Pointer(ctype) => &format!("*{}", ctype),
+            CType::Pointer(ctype) => &format!("{}*", ctype),
             CType::Named(name) => name,
             CType::Void => "void",
             CType::U8 => "uint8_t",
@@ -61,8 +78,8 @@ impl Display for CType {
     }
 }
 
-impl From<IRType> for CType {
-    fn from(value: IRType) -> Self {
+impl From<&IRType> for CType {
+    fn from(value: &IRType) -> Self {
         match value {
             IRType::Primitive(primitive) => match primitive {
                 ir::Primitive::Void => Self::Void,
@@ -97,4 +114,77 @@ impl Display for TypeModifier {
         }
         write!(f, "{s}")
     }
+}
+
+impl Display for Decl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Decl::Extern(node) => format!(
+                    "extern {} {}({});\n",
+                    node.ret,
+                    node.name,
+                    args_to_string(&node.args)
+                ),
+                Decl::Function(node) => format!(
+                    "{} {}({})\n{}\n",
+                    node.ret,
+                    node.name,
+                    args_to_string(&node.args),
+                    block_to_string(&node.body)
+                ),
+                Decl::Block(node) => block_to_string(node),
+            }
+        )
+    }
+}
+
+impl Display for Stmt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Stmt::Return(expr) => format!(
+                    "return {};",
+                    expr.as_ref().map_or("".to_owned(), |e| e.to_string())
+                ),
+            }
+        )
+    }
+}
+
+impl Display for Expr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Expr::Void => format!("void"),
+                Expr::Int(n) => format!("{n}"),
+            }
+        )
+    }
+}
+
+fn args_to_string(args: &[CType]) -> String {
+    args.iter()
+        .enumerate()
+        .map(|(i, arg)| format!("{} a{}", arg.to_string(), i))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn block_to_string(block: &BlockNode) -> String {
+    format!(
+        "{{\n{}\n}}",
+        block
+            .stmts
+            .iter()
+            .map(|stmt| stmt.to_string())
+            .collect::<Vec<_>>()
+            .join("\n")
+    )
 }

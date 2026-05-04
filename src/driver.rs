@@ -301,7 +301,7 @@ fn build(
             pm,
             libset,
         ),
-        Target::C => c::build(),
+        Target::C => c::build(ir, config),
     }
 }
 
