@@ -22,7 +22,7 @@ Koi is a very simple systems language. Both the modern syntax and module system 
 This script downloads and installs Koi to `$HOME/.local/koi`. Make sure `$HOME/.local/koi/bin` is in your `$PATH`.
 
 ```sh
-curl -sL https://raw.githubusercontent.com/jesperkha/koi/main/setup.sh | bash
+curl -sL https://jesperkha.github.io/koi/setup.sh | bash
 ```
 
 ### Or build from source
