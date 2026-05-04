@@ -8,7 +8,7 @@ use walkdir::WalkDir;
 
 use crate::{
     ast::{FileSet, Printer, Source, SourceMap},
-    build::x86,
+    build::{c, x86},
     config::{Config, DriverPhase, Options, PathManager, Project, ProjectType, Target},
     context::Context,
     imports::{LibrarySet, create_header_file, read_header_file},
@@ -301,6 +301,7 @@ fn build(
             pm,
             libset,
         ),
+        Target::C => c::build(),
     }
 }
 

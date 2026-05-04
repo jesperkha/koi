@@ -32,6 +32,8 @@ pub struct ConfigFile {
 pub enum Target {
     /// Target CPUs with the x86_64 instruction set.
     X86_64,
+    /// Target C99 source code.
+    C,
 }
 
 #[derive(Deserialize, Clone)]
