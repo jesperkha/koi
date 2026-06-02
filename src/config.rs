@@ -32,6 +32,9 @@ pub struct ConfigFile {
 pub enum Target {
     /// Target CPUs with the x86_64 instruction set.
     X86_64,
+
+    /// Generate C source code.
+    C,
 }
 
 #[derive(Deserialize, Clone)]
@@ -100,8 +103,8 @@ pub enum DriverPhase {
     TypeCheck,
     /// Emit and print IR units.
     Ir,
-    /// Assemble and print source but do not compile with gcc/as.
-    Asm,
+    /// Print final build output of target source.
+    Build,
 }
 
 /// Internal compiler configuration
@@ -193,6 +196,11 @@ impl PathManager {
 
     pub fn root(&self) -> &FilePath {
         &self.root
+    }
+
+    /// Path to Koi C headers
+    pub fn include_path(&self) -> FilePath {
+        self.root().join("include")
     }
 
     /// Path to library directory containing koi builtin libraries.

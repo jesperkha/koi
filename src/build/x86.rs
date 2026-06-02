@@ -1,8 +1,7 @@
-use std::process::{Command, Stdio};
-
 use tracing::info;
 
 use crate::{
+    build::{BuildConfig, LinkMode, gcc_available},
     config::{Config, DriverPhase, PathManager},
     imports::LibrarySet,
     ir::ProgramIR,
@@ -17,24 +16,6 @@ mod assembly;
 
 use assemble::assemble;
 use assembly::*;
-
-pub enum LinkMode {
-    /// Link as executable ELF file
-    Executable,
-    /// Link to static library file (.a)
-    Library,
-}
-
-pub struct BuildConfig {
-    pub linkmode: LinkMode,
-    /// Where to output temp files (.s .o)
-    pub tmpdir: String,
-    /// Filepath out output executable/object file
-    pub target_name: String,
-    /// Directory to output target file(s)
-    pub outdir: String,
-    pub additional_libraries: Vec<String>,
-}
 
 /// Build and compile an x86-64 executable or shared object file.
 pub fn build(
@@ -57,7 +38,7 @@ pub fn build(
         let filepath = format!("{}/{}.s", buildcfg.tmpdir, unit.name);
         let source = assemble(unit, config);
 
-        if matches!(config.driver_phase, DriverPhase::Asm) {
+        if matches!(config.driver_phase, DriverPhase::Build) {
             println!("{}", source);
         } else {
             info!("Writing file {}", filepath);
@@ -67,7 +48,7 @@ pub fn build(
     }
 
     // Finished assembly phase, exit early if specified.
-    if matches!(config.driver_phase, DriverPhase::Asm) {
+    if matches!(config.driver_phase, DriverPhase::Build) {
         return Ok(());
     }
 
@@ -123,14 +104,4 @@ pub fn build(
     }
 
     Ok(())
-}
-
-fn gcc_available() -> bool {
-    Command::new("gcc")
-        .arg("--version")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
 }

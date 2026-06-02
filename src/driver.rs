@@ -8,7 +8,7 @@ use walkdir::WalkDir;
 
 use crate::{
     ast::{FileSet, Printer, Source, SourceMap},
-    build::x86,
+    build::{self, c, x86},
     config::{Config, DriverPhase, Options, PathManager, Project, ProjectType, Target},
     context::Context,
     imports::{LibrarySet, create_header_file, read_header_file},
@@ -287,28 +287,25 @@ fn build(
     pm: &PathManager,
     libset: &LibrarySet,
 ) -> Res<()> {
+    let build_config = build::BuildConfig {
+        linkmode: proj_type_to_link_mode(&project.project_type),
+        tmpdir: project.bin.clone(),
+        target_name: project.name.clone(),
+        outdir: project.out.clone(),
+        additional_libraries: project.link_with.clone(),
+    };
+
     match project.target {
-        Target::X86_64 => x86::build(
-            ir,
-            x86::BuildConfig {
-                linkmode: proj_type_to_link_mode(&project.project_type),
-                tmpdir: project.bin.clone(),
-                target_name: project.name.clone(),
-                outdir: project.out.clone(),
-                additional_libraries: project.link_with.clone(),
-            },
-            config,
-            pm,
-            libset,
-        ),
+        Target::X86_64 => x86::build(ir, build_config, config, pm, libset),
+        Target::C => c::build(ir, build_config, config, pm, libset),
     }
 }
 
 /// Report which x86 link mode to use for which compilation mode.
-fn proj_type_to_link_mode(mode: &ProjectType) -> x86::LinkMode {
+fn proj_type_to_link_mode(mode: &ProjectType) -> build::LinkMode {
     match mode {
-        ProjectType::App => x86::LinkMode::Executable,
-        ProjectType::Package => x86::LinkMode::Library,
+        ProjectType::App => build::LinkMode::Executable,
+        ProjectType::Package => build::LinkMode::Library,
     }
 }
 
