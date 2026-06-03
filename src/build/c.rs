@@ -41,6 +41,10 @@ pub fn build(
         }
     }
 
+    if matches!(config.driver_phase, DriverPhase::Build) {
+        return Ok(());
+    }
+
     let mut linker_flags = vec![];
     for lib in libset.archives() {
         linker_flags.push(format!("{}", lib));

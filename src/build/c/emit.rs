@@ -1,9 +1,9 @@
 use std::mem;
 
 use crate::{
-    build::c::ast::{Ast, Decl, Expr, Stmt, Type},
+    build::c::ast::{Ast, BinaryOp, Decl, Expr, Stmt, Type},
     config::{Config, PathManager},
-    ir::{self, IRTypeInterner, Unit},
+    ir::{self, ConstId, IRTypeInterner, ParamId, Unit},
 };
 
 pub fn emit(unit: Unit, config: &Config, pm: &PathManager) -> Ast {
@@ -26,6 +26,7 @@ pub fn emit(unit: Unit, config: &Config, pm: &PathManager) -> Ast {
 struct FuncEmitter<'a> {
     decl: ir::FuncDecl,
     types: &'a IRTypeInterner,
+    param_count: usize,
 
     /// Current ID count
     id_count: usize,
@@ -34,6 +35,7 @@ struct FuncEmitter<'a> {
 impl<'a> FuncEmitter<'a> {
     fn new(decl: ir::FuncDecl, types: &'a IRTypeInterner) -> Self {
         Self {
+            param_count: decl.params.len(),
             decl,
             id_count: 0,
             types,
@@ -83,9 +85,27 @@ impl<'a> FuncEmitter<'a> {
             }),
             ir::Ins::Store(store_ins) => todo!(),
             ir::Ins::Assign(assign_ins) => todo!(),
-            ir::Ins::Call(call_ins) => todo!(),
+            ir::Ins::Call(ins) => match &ins.callee {
+                ir::RValue::Function(name) => Stmt::Call {
+                    ty: self.to_ctype(ins.ty),
+                    callee: name.clone(),
+                    dest: self.lval_to_id(&ins.result),
+                    args: ins
+                        .args
+                        .iter()
+                        .map(|(_, rval)| self.rval_to_expr(rval))
+                        .collect(),
+                },
+                _ => todo!("non-function callee not implemented"),
+            },
             ir::Ins::Intrinsic(intrinsic_ins) => todo!(),
-            ir::Ins::Binary(binary_ins) => todo!(),
+            ir::Ins::Binary(ins) => Stmt::Binary {
+                result: self.var_id(ins.result),
+                ty: self.to_ctype(ins.ty),
+                op: (&ins.op).into(),
+                left: Box::new(self.rval_to_expr(&ins.lhs)),
+                right: Box::new(self.rval_to_expr(&ins.rhs)),
+            },
             ir::Ins::Unary(unary_ins) => todo!(),
             ir::Ins::If(if_ins) => todo!(),
             ir::Ins::While(while_ins) => todo!(),
@@ -100,12 +120,27 @@ impl<'a> FuncEmitter<'a> {
             ir::RValue::Int(i) => Expr::IntLit(*i),
             ir::RValue::Float(_) => todo!(),
             ir::RValue::Uint(_) => todo!(),
-            ir::RValue::Const(_) => todo!(),
-            ir::RValue::Param(_) => todo!(),
+            ir::RValue::Const(i) => Expr::VarLit(self.var_id(*i)),
+            ir::RValue::Param(i) => Expr::VarLit(self.param_id(*i)),
             ir::RValue::Function(_) => todo!(),
             ir::RValue::Data(_) => todo!(),
             ir::RValue::Void => panic!("void value should always be checked"),
         }
+    }
+
+    fn lval_to_id(&mut self, lval: &ir::LValue) -> usize {
+        match lval {
+            ir::LValue::Const(i) => self.var_id(*i),
+            ir::LValue::Param(i) => self.param_id(*i),
+        }
+    }
+
+    fn param_id(&self, id: ParamId) -> usize {
+        id
+    }
+
+    fn var_id(&self, id: ConstId) -> usize {
+        id + self.param_count
     }
 }
 
@@ -124,6 +159,24 @@ impl From<&ir::Primitive> for Type {
             ir::Primitive::I32 => Self::Int32,
             ir::Primitive::I64 => Self::Int64,
             ir::Primitive::String => todo!("implement sized String type in C"),
+        }
+    }
+}
+
+impl From<&ir::IRBinaryOp> for BinaryOp {
+    fn from(value: &ir::IRBinaryOp) -> Self {
+        match value {
+            ir::IRBinaryOp::Add => Self::Plus,
+            ir::IRBinaryOp::Sub => Self::Minus,
+            ir::IRBinaryOp::Mul => Self::Mult,
+            ir::IRBinaryOp::Div => Self::Div,
+            ir::IRBinaryOp::Eq => Self::Equal,
+            ir::IRBinaryOp::Ne => Self::NotEqual,
+            ir::IRBinaryOp::Gt => Self::Greater,
+            ir::IRBinaryOp::Ge => Self::GreaterEqual,
+            ir::IRBinaryOp::Lt => Self::Less,
+            ir::IRBinaryOp::Le => Self::LessEqual,
+            ir::IRBinaryOp::Mod => Self::Modulo,
         }
     }
 }

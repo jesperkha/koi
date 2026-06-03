@@ -102,7 +102,7 @@ fn get_driver_phase(s: Option<String>) -> DriverPhase {
         "ast" => DriverPhase::Parse,
         "check" => DriverPhase::TypeCheck,
         "ir" => DriverPhase::Ir,
-        "asm" => DriverPhase::Build,
+        "build" => DriverPhase::Build,
         _ => {
             println!("invalid phase option '{}'", phase);
             exit(1);

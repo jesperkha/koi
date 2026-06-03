@@ -41,11 +41,7 @@ pub enum Type {
     Uint32,
     Uint64,
 
-    Bool,
-    Char,
-
     Float,
-    Double,
 
     Pointer(Box<Type>),
 }
@@ -55,14 +51,13 @@ pub enum BinaryOp {
     Minus,
     Div,
     Mult,
-    LogicOr,
-    LogicAnd,
     Equal,
     NotEqual,
     Greater,
     Less,
     GreaterEqual,
     LessEqual,
+    Modulo,
 }
 
 pub enum UnaryOp {
@@ -75,28 +70,37 @@ pub enum Expr {
     UintLit(u64),
     CharLit(u8),
     VarLit(usize),
+}
 
-    Binary {
-        op: BinaryOp,
-        left: Box<Expr>,
-        right: Box<Expr>,
-    },
-
-    Unary {
-        op: UnaryOp,
-        expr: Box<Expr>,
-    },
+pub enum Dest {
+    Var(usize),
 }
 
 pub enum Stmt {
     Return(Option<Expr>),
-
-    Expr(Box<Expr>),
-
+    Binary {
+        ty: Type,
+        result: usize,
+        op: BinaryOp,
+        left: Box<Expr>,
+        right: Box<Expr>,
+    },
+    Unary {
+        ty: Type,
+        result: usize,
+        op: UnaryOp,
+        expr: Box<Expr>,
+    },
     VarDecl {
         ty: Type,
         id: usize,
         value: Box<Expr>,
+    },
+    Call {
+        ty: Type,
+        dest: usize,
+        callee: String,
+        args: Vec<Expr>,
     },
 }
 
@@ -112,10 +116,7 @@ impl Display for Type {
             Type::Uint16 => write!(f, "uint16_t"),
             Type::Uint32 => write!(f, "uint32_t"),
             Type::Uint64 => write!(f, "uint64_t"),
-            Type::Bool => write!(f, "bool"),
-            Type::Char => write!(f, "char"),
             Type::Float => write!(f, "float"),
-            Type::Double => write!(f, "double"),
             Type::Pointer(t) => write!(f, "{}*", t),
         }
     }
@@ -144,14 +145,13 @@ impl Display for BinaryOp {
                 BinaryOp::Minus => "-",
                 BinaryOp::Div => "/",
                 BinaryOp::Mult => "*",
-                BinaryOp::LogicOr => "||",
-                BinaryOp::LogicAnd => "&&",
                 BinaryOp::Equal => "==",
                 BinaryOp::NotEqual => "!=",
                 BinaryOp::Greater => ">",
                 BinaryOp::Less => "<",
                 BinaryOp::GreaterEqual => ">=",
                 BinaryOp::LessEqual => "<=",
+                BinaryOp::Modulo => "%",
             }
         )
     }
@@ -160,12 +160,10 @@ impl Display for BinaryOp {
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Expr::IntLit(i) => write!(f, "{}", i),
-            Expr::UintLit(u) => write!(f, "{}", u),
-            Expr::CharLit(c) => write!(f, "{}", c),
-            Expr::VarLit(id) => write!(f, "t{}", id),
-            Expr::Binary { op, left, right } => write!(f, "{} {} {}", left, op, right),
-            Expr::Unary { op, expr } => write!(f, "{}{}", op, expr),
+            Expr::IntLit(i) => write!(f, "{i}"),
+            Expr::UintLit(u) => write!(f, "{u}"),
+            Expr::CharLit(c) => write!(f, "{c}"),
+            Expr::VarLit(id) => write!(f, "t{id}"),
         }
     }
 }
@@ -180,8 +178,33 @@ impl Display for Stmt {
                     expr.as_ref().map_or("".to_string(), |e| e.to_string())
                 )
             }
-            Stmt::Expr(expr) => write!(f, "{};", expr),
-            Stmt::VarDecl { ty, id, value } => write!(f, "{} t{} = {};", ty, id, value),
+            Stmt::Binary {
+                ty,
+                result,
+                op,
+                left,
+                right,
+            } => write!(f, "{ty} t{result} = {left} {op} {right};"),
+            Stmt::Unary {
+                ty,
+                result,
+                op,
+                expr,
+            } => write!(f, "{ty} t{result} = {op}{expr};"),
+            Stmt::VarDecl { ty, id, value } => write!(f, "{ty} t{id} = {value};"),
+            Stmt::Call {
+                ty,
+                callee,
+                dest,
+                args,
+            } => write!(
+                f,
+                "{ty} t{dest} = {callee}({});",
+                args.iter()
+                    .map(|a| a.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
         }
     }
 }
@@ -197,9 +220,7 @@ impl Display for Decl {
             } => {
                 write!(
                     f,
-                    "{} {}({}) {{ {} }}",
-                    ret,
-                    name,
+                    "{ret} {name}({}) {{\n{}\n}}",
                     params
                         .iter()
                         .map(|(id, ty)| { format!("{} t{}", ty, id) })
@@ -211,7 +232,7 @@ impl Display for Decl {
                         .join("\n"),
                 )
             }
-            Decl::Include(path) => write!(f, "#include \"{}\"", path),
+            Decl::Include(path) => write!(f, "#include \"{path}\""),
         }
     }
 }
