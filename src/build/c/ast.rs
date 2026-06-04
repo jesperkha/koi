@@ -20,6 +20,11 @@ impl Display for Ast {
 
 pub enum Decl {
     Include(String),
+    ExternFunc {
+        name: String,
+        params: Vec<Type>,
+        ret: Type,
+    },
     Function {
         name: String,
         params: Vec<(usize, Type)>,
@@ -70,6 +75,8 @@ pub enum Expr {
     FloatLit(f64),
     UintLit(u64),
     VarLit(usize),
+    StrLit(String),
+    Not(Box<Expr>),
 }
 
 pub enum Stmt {
@@ -101,6 +108,14 @@ pub enum Stmt {
         dest: usize,
         callee: String,
         args: Vec<Expr>,
+    },
+    If {
+        cond: Expr,
+        body: Vec<Stmt>,
+        else_: Option<Vec<Stmt>>,
+    },
+    While {
+        body: Vec<Stmt>,
     },
     Break,
     Continue,
@@ -166,6 +181,21 @@ impl Display for Expr {
             Expr::FloatLit(i) => write!(f, "{i}"),
             Expr::UintLit(u) => write!(f, "{u}"),
             Expr::VarLit(id) => write!(f, "t{id}"),
+            Expr::StrLit(s) => {
+                write!(f, "\"")?;
+                for ch in s.chars() {
+                    match ch {
+                        '\\' => write!(f, "\\\\")?,
+                        '"' => write!(f, "\\\"")?,
+                        '\n' => write!(f, "\\n")?,
+                        '\r' => write!(f, "\\r")?,
+                        '\t' => write!(f, "\\t")?,
+                        c => write!(f, "{c}")?,
+                    }
+                }
+                write!(f, "\"")
+            }
+            Expr::Not(inner) => write!(f, "!{inner}"),
         }
     }
 }
@@ -200,14 +230,27 @@ impl Display for Stmt {
                 callee,
                 dest,
                 args,
-            } => write!(
-                f,
-                "{ty} t{dest} = {callee}({});",
-                args.iter()
-                    .map(|a| a.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
+            } => {
+                let args_str = args.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", ");
+                if matches!(ty, Type::Void) {
+                    write!(f, "{callee}({args_str});")
+                } else {
+                    write!(f, "{ty} t{dest} = {callee}({args_str});")
+                }
+            }
+            Stmt::If { cond, body, else_ } => {
+                let body_str = body.iter().map(|s| s.to_string()).collect::<Vec<_>>().join("\n");
+                write!(f, "if ({cond}) {{\n{body_str}\n}}")?;
+                if let Some(else_stmts) = else_ {
+                    let else_str = else_stmts.iter().map(|s| s.to_string()).collect::<Vec<_>>().join("\n");
+                    write!(f, " else {{\n{else_str}\n}}")?;
+                }
+                Ok(())
+            }
+            Stmt::While { body } => {
+                let body_str = body.iter().map(|s| s.to_string()).collect::<Vec<_>>().join("\n");
+                write!(f, "while (1) {{\n{body_str}\n}}")
+            }
             Stmt::Break => write!(f, "break;"),
             Stmt::Continue => write!(f, "continue;"),
         }
@@ -237,6 +280,16 @@ impl Display for Decl {
                         .join("\n"),
                 )
             }
+            Decl::ExternFunc { name, params, ret } => write!(
+                f,
+                "extern {ret} {name}({});",
+                params
+                    .iter()
+                    .enumerate()
+                    .map(|(i, ty)| format!("{ty} t{i}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             Decl::Include(path) => write!(f, "#include \"{path}\""),
         }
     }

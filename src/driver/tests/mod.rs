@@ -2,6 +2,8 @@ use std::{fs::create_dir_all, process::Command, sync::Once};
 
 use tracing_subscriber::EnvFilter;
 
+use strum::IntoEnumIterator;
+
 use crate::{
     config::{Config, Options, Project, ProjectType, Target},
     driver::compile,
@@ -41,14 +43,14 @@ fn case_dir(case: &str) -> FilePath {
     root_dir().join("src/driver/tests/cases").join(case)
 }
 
-fn new_config(case: &str) -> (Project, Options, Config) {
+fn new_config(case: &str, target: Target) -> (Project, Options, Config) {
     init_logger();
     let project = Project {
         name: case.into(),
         bin: "bin".into(),
         src: case_dir(case).to_string(),
         out: "bin".into(),
-        target: Target::X86_64,
+        target,
         project_type: ProjectType::App,
         includes: None,
         ignore_dirs: vec![],
@@ -76,6 +78,7 @@ fn library_config(
     libname: &str,
     includes: Option<Vec<String>>,
     out_dir: String,
+    target: Target,
 ) -> (Project, Options, Config) {
     init_logger();
     let project = Project {
@@ -83,7 +86,7 @@ fn library_config(
         bin: "bin".into(),
         src: case_dir(case).join(libname).to_string(),
         out: out_dir,
-        target: Target::X86_64,
+        target,
         project_type: ProjectType::Package,
         includes,
         ignore_dirs: vec![],
@@ -116,16 +119,20 @@ fn expect_status(case: &str, status: i32) {
 }
 
 fn run_case_with_status(case: &str, status: i32) {
-    let (project, options, config) = new_config(case);
-    compile(project, options, config).unwrap();
-    expect_status(case, status);
+    for target in Target::iter() {
+        let (project, options, config) = new_config(case, target);
+        compile(project, options, config).unwrap();
+        expect_status(case, status);
+    }
 }
 
 fn run_case_with_error(case: &str, error: &str) {
-    let (project, options, config) = new_config(case);
-    match compile(project, options, config) {
-        Ok(_) => panic!("expected error, got none"),
-        Err(e) => assert_eq!(e, error),
+    for target in Target::iter() {
+        let (project, options, config) = new_config(case, target);
+        match compile(project, options, config) {
+            Ok(_) => panic!("expected error, got none"),
+            Err(e) => assert_eq!(e, error),
+        }
     }
 }
 
@@ -161,6 +168,7 @@ fn test_import() {
 
 #[test]
 fn test_library() {
+    // Library compilation uses x86-64-specific infrastructure (entry.s, .a archives).
     // Create installation dir
     let install_dir = case_dir("library").join("installation");
     let lib_dir = install_dir.join("external/somelib");
@@ -174,11 +182,11 @@ fn test_library() {
 
     // Compile library
     let (project, options, config) =
-        library_config("library", "somelib", None, lib_dir.to_string());
+        library_config("library", "somelib", None, lib_dir.to_string(), Target::X86_64);
     compile(project, options, config).unwrap();
 
     // Compile test module
-    let (project, mut options, config) = new_config("library");
+    let (project, mut options, config) = new_config("library", Target::X86_64);
     options.install_dir = Some(install_dir.to_string());
     compile(project, options, config).unwrap();
     expect_status("library", 44);
@@ -186,10 +194,12 @@ fn test_library() {
 
 #[test]
 fn test_excludes() {
-    let (mut project, options, config) = new_config("excludes");
-    project.ignore_dirs = vec!["excluded".into()];
-    compile(project, options, config).unwrap();
-    expect_status("excludes", 0);
+    for target in Target::iter() {
+        let (mut project, options, config) = new_config("excludes", target);
+        project.ignore_dirs = vec!["excluded".into()];
+        compile(project, options, config).unwrap();
+        expect_status("excludes", 0);
+    }
 }
 
 #[test]

@@ -27,7 +27,7 @@ pub struct ConfigFile {
 
 /// The target specifies what the output assembly (or bytecode) will look
 /// like. Different builders are used for different targets.
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone, strum_macros::EnumIter)]
 #[serde(rename_all = "kebab-case")]
 pub enum Target {
     /// Target CPUs with the x86_64 instruction set.
