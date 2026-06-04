@@ -67,13 +67,9 @@ pub enum UnaryOp {
 
 pub enum Expr {
     IntLit(i64),
+    FloatLit(f64),
     UintLit(u64),
-    CharLit(u8),
     VarLit(usize),
-}
-
-pub enum Dest {
-    Var(usize),
 }
 
 pub enum Stmt {
@@ -96,12 +92,18 @@ pub enum Stmt {
         id: usize,
         value: Box<Expr>,
     },
+    VarAssign {
+        lhs: usize,
+        rhs: Box<Expr>,
+    },
     Call {
         ty: Type,
         dest: usize,
         callee: String,
         args: Vec<Expr>,
     },
+    Break,
+    Continue,
 }
 
 impl Display for Type {
@@ -161,8 +163,8 @@ impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expr::IntLit(i) => write!(f, "{i}"),
+            Expr::FloatLit(i) => write!(f, "{i}"),
             Expr::UintLit(u) => write!(f, "{u}"),
-            Expr::CharLit(c) => write!(f, "{c}"),
             Expr::VarLit(id) => write!(f, "t{id}"),
         }
     }
@@ -192,6 +194,7 @@ impl Display for Stmt {
                 expr,
             } => write!(f, "{ty} t{result} = {op}{expr};"),
             Stmt::VarDecl { ty, id, value } => write!(f, "{ty} t{id} = {value};"),
+            Stmt::VarAssign { lhs, rhs } => write!(f, "t{lhs} = {rhs};"),
             Stmt::Call {
                 ty,
                 callee,
@@ -205,6 +208,8 @@ impl Display for Stmt {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
+            Stmt::Break => write!(f, "break;"),
+            Stmt::Continue => write!(f, "continue;"),
         }
     }
 }
