@@ -331,7 +331,7 @@ impl<'a> ModuleChecker<'a> {
         // Take file_namespaces out of self so we can iterate while borrowing self mutably
         let all_nsl = std::mem::take(&mut self.file_namespaces);
 
-        for (file, nsl) in ast_files.into_iter().zip(all_nsl.into_iter()) {
+        for (file, nsl) in ast_files.into_iter().zip(all_nsl) {
             info!("Type check: {}", file.filepath);
 
             let mut file_checker = FileChecker::new(self.ctx, &self.symbols, nsl, self.is_main);
