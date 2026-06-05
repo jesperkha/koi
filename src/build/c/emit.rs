@@ -6,7 +6,7 @@ use crate::{
     ir::{self, ConstId, IRTypeId, IRTypeInterner, ParamId, Unit},
 };
 
-pub fn emit(unit: Unit, config: &Config, pm: &PathManager) -> Ast {
+pub fn emit(unit: Unit, _config: &Config, pm: &PathManager) -> Ast {
     let mut decls = Vec::new();
 
     decls.push(Decl::Include(pm.include_path().join("koi.h").to_string()));
@@ -15,7 +15,11 @@ pub fn emit(unit: Unit, config: &Config, pm: &PathManager) -> Ast {
         let decl = match decl {
             crate::ir::Decl::Extern(ext) => Decl::ExternFunc {
                 name: ext.name,
-                params: ext.params.iter().map(|&ty| ctype(&unit.types, ty)).collect(),
+                params: ext
+                    .params
+                    .iter()
+                    .map(|&ty| ctype(&unit.types, ty))
+                    .collect(),
                 ret: ctype(&unit.types, ext.ret),
             },
             crate::ir::Decl::Func(func) => FuncEmitter::new(func, &unit.types, &unit.data).emit(),
@@ -97,12 +101,23 @@ impl<'a> FuncEmitter<'a> {
                 self.push(s);
             }
             ir::Ins::Store(ins) => {
-                let actual_id = self.var_remap.get(&ins.const_id).copied().unwrap_or(ins.const_id);
+                let actual_id = self
+                    .var_remap
+                    .get(&ins.const_id)
+                    .copied()
+                    .unwrap_or(ins.const_id);
                 let value = Box::new(self.rval_to_expr(&ins.rval));
                 let s = if self.predeclared.contains_key(&actual_id) {
-                    Stmt::VarAssign { lhs: self.var_id(actual_id), rhs: value }
+                    Stmt::VarAssign {
+                        lhs: self.var_id(actual_id),
+                        rhs: value,
+                    }
                 } else {
-                    Stmt::VarDecl { ty: self.to_ctype(ins.ty), id: self.var_id(actual_id), value }
+                    Stmt::VarDecl {
+                        ty: self.to_ctype(ins.ty),
+                        id: self.var_id(actual_id),
+                        value,
+                    }
                 };
                 self.push(s);
             }
@@ -153,7 +168,7 @@ impl<'a> FuncEmitter<'a> {
             ir::Ins::If(if_ins) => self.emit_if(if_ins),
             ir::Ins::While(while_ins) => self.emit_while(while_ins),
             ir::Ins::Conditional(cond_ins) => self.emit_conditional(cond_ins),
-            ir::Ins::Intrinsic(intrinsic_ins) => todo!(),
+            ir::Ins::Intrinsic(_) => todo!(),
         };
     }
 
