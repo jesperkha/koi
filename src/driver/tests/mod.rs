@@ -1,3 +1,5 @@
+mod library_tests;
+
 use std::{fs::create_dir_all, process::Command, sync::Once};
 
 use tracing_subscriber::EnvFilter;
