@@ -27,20 +27,15 @@ pub struct ConfigFile {
 
 /// Specifies what the output code (or bytecode) will look
 /// like. Different builders are used for different targets.
-#[derive(Deserialize, Clone, strum_macros::EnumIter)]
+#[derive(Deserialize, Clone, strum_macros::EnumIter, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum Codegen {
     /// Ouput x86 assembly
     X86_64,
 
     /// Output C source code
+    #[default]
     C,
-}
-
-impl Default for Codegen {
-    fn default() -> Self {
-        Self::C
-    }
 }
 
 #[derive(Deserialize, Clone)]
