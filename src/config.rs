@@ -10,12 +10,12 @@ type = "app"      # Project type (app|package)
 src = "src"       # Source code directory
 bin = "bin"       # Output directory for temporary files
 out = "."         # Output directory of targets
-target = "x86-64" # Target arch (x86-64)
 ignore-dirs = []  # Source directories to ignore
 link-with=[]      # Additional libraries to link with
 
 [options]
 debug-mode = false
+codegen = "c"
 "#;
 
 #[derive(Deserialize)]
@@ -25,16 +25,22 @@ pub struct ConfigFile {
     pub options: Options,
 }
 
-/// The target specifies what the output assembly (or bytecode) will look
+/// Specifies what the output code (or bytecode) will look
 /// like. Different builders are used for different targets.
 #[derive(Deserialize, Clone, strum_macros::EnumIter)]
 #[serde(rename_all = "kebab-case")]
-pub enum Target {
-    /// Target CPUs with the x86_64 instruction set.
+pub enum Codegen {
+    /// Ouput x86 assembly
     X86_64,
 
-    /// Generate C source code.
+    /// Output C source code
     C,
+}
+
+impl Default for Codegen {
+    fn default() -> Self {
+        Self::C
+    }
 }
 
 #[derive(Deserialize, Clone)]
@@ -67,8 +73,6 @@ pub struct Project {
     pub src: String,
     /// Output dir for target
     pub out: String,
-    /// Target architecture
-    pub target: Target,
     /// Project type determines which steps are done and/or excluded
     /// in the compilation process.
     #[serde(rename = "type")]
@@ -89,6 +93,9 @@ pub struct Options {
     pub debug_mode: bool,
     /// Custom path to installation directory.
     pub install_dir: Option<String>,
+    /// Target architecture
+    #[serde(default)]
+    pub codegen: Codegen,
 }
 
 /// DriverPhase tells the driver at which phase compilation should be terminated.
