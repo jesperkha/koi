@@ -121,6 +121,70 @@ pub enum Stmt {
     Continue,
 }
 
+fn ind(level: usize) -> String {
+    "    ".repeat(level)
+}
+
+fn fmt_stmts(stmts: &[Stmt], level: usize) -> String {
+    let mut out = String::new();
+    for (i, stmt) in stmts.iter().enumerate() {
+        out += &stmt.to_indented(level);
+        let is_last = i + 1 == stmts.len();
+        if !is_last {
+            out += "\n";
+            if matches!(stmt, Stmt::If { .. } | Stmt::While { .. }) {
+                out += "\n";
+            }
+        }
+    }
+    out
+}
+
+impl Stmt {
+    fn to_indented(&self, level: usize) -> String {
+        let i = ind(level);
+        match self {
+            Stmt::Return(expr) => format!(
+                "{}return {};",
+                i,
+                expr.as_ref().map_or("".to_string(), |e| e.to_string())
+            ),
+            Stmt::Binary { ty, result, op, left, right } => {
+                format!("{i}{ty} t{result} = {left} {op} {right};")
+            }
+            Stmt::Unary { ty, result, op, expr } => {
+                format!("{i}{ty} t{result} = {op}{expr};")
+            }
+            Stmt::VarDecl { ty, id, value } => format!("{i}{ty} t{id} = {value};"),
+            Stmt::VarAssign { lhs, rhs } => format!("{i}t{lhs} = {rhs};"),
+            Stmt::Call { ty, dest, callee, args } => {
+                let args_str =
+                    args.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", ");
+                if matches!(ty, Type::Void) {
+                    format!("{i}{callee}({args_str});")
+                } else {
+                    format!("{i}{ty} t{dest} = {callee}({args_str});")
+                }
+            }
+            Stmt::If { cond, body, else_ } => {
+                let body_str = fmt_stmts(body, level + 1);
+                let mut out = format!("{i}if ({cond}) {{\n{body_str}\n{i}}}");
+                if let Some(else_stmts) = else_ {
+                    let else_str = fmt_stmts(else_stmts, level + 1);
+                    out += &format!(" else {{\n{else_str}\n{i}}}");
+                }
+                out
+            }
+            Stmt::While { body } => {
+                let body_str = fmt_stmts(body, level + 1);
+                format!("{i}while (1) {{\n{body_str}\n{i}}}")
+            }
+            Stmt::Break => format!("{i}break;"),
+            Stmt::Continue => format!("{i}continue;"),
+        }
+    }
+}
+
 impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -202,82 +266,23 @@ impl Display for Expr {
 
 impl Display for Stmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Stmt::Return(expr) => {
-                write!(
-                    f,
-                    "return {};",
-                    expr.as_ref().map_or("".to_string(), |e| e.to_string())
-                )
-            }
-            Stmt::Binary {
-                ty,
-                result,
-                op,
-                left,
-                right,
-            } => write!(f, "{ty} t{result} = {left} {op} {right};"),
-            Stmt::Unary {
-                ty,
-                result,
-                op,
-                expr,
-            } => write!(f, "{ty} t{result} = {op}{expr};"),
-            Stmt::VarDecl { ty, id, value } => write!(f, "{ty} t{id} = {value};"),
-            Stmt::VarAssign { lhs, rhs } => write!(f, "t{lhs} = {rhs};"),
-            Stmt::Call {
-                ty,
-                callee,
-                dest,
-                args,
-            } => {
-                let args_str = args.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", ");
-                if matches!(ty, Type::Void) {
-                    write!(f, "{callee}({args_str});")
-                } else {
-                    write!(f, "{ty} t{dest} = {callee}({args_str});")
-                }
-            }
-            Stmt::If { cond, body, else_ } => {
-                let body_str = body.iter().map(|s| s.to_string()).collect::<Vec<_>>().join("\n");
-                write!(f, "if ({cond}) {{\n{body_str}\n}}")?;
-                if let Some(else_stmts) = else_ {
-                    let else_str = else_stmts.iter().map(|s| s.to_string()).collect::<Vec<_>>().join("\n");
-                    write!(f, " else {{\n{else_str}\n}}")?;
-                }
-                Ok(())
-            }
-            Stmt::While { body } => {
-                let body_str = body.iter().map(|s| s.to_string()).collect::<Vec<_>>().join("\n");
-                write!(f, "while (1) {{\n{body_str}\n}}")
-            }
-            Stmt::Break => write!(f, "break;"),
-            Stmt::Continue => write!(f, "continue;"),
-        }
+        write!(f, "{}", self.to_indented(0))
     }
 }
 
 impl Display for Decl {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Decl::Function {
-                name,
-                params,
-                ret,
-                body,
-            } => {
+            Decl::Function { name, params, ret, body } => {
                 write!(
                     f,
                     "{ret} {name}({}) {{\n{}\n}}",
                     params
                         .iter()
-                        .map(|(id, ty)| { format!("{} t{}", ty, id) })
+                        .map(|(id, ty)| format!("{} t{}", ty, id))
                         .collect::<Vec<_>>()
                         .join(", "),
-                    body.iter()
-                        .map(|stmt| stmt.to_string())
-                        .collect::<Vec<_>>()
-                        .join("\n"),
+                    fmt_stmts(body, 1),
                 )
             }
             Decl::ExternFunc { name, params, ret } => write!(
