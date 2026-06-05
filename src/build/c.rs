@@ -1,5 +1,7 @@
 mod ast;
 mod emit;
+#[cfg(test)]
+mod tests;
 
 use emit::*;
 use tracing::info;
