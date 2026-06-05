@@ -228,7 +228,7 @@ static RESERVED: &[(&str, TokenKind)] = &[
     ("?", TokenKind::Question),
     ("@", TokenKind::At),
     // Primitive types
-    ("void", TokenKind::Void),
+    ("void", TokenKind::Void), // TODO: convert to Type symbols?
     ("int", TokenKind::IntType),
     ("float", TokenKind::FloatType),
     ("string", TokenKind::StringType),

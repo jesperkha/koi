@@ -61,6 +61,7 @@ impl fmt::Display for Symbol {
                     specs.push("naked");
                 }
             }
+            SymbolKind::Type { .. } => specs.push("type"),
         }
         write!(
             f,
@@ -76,6 +77,7 @@ impl fmt::Display for Symbol {
 
 #[derive(Clone, Debug)]
 pub enum SymbolOrigin {
+    Intrinsic,
     Module {
         /// Module path of module origin
         modpath: ModulePath,
@@ -97,6 +99,7 @@ impl fmt::Display for SymbolOrigin {
                 SymbolOrigin::Module { modpath, .. } => format!("module({})", modpath),
                 SymbolOrigin::Extern => "extern".to_string(),
                 SymbolOrigin::Library(modpath) => format!("library({})", modpath),
+                SymbolOrigin::Intrinsic => "intrinsic".into(),
             }
         )
     }
@@ -111,6 +114,7 @@ pub enum SymbolKind {
         /// code added by the compiler).
         is_naked: bool,
     },
+    Type,
 }
 
 impl fmt::Display for SymbolKind {
@@ -120,6 +124,7 @@ impl fmt::Display for SymbolKind {
             "{}",
             match self {
                 SymbolKind::Function { .. } => "function",
+                SymbolKind::Type { .. } => "type",
             }
         )
     }

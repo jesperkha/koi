@@ -4,7 +4,7 @@ use crate::{
     ast::{self, Ast, Node, Pos, Token, TokenKind},
     context::Context,
     error::{Diagnostics, Report, Res},
-    module::{NamespaceList, Symbol, SymbolList},
+    module::{NamespaceList, Symbol, SymbolKind, SymbolList},
     types::{
         self, BinaryOp, FunctionType, NO_TYPE, NodeMeta, PrimitiveType, Type, TypeId, TypeKind,
         TypedNode, UnaryOp, ast_node_to_meta,
@@ -720,7 +720,10 @@ impl<'a> FileChecker<'a> {
             return Ok(var.ty);
         }
         if let Ok(sym) = self.get_symbol(&name_str) {
-            return Ok(sym.ty);
+            return match sym.kind {
+                SymbolKind::Function { .. } => Ok(sym.ty),
+                SymbolKind::Type => Err(self.error_token("a type cannot be used as a value", name)),
+            };
         }
         Err(self.error_token("not declared", name))
     }

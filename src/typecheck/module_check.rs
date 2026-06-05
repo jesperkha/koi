@@ -38,6 +38,17 @@ impl<'a> ModuleChecker<'a> {
     pub(crate) fn check(mut self, fs: ast::FileSet) -> Res<CreateModule> {
         self.is_main = fs.modpath.is_main();
 
+        self.create_symbol(CreateSymbol {
+            name: "u8".into(),
+            alias: None,
+            kind: SymbolKind::Type,
+            ty: self.ctx.types.primitive(PrimitiveType::U8),
+            origin: SymbolOrigin::Intrinsic,
+            is_exported: false,
+            no_mangle: false,
+        })
+        .unwrap();
+
         // The first step of type checking is to resolve all imports in this module.
         // Each import is resolved to a source or external module and it is added as
         // a namespace in this module.
@@ -397,7 +408,7 @@ impl<'a> ModuleChecker<'a> {
         }
 
         let kind = match symbol.origin {
-            SymbolOrigin::Module { .. } => ModuleSymbolKind::Module,
+            SymbolOrigin::Module { .. } | SymbolOrigin::Intrinsic => ModuleSymbolKind::Module,
             SymbolOrigin::Library(_) | SymbolOrigin::Extern => ModuleSymbolKind::Imported,
         };
 
