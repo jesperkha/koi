@@ -7,7 +7,7 @@ use emit::*;
 use tracing::info;
 
 use crate::{
-    build::{BuildConfig, gcc_available},
+    build::{BuildConfig, LinkMode, gcc_available},
     config::{Config, DriverPhase, PathManager},
     imports::LibrarySet,
     ir::ProgramIR,
@@ -56,14 +56,36 @@ pub fn build(
         linker_flags.push(lib);
     }
 
-    info!("Compiling executable");
+    match buildcfg.linkmode {
+        LinkMode::Executable => {
+            info!("Compiling executable");
 
-    let mut args = files;
-    let target_path = FilePath::from(&buildcfg.outdir).join(&buildcfg.target_name);
-    args.push(format!("-o{}", target_path));
-    args.extend_from_slice(&linker_flags);
-    args.push("-lm".into()); // After libraries
-    cmd("gcc", &args)?;
+            let mut args = files;
+            let target_path = FilePath::from(&buildcfg.outdir).join(&buildcfg.target_name);
+            args.push(format!("-o{}", target_path));
+            args.extend_from_slice(&linker_flags);
+            args.push("-lm".into()); // After libraries
+            cmd("gcc", &args)?;
+        }
+        LinkMode::Library => {
+            info!("Compiling static library");
+
+            let mut objfiles = Vec::new();
+            for file in &files {
+                let objfile = file.replace(".c", ".o");
+                cmd("gcc", &["-c".into(), file.into(), format!("-o{}", objfile)])?;
+                objfiles.push(objfile);
+            }
+
+            let target_path =
+                FilePath::from(&buildcfg.outdir).join(&format!("lib{}.a", buildcfg.target_name));
+
+            let mut args = vec!["rcs".into(), target_path.to_string()];
+            args.extend_from_slice(&objfiles);
+            args.extend_from_slice(&linker_flags);
+            cmd("ar", &args)?;
+        }
+    }
 
     Ok(())
 }
