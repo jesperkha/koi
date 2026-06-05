@@ -1,3 +1,9 @@
+mod ast;
+mod emit;
+#[cfg(test)]
+mod tests;
+
+use emit::*;
 use tracing::info;
 
 use crate::{
@@ -8,16 +14,6 @@ use crate::{
     util::{FilePath, cmd, write_file},
 };
 
-#[cfg(test)]
-mod tests;
-
-mod assemble;
-mod assembly;
-
-use assemble::assemble;
-use assembly::*;
-
-/// Build and compile an x86-64 executable or shared object file.
 pub fn build(
     ir: ProgramIR,
     buildcfg: BuildConfig,
@@ -25,29 +21,28 @@ pub fn build(
     pm: &PathManager,
     libset: &LibrarySet,
 ) -> Result<(), String> {
-    info!("Building for x86-64. Output: {}", buildcfg.target_name);
+    info!("Building for C. Output: {}", buildcfg.target_name);
 
     if !gcc_available() {
         return Err("Failed to run gcc. Make sure it's installed and in PATH.".into());
     }
 
-    let mut asm_files = Vec::new();
+    let mut files = Vec::new();
 
     for unit in ir.units {
-        info!("Assembling module {}", unit.name);
-        let filepath = format!("{}/{}.s", buildcfg.tmpdir, unit.name);
-        let source = assemble(unit, config);
+        info!("Emitting module {}", unit.name);
+        let filepath = format!("{}/{}.c", buildcfg.tmpdir, unit.name);
+        let source = emit(unit, config, pm);
 
         if matches!(config.driver_phase, DriverPhase::Build) {
             println!("{}", source);
         } else {
             info!("Writing file {}", filepath);
             write_file(&filepath.as_str().into(), source.to_string())?;
-            asm_files.push(filepath);
+            files.push(filepath);
         }
     }
 
-    // Finished assembly phase, exit early if specified.
     if matches!(config.driver_phase, DriverPhase::Build) {
         return Ok(());
     }
@@ -65,11 +60,7 @@ pub fn build(
         LinkMode::Executable => {
             info!("Compiling executable");
 
-            let mut args = asm_files;
-            args.push("-nostartfiles".into());
-
-            let entry_file = pm.library_path().join("entry.s");
-            args.push(entry_file.to_string());
+            let mut args = files;
             let target_path = FilePath::from(&buildcfg.outdir).join(&buildcfg.target_name);
             args.push(format!("-o{}", target_path));
             args.extend_from_slice(&linker_flags);
@@ -80,19 +71,12 @@ pub fn build(
             info!("Compiling static library");
 
             let mut objfiles = Vec::new();
-            for asmfile in &asm_files {
-                let objfile = asmfile.replace(".s", ".o");
-                cmd(
-                    "gcc",
-                    &[
-                        "-nostartfiles".into(),
-                        "-c".into(),
-                        asmfile.into(),
-                        format!("-o{}", objfile),
-                    ],
-                )?;
+            for file in &files {
+                let objfile = file.replace(".c", ".o");
+                cmd("gcc", &["-c".into(), file.into(), format!("-o{}", objfile)])?;
                 objfiles.push(objfile);
             }
+
             let target_path =
                 FilePath::from(&buildcfg.outdir).join(&format!("lib{}.a", buildcfg.target_name));
 

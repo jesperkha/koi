@@ -36,7 +36,7 @@ echo "Build succeeded"
 
 # --- Create directory structure ---
 echo "Creating directory structure ..."
-mkdir -p "$install_dir"/{lib,lib/std,external,bin}
+mkdir -p "$install_dir"/{lib,lib/std,external,bin,include}
 
 # --- Install binary ---
 echo "Installing binary ..."
@@ -47,6 +47,7 @@ echo "Installed koi binary to $install_dir/bin/koi"
 # --- Copy runtime files ---
 echo "Copying runtime files ..."
 cp "$script_dir/lib/entry.s" "$install_dir/lib/entry.s"
+cp "$script_dir/include/koi.h" "$install_dir/include/koi.h"
 
 echo "Building stdlib ..."
 (cd "$script_dir/lib/std" && $install_dir/bin/koi build --out "$install_dir/lib/std")

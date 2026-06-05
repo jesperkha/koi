@@ -8,8 +8,8 @@ use walkdir::WalkDir;
 
 use crate::{
     ast::{FileSet, Printer, Source, SourceMap},
-    build::x86,
-    config::{Config, DriverPhase, Options, PathManager, Project, ProjectType, Target},
+    build::{self, c, x86},
+    config::{Codegen, Config, DriverPhase, Options, PathManager, Project, ProjectType},
     context::Context,
     imports::{LibrarySet, create_header_file, read_header_file},
     ir::{ProgramIR, Unit, print_ir},
@@ -31,7 +31,12 @@ type Res<T> = Result<T, String>;
 
 /// Compile the project using the given global config and build configuration.
 pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
-    let pm = PathManager::new(options.install_dir.map_or(get_root_dir(), FilePath::from));
+    let pm = PathManager::new(
+        options
+            .install_dir
+            .as_ref()
+            .map_or(get_root_dir(), FilePath::from),
+    );
 
     create_dir_if_not_exist(&project.bin)?;
 
@@ -104,7 +109,14 @@ pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
     }
 
     // Build the final executable/libary file
-    build(ProgramIR { units }, &config, &project, &pm, &libset)
+    build(
+        ProgramIR { units },
+        &config,
+        &project,
+        &options,
+        &pm,
+        &libset,
+    )
 }
 
 fn print_all_asts(filesets: &[FileSet]) {
@@ -284,31 +296,29 @@ fn build(
     ir: ProgramIR,
     config: &Config,
     project: &Project,
+    options: &Options,
     pm: &PathManager,
     libset: &LibrarySet,
 ) -> Res<()> {
-    match project.target {
-        Target::X86_64 => x86::build(
-            ir,
-            x86::BuildConfig {
-                linkmode: proj_type_to_link_mode(&project.project_type),
-                tmpdir: project.bin.clone(),
-                target_name: project.name.clone(),
-                outdir: project.out.clone(),
-                additional_libraries: project.link_with.clone(),
-            },
-            config,
-            pm,
-            libset,
-        ),
+    let build_config = build::BuildConfig {
+        linkmode: proj_type_to_link_mode(&project.project_type),
+        tmpdir: project.bin.clone(),
+        target_name: project.name.clone(),
+        outdir: project.out.clone(),
+        additional_libraries: project.link_with.clone(),
+    };
+
+    match options.codegen {
+        Codegen::X86_64 => x86::build(ir, build_config, config, pm, libset),
+        Codegen::C => c::build(ir, build_config, config, pm, libset),
     }
 }
 
 /// Report which x86 link mode to use for which compilation mode.
-fn proj_type_to_link_mode(mode: &ProjectType) -> x86::LinkMode {
+fn proj_type_to_link_mode(mode: &ProjectType) -> build::LinkMode {
     match mode {
-        ProjectType::App => x86::LinkMode::Executable,
-        ProjectType::Package => x86::LinkMode::Library,
+        ProjectType::App => build::LinkMode::Executable,
+        ProjectType::Package => build::LinkMode::Library,
     }
 }
 

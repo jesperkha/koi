@@ -1,0 +1,7 @@
+import lib.mathlib
+
+func main() int {
+    a :: mathlib.add(3, 4)
+    b :: mathlib.multiply(a, 6)
+    return b
+}
