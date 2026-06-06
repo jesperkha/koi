@@ -68,10 +68,9 @@ impl<'a> FileChecker<'a> {
     pub(crate) fn emit_ast(&mut self, ast: Ast) -> Res<Vec<types::Decl>> {
         let mut diag = Diagnostics::new();
 
-        let typed_decls = ast
-            .decls
+        let typed_decls = self
+            .emit_decls(ast)
             .into_iter()
-            .map(|d| self.emit_decl(d))
             .map(|s| s.map_err(|e| diag.add(e)))
             .filter_map(Result::ok)
             .collect::<Vec<_>>();
@@ -84,11 +83,16 @@ impl<'a> FileChecker<'a> {
         Ok(typed_decls)
     }
 
-    fn emit_decl(&mut self, decl: ast::Decl) -> Result<types::Decl, Report> {
-        match decl {
-            ast::Decl::Func(node) => self.emit_func(*node),
-            ast::Decl::Extern(node) => self.emit_extern(*node),
+    fn emit_decls(&mut self, ast: Ast) -> Vec<Result<types::Decl, Report>> {
+        let mut decls = Vec::new();
+        for d in ast.decls {
+            match d {
+                ast::Decl::Func(node) => decls.push(self.emit_func(*node)),
+                ast::Decl::Extern(node) => decls.push(self.emit_extern(*node)),
+                ast::Decl::Type(..) => {} // Declared in global pass
+            };
         }
+        decls
     }
 
     fn emit_stmt(&mut self, stmt: ast::Stmt) -> Result<types::Stmt, Report> {
@@ -187,8 +191,9 @@ impl<'a> FileChecker<'a> {
 
         if !self.ctx.types.equivalent(f.ret, return_type) {
             let msg = format!(
-                "main function must return '{}'",
-                self.ctx.types.type_to_string(return_type)
+                "main function must return '{}', got '{}'",
+                self.ctx.types.type_to_string(return_type),
+                self.ctx.types.type_to_string(f.ret),
             );
             return Err(node
                 .ret_type

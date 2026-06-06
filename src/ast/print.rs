@@ -250,4 +250,16 @@ impl Visitor<()> for Printer {
         self.s += " ";
         self.visit_block(&node.block);
     }
+
+    fn visit_type_decl(&mut self, node: &super::TypeDeclNode) -> () {
+        if node.public {
+            self.s += "pub "
+        }
+        if node.unique {
+            self.s += "unique "
+        }
+        self.s += "type ";
+        self.s += &format!("{} ", node.name);
+        self.visit_type(&node.ty);
+    }
 }

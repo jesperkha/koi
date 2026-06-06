@@ -439,7 +439,7 @@ fn test_main_function_must_return_i32() {
             return
         }
     "#,
-        "main function must return 'i32'",
+        "main function must return 'i32', got 'void'",
     );
 }
 

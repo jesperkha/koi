@@ -6,8 +6,8 @@ use crate::{
     ast::{
         Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, ContinueNode, Decl, ElseBlock, Expr,
         Field, File, FileSet, ForNode, FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode,
-        MemberNode, Modifier, Node, ReturnNode, SourceMap, Stmt, Token, TokenKind, TypeNode,
-        UnaryExpr, VarAssignNode, VarDeclNode, WhileNode,
+        MemberNode, Modifier, Node, ReturnNode, SourceMap, Stmt, Token, TokenKind, TypeDeclNode,
+        TypeNode, UnaryExpr, VarAssignNode, VarDeclNode, WhileNode,
     },
     config::Config,
     error::{Diagnostics, Report, Res},
@@ -67,8 +67,6 @@ impl<'a> Parser<'a> {
                 decls: vec![],
             });
         }
-
-        // info!("Parsing file: {}", source.filepath);
 
         // Parse all imports as they must come before the main code
         let imports = match self.parse_imports() {
@@ -253,8 +251,29 @@ impl<'a> Parser<'a> {
             TokenKind::Pub => self.parse_public_decl(modifiers),
             TokenKind::Func => self.parse_function(false, modifiers),
             TokenKind::Extern => self.parse_extern(false, modifiers),
+            TokenKind::Type => self.parse_type_decl(false, false),
+            TokenKind::Unique => self.parse_unique_type_decl(false),
             _ => Err(self.error_token("expected declaration")),
         }
+    }
+
+    fn parse_unique_type_decl(&mut self, public: bool) -> Result<Decl, Report> {
+        self.expect(TokenKind::Unique)?;
+        self.parse_type_decl(public, true)
+    }
+
+    fn parse_type_decl(&mut self, public: bool, unique: bool) -> Result<Decl, Report> {
+        let kw = self.expect(TokenKind::Type)?;
+        let name = self.expect_identifier("type name")?;
+        let ty = self.parse_type()?;
+
+        Ok(Decl::Type(Box::new(TypeDeclNode {
+            public,
+            unique,
+            kw,
+            name,
+            ty,
+        })))
     }
 
     fn parse_public_decl(&mut self, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
@@ -264,6 +283,8 @@ impl<'a> Parser<'a> {
         match token.kind {
             TokenKind::Func => self.parse_function(true, modifiers),
             TokenKind::Extern => self.parse_extern(true, modifiers),
+            TokenKind::Type => self.parse_type_decl(true, false),
+            TokenKind::Unique => self.parse_unique_type_decl(true),
             _ => Err(self.error_token("illegal public declaration")),
         }
     }
@@ -670,6 +691,7 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // TODO: parse imported types foo.Foo
     fn parse_type(&mut self) -> Result<TypeNode, Report> {
         let token = self.cur_must("exptected type")?.clone();
 

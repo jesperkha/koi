@@ -21,8 +21,8 @@ pub enum TypeKind {
     Primitive(PrimitiveType),
     Array(TypeId),
     Pointer(TypeId),
-    Alias(TypeId),  // Refers to another type definition
-    Unique(TypeId), // Distinct nominal type
+    Alias(TypeId),          // Refers to another type definition
+    Unique(String, TypeId), // Distinct nominal type with name
 
     /// List of parameter types and a return
     /// type (void for no return)

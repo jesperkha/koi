@@ -170,7 +170,7 @@ enum HeaderTypeKind {
     Array(Box<HeaderTypeKind>),
     Pointer(Box<HeaderTypeKind>),
     Alias(Box<HeaderTypeKind>),
-    Unique(Box<HeaderTypeKind>),
+    Unique(String, Box<HeaderTypeKind>),
     Function(Vec<HeaderTypeKind>, Box<HeaderTypeKind>),
 }
 
@@ -181,7 +181,7 @@ fn real_to_header(ctx: &Context, kind: &TypeKind) -> HeaderTypeKind {
         TypeKind::Array(id) => HeaderTypeKind::Array(boxed_kind(ctx, *id)),
         TypeKind::Pointer(id) => HeaderTypeKind::Pointer(boxed_kind(ctx, *id)),
         TypeKind::Alias(id) => HeaderTypeKind::Alias(boxed_kind(ctx, *id)),
-        TypeKind::Unique(id) => HeaderTypeKind::Unique(boxed_kind(ctx, *id)),
+        TypeKind::Unique(name, id) => HeaderTypeKind::Unique(name.into(), boxed_kind(ctx, *id)),
         TypeKind::Function(func) => {
             let params = func
                 .params
@@ -205,7 +205,9 @@ fn header_to_real(ctx: &mut Context, kind: &HeaderTypeKind) -> TypeId {
         HeaderTypeKind::Array(inner) => TypeKind::Array(header_to_real(ctx, inner)),
         HeaderTypeKind::Pointer(inner) => TypeKind::Pointer(header_to_real(ctx, inner)),
         HeaderTypeKind::Alias(inner) => TypeKind::Alias(header_to_real(ctx, inner)),
-        HeaderTypeKind::Unique(inner) => TypeKind::Unique(header_to_real(ctx, inner)),
+        HeaderTypeKind::Unique(name, inner) => {
+            TypeKind::Unique(name.into(), header_to_real(ctx, inner))
+        }
         HeaderTypeKind::Function(params, ret) => {
             let param_ids = params.iter().map(|p| header_to_real(ctx, p)).collect();
             let ret_id = header_to_real(ctx, ret);

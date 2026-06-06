@@ -100,7 +100,7 @@ impl TypeInterner {
     /// Resolve to base type, removes aliasing and unique types.
     pub fn deep_resolve(&self, id: TypeId) -> TypeId {
         match &self.lookup(id).kind {
-            TypeKind::Alias(target) | TypeKind::Unique(target) => self.resolve(*target),
+            TypeKind::Alias(target) | TypeKind::Unique(_, target) => self.resolve(*target),
             _ => id,
         }
     }
@@ -109,7 +109,7 @@ impl TypeInterner {
     /// types, and unique types underlying kind. Do not use for general type comparisons.
     pub fn inner_kind(&self, id: TypeId) -> TypeId {
         match &self.lookup(id).kind {
-            TypeKind::Alias(underlying) | TypeKind::Unique(underlying) => {
+            TypeKind::Alias(underlying) | TypeKind::Unique(_, underlying) => {
                 self.inner_kind(*underlying)
             }
             _ => id,
@@ -166,7 +166,7 @@ impl TypeInterner {
                 TypeKind::Array(inner)
                 | TypeKind::Pointer(inner)
                 | TypeKind::Alias(inner)
-                | TypeKind::Unique(inner) => stack.push(*inner),
+                | TypeKind::Unique(_, inner) => stack.push(*inner),
                 TypeKind::Function(func) => {
                     for param in &func.params {
                         stack.push(*param);
@@ -189,7 +189,7 @@ impl TypeInterner {
             TypeKind::Array(inner) => format!("[]{}", self.type_to_string(*inner)),
             TypeKind::Pointer(inner) => format!("*{}", self.type_to_string(*inner)),
             TypeKind::Alias(id) => self.type_to_string(*id).to_string(),
-            TypeKind::Unique(id) => self.type_to_string(*id).to_string(),
+            TypeKind::Unique(name, _) => name.into(),
             TypeKind::Function(f) => {
                 let params_str = f
                     .params
@@ -210,7 +210,7 @@ impl TypeInterner {
             TypeKind::Array(inner) => format!("Array<{}>", self.type_to_string(*inner)),
             TypeKind::Pointer(inner) => format!("Pointer<{}>", self.type_to_string(*inner)),
             TypeKind::Alias(id) => format!("Alias({})", self.type_to_string(*id)),
-            TypeKind::Unique(id) => format!("Unique({})", self.type_to_string(*id)),
+            TypeKind::Unique(name, id) => format!("Unique({name} {})", self.type_to_string(*id)),
             TypeKind::Function(f) => {
                 let params_str = f
                     .params

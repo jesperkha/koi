@@ -231,7 +231,48 @@ impl<'a> ModuleChecker<'a> {
                 let origin = SymbolOrigin::Extern;
                 self.declare_function_definition(node, origin)
             }
+            ast::Decl::Type(node) => {
+                let origin = SymbolOrigin::Module {
+                    modpath: modpath.clone(),
+                    pos: node.pos().clone(),
+                    filename: filename.into(),
+                };
+                self.declare_type(node, origin)
+            }
         }
+    }
+
+    fn declare_type(
+        &mut self,
+        node: &ast::TypeDeclNode,
+        origin: SymbolOrigin,
+    ) -> Result<(), Report> {
+        let name = node.name.to_string();
+
+        let ty = {
+            let id = self.eval_type(&node.ty)?;
+            if node.unique {
+                self.ctx
+                    .types
+                    .get_or_intern(TypeKind::Unique(name.clone(), id))
+            } else {
+                id
+            }
+        };
+
+        let symbol = CreateSymbol {
+            name,
+            alias: None,
+            kind: SymbolKind::Type,
+            ty,
+            origin,
+            is_exported: node.public,
+            no_mangle: false,
+        };
+
+        self.check_symbol_already_declared(&symbol.name, node)?;
+        let _ = self.create_symbol(symbol);
+        Ok(())
     }
 
     fn declare_function_definition(
@@ -339,10 +380,14 @@ impl<'a> ModuleChecker<'a> {
 
         debug!("declaring function: {:?}", symbol);
 
-        // If symbol already exists, return error
-        if let Ok(sym) = self.get_symbol(&symbol.name) {
-            let mut report =
-                Report::code_error("already declared", &node.name.pos, &node.name.end_pos);
+        self.check_symbol_already_declared(&symbol.name, node)?;
+        let _ = self.create_symbol(symbol);
+        Ok(())
+    }
+
+    fn check_symbol_already_declared(&self, name: &str, node: &dyn Node) -> Result<(), Report> {
+        if let Ok(sym) = self.get_symbol(name) {
+            let mut report = Report::code_error("already declared", node.pos(), node.end());
 
             if let SymbolOrigin::Module { pos, filename, .. } = &sym.origin {
                 report = report.with_info(&format!(
@@ -354,8 +399,6 @@ impl<'a> ModuleChecker<'a> {
 
             return Err(report);
         };
-
-        let _ = self.create_symbol(symbol);
         Ok(())
     }
 
