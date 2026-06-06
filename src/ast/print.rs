@@ -101,6 +101,7 @@ impl Visitor<()> for Printer {
     fn visit_type(&mut self, node: &super::TypeNode) {
         match node {
             TypeNode::Ident(tok) => self.visit_literal(tok),
+            TypeNode::Imported { namespace, ty } => self.s += &format!("{namespace}.{ty}"),
         }
     }
 

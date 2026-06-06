@@ -23,6 +23,8 @@ pub(crate) struct ModuleChecker<'a> {
     symbols: SymbolList,
     /// Per-file namespace lists, indexed by file order.
     file_namespaces: Vec<NamespaceList>,
+    /// Index of current file being checked.
+    current_file: usize,
 }
 
 impl<'a> ModuleChecker<'a> {
@@ -32,6 +34,7 @@ impl<'a> ModuleChecker<'a> {
             symbols: SymbolList::new(),
             is_main: false,
             file_namespaces: Vec::new(),
+            current_file: 0,
         };
 
         s.initialize_symbol_list();
@@ -107,7 +110,9 @@ impl<'a> ModuleChecker<'a> {
         let mut diag = Diagnostics::new();
 
         // Go through each import of each file and create a namespace list for each file.
-        for file in &fs.files {
+        for (i, file) in fs.files.iter().enumerate() {
+            self.current_file = i;
+
             info!("Resolving imports for file {}", file.filepath);
             let mut nsl = NamespaceList::new();
             for import in &file.ast.imports {
@@ -197,7 +202,8 @@ impl<'a> ModuleChecker<'a> {
     fn global_pass(&mut self, fs: &ast::FileSet) -> Res<()> {
         let mut diag = Diagnostics::new();
 
-        for file in &fs.files {
+        for (i, file) in fs.files.iter().enumerate() {
+            self.current_file = i;
             for decl in &file.ast.decls {
                 if let Err(err) = self.check_global_decl(&fs.modpath, &file.filename, decl) {
                     diag.add(err);
@@ -438,12 +444,35 @@ impl<'a> ModuleChecker<'a> {
         Report::code_error(msg, node.pos(), node.end())
     }
 
+    fn error_token(&self, msg: &str, token: &ast::Token) -> Report {
+        Report::code_error(msg, &token.pos, &token.end_pos)
+    }
+
     /// Evaluate an AST type node to its semantic type id.
     fn eval_type(&self, node: &ast::TypeNode) -> Result<TypeId, Report> {
         match node {
             ast::TypeNode::Ident(token) => self
                 .get_symbol_type_id(token)
                 .ok_or(Report::code_error("not a type", &token.pos, &token.end_pos)),
+            ast::TypeNode::Imported { namespace, ty } => {
+                let ns = self
+                    .file_namespaces
+                    .get(self.current_file)
+                    .expect("file index out of bounds")
+                    .get(&namespace.to_string())
+                    .map_or(
+                        Err(self.error_token("not an imported namespace", namespace)),
+                        |ns| Ok(ns),
+                    )?;
+
+                let sym_id = ns.get(&ty.to_string()).map_or(
+                    Err(self
+                        .error_token(&format!("namespace '{namespace}' has no member '{ty}'"), ty)),
+                    |id| Ok(id),
+                )?;
+
+                Ok(self.ctx.symbols.get(sym_id).ty)
+            }
         }
     }
 

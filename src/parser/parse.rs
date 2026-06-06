@@ -691,14 +691,22 @@ impl<'a> Parser<'a> {
         }
     }
 
-    // TODO: parse imported types foo.Foo
     fn parse_type(&mut self) -> Result<TypeNode, Report> {
         let token = self.cur_must("exptected type")?.clone();
 
         match token.kind {
             TokenKind::IdentLit(_) => {
-                self.consume();
-                Ok(TypeNode::Ident(token))
+                let name = self.must_consume()?;
+                if self.matches(TokenKind::Dot) {
+                    self.consume();
+                    let ty = self.expect_identifier("type name")?;
+                    Ok(TypeNode::Imported {
+                        namespace: name,
+                        ty,
+                    })
+                } else {
+                    Ok(TypeNode::Ident(name))
+                }
             }
             TokenKind::RParen | TokenKind::RBrace | TokenKind::RBrack => {
                 Err(self.error_token("expected type"))

@@ -106,6 +106,7 @@ pub enum Expr {
 #[derive(Debug, Clone)]
 pub enum TypeNode {
     Ident(Token),
+    Imported { namespace: Token, ty: Token },
 }
 
 #[derive(Debug, Clone)]
@@ -335,18 +336,21 @@ impl Node for TypeNode {
     fn pos(&self) -> &Pos {
         match self {
             TypeNode::Ident(token) => &token.pos,
+            TypeNode::Imported { namespace, .. } => &namespace.pos,
         }
     }
 
     fn end(&self) -> &Pos {
         match self {
             TypeNode::Ident(token) => &token.end_pos,
+            TypeNode::Imported { ty, .. } => &ty.pos,
         }
     }
 
     fn id(&self) -> usize {
         match self {
             TypeNode::Ident(token) => token.id,
+            TypeNode::Imported { ty, .. } => ty.id,
         }
     }
 }
