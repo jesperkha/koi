@@ -46,24 +46,33 @@ fn test_keywords() {
 }
 
 #[test]
-fn test_number() {
-    let _ = scan_and_then("123", |toks| {
+fn test_number_integer() {
+    scan_and_then("123", |toks| {
         assert_eq!(toks.len(), 1);
         assert_eq!(toks[0].length, 3);
         assert_eq!(toks[0].kind, TokenKind::IntLit(123));
     });
+}
 
-    let _ = scan_and_then("1.23", |toks| {
+#[test]
+fn test_number_float() {
+    scan_and_then("1.23", |toks| {
         assert_eq!(toks.len(), 1);
         assert_eq!(toks[0].length, 4);
         assert_eq!(toks[0].kind, TokenKind::FloatLit(1.23));
     });
+}
 
-    let _ = scan_and_then("?123?", |toks| {
+#[test]
+fn test_number_between_symbols() {
+    scan_and_then("?123?", |toks| {
         assert_eq!(toks.len(), 3);
         assert_eq!(toks[1].kind, TokenKind::IntLit(123));
     });
+}
 
+#[test]
+fn test_number_double_decimal_error() {
     if scan_string("1.2.3").is_ok() {
         panic!("expected scanner error");
     }
@@ -92,7 +101,7 @@ fn test_pos() {
 }
 
 #[test]
-fn test_string() {
+fn test_string_basic() {
     scan_and_then(r#""Hello world!""#, |toks| {
         assert_eq!(toks.len(), 1);
         assert_eq!(
@@ -101,31 +110,52 @@ fn test_string() {
         );
         assert_eq!(toks[0].length, 14);
     });
+}
 
+#[test]
+fn test_string_embedded_in_identifiers() {
     scan_and_then("goodbye\"cruel\"world", |toks| {
         assert_eq!(toks.len(), 3);
         assert_eq!(toks[1].kind, TokenKind::StringLit("cruel".to_string()));
     });
+}
 
+#[test]
+fn test_string_unterminated_no_newline_error() {
     scan_and_error("\"not terminated, no newline");
+}
+
+#[test]
+fn test_string_unterminated_with_newline_error() {
     scan_and_error("\"with newline\n123");
 }
 
 #[test]
-fn test_byte_string() {
+fn test_byte_string_valid() {
     scan_and_then(r#"'A'"#, |toks| {
         assert_eq!(toks.len(), 1);
         assert_eq!(toks[0].kind, TokenKind::StringLit("A".to_string()));
         assert_eq!(toks[0].length, 3);
     });
+}
 
+#[test]
+fn test_byte_string_too_long_error() {
     scan_and_error("'too long'");
+}
+
+#[test]
+fn test_byte_string_empty_error() {
     scan_and_error("''");
+}
+
+#[test]
+fn test_byte_string_unterminated_error() {
     scan_and_error("'a");
 }
 
 #[test]
-fn test_symbols() {
+fn test_symbols_basic() {
     scan_and_then("+ - = /", |toks| {
         assert_eq!(toks.len(), 4);
         assert_eq!(toks[0].kind, TokenKind::Plus);
@@ -133,7 +163,10 @@ fn test_symbols() {
         assert_eq!(toks[2].kind, TokenKind::Eq);
         assert_eq!(toks[3].kind, TokenKind::Slash);
     });
+}
 
+#[test]
+fn test_symbols_compound() {
     scan_and_then("+= /= >= :=", |toks| {
         assert_eq!(toks.len(), 4);
         assert_eq!(toks[0].kind, TokenKind::PlusEq);
@@ -141,7 +174,10 @@ fn test_symbols() {
         assert_eq!(toks[2].kind, TokenKind::GreaterEq);
         assert_eq!(toks[3].kind, TokenKind::ColonEq);
     });
+}
 
+#[test]
+fn test_symbols_adjacent_greedy() {
     scan_and_then("+-=/", |toks| {
         assert_eq!(toks.len(), 3);
         assert_eq!(toks[0].kind, TokenKind::Plus);
@@ -151,75 +187,121 @@ fn test_symbols() {
 }
 
 #[test]
-fn test_line_comment() {
+fn test_line_comment_inline() {
     scan_and_then("hello // comment\nworld", |toks| {
         assert_eq!(toks.len(), 3);
         assert_eq!(toks[0].kind, TokenKind::IdentLit("hello".to_string()));
         assert_eq!(toks[2].kind, TokenKind::IdentLit("world".to_string()));
     });
+}
 
+#[test]
+fn test_line_comment_only() {
     scan_and_then("// comment", |toks| assert_eq!(toks.len(), 0));
 }
 
 #[test]
-fn test_block_comment() {
+fn test_block_comment_before_token() {
     let expect_foo = |toks: Vec<Token>| {
         assert_eq!(toks.len(), 1);
         assert_eq!(toks[0].kind, TokenKind::IdentLit("foo".to_string()));
     };
-
     scan_and_then("/* comment */foo", expect_foo);
-    scan_and_then("/* nested \n /* comment */\n */ foo", expect_foo);
-    scan_and_then("foo /* nested /* comment\n */ */", expect_foo);
+}
 
+#[test]
+fn test_block_comment_nested_before_token() {
+    let expect_foo = |toks: Vec<Token>| {
+        assert_eq!(toks.len(), 1);
+        assert_eq!(toks[0].kind, TokenKind::IdentLit("foo".to_string()));
+    };
+    scan_and_then("/* nested \n /* comment */\n */ foo", expect_foo);
+}
+
+#[test]
+fn test_block_comment_nested_after_token() {
+    let expect_foo = |toks: Vec<Token>| {
+        assert_eq!(toks.len(), 1);
+        assert_eq!(toks[0].kind, TokenKind::IdentLit("foo".to_string()));
+    };
+    scan_and_then("foo /* nested /* comment\n */ */", expect_foo);
+}
+
+#[test]
+fn test_block_comment_unclosed_error() {
     scan_and_error("/* not closed");
+}
+
+#[test]
+fn test_block_comment_unclosed_nested_error() {
     scan_and_error("/* not closed /* nested */");
 }
 
 #[test]
-fn test_hex_literal() {
-    // Basic hex values
+fn test_hex_literal_lowercase() {
     scan_and_then("0xff", |toks| {
         assert_eq!(toks.len(), 1);
         assert_eq!(toks[0].kind, TokenKind::IntLit(255));
         assert_eq!(toks[0].length, 4);
     });
+}
 
+#[test]
+fn test_hex_literal_uppercase_digits() {
     scan_and_then("0xFF", |toks| {
         assert_eq!(toks[0].kind, TokenKind::IntLit(255));
     });
+}
 
+#[test]
+fn test_hex_literal_uppercase_prefix() {
     scan_and_then("0XFF", |toks| {
         assert_eq!(toks[0].kind, TokenKind::IntLit(255));
     });
+}
 
-    // Zero
+#[test]
+fn test_hex_literal_zero() {
     scan_and_then("0x0", |toks| {
         assert_eq!(toks[0].kind, TokenKind::IntLit(0));
     });
+}
 
-    // Multi-digit
+#[test]
+fn test_hex_literal_multi_digit() {
     scan_and_then("0x1A2B", |toks| {
         assert_eq!(toks[0].kind, TokenKind::IntLit(0x1A2B));
         assert_eq!(toks[0].length, 6);
     });
+}
 
-    // Surrounded by other tokens
+#[test]
+fn test_hex_literal_surrounded_by_tokens() {
     scan_and_then("a + 0xDEAD", |toks| {
         assert_eq!(toks.len(), 3);
         assert_eq!(toks[2].kind, TokenKind::IntLit(0xDEAD));
     });
+}
 
-    // 0x with no digits is an error
+#[test]
+fn test_hex_literal_no_digits_lowercase_error() {
     scan_and_error("0x");
-    scan_and_error("0X");
+}
 
-    // Regular zero is still an int literal, not a hex prefix
+#[test]
+fn test_hex_literal_no_digits_uppercase_error() {
+    scan_and_error("0X");
+}
+
+#[test]
+fn test_hex_literal_zero_is_int() {
     scan_and_then("0", |toks| {
         assert_eq!(toks[0].kind, TokenKind::IntLit(0));
     });
+}
 
-    // 0 followed by something other than x is still a normal int
+#[test]
+fn test_hex_literal_zero_followed_by_digit_is_int() {
     scan_and_then("01", |toks| {
         assert_eq!(toks[0].kind, TokenKind::IntLit(1));
     });

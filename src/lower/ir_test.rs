@@ -9,7 +9,7 @@ fn expect_equal(src: &str, expect: &str) {
 }
 
 #[test]
-fn test_function_empty_return() {
+fn test_function_explicit_empty_return() {
     expect_equal(
         r#"
         func f() {
@@ -21,6 +21,10 @@ fn test_function_empty_return() {
             ret void
         "#,
     );
+}
+
+#[test]
+fn test_function_implicit_empty_return() {
     expect_equal(
         r#"
         func f() {
@@ -34,7 +38,7 @@ fn test_function_empty_return() {
 }
 
 #[test]
-fn test_function_literal_return() {
+fn test_function_literal_return_int() {
     expect_equal(
         r#"
         func f() int {
@@ -46,6 +50,10 @@ fn test_function_literal_return() {
             ret i32 0
         "#,
     );
+}
+
+#[test]
+fn test_function_literal_return_float() {
     expect_equal(
         r#"
         func f() float {
@@ -57,6 +65,10 @@ fn test_function_literal_return() {
             ret f32 1.2
         "#,
     );
+}
+
+#[test]
+fn test_function_literal_return_bool() {
     expect_equal(
         r#"
         func f() bool {
@@ -132,7 +144,7 @@ fn test_function_call_with_params() {
 }
 
 #[test]
-fn test_multiple_function_calls() {
+fn test_multiple_nested_function_calls() {
     expect_equal(
         r#"
         func f(a int) int {
@@ -154,6 +166,10 @@ fn test_multiple_function_calls() {
             ret i32 $2
         "#,
     );
+}
+
+#[test]
+fn test_multiple_diamond_function_calls() {
     expect_equal(
         r#"
         func f(a int, b int) int {
@@ -184,7 +200,7 @@ fn test_extern() {
 }
 
 #[test]
-fn test_variable_decl() {
+fn test_variable_decl_simple() {
     expect_equal(
         r#"
         func f() {
@@ -197,6 +213,10 @@ fn test_variable_decl() {
             ret void
         "#,
     );
+}
+
+#[test]
+fn test_variable_decl_copy() {
     expect_equal(
         r#"
         func f() int {
@@ -215,7 +235,7 @@ fn test_variable_decl() {
 }
 
 #[test]
-fn test_binary_arithmetic() {
+fn test_binary_add() {
     expect_equal(
         r#"
         func f(a int, b int) int {
@@ -228,6 +248,10 @@ fn test_binary_arithmetic() {
             ret i32 $0
         "#,
     );
+}
+
+#[test]
+fn test_binary_sub() {
     expect_equal(
         r#"
         func f(a int, b int) int {
@@ -240,6 +264,10 @@ fn test_binary_arithmetic() {
             ret i32 $0
         "#,
     );
+}
+
+#[test]
+fn test_binary_mul() {
     expect_equal(
         r#"
         func f(a int, b int) int {
@@ -252,6 +280,10 @@ fn test_binary_arithmetic() {
             ret i32 $0
         "#,
     );
+}
+
+#[test]
+fn test_binary_div() {
     expect_equal(
         r#"
         func f(a int, b int) int {
@@ -285,7 +317,7 @@ fn test_binary_modulo() {
 }
 
 #[test]
-fn test_binary_comparison() {
+fn test_binary_eq() {
     // Comparisons produce u8 (bool lowers to u8)
     expect_equal(
         r#"
@@ -299,6 +331,10 @@ fn test_binary_comparison() {
             ret u8 $0
         "#,
     );
+}
+
+#[test]
+fn test_binary_ne() {
     expect_equal(
         r#"
         func f(a int, b int) bool {
@@ -311,6 +347,10 @@ fn test_binary_comparison() {
             ret u8 $0
         "#,
     );
+}
+
+#[test]
+fn test_binary_lt() {
     expect_equal(
         r#"
         func f(a int, b int) bool {
@@ -323,6 +363,10 @@ fn test_binary_comparison() {
             ret u8 $0
         "#,
     );
+}
+
+#[test]
+fn test_binary_gt() {
     expect_equal(
         r#"
         func f(a int, b int) bool {
@@ -335,6 +379,10 @@ fn test_binary_comparison() {
             ret u8 $0
         "#,
     );
+}
+
+#[test]
+fn test_binary_le() {
     expect_equal(
         r#"
         func f(a int, b int) bool {
@@ -347,6 +395,10 @@ fn test_binary_comparison() {
             ret u8 $0
         "#,
     );
+}
+
+#[test]
+fn test_binary_ge() {
     expect_equal(
         r#"
         func f(a int, b int) bool {
@@ -362,7 +414,7 @@ fn test_binary_comparison() {
 }
 
 #[test]
-fn test_binary_logical() {
+fn test_binary_and() {
     expect_equal(
         r#"
         func f(a bool, b bool) bool {
@@ -375,6 +427,10 @@ fn test_binary_logical() {
             ret u8 $0
         "#,
     );
+}
+
+#[test]
+fn test_binary_or() {
     expect_equal(
         r#"
         func f(a bool, b bool) bool {
@@ -390,7 +446,7 @@ fn test_binary_logical() {
 }
 
 #[test]
-fn test_binary_chained() {
+fn test_binary_chained_add() {
     // a + b + c — second binary uses first's $result
     expect_equal(
         r#"
@@ -405,6 +461,10 @@ fn test_binary_chained() {
             ret i32 $1
         "#,
     );
+}
+
+#[test]
+fn test_binary_chained_complex() {
     expect_equal(
         r#"
         func f(a int, b int, c int, d bool) bool {
@@ -426,7 +486,7 @@ fn test_binary_chained() {
 }
 
 #[test]
-fn test_unary_neg() {
+fn test_unary_neg_simple() {
     expect_equal(
         r#"
         func f(a int) int {
@@ -439,7 +499,10 @@ fn test_unary_neg() {
             ret i32 $0
         "#,
     );
-    // Double negation
+}
+
+#[test]
+fn test_unary_neg_double() {
     expect_equal(
         r#"
         func f(a int) int {
@@ -456,7 +519,7 @@ fn test_unary_neg() {
 }
 
 #[test]
-fn test_unary_not() {
+fn test_unary_not_simple() {
     // ! produces u8 (bool)
     expect_equal(
         r#"
@@ -470,7 +533,10 @@ fn test_unary_not() {
             ret u8 $0
         "#,
     );
-    // Double not
+}
+
+#[test]
+fn test_unary_not_double() {
     expect_equal(
         r#"
         func f(a bool) bool {

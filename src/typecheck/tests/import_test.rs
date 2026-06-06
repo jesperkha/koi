@@ -116,7 +116,7 @@ fn test_no_exported_symbol() {
 }
 
 #[test]
-fn test_bad_import_path() {
+fn test_bad_import_path_unknown_module() {
     assert_error(
         &vec![file(
             "main",
@@ -130,6 +130,10 @@ fn test_bad_import_path() {
         )],
         "could not resolve module import",
     );
+}
+
+#[test]
+fn test_bad_import_path_missing_subpath() {
     assert_error(
         &vec![
             file(
@@ -353,7 +357,7 @@ fn test_namespace_as_expression_error() {
 }
 
 #[test]
-fn test_import_alias() {
+fn test_import_alias_basic() {
     assert_pass(&vec![
         file(
             "foo",
@@ -373,6 +377,10 @@ fn test_import_alias() {
             "#,
         ),
     ]);
+}
+
+#[test]
+fn test_import_alias_alongside_original() {
     assert_pass(&vec![
         file(
             "foo",
@@ -541,7 +549,7 @@ fn test_import_private_symbol_error() {
 }
 
 #[test]
-fn test_no_reexport() {
+fn test_no_reexport_regular_func() {
     assert_error(
         &vec![
             file(
@@ -569,6 +577,10 @@ fn test_no_reexport() {
         ],
         "module 'two' has no export 'f'",
     );
+}
+
+#[test]
+fn test_no_reexport_extern_func() {
     assert_error(
         &vec![
             file(

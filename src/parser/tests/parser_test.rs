@@ -21,7 +21,7 @@ fn expect_error(src: &str, error: &str) {
 }
 
 #[test]
-fn test_literal() {
+fn test_literal_identifiers() {
     compare_string(
         r#"
         func f() {
@@ -31,6 +31,10 @@ fn test_literal() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_literal_grouped() {
     compare_string(
         r#"
         func f() {
@@ -42,7 +46,7 @@ fn test_literal() {
 }
 
 #[test]
-fn test_function_with_return() {
+fn test_function_with_empty_return() {
     compare_string(
         r#"
         func f() {
@@ -50,6 +54,10 @@ fn test_function_with_return() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_function_with_int_return() {
     compare_string(
         r#"
         func f() int {
@@ -57,6 +65,10 @@ fn test_function_with_return() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_function_with_param_and_return() {
     compare_string(
         r#"
         func f(a int) int {
@@ -64,6 +76,10 @@ fn test_function_with_return() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_function_with_multiple_params() {
     compare_string(
         r#"
         func f(a int, b bool, c float) int {
@@ -71,12 +87,20 @@ fn test_function_with_return() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_function_with_no_return() {
     compare_string(
         r#"
         func f() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_function_with_bool_return() {
     compare_string(
         r#"
         func f() bool {
@@ -87,19 +111,27 @@ fn test_function_with_return() {
 }
 
 #[test]
-fn test_function_with_error() {
+fn test_function_error_missing_body() {
     expect_error(
         r#"
         func f()
     "#,
         "expected {",
     );
+}
+
+#[test]
+fn test_function_error_unclosed_body() {
     expect_error(
         r#"
         func f() {
     "#,
         "unexpected end of file while parsing block",
     );
+}
+
+#[test]
+fn test_function_error_missing_close_before_new_func() {
     expect_error(
         r#"
         func f() {
@@ -108,24 +140,40 @@ fn test_function_with_error() {
     "#,
         "expected expression",
     );
+}
+
+#[test]
+fn test_function_error_missing_param_name() {
     expect_error(
         r#"
         func f( {}
     "#,
         "expected parameter name",
     );
+}
+
+#[test]
+fn test_function_error_missing_open_paren() {
     expect_error(
         r#"
         func f) {}
     "#,
         "expected (",
     );
+}
+
+#[test]
+fn test_function_error_param_missing_type() {
     expect_error(
         r#"
         func f(foo) {}
     "#,
         "expected type",
     );
+}
+
+#[test]
+fn test_function_error_duplicate_param_name() {
     expect_error(
         r#"
         func f(n int, n int) {}
@@ -135,7 +183,7 @@ fn test_function_with_error() {
 }
 
 #[test]
-fn test_function_call() {
+fn test_function_call_no_args() {
     compare_string(
         r#"
         func f() {
@@ -143,6 +191,10 @@ fn test_function_call() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_function_call_one_arg() {
     compare_string(
         r#"
         func f() {
@@ -150,6 +202,10 @@ fn test_function_call() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_function_call_multiple_args() {
     compare_string(
         r#"
         func f() {
@@ -157,6 +213,10 @@ fn test_function_call() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_function_call_nested() {
     compare_string(
         r#"
         func f() {
@@ -167,7 +227,7 @@ fn test_function_call() {
 }
 
 #[test]
-fn test_complex_function_call() {
+fn test_complex_function_call_chained() {
     compare_string(
         r#"
         func f() {
@@ -175,6 +235,10 @@ fn test_complex_function_call() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_complex_function_call_mixed() {
     compare_string(
         r#"
         func f() {
@@ -182,6 +246,10 @@ fn test_complex_function_call() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_complex_function_call_deeply_nested() {
     compare_string(
         r#"
         func f() {
@@ -192,17 +260,21 @@ fn test_complex_function_call() {
 }
 
 #[test]
-fn test_extern() {
+fn test_extern_with_return() {
     compare_string(
         r#"
         extern func write(fd int, s string, len int) int
     "#,
     );
+}
+
+#[test]
+fn test_extern_without_return() {
     compare_string(r#"extern func puts(s string)"#);
 }
 
 #[test]
-fn test_variable_decl() {
+fn test_variable_decl_multiple_types() {
     compare_string(
         r#"
         func f() {
@@ -212,6 +284,10 @@ fn test_variable_decl() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_variable_decl_from_variable() {
     compare_string(
         r#"
         func f() {
@@ -220,6 +296,10 @@ fn test_variable_decl() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_variable_decl_with_return() {
     compare_string(
         r#"
         func f() int {
@@ -231,7 +311,7 @@ fn test_variable_decl() {
 }
 
 #[test]
-fn test_variable_decl_error() {
+fn test_variable_decl_error_missing_value_assign() {
     expect_error(
         r#"
         func f() {
@@ -240,6 +320,10 @@ fn test_variable_decl_error() {
     "#,
         "expected expression",
     );
+}
+
+#[test]
+fn test_variable_decl_error_missing_value_const() {
     expect_error(
         r#"
         func f() {
@@ -248,6 +332,10 @@ fn test_variable_decl_error() {
     "#,
         "expected expression",
     );
+}
+
+#[test]
+fn test_variable_decl_error_literal_lhs() {
     expect_error(
         r#"
         func f() {
@@ -256,6 +344,10 @@ fn test_variable_decl_error() {
     "#,
         "invalid left hand value in declaration",
     );
+}
+
+#[test]
+fn test_variable_decl_error_call_lhs() {
     expect_error(
         r#"
         func f() {
@@ -280,27 +372,43 @@ fn test_variable_assign() {
 }
 
 #[test]
-fn test_imports() {
+fn test_import_module_path() {
     compare_string(
         r#"
         import foo
     "#,
     );
+}
+
+#[test]
+fn test_import_dotted_path() {
     compare_string(
         r#"
         import foo.bar.faz
     "#,
     );
+}
+
+#[test]
+fn test_import_alias() {
     compare_string(
         r#"
         import foo as bar
     "#,
     );
+}
+
+#[test]
+fn test_import_dotted_path_alias() {
     compare_string(
         r#"
         import foo.bar as bar
     "#,
     );
+}
+
+#[test]
+fn test_import_named_multiline() {
     compare_string(
         r#"
         import foo {
@@ -309,6 +417,10 @@ fn test_imports() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_import_named_dotted_multiline() {
     compare_string(
         r#"
         import foo.bar {
@@ -317,6 +429,10 @@ fn test_imports() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_import_named_trailing_comma() {
     assert_pass(
         r#"
         import foo.bar{
@@ -324,6 +440,10 @@ fn test_imports() {
             Bar, }
     "#,
     );
+}
+
+#[test]
+fn test_import_named_inline() {
     assert_pass(
         r#"
         import foo { Foo, Bar }
@@ -332,7 +452,7 @@ fn test_imports() {
 }
 
 #[test]
-fn test_import_error() {
+fn test_import_error_alias_after_named() {
     expect_error(
         r#"
         import foo { bar } as faz
@@ -342,7 +462,7 @@ fn test_import_error() {
 }
 
 #[test]
-fn test_member() {
+fn test_member_simple() {
     assert_pass(
         r#"
         func f() {
@@ -350,6 +470,10 @@ fn test_member() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_member_chained() {
     assert_pass(
         r#"
         func f() {
@@ -357,6 +481,10 @@ fn test_member() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_member_with_calls() {
     assert_pass(
         r#"
         func f() {
@@ -364,6 +492,10 @@ fn test_member() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_member_as_argument() {
     assert_pass(
         r#"
         func f() {
@@ -374,7 +506,7 @@ fn test_member() {
 }
 
 #[test]
-fn test_member_error() {
+fn test_member_error_trailing_dot() {
     expect_error(
         r#"
         func f() {
@@ -383,6 +515,10 @@ fn test_member_error() {
     "#,
         "expected field name",
     );
+}
+
+#[test]
+fn test_member_error_number_after_dot() {
     expect_error(
         r#"
         func f() {
@@ -391,6 +527,10 @@ fn test_member_error() {
     "#,
         "expected field name",
     );
+}
+
+#[test]
+fn test_member_error_paren_after_dot() {
     expect_error(
         r#"
         func f() {
@@ -399,6 +539,10 @@ fn test_member_error() {
     "#,
         "expected field name",
     );
+}
+
+#[test]
+fn test_member_error_leading_dot() {
     expect_error(
         r#"
         func f() {
@@ -505,7 +649,7 @@ fn test_malformed_import_reports_error() {
 }
 
 #[test]
-fn test_binary() {
+fn test_binary_addition() {
     assert_pass(
         r#"
         func sum(a int, b int) int {
@@ -513,6 +657,10 @@ fn test_binary() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_binary_subtraction_chained() {
     assert_pass(
         r#"
         func op(a int, b int, c int) int {
@@ -520,6 +668,10 @@ fn test_binary() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_binary_grouped() {
     assert_pass(
         r#"
         func f() {
@@ -527,6 +679,10 @@ fn test_binary() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_binary_mixed_precedence() {
     assert_pass(
         r#"
         func f() {
@@ -534,6 +690,10 @@ fn test_binary() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_binary_logical_mixed() {
     assert_pass(
         r#"
         func f() {
@@ -544,7 +704,7 @@ fn test_binary() {
 }
 
 #[test]
-fn test_if_stmt() {
+fn test_if_stmt_simple() {
     compare_string(
         r#"
         func f() {
@@ -553,6 +713,10 @@ fn test_if_stmt() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_if_stmt_with_condition() {
     compare_string(
         r#"
         func f() {
@@ -562,6 +726,10 @@ fn test_if_stmt() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_if_stmt_with_else() {
     compare_string(
         r#"
         func f() {
@@ -571,6 +739,10 @@ fn test_if_stmt() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_if_stmt_with_elseif() {
     compare_string(
         r#"
         func f() {
@@ -580,6 +752,10 @@ fn test_if_stmt() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_if_stmt_with_elseif_else() {
     compare_string(
         r#"
         func f() {
@@ -590,6 +766,10 @@ fn test_if_stmt() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_if_stmt_with_complex_conditions() {
     compare_string(
         r#"
         func f() {
@@ -606,7 +786,7 @@ fn test_if_stmt() {
 }
 
 #[test]
-fn test_if_stmt_error() {
+fn test_if_stmt_error_missing_condition() {
     expect_error(
         r#"
         func f() {
@@ -616,6 +796,10 @@ fn test_if_stmt_error() {
     "#,
         "expected expression",
     );
+}
+
+#[test]
+fn test_if_stmt_error_missing_body() {
     expect_error(
         r#"
         func f() {
@@ -627,7 +811,7 @@ fn test_if_stmt_error() {
 }
 
 #[test]
-fn test_while_stmt() {
+fn test_while_stmt_simple() {
     compare_string(
         r#"
         func f() {
@@ -636,6 +820,10 @@ fn test_while_stmt() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_while_stmt_with_condition() {
     compare_string(
         r#"
         func f() {
@@ -645,6 +833,10 @@ fn test_while_stmt() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_while_stmt_with_body() {
     compare_string(
         r#"
         func f(a bool) {
@@ -671,7 +863,7 @@ fn test_while_stmt_nested() {
 }
 
 #[test]
-fn test_while_stmt_error() {
+fn test_while_stmt_error_missing_condition() {
     expect_error(
         r#"
         func f() {
@@ -681,6 +873,10 @@ fn test_while_stmt_error() {
     "#,
         "expected expression",
     );
+}
+
+#[test]
+fn test_while_stmt_error_missing_body() {
     expect_error(
         r#"
         func f() {
@@ -692,7 +888,7 @@ fn test_while_stmt_error() {
 }
 
 #[test]
-fn test_break_continue() {
+fn test_break_stmt() {
     compare_string(
         r#"
         func f() {
@@ -702,6 +898,10 @@ fn test_break_continue() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_continue_stmt() {
     compare_string(
         r#"
         func f() {
@@ -711,6 +911,10 @@ fn test_break_continue() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_break_continue_in_if_inside_loop() {
     compare_string(
         r#"
         func f(a bool) {
@@ -724,6 +928,10 @@ fn test_break_continue() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_break_continue_in_nested_loops() {
     compare_string(
         r#"
         func f(a bool, b bool) {
@@ -739,7 +947,7 @@ fn test_break_continue() {
 }
 
 #[test]
-fn test_unary() {
+fn test_unary_not_chained() {
     assert_pass(
         r#"
         func f() {
@@ -747,6 +955,10 @@ fn test_unary() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_unary_mixed_with_binary() {
     assert_pass(
         r#"
         func f() {
@@ -754,6 +966,10 @@ fn test_unary() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_unary_neg_grouped() {
     assert_pass(
         r#"
         func f() {
@@ -764,7 +980,7 @@ fn test_unary() {
 }
 
 #[test]
-fn test_modifier_on_func() {
+fn test_nomangle_modifier_on_func() {
     compare_string(
         r#"
         @nomangle
@@ -772,6 +988,10 @@ fn test_modifier_on_func() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_inline_modifier_on_func() {
     compare_string(
         r#"
         @inline
@@ -779,6 +999,10 @@ fn test_modifier_on_func() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_naked_modifier_on_func() {
     compare_string(
         r#"
         @naked
@@ -789,7 +1013,7 @@ fn test_modifier_on_func() {
 }
 
 #[test]
-fn test_modifier_multiple_on_func() {
+fn test_two_modifiers_on_func() {
     compare_string(
         r#"
         @inline
@@ -798,6 +1022,10 @@ fn test_modifier_multiple_on_func() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_three_modifiers_on_func() {
     compare_string(
         r#"
         @nomangle
@@ -810,13 +1038,17 @@ fn test_modifier_multiple_on_func() {
 }
 
 #[test]
-fn test_modifier_on_extern() {
+fn test_modifier_on_extern_single() {
     compare_string(
         r#"
         @nomangle
         extern func write(fd int, s string, len int) int
     "#,
     );
+}
+
+#[test]
+fn test_modifier_on_extern_multiple() {
     compare_string(
         r#"
         @inline
@@ -827,7 +1059,7 @@ fn test_modifier_on_extern() {
 }
 
 #[test]
-fn test_modifier_on_pub_func() {
+fn test_modifier_on_pub_func_single() {
     assert_pass(
         r#"
         @nomangle
@@ -835,6 +1067,10 @@ fn test_modifier_on_pub_func() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_modifier_on_pub_func_multiple() {
     assert_pass(
         r#"
         @inline
@@ -881,7 +1117,7 @@ fn test_modifier_missing_name_error() {
 }
 
 #[test]
-fn test_for_loop() {
+fn test_for_loop_basic() {
     assert_pass(
         r#"
         func f() {
@@ -891,6 +1127,10 @@ fn test_for_loop() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_for_loop_with_call_in_init_and_post() {
     assert_pass(
         r#"
         func f() {
@@ -903,7 +1143,7 @@ fn test_for_loop() {
 }
 
 #[test]
-fn test_complex_for_loop_expressions() {
+fn test_complex_for_loop_expressions_with_calls() {
     assert_pass(
         r#"
         func f() {
@@ -913,6 +1153,10 @@ fn test_complex_for_loop_expressions() {
         }
     "#,
     );
+}
+
+#[test]
+fn test_complex_for_loop_expressions_nested() {
     assert_pass(
         r#"
         func f() {
