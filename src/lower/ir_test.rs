@@ -53,8 +53,8 @@ fn test_function_literal_return() {
         }
     "#,
         r#"
-        func f() f64
-            ret f64 1.2
+        func f() f32
+            ret f32 1.2
         "#,
     );
     expect_equal(

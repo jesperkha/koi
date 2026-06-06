@@ -5,8 +5,6 @@ pub use ast::*;
 use std::{fmt, hash::Hash};
 use strum_macros::EnumIter;
 
-use crate::ast::TokenKind;
-
 pub type TypeId = usize; // Unique identifier
 
 /// ID of invalid types (not assigned yet).
@@ -47,24 +45,6 @@ pub enum PrimitiveType {
     Bool,
     Byte,
     String,
-}
-
-impl From<&TokenKind> for PrimitiveType {
-    fn from(kind: &TokenKind) -> Self {
-        match kind {
-            TokenKind::BoolType => PrimitiveType::Bool,
-            TokenKind::ByteType => PrimitiveType::Byte,
-
-            // Builtin 'aliases'
-            TokenKind::IntType => PrimitiveType::I32,
-            TokenKind::FloatType => PrimitiveType::F64,
-
-            TokenKind::StringType => PrimitiveType::String,
-            TokenKind::Void => PrimitiveType::Void,
-
-            _ => panic!("unknown primitive type: {:?}", kind),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

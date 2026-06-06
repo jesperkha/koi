@@ -40,10 +40,28 @@ impl<'a> ModuleChecker<'a> {
 
     /// Create all builtin symbols and types.
     fn initialize_symbol_list(&mut self) {
-        self.create_intrinsic("u8", PrimitiveType::U8);
+        self.new_builtin_type("usize", PrimitiveType::U64);
+        self.new_builtin_type("u8", PrimitiveType::U8);
+        self.new_builtin_type("u16", PrimitiveType::U16);
+        self.new_builtin_type("u32", PrimitiveType::U32);
+        self.new_builtin_type("u64", PrimitiveType::U64);
+
+        self.new_builtin_type("int", PrimitiveType::I32);
+        self.new_builtin_type("i8", PrimitiveType::I8);
+        self.new_builtin_type("i16", PrimitiveType::I16);
+        self.new_builtin_type("i32", PrimitiveType::I32);
+        self.new_builtin_type("i64", PrimitiveType::I64);
+
+        self.new_builtin_type("float", PrimitiveType::F32);
+        self.new_builtin_type("f32", PrimitiveType::F32);
+        self.new_builtin_type("f64", PrimitiveType::F64);
+
+        self.new_builtin_type("bool", PrimitiveType::Bool);
+        self.new_builtin_type("byte", PrimitiveType::U8);
+        self.new_builtin_type("string", PrimitiveType::String);
     }
 
-    fn create_intrinsic(&mut self, name: &str, primitive: PrimitiveType) {
+    fn new_builtin_type(&mut self, name: &str, primitive: PrimitiveType) {
         self.create_symbol(CreateSymbol {
             name: name.into(),
             alias: None,
@@ -380,10 +398,6 @@ impl<'a> ModuleChecker<'a> {
     /// Evaluate an AST type node to its semantic type id.
     fn eval_type(&self, node: &ast::TypeNode) -> Result<TypeId, Report> {
         match node {
-            ast::TypeNode::Primitive(token) => {
-                let prim = PrimitiveType::from(&token.kind);
-                Ok(self.ctx.types.primitive(prim))
-            }
             ast::TypeNode::Ident(token) => self
                 .get_symbol_type_id(token)
                 .ok_or(Report::code_error("not a type", &token.pos, &token.end_pos)),

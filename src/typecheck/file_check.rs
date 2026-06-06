@@ -411,7 +411,7 @@ impl<'a> FileChecker<'a> {
     fn emit_literal(&mut self, tok: Token) -> Result<types::Expr, Report> {
         let ty = match &tok.kind {
             TokenKind::IntLit(_) => self.ctx.types.primitive_type(PrimitiveType::I32),
-            TokenKind::FloatLit(_) => self.ctx.types.primitive_type(PrimitiveType::F64),
+            TokenKind::FloatLit(_) => self.ctx.types.primitive_type(PrimitiveType::F32),
             TokenKind::StringLit(_) => self.ctx.types.primitive_type(PrimitiveType::String),
             TokenKind::True | TokenKind::False => {
                 self.ctx.types.primitive_type(PrimitiveType::Bool)

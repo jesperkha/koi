@@ -100,7 +100,7 @@ impl Visitor<()> for Printer {
 
     fn visit_type(&mut self, node: &super::TypeNode) {
         match node {
-            TypeNode::Primitive(tok) | TypeNode::Ident(tok) => self.visit_literal(tok),
+            TypeNode::Ident(tok) => self.visit_literal(tok),
         }
     }
 

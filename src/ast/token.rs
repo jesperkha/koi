@@ -159,14 +159,6 @@ pub enum TokenKind {
     ColonColon,
     Question,
     At,
-
-    // Primitive types
-    Void,
-    IntType,
-    FloatType,
-    StringType,
-    ByteType,
-    BoolType,
 }
 
 /// Reserved token lexemes
@@ -227,13 +219,6 @@ static RESERVED: &[(&str, TokenKind)] = &[
     ("::", TokenKind::ColonColon),
     ("?", TokenKind::Question),
     ("@", TokenKind::At),
-    // Primitive types
-    ("void", TokenKind::Void), // TODO: convert to Type symbols?
-    ("int", TokenKind::IntType),
-    ("float", TokenKind::FloatType),
-    ("string", TokenKind::StringType),
-    ("byte", TokenKind::ByteType),
-    ("bool", TokenKind::BoolType),
 ];
 
 pub fn str_to_token(s: &str) -> Option<&TokenKind> {
