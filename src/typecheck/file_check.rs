@@ -352,12 +352,22 @@ impl<'a> FileChecker<'a> {
     fn emit_var_decl(&mut self, node: ast::VarDeclNode) -> Result<types::Stmt, Report> {
         let meta = ast_node_to_meta(&node);
         let typed_expr = self.emit_expr(node.expr)?;
+        let name = node.name.to_string();
 
         if typed_expr.type_id() == self.ctx.types.void() {
             return Err(self.error("cannot assign void type to variable", &typed_expr));
         }
 
-        if self.nsl.get(&node.name.to_string()).is_ok() {
+        if let Ok(sym) = self.get_symbol(name.as_str()) {
+            match sym.kind {
+                SymbolKind::Function { .. } => {} // shadowing a function is ok
+                SymbolKind::Type => {
+                    return Err(self.error_token("shadowing a type is not allowed", &node.name));
+                }
+            }
+        }
+
+        if self.nsl.get(&name).is_ok() {
             return Err(self.error_token("shadowing a namespace is not allowed", &node.name));
         }
 
@@ -365,7 +375,7 @@ impl<'a> FileChecker<'a> {
         Ok(types::Stmt::VarDecl(types::VarDeclNode {
             meta,
             ty,
-            name: node.name.to_string(),
+            name,
             value: typed_expr,
         }))
     }

@@ -213,7 +213,7 @@ fn test_extern() {
         extern func write(fd int, s string, len int) int
 
         func f() {
-            write(1, "Hello", 5) 
+            write(1, "Hello", 5)
         }
     "#,
     );
@@ -1627,5 +1627,17 @@ fn test_for_loop_expression() {
         }
     "#,
         "expression must be of type 'bool', got 'i32'",
+    );
+}
+
+#[test]
+fn test_shadowing_type() {
+    assert_error(
+        r#"
+        func f() {
+            int := 0
+        }
+    "#,
+        "shadowing a type is not allowed",
     );
 }
