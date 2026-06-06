@@ -495,6 +495,7 @@ impl<'a> FileChecker<'a> {
 
     fn emit_binary(&mut self, node: ast::BinaryExpr) -> Result<types::Expr, Report> {
         let meta = ast_node_to_meta(&node);
+
         let lhs = self.emit_expr(*node.lhs)?;
         let rhs = self.emit_expr(*node.rhs)?;
 

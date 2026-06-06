@@ -27,27 +27,37 @@ pub(crate) struct ModuleChecker<'a> {
 
 impl<'a> ModuleChecker<'a> {
     pub(crate) fn new(ctx: &'a mut Context) -> Self {
-        Self {
+        let mut s = Self {
             ctx,
             symbols: SymbolList::new(),
             is_main: false,
             file_namespaces: Vec::new(),
-        }
+        };
+
+        s.initialize_symbol_list();
+        s
     }
 
-    pub(crate) fn check(mut self, fs: ast::FileSet) -> Res<CreateModule> {
-        self.is_main = fs.modpath.is_main();
+    /// Create all builtin symbols and types.
+    fn initialize_symbol_list(&mut self) {
+        self.create_intrinsic("u8", PrimitiveType::U8);
+    }
 
+    fn create_intrinsic(&mut self, name: &str, primitive: PrimitiveType) {
         self.create_symbol(CreateSymbol {
-            name: "u8".into(),
+            name: name.into(),
             alias: None,
             kind: SymbolKind::Type,
-            ty: self.ctx.types.primitive(PrimitiveType::U8),
+            ty: self.ctx.types.primitive(primitive),
             origin: SymbolOrigin::Intrinsic,
             is_exported: false,
             no_mangle: false,
         })
         .unwrap();
+    }
+
+    pub(crate) fn check(mut self, fs: ast::FileSet) -> Res<CreateModule> {
+        self.is_main = fs.modpath.is_main();
 
         // The first step of type checking is to resolve all imports in this module.
         // Each import is resolved to a source or external module and it is added as
