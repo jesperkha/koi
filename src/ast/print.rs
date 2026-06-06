@@ -252,7 +252,7 @@ impl Visitor<()> for Printer {
         self.visit_block(&node.block);
     }
 
-    fn visit_type_decl(&mut self, node: &super::TypeDeclNode) -> () {
+    fn visit_type_decl(&mut self, node: &super::TypeDeclNode) {
         if node.public {
             self.s += "pub "
         }

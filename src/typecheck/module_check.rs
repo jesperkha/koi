@@ -462,14 +462,11 @@ impl<'a> ModuleChecker<'a> {
                     .get(&namespace.to_string())
                     .map_or(
                         Err(self.error_token("not an imported namespace", namespace)),
-                        |ns| Ok(ns),
+                        Ok,
                     )?;
 
-                let sym_id = ns.get(&ty.to_string()).map_or(
-                    Err(self
-                        .error_token(&format!("namespace '{namespace}' has no member '{ty}'"), ty)),
-                    |id| Ok(id),
-                )?;
+                let sym_id = ns.get(&ty.to_string()).ok_or(self
+                    .error_token(&format!("namespace '{namespace}' has no member '{ty}'"), ty))?;
 
                 Ok(self.ctx.symbols.get(sym_id).ty)
             }
