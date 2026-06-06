@@ -1,0 +1,9 @@
+type MyInt int
+
+func get() MyInt {
+    return 7
+}
+
+func main() int {
+    return get()
+}

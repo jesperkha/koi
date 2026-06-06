@@ -1920,3 +1920,199 @@ fn test_shadowing_type() {
         "shadowing a type is not allowed",
     );
 }
+
+// --- Type declarations ---
+
+#[test]
+fn test_type_decl_alias_pass() {
+    assert_pass(
+        r#"
+        type Number int
+
+        func makeNumber() Number {
+            return 0
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_type_decl_alias_compatible_with_base_in_return() {
+    // Alias and base share the same TypeId, so returning one where the other
+    // is expected always passes.
+    assert_pass(
+        r#"
+        type Number int
+
+        func makeNumber() Number {
+            return 0
+        }
+
+        func consumeInt() int {
+            return makeNumber()
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_type_decl_base_compatible_with_alias_in_return() {
+    assert_pass(
+        r#"
+        type Number int
+
+        func f(n int) Number {
+            return n
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_type_decl_alias_compatible_as_param() {
+    assert_pass(
+        r#"
+        type Number int
+
+        func consume(n int) {}
+
+        func f(n Number) {
+            consume(n)
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_type_decl_unique_not_compatible_with_base_in_return() {
+    assert_error(
+        r#"
+        unique type ID int
+
+        func getInt() int { return 0 }
+
+        func f() ID {
+            return getInt()
+        }
+    "#,
+        "incorrect return type: expected 'ID', got 'i32'",
+    );
+}
+
+#[test]
+fn test_type_decl_unique_not_compatible_with_base_as_param() {
+    assert_error(
+        r#"
+        unique type ID int
+
+        func consume(n ID) {}
+
+        func f() {
+            consume(0)
+        }
+    "#,
+        "mismatched types in function call. expected 'ID', got 'i32'",
+    );
+}
+
+#[test]
+fn test_type_decl_two_unique_same_base_not_compatible() {
+    assert_error(
+        r#"
+        unique type A int
+        unique type B int
+
+        func consumeA(n A) {}
+
+        func f(b B) {
+            consumeA(b)
+        }
+    "#,
+        "mismatched types in function call. expected 'A', got 'B'",
+    );
+}
+
+#[test]
+fn test_type_decl_alias_chaining_pass() {
+    // type A bool; type B A → B collapses to bool TypeId through A.
+    assert_pass(
+        r#"
+        type A bool
+        type B A
+
+        func consumeBool(x bool) {}
+
+        func f(b B) {
+            consumeBool(b)
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_type_decl_unique_then_alias_is_same_type() {
+    // type B A where A is unique → B and A share the same TypeId.
+    assert_pass(
+        r#"
+        unique type A int
+        type B A
+
+        func consumeA(x A) {}
+
+        func f(b B) {
+            consumeA(b)
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_type_decl_alias_then_unique_not_compatible_with_base() {
+    assert_error(
+        r#"
+        type A int
+        unique type B A
+
+        func consumeInt(n int) {}
+
+        func f(b B) {
+            consumeInt(b)
+        }
+    "#,
+        "mismatched types in function call. expected 'i32', got 'B'",
+    );
+}
+
+#[test]
+fn test_type_decl_unique_then_alias_not_compatible_with_primitive() {
+    // B has the same TypeId as unique A, which is not the same as int.
+    assert_error(
+        r#"
+        unique type A int
+        type B A
+
+        func consumeInt(n int) {}
+
+        func f(b B) {
+            consumeInt(b)
+        }
+    "#,
+        "mismatched types in function call. expected 'i32', got 'A'",
+    );
+}
+
+#[test]
+fn test_type_decl_duplicate_name_error() {
+    assert_error(
+        r#"
+        type Number int
+        type Number bool
+    "#,
+        "already declared",
+    );
+}
+
+#[test]
+fn test_type_decl_unknown_underlying_type_error() {
+    assert_error(r#"type Foo Bar"#, "not a type");
+}

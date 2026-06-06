@@ -1171,3 +1171,50 @@ fn test_complex_for_loop_expressions_nested() {
     "#,
     );
 }
+
+// --- Type declarations ---
+
+#[test]
+fn test_type_decl_basic() {
+    compare_string(r#"type Number int"#);
+}
+
+#[test]
+fn test_type_decl_unique() {
+    compare_string(r#"unique type ID u64"#);
+}
+
+#[test]
+fn test_type_decl_pub() {
+    compare_string(r#"pub type Foo int"#);
+}
+
+#[test]
+fn test_type_decl_pub_unique() {
+    compare_string(r#"pub unique type ID u64"#);
+}
+
+#[test]
+fn test_type_decl_imported_base_type() {
+    compare_string(r#"type Foo bar.Baz"#);
+}
+
+#[test]
+fn test_type_decl_missing_name_error() {
+    expect_error(r#"type 123 int"#, "expected type name");
+}
+
+#[test]
+fn test_type_decl_missing_underlying_type_error() {
+    expect_error(
+        r#"
+        type Foo 123
+    "#,
+        "invalid type",
+    );
+}
+
+#[test]
+fn test_unique_type_decl_missing_type_keyword_error() {
+    expect_error(r#"unique Foo int"#, "expected type");
+}

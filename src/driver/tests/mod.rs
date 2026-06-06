@@ -493,3 +493,13 @@ fn test_for_loop() {
 fn test_complex_for_loop() {
     run_case_with_status("complex_for_loop", 0);
 }
+
+#[test]
+fn test_type_decl() {
+    run_case_with_status("type_decl", 7);
+}
+
+#[test]
+fn test_type_decl_import() {
+    run_case_with_status("type_decl_import", 5);
+}

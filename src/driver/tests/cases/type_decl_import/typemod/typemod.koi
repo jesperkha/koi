@@ -1,0 +1,5 @@
+pub type Value int
+
+pub func getValue() Value {
+    return 5
+}
