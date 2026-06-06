@@ -61,7 +61,7 @@ impl fmt::Display for Symbol {
                     specs.push("naked");
                 }
             }
-            SymbolKind::Type { .. } => specs.push("type"),
+            SymbolKind::Type => specs.push("type"),
         }
         write!(
             f,
@@ -124,7 +124,7 @@ impl fmt::Display for SymbolKind {
             "{}",
             match self {
                 SymbolKind::Function { .. } => "function",
-                SymbolKind::Type { .. } => "type",
+                SymbolKind::Type => "type",
             }
         )
     }
