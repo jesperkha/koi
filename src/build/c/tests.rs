@@ -61,7 +61,7 @@ func f() string {
         r#"
 #include "include/koi.h"
 
-int8_t* f() {
+uint8_t* f() {
     return "Hello";
 }
         "#,
@@ -80,7 +80,7 @@ func f(a int, b string) int {
         r#"
 #include "include/koi.h"
 
-int32_t f(int32_t t0, int8_t* t1) {
+int32_t f(int32_t t0, uint8_t* t1) {
     int32_t t2 = f(1, "Hello");
     int32_t t3 = t2;
     return t3;
@@ -129,9 +129,9 @@ func f() {
 #include "include/koi.h"
 
 void f() {
-    int8_t* t0 = "Hello";
+    uint8_t* t0 = "Hello";
     t0 = "World";
-    int8_t* t1 = t0;
+    uint8_t* t1 = t0;
     t0 = t1;
     return ;
 }
@@ -389,7 +389,7 @@ func f(a int, b bool, c string) int {
         r#"
 #include "include/koi.h"
 
-int32_t f(int32_t t0, uint8_t t1, int8_t* t2) {
+int32_t f(int32_t t0, uint8_t t1, uint8_t* t2) {
     t0 = 0;
     t1 = 0;
     int32_t t3 = 123;

@@ -383,7 +383,7 @@ impl From<&ir::Primitive> for Type {
             ir::Primitive::I16 => Self::Int16,
             ir::Primitive::I32 => Self::Int32,
             ir::Primitive::I64 => Self::Int64,
-            ir::Primitive::String => Self::Pointer(Box::new(Self::Int8)),
+            ir::Primitive::String => Self::Pointer(Box::new(Self::Uint8)),
         }
     }
 }
