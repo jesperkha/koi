@@ -176,10 +176,9 @@ impl<'a> ModuleChecker<'a> {
             // Check if the symbol exists
             let Some(id) = module_exports.get(&symbol_name) else {
                 // Module did not contain the symbol
-                diag.add(Report::code_error(
+                diag.add(self.error_token(
                     &format!("module '{}' has no export '{}'", module.name(), symbol_name),
-                    &tok.pos,
-                    &tok.end_pos,
+                    &tok,
                 ));
                 continue;
             };
@@ -192,7 +191,7 @@ impl<'a> ModuleChecker<'a> {
 
             // If it was already declared, add error
             if let Err(err) = self.symbols.add(symbol_name, modsym) {
-                diag.add(Report::code_error(&err, &tok.pos, &tok.end_pos));
+                diag.add(self.error_token(&err, &tok));
             }
         }
     }
@@ -393,7 +392,7 @@ impl<'a> ModuleChecker<'a> {
 
     fn check_symbol_already_declared(&self, name: &str, node: &dyn Node) -> Result<(), Report> {
         if let Ok(sym) = self.get_symbol(name) {
-            let mut report = Report::code_error("already declared", node.pos(), node.end());
+            let mut report = self.error("already declared", node);
 
             if let SymbolOrigin::Module { pos, filename, .. } = &sym.origin {
                 report = report.with_info(&format!(
@@ -453,7 +452,7 @@ impl<'a> ModuleChecker<'a> {
         match node {
             ast::TypeNode::Ident(token) => self
                 .get_symbol_type_id(token)
-                .ok_or(Report::code_error("not a type", &token.pos, &token.end_pos)),
+                .ok_or(self.error_token("not a type", &token)),
             ast::TypeNode::Imported { namespace, ty } => {
                 let ns = self
                     .file_namespaces
@@ -465,8 +464,9 @@ impl<'a> ModuleChecker<'a> {
                         Ok,
                     )?;
 
-                let sym_id = ns.get(&ty.to_string()).ok_or(self
-                    .error_token(&format!("namespace '{namespace}' has no member '{ty}'"), ty))?;
+                let sym_id = ns.get(&ty.to_string()).ok_or(
+                    self.error_token(&format!("namespace '{namespace}' has no member '{ty}'"), ty),
+                )?;
 
                 Ok(self.ctx.symbols.get(sym_id).ty)
             }
