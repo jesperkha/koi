@@ -1,0 +1,14 @@
+[package]
+name = "koi-parser"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+koi-common = { workspace = true }
+koi-ast = { workspace = true }
+koi-scanner = { workspace = true }
+petgraph = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+koi-common = { workspace = true }

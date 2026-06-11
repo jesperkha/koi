@@ -1,0 +1,15 @@
+[package]
+name = "koi-typecheck"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+koi-common = { workspace = true }
+koi-ast = { workspace = true }
+koi-sema = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+koi-parser = { workspace = true }
+koi-scanner = { workspace = true }
+koi-common = { workspace = true }

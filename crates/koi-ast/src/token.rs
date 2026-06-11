@@ -1,0 +1,224 @@
+use std::{
+    fmt,
+    sync::atomic::{AtomicUsize, Ordering},
+};
+
+use koi_common::source::Pos;
+
+#[derive(Debug, Clone)]
+pub struct Token {
+    pub id: usize,
+    pub kind: TokenKind,
+    pub pos: Pos,
+    pub end_pos: Pos,
+    pub eof: bool,
+    pub invalid: bool,
+    pub length: usize,
+}
+
+static TOKEN_ID: AtomicUsize = AtomicUsize::new(0);
+
+fn next_id() -> usize {
+    TOKEN_ID.fetch_add(1, Ordering::Relaxed)
+}
+
+impl Token {
+    pub fn new(kind: TokenKind, length: usize, pos: Pos) -> Token {
+        let end_pos = Pos {
+            source_id: pos.source_id,
+            row: pos.row,
+            col: pos.col + length,
+            offset: pos.offset + length,
+            line_begin: pos.line_begin,
+        };
+
+        Token {
+            id: next_id(),
+            length,
+            eof: kind.eq(&TokenKind::Eof),
+            invalid: kind.eq(&TokenKind::Invalid),
+            pos,
+            end_pos,
+            kind,
+        }
+    }
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.kind)
+    }
+}
+
+pub fn display_tokens(tokens: &[Token]) -> String {
+    format!(
+        "[\n{}\n]",
+        tokens
+            .iter()
+            .map(|t| format!("    {}", t))
+            .collect::<Vec<_>>()
+            .join("\n")
+    )
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TokenKind {
+    Invalid,
+    Whitespace,
+    Newline,
+    Eof,
+
+    LineComment,
+    BlockComment,
+
+    IdentLit(String),
+    IntLit(i64),
+    FloatLit(f64),
+    StringLit(String),
+    CharLit(u8),
+
+    True,
+    False,
+    Return,
+    Func,
+    If,
+    Else,
+    While,
+    For,
+    Import,
+    Null,
+    Pub,
+    Error,
+    Extern,
+    As,
+    Break,
+    Continue,
+    Type,
+    Unique,
+
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Percent,
+
+    Eq,
+    EqEq,
+    Not,
+    NotEq,
+    PlusEq,
+    MinusEq,
+    StarEq,
+    SlashEq,
+    Greater,
+    Less,
+    GreaterEq,
+    LessEq,
+    Or,
+    OrOr,
+    And,
+    AndAnd,
+
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
+    LBrack,
+    RBrack,
+
+    Dot,
+    Comma,
+    Semi,
+    Colon,
+    ColonEq,
+    ColonColon,
+    Question,
+    At,
+}
+
+static RESERVED: &[(&str, TokenKind)] = &[
+    ("true", TokenKind::True),
+    ("false", TokenKind::False),
+    ("return", TokenKind::Return),
+    ("func", TokenKind::Func),
+    ("if", TokenKind::If),
+    ("while", TokenKind::While),
+    ("else", TokenKind::Else),
+    ("for", TokenKind::For),
+    ("import", TokenKind::Import),
+    ("null", TokenKind::Null),
+    ("pub", TokenKind::Pub),
+    ("error", TokenKind::Error),
+    ("extern", TokenKind::Extern),
+    ("as", TokenKind::As),
+    ("break", TokenKind::Break),
+    ("continue", TokenKind::Continue),
+    ("type", TokenKind::Type),
+    ("unique", TokenKind::Unique),
+    ("+", TokenKind::Plus),
+    ("-", TokenKind::Minus),
+    ("*", TokenKind::Star),
+    ("/", TokenKind::Slash),
+    ("%", TokenKind::Percent),
+    ("=", TokenKind::Eq),
+    ("==", TokenKind::EqEq),
+    ("!", TokenKind::Not),
+    ("!=", TokenKind::NotEq),
+    ("+=", TokenKind::PlusEq),
+    ("-=", TokenKind::MinusEq),
+    ("*=", TokenKind::StarEq),
+    ("/=", TokenKind::SlashEq),
+    (">", TokenKind::Greater),
+    ("<", TokenKind::Less),
+    (">=", TokenKind::GreaterEq),
+    ("<=", TokenKind::LessEq),
+    ("|", TokenKind::Or),
+    ("||", TokenKind::OrOr),
+    ("&", TokenKind::And),
+    ("&&", TokenKind::AndAnd),
+    ("(", TokenKind::LParen),
+    (")", TokenKind::RParen),
+    ("{", TokenKind::LBrace),
+    ("}", TokenKind::RBrace),
+    ("[", TokenKind::LBrack),
+    ("]", TokenKind::RBrack),
+    (".", TokenKind::Dot),
+    (",", TokenKind::Comma),
+    (";", TokenKind::Semi),
+    (":", TokenKind::Colon),
+    (":=", TokenKind::ColonEq),
+    ("::", TokenKind::ColonColon),
+    ("?", TokenKind::Question),
+    ("@", TokenKind::At),
+];
+
+pub fn str_to_token(s: &str) -> Option<&TokenKind> {
+    RESERVED.iter().find(|(kw, _)| *kw == s).map(|(_, t)| t)
+}
+
+pub fn token_to_str(t: TokenKind) -> Option<&'static str> {
+    RESERVED
+        .iter()
+        .find(|(_, tok)| *tok == t)
+        .map(|(kw, _)| *kw)
+}
+
+impl fmt::Display for TokenKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            TokenKind::Whitespace => "WHITESPACE",
+            TokenKind::Invalid => "INVALID",
+            TokenKind::Eof => "EOF",
+            TokenKind::Newline => "NEWLINE",
+            TokenKind::IdentLit(ident) => ident,
+            TokenKind::IntLit(n) => &n.to_string(),
+            TokenKind::FloatLit(f) => &f.to_string(),
+            TokenKind::StringLit(s) => &format!("\"{}\"", s),
+            TokenKind::CharLit(c) => &c.to_string(),
+            k => token_to_str(k.clone()).expect("kind was not found in RESERVED map"),
+        };
+
+        write!(f, "{}", s)
+    }
+}
+

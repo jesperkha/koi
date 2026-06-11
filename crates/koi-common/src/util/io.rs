@@ -1,0 +1,142 @@
+use std::{
+    env,
+    fmt::Display,
+    fs::{self, read_dir},
+    io,
+    os::unix::process::CommandExt,
+    path::PathBuf,
+    process::Command,
+};
+
+use tracing::{debug, info};
+
+pub fn write_file<C>(filepath: &FilePath, content: C) -> Result<(), String>
+where
+    C: AsRef<[u8]>,
+{
+    debug!("Writing file: {}", filepath);
+    if fs::write(filepath.path_buf(), content).is_err() {
+        return Err(format!("error: failed to write file {}", filepath));
+    };
+    Ok(())
+}
+
+pub fn list_dir(dir: &FilePath) -> Result<Vec<String>, String> {
+    let entries = read_dir(dir.path_buf())
+        .map_err(|_| format!("error: failed to read directory {:?}", dir))?;
+    Ok(entries
+        .into_iter()
+        .filter_map(Result::ok)
+        .map(|entry| entry.file_name().into_string())
+        .filter_map(Result::ok)
+        .collect())
+}
+
+pub fn cmd(command: &str, args: &[String]) -> Result<(), String> {
+    info!("Cmd: {} {}", command, args.join(" "));
+
+    let output = Command::new(command)
+        .args(args)
+        .output()
+        .map_err(|_| format!("failed to run command: {}", command))?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+    }
+
+    Ok(())
+}
+
+pub fn exec(command: &str, args: &[String]) -> Result<(), String> {
+    info!("Exec: {} {}", command, args.join(" "));
+    let err = Command::new(command).args(args).exec();
+    Err(format!("failed to run command: {}", err))
+}
+
+pub fn create_dir_if_not_exist(dir: &str) -> Result<(), String> {
+    let Ok(exists) = fs::exists(dir) else {
+        return Ok(());
+    };
+
+    if !exists {
+        info!("Creating directory: {}", dir);
+        if let Err(err) = fs::create_dir(dir) {
+            if matches!(err.kind(), io::ErrorKind::AlreadyExists) {
+            } else {
+                return Err(format!("failed to create directory: {}", dir));
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn get_root_dir() -> FilePath {
+    #[cfg(debug_assertions)]
+    {
+        FilePath::from(env!("CARGO_MANIFEST_DIR")).join("koi")
+    }
+
+    #[cfg(not(debug_assertions))]
+    {
+        let exec_path = env::current_exe().unwrap();
+        let rootdir = exec_path.parent().unwrap().parent().unwrap();
+        FilePath::from(rootdir.to_path_buf())
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct FilePath {
+    pb: PathBuf,
+}
+
+impl FilePath {
+    pub fn filename(&self) -> Option<String> {
+        self.pb.file_name().map(|f| f.to_string_lossy().to_string())
+    }
+
+    pub fn join(&self, path: &str) -> FilePath {
+        FilePath {
+            pb: self.pb.join(path),
+        }
+    }
+
+    pub fn path_buf(&self) -> &PathBuf {
+        &self.pb
+    }
+}
+
+impl From<PathBuf> for FilePath {
+    fn from(pb: PathBuf) -> Self {
+        FilePath { pb }
+    }
+}
+
+impl From<&str> for FilePath {
+    fn from(s: &str) -> Self {
+        FilePath {
+            pb: PathBuf::from(s),
+        }
+    }
+}
+
+impl From<&String> for FilePath {
+    fn from(s: &String) -> Self {
+        FilePath {
+            pb: PathBuf::from(s),
+        }
+    }
+}
+
+impl From<String> for FilePath {
+    fn from(s: String) -> Self {
+        FilePath {
+            pb: PathBuf::from(s),
+        }
+    }
+}
+
+impl Display for FilePath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.pb.to_string_lossy())
+    }
+}

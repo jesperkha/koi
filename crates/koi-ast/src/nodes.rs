@@ -1,0 +1,554 @@
+use koi_common::source::Pos;
+use crate::token::Token;
+
+pub type NodeId = usize;
+
+#[derive(Debug)]
+pub struct Ast {
+    pub imports: Vec<ImportNode>,
+    pub decls: Vec<Decl>,
+}
+
+impl Ast {
+    pub fn walk<R>(&self, visitor: &mut dyn Visitor<R>) {
+        for node in &self.decls {
+            node.accept(visitor);
+        }
+    }
+}
+
+pub trait Node {
+    fn pos(&self) -> &Pos;
+    fn end(&self) -> &Pos;
+    fn id(&self) -> NodeId;
+}
+
+pub trait Visitable {
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R;
+}
+
+pub trait Visitor<R> {
+    fn visit_func(&mut self, node: &FuncNode) -> R;
+    fn visit_extern(&mut self, node: &FuncDeclNode) -> R;
+    fn visit_type_decl(&mut self, node: &TypeDeclNode) -> R;
+    fn visit_block(&mut self, node: &BlockNode) -> R;
+    fn visit_return(&mut self, node: &ReturnNode) -> R;
+    fn visit_type(&mut self, node: &TypeNode) -> R;
+    fn visit_var_decl(&mut self, node: &VarDeclNode) -> R;
+    fn visit_var_assign(&mut self, node: &VarAssignNode) -> R;
+    fn visit_import(&mut self, node: &ImportNode) -> R;
+    fn visit_if(&mut self, node: &IfNode) -> R;
+    fn visit_while(&mut self, node: &WhileNode) -> R;
+    fn visit_for(&mut self, node: &ForNode) -> R;
+    fn visit_break(&mut self, node: &BreakNode) -> R;
+    fn visit_continue(&mut self, node: &ContinueNode) -> R;
+    fn visit_op_assign(&mut self, node: &OpAssignNode) -> R;
+
+    fn visit_member(&mut self, node: &MemberNode) -> R;
+    fn visit_literal(&mut self, node: &Token) -> R;
+    fn visit_call(&mut self, node: &CallExpr) -> R;
+    fn visit_group(&mut self, node: &GroupExpr) -> R;
+    fn visit_binary(&mut self, node: &BinaryExpr) -> R;
+    fn visit_unary(&mut self, node: &UnaryExpr) -> R;
+    fn visit_cast(&mut self, node: &CastExpr) -> R;
+}
+
+#[derive(Debug)]
+pub enum Decl {
+    Func(Box<FuncNode>),
+    Extern(Box<FuncDeclNode>),
+    Type(Box<TypeDeclNode>),
+}
+
+#[derive(Debug, Clone)]
+pub enum Stmt {
+    ExprStmt(Expr),
+    Return(ReturnNode),
+    Block(BlockNode),
+    VarDecl(VarDeclNode),
+    VarAssign(VarAssignNode),
+    If(IfNode),
+    While(WhileNode),
+    For(ForNode),
+    Break(BreakNode),
+    Continue(ContinueNode),
+    OpAssign(OpAssignNode),
+}
+
+#[derive(Debug, Clone)]
+pub enum Expr {
+    Literal(Token),
+    Group(GroupExpr),
+    Call(CallExpr),
+    Member(MemberNode),
+    Binary(BinaryExpr),
+    Unary(UnaryExpr),
+    Cast(CastExpr),
+}
+
+#[derive(Debug, Clone)]
+pub enum TypeNode {
+    Ident(Token),
+    Imported { namespace: Token, ty: Token },
+}
+
+#[derive(Debug, Clone)]
+pub struct CastExpr {
+    pub expr: Box<Expr>,
+    pub kw: Token,
+    pub ty: TypeNode,
+}
+
+#[derive(Debug, Clone)]
+pub struct UnaryExpr {
+    pub op: Token,
+    pub rhs: Box<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct BinaryExpr {
+    pub lhs: Box<Expr>,
+    pub op: Token,
+    pub rhs: Box<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CallExpr {
+    pub callee: Box<Expr>,
+    pub lparen: Token,
+    pub args: Vec<Expr>,
+    pub rparen: Token,
+}
+
+#[derive(Debug, Clone)]
+pub struct MemberNode {
+    pub expr: Box<Expr>,
+    pub dot: Token,
+    pub field: Token,
+}
+
+#[derive(Debug, Clone)]
+pub struct VarDeclNode {
+    pub constant: bool,
+    pub name: Token,
+    pub symbol: Token,
+    pub expr: Expr,
+}
+
+#[derive(Debug, Clone)]
+pub struct ImportNode {
+    pub kw: Token,
+    pub names: Vec<Token>,
+    pub imports: Vec<Token>,
+    pub alias: Option<Token>,
+    pub end_tok: Token,
+}
+
+#[derive(Debug, Clone)]
+pub struct VarAssignNode {
+    pub lval: Expr,
+    pub equal: Token,
+    pub expr: Expr,
+}
+
+#[derive(Debug, Clone)]
+pub struct GroupExpr {
+    pub lparen: Token,
+    pub inner: Box<Expr>,
+    pub rparen: Token,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReturnNode {
+    pub kw: Token,
+    pub expr: Option<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct OpAssignNode {
+    pub lval: Expr,
+    pub op: Token,
+    pub rval: Expr,
+}
+
+#[derive(Debug, Clone)]
+pub enum ElseBlock {
+    ElseIf(Box<IfNode>),
+    Else(Box<BlockNode>),
+    None,
+}
+
+#[derive(Debug, Clone)]
+pub struct IfNode {
+    pub kw: Token,
+    pub expr: Expr,
+    pub block: BlockNode,
+    pub elseif: Box<ElseBlock>,
+}
+
+#[derive(Debug, Clone)]
+pub struct WhileNode {
+    pub kw: Token,
+    pub expr: Expr,
+    pub block: BlockNode,
+}
+
+#[derive(Debug, Clone)]
+pub struct ForNode {
+    pub kw: Token,
+    pub initializer: Box<Stmt>,
+    pub condition: Box<Expr>,
+    pub increment: Box<Stmt>,
+    pub block: BlockNode,
+}
+
+#[derive(Debug, Clone)]
+pub struct BreakNode {
+    pub kw: Token,
+}
+
+#[derive(Debug, Clone)]
+pub struct ContinueNode {
+    pub kw: Token,
+}
+
+#[derive(Debug, Clone)]
+pub struct Modifier {
+    pub sym: Token,
+    pub modifier: Token,
+    pub args: Vec<Token>,
+}
+
+#[derive(Debug)]
+pub struct FuncDeclNode {
+    pub modifiers: Vec<Modifier>,
+    pub public: bool,
+    pub name: Token,
+    pub lparen: Token,
+    pub params: Vec<Field>,
+    pub rparen: Token,
+    pub ret_type: Option<TypeNode>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FuncNode {
+    pub modifiers: Vec<Modifier>,
+    pub public: bool,
+    pub name: Token,
+    pub lparen: Token,
+    pub params: Vec<Field>,
+    pub rparen: Token,
+    pub ret_type: Option<TypeNode>,
+    pub body: BlockNode,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeDeclNode {
+    pub public: bool,
+    pub unique: bool,
+    pub kw: Token,
+    pub name: Token,
+    pub ty: TypeNode,
+}
+
+impl From<FuncNode> for FuncDeclNode {
+    fn from(f: FuncNode) -> Self {
+        FuncDeclNode {
+            modifiers: f.modifiers,
+            public: f.public,
+            name: f.name,
+            lparen: f.lparen,
+            params: f.params,
+            rparen: f.rparen,
+            ret_type: f.ret_type,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BlockNode {
+    pub lbrace: Token,
+    pub stmts: Vec<Stmt>,
+    pub rbrace: Token,
+}
+
+#[derive(Debug, Clone)]
+pub struct Field {
+    pub name: Token,
+    pub typ: TypeNode,
+}
+
+impl Visitable for Decl {
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
+        match self {
+            Decl::Func(node) => visitor.visit_func(node),
+            Decl::Extern(node) => visitor.visit_extern(node),
+            Decl::Type(node) => visitor.visit_type_decl(node),
+        }
+    }
+}
+
+impl Visitable for Stmt {
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
+        match self {
+            Stmt::ExprStmt(node) => node.accept(visitor),
+            Stmt::Return(node) => visitor.visit_return(node),
+            Stmt::Block(node) => visitor.visit_block(node),
+            Stmt::VarDecl(node) => visitor.visit_var_decl(node),
+            Stmt::VarAssign(node) => visitor.visit_var_assign(node),
+            Stmt::If(node) => visitor.visit_if(node),
+            Stmt::While(node) => visitor.visit_while(node),
+            Stmt::Break(node) => visitor.visit_break(node),
+            Stmt::Continue(node) => visitor.visit_continue(node),
+            Stmt::For(node) => visitor.visit_for(node),
+            Stmt::OpAssign(node) => visitor.visit_op_assign(node),
+        }
+    }
+}
+
+impl Visitable for Expr {
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
+        match self {
+            Expr::Literal(token) => visitor.visit_literal(token),
+            Expr::Call(call) => visitor.visit_call(call),
+            Expr::Group(grp) => visitor.visit_group(grp),
+            Expr::Member(node) => visitor.visit_member(node),
+            Expr::Binary(node) => visitor.visit_binary(node),
+            Expr::Unary(node) => visitor.visit_unary(node),
+            Expr::Cast(node) => visitor.visit_cast(node),
+        }
+    }
+}
+
+impl Visitable for TypeNode {
+    fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
+        visitor.visit_type(self)
+    }
+}
+
+impl Node for TypeNode {
+    fn pos(&self) -> &Pos {
+        match self {
+            TypeNode::Ident(token) => &token.pos,
+            TypeNode::Imported { namespace, .. } => &namespace.pos,
+        }
+    }
+
+    fn end(&self) -> &Pos {
+        match self {
+            TypeNode::Ident(token) => &token.end_pos,
+            TypeNode::Imported { ty, .. } => &ty.pos,
+        }
+    }
+
+    fn id(&self) -> usize {
+        match self {
+            TypeNode::Ident(token) => token.id,
+            TypeNode::Imported { ty, .. } => ty.id,
+        }
+    }
+}
+
+macro_rules! impl_node_enum {
+    ($enum_name:ident { $( $variant:ident ),+ $(,)? }) => {
+        impl Node for $enum_name {
+            fn pos(&self) -> &Pos {
+                match self {
+                    $(
+                        $enum_name::$variant(node) => node.pos(),
+                    )+
+                }
+            }
+
+            fn end(&self) -> &Pos {
+                match self {
+                    $(
+                        $enum_name::$variant(node) => node.end(),
+                    )+
+                }
+            }
+
+            fn id(&self) -> NodeId {
+                match self {
+                    $(
+                        $enum_name::$variant(node) => node.id(),
+                    )+
+                }
+            }
+        }
+    };
+}
+
+impl_node_enum!(Decl { Func, Extern, Type });
+
+impl_node_enum!(Stmt {
+    ExprStmt,
+    Return,
+    Block,
+    VarDecl,
+    VarAssign,
+    If,
+    While,
+    Break,
+    Continue,
+    For,
+    OpAssign,
+});
+
+impl Node for Expr {
+    fn pos(&self) -> &Pos {
+        match self {
+            Expr::Literal(token) => &token.pos,
+            Expr::Call(node) => node.pos(),
+            Expr::Group(grp) => &grp.lparen.pos,
+            Expr::Member(node) => node.expr.pos(),
+            Expr::Binary(node) => node.pos(),
+            Expr::Unary(node) => node.pos(),
+            Expr::Cast(node) => node.pos(),
+        }
+    }
+
+    fn end(&self) -> &Pos {
+        match self {
+            Expr::Literal(token) => &token.end_pos,
+            Expr::Call(call) => call.end(),
+            Expr::Member(node) => &node.field.end_pos,
+            Expr::Group(grp) => &grp.rparen.end_pos,
+            Expr::Binary(node) => node.end(),
+            Expr::Unary(node) => node.end(),
+            Expr::Cast(node) => node.end(),
+        }
+    }
+
+    fn id(&self) -> usize {
+        match self {
+            Expr::Literal(token) => token.id,
+            Expr::Call(call) => call.id(),
+            Expr::Group(grp) => grp.rparen.id,
+            Expr::Member(node) => node.dot.id,
+            Expr::Binary(node) => node.id(),
+            Expr::Unary(node) => node.id(),
+            Expr::Cast(node) => node.id(),
+        }
+    }
+}
+
+impl Node for ForNode {
+    fn pos(&self) -> &Pos { &self.kw.pos }
+    fn end(&self) -> &Pos { self.increment.end() }
+    fn id(&self) -> NodeId { self.kw.id }
+}
+
+impl Node for WhileNode {
+    fn pos(&self) -> &Pos { &self.kw.pos }
+    fn end(&self) -> &Pos { self.expr.end() }
+    fn id(&self) -> NodeId { self.kw.id }
+}
+
+impl Node for IfNode {
+    fn pos(&self) -> &Pos { &self.kw.pos }
+    fn end(&self) -> &Pos { self.expr.end() }
+    fn id(&self) -> NodeId { self.kw.id }
+}
+
+impl Node for VarDeclNode {
+    fn pos(&self) -> &Pos { &self.name.pos }
+    fn end(&self) -> &Pos { self.expr.end() }
+    fn id(&self) -> NodeId { self.name.id }
+}
+
+impl Node for VarAssignNode {
+    fn pos(&self) -> &Pos { self.lval.pos() }
+    fn end(&self) -> &Pos { self.expr.end() }
+    fn id(&self) -> NodeId { self.equal.id }
+}
+
+impl Node for ReturnNode {
+    fn pos(&self) -> &Pos { &self.kw.pos }
+    fn end(&self) -> &Pos { self.expr.as_ref().map(|e| e.end()).unwrap_or(&self.kw.pos) }
+    fn id(&self) -> NodeId { self.kw.id }
+}
+
+impl Node for BlockNode {
+    fn pos(&self) -> &Pos { &self.lbrace.pos }
+    fn end(&self) -> &Pos { &self.rbrace.pos }
+    fn id(&self) -> NodeId { self.lbrace.id }
+}
+
+impl Node for CallExpr {
+    fn pos(&self) -> &Pos { self.callee.pos() }
+    fn end(&self) -> &Pos { &self.rparen.end_pos }
+    fn id(&self) -> NodeId { self.lparen.id }
+}
+
+impl Node for ContinueNode {
+    fn pos(&self) -> &Pos { &self.kw.pos }
+    fn end(&self) -> &Pos { &self.kw.end_pos }
+    fn id(&self) -> NodeId { self.kw.id }
+}
+
+impl Node for BreakNode {
+    fn pos(&self) -> &Pos { &self.kw.pos }
+    fn end(&self) -> &Pos { &self.kw.end_pos }
+    fn id(&self) -> NodeId { self.kw.id }
+}
+
+impl Node for MemberNode {
+    fn pos(&self) -> &Pos { self.expr.pos() }
+    fn end(&self) -> &Pos { &self.field.end_pos }
+    fn id(&self) -> NodeId { self.dot.id }
+}
+
+impl Node for UnaryExpr {
+    fn pos(&self) -> &Pos { &self.op.pos }
+    fn end(&self) -> &Pos { self.rhs.end() }
+    fn id(&self) -> NodeId { self.op.id }
+}
+
+impl Node for BinaryExpr {
+    fn pos(&self) -> &Pos { self.lhs.pos() }
+    fn end(&self) -> &Pos { self.rhs.end() }
+    fn id(&self) -> NodeId { self.op.id }
+}
+
+impl Node for Modifier {
+    fn pos(&self) -> &Pos { &self.sym.pos }
+    fn end(&self) -> &Pos { &self.modifier.end_pos }
+    fn id(&self) -> NodeId { self.sym.id }
+}
+
+impl Node for ImportNode {
+    fn pos(&self) -> &Pos { &self.kw.pos }
+    fn end(&self) -> &Pos { &self.end_tok.end_pos }
+    fn id(&self) -> NodeId { self.kw.id }
+}
+
+impl Node for FuncNode {
+    fn pos(&self) -> &Pos { &self.name.pos }
+    fn end(&self) -> &Pos { &self.name.end_pos }
+    fn id(&self) -> NodeId { self.name.id }
+}
+
+impl Node for FuncDeclNode {
+    fn pos(&self) -> &Pos { &self.name.pos }
+    fn end(&self) -> &Pos { &self.name.end_pos }
+    fn id(&self) -> NodeId { self.name.id }
+}
+
+impl Node for TypeDeclNode {
+    fn pos(&self) -> &Pos { &self.name.pos }
+    fn end(&self) -> &Pos { &self.name.end_pos }
+    fn id(&self) -> NodeId { self.name.id }
+}
+
+impl Node for CastExpr {
+    fn pos(&self) -> &Pos { self.expr.pos() }
+    fn end(&self) -> &Pos { self.ty.end() }
+    fn id(&self) -> NodeId { self.kw.id }
+}
+
+impl Node for OpAssignNode {
+    fn pos(&self) -> &Pos { self.lval.pos() }
+    fn end(&self) -> &Pos { self.rval.end() }
+    fn id(&self) -> NodeId { self.op.id }
+}

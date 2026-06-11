@@ -1,0 +1,9 @@
+[package]
+name = "koi-scanner"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+koi-common = { workspace = true }
+koi-ast = { workspace = true }
+tracing = { workspace = true }

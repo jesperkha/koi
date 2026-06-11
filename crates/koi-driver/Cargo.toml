@@ -1,0 +1,20 @@
+[package]
+name = "koi-driver"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+koi-common = { workspace = true }
+koi-ast = { workspace = true }
+koi-sema = { workspace = true }
+koi-ir = { workspace = true }
+koi-scanner = { workspace = true }
+koi-parser = { workspace = true }
+koi-typecheck = { workspace = true }
+koi-lower = { workspace = true }
+koi-codegen-c = { workspace = true }
+koi-codegen-x86 = { workspace = true }
+strum = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+walkdir = { workspace = true }

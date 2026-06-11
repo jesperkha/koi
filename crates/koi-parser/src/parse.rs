@@ -1,0 +1,795 @@
+use std::collections::HashSet;
+
+use tracing::info;
+
+use koi_ast::{
+    Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, CastExpr, ContinueNode, Decl, ElseBlock,
+    Expr, Field, File, FileSet, ForNode, FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode,
+    MemberNode, Modifier, ModulePath, Node, OpAssignNode, ReturnNode, SourceMap, Stmt, Token,
+    TokenKind, TypeDeclNode, TypeNode, UnaryExpr, VarAssignNode, VarDeclNode, WhileNode,
+};
+use koi_common::{config::Config, error::{Diagnostics, Report, Res}};
+use koi_scanner::scan;
+
+pub fn parse_source_map(modpath: ModulePath, map: &SourceMap, config: &Config) -> Res<FileSet> {
+    let mut files = Vec::new();
+
+    for src in map.sources() {
+        let tokens = scan(src, config)?;
+
+        let parser = Parser::new(tokens, config);
+        let ast = parser.parse_file()?;
+
+        let file = File::new(src, ast);
+        files.push(file);
+    }
+
+    Ok(FileSet::new(modpath, files))
+}
+
+struct Parser<'a> {
+    _config: &'a Config,
+    tokens: Vec<Token>,
+    diag: Diagnostics,
+    pos: usize,
+    panic_mode: bool,
+}
+
+impl<'a> Parser<'a> {
+    pub fn new(tokens: Vec<Token>, config: &'a Config) -> Self {
+        Self {
+            tokens,
+            diag: Diagnostics::new(),
+            pos: 0,
+            panic_mode: false,
+            _config: config,
+        }
+    }
+
+    pub fn parse_file(mut self) -> Result<Ast, Diagnostics> {
+        if self.tokens.is_empty() {
+            return Ok(Ast {
+                imports: vec![],
+                decls: vec![],
+            });
+        }
+
+        let imports = match self.parse_imports() {
+            Ok(imports) => imports,
+            Err(err) => {
+                self.diag.add(err);
+                return Err(self.diag);
+            }
+        };
+
+        let mut decls = Vec::new();
+
+        while self.skip_whitespace_and_not_eof() {
+            match self.parse_modifier() {
+                Ok(decl) => decls.push(decl),
+                Err(err) => {
+                    self.diag.add(err);
+                    self.recover_from_error();
+                }
+            }
+        }
+
+        if !self.diag.is_empty() {
+            info!("Fail: finished with {} errors", self.diag.num_errors());
+            return Err(self.diag);
+        }
+
+        Ok(Ast { imports, decls })
+    }
+
+    fn skip_whitespace_and_not_eof(&mut self) -> bool {
+        while !self.eof_or_panic() {
+            if !self.matches(TokenKind::Newline) {
+                break;
+            }
+            self.consume();
+        }
+        !self.eof()
+    }
+
+    fn recover_from_error(&mut self) {
+        self.consume();
+        while !self.eof() && !self.matches_any(&[TokenKind::Func, TokenKind::Extern]) {
+            self.consume();
+        }
+
+        self.panic_mode = false;
+    }
+
+    fn parse_imports(&mut self) -> Result<Vec<ImportNode>, Report> {
+        let mut imports = Vec::new();
+        self.skip_whitespace_and_not_eof();
+
+        while self.matches(TokenKind::Import) {
+            imports.push(self.parse_import()?);
+            self.skip_whitespace_and_not_eof();
+        }
+
+        Ok(imports)
+    }
+
+    fn parse_import(&mut self) -> Result<ImportNode, Report> {
+        let kw = self.expect(TokenKind::Import)?;
+
+        let mut names = vec![self.expect_identifier("module name")?];
+        while self.matches(TokenKind::Dot) {
+            self.consume();
+            names.push(self.expect_identifier("module name")?);
+        }
+
+        let mut alias = None;
+        let mut imports = Vec::new();
+
+        let end_tok = match self.cur().map_or(TokenKind::Newline, |t| t.kind) {
+            TokenKind::As => {
+                self.consume();
+                let name = self.expect_identifier("import alias name")?;
+                alias = Some(name.clone());
+                name
+            }
+            TokenKind::LBrace => {
+                self.consume();
+                imports = self.collect_item_names("imported item name")?;
+                let rbrace = self.expect(TokenKind::RBrace)?;
+
+                if self.matches(TokenKind::As) {
+                    return Err(self.error_token("alias is not allowed after named imports"));
+                }
+
+                rbrace
+            }
+            _ => names
+                .last()
+                .expect("empty name vector should be handled")
+                .clone(),
+        };
+
+        Ok(ImportNode {
+            kw,
+            names,
+            imports,
+            alias,
+            end_tok,
+        })
+    }
+
+    fn collect_item_names(&mut self, item_name: &str) -> Result<Vec<Token>, Report> {
+        let mut items = Vec::new();
+
+        self.skip_whitespace_and_not_eof();
+        items.push(self.expect_identifier("import item")?);
+
+        while self.matches(TokenKind::Comma) {
+            self.consume();
+            self.skip_whitespace_and_not_eof();
+
+            if self.matches(TokenKind::RBrace) {
+                break;
+            }
+
+            items.push(self.expect_identifier(item_name)?);
+        }
+
+        self.skip_whitespace_and_not_eof();
+        Ok(items)
+    }
+
+    fn parse_modifier(&mut self) -> Result<Decl, Report> {
+        let mut modifiers = Vec::new();
+
+        while !self.eof() {
+            let token = self.cur_must("unexpected end of input")?;
+            match token.kind {
+                TokenKind::At => {
+                    let sym = self.must_consume()?;
+                    let modifier = self.expect_identifier("modifier name")?;
+
+                    let mut args = Vec::new();
+                    while !self.eof() && !self.matches(TokenKind::Newline) {
+                        args.push(self.must_consume()?);
+                    }
+
+                    modifiers.push(Modifier {
+                        sym,
+                        modifier,
+                        args,
+                    });
+                    self.expect(TokenKind::Newline)?;
+                }
+                TokenKind::Newline => {
+                    return Err(self.error_token("expected declaration after modifier"));
+                }
+                _ => return self.parse_decl(modifiers),
+            }
+        }
+
+        Err(self.error_token("unexpected end of input"))
+    }
+
+    fn parse_decl(&mut self, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
+        let token = self.cur_must("unexpected end of input")?;
+
+        match token.kind {
+            TokenKind::Pub => self.parse_public_decl(modifiers),
+            TokenKind::Func => self.parse_function(false, modifiers),
+            TokenKind::Extern => self.parse_extern(false, modifiers),
+            TokenKind::Type => self.parse_type_decl(false, false),
+            TokenKind::Unique => self.parse_unique_type_decl(false),
+            _ => Err(self.error_token("expected declaration")),
+        }
+    }
+
+    fn parse_unique_type_decl(&mut self, public: bool) -> Result<Decl, Report> {
+        self.expect(TokenKind::Unique)?;
+        self.parse_type_decl(public, true)
+    }
+
+    fn parse_type_decl(&mut self, public: bool, unique: bool) -> Result<Decl, Report> {
+        let kw = self.expect(TokenKind::Type)?;
+        let name = self.expect_identifier("type name")?;
+        let ty = self.parse_type()?;
+
+        Ok(Decl::Type(Box::new(TypeDeclNode {
+            public,
+            unique,
+            kw,
+            name,
+            ty,
+        })))
+    }
+
+    fn parse_public_decl(&mut self, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
+        self.consume();
+        let token = self.cur_must("unexpected end of input")?;
+
+        match token.kind {
+            TokenKind::Func => self.parse_function(true, modifiers),
+            TokenKind::Extern => self.parse_extern(true, modifiers),
+            TokenKind::Type => self.parse_type_decl(true, false),
+            TokenKind::Unique => self.parse_unique_type_decl(true),
+            _ => Err(self.error_token("illegal public declaration")),
+        }
+    }
+
+    fn parse_extern(&mut self, public: bool, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
+        self.consume();
+        self.parse_function_def(public, modifiers)
+            .map(|decl| Decl::Extern(Box::new(decl)))
+    }
+
+    fn parse_function_def(
+        &mut self,
+        public: bool,
+        modifiers: Vec<Modifier>,
+    ) -> Result<FuncDeclNode, Report> {
+        self.expect(TokenKind::Func)?;
+
+        let name = self.expect_identifier("function name")?;
+        let lparen = self.expect(TokenKind::LParen)?;
+
+        let mut params = Vec::new();
+        let mut param_names = HashSet::new();
+        if !self.matches(TokenKind::RParen) {
+            while !self.eof_or_panic() {
+                let field = self.parse_field("parameter name")?;
+
+                if !param_names.insert(field.name.to_string()) {
+                    return Err(self.error_from_to(
+                        "duplicate parameter name",
+                        &field.name,
+                        &field.name,
+                    ));
+                }
+
+                params.push(field);
+
+                if self.matches(TokenKind::RParen) {
+                    break;
+                }
+
+                self.expect(TokenKind::Comma)?;
+            }
+
+            assert!(!params.is_empty(), "function parameters cannot be empty");
+        };
+
+        let rparen = self.expect(TokenKind::RParen)?;
+
+        let ret_type = if self.matches_any(&[TokenKind::LBrace, TokenKind::Newline]) || self.eof() {
+            None
+        } else {
+            Some(self.parse_type()?)
+        };
+
+        Ok(FuncDeclNode {
+            modifiers,
+            public,
+            name,
+            lparen,
+            params,
+            rparen,
+            ret_type,
+        })
+    }
+
+    fn parse_function(&mut self, public: bool, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
+        let mut public = public;
+        let decl = self.parse_function_def(public, vec![])?;
+
+        if decl.name.to_string() == "main" {
+            public = true;
+        }
+
+        let body = self.parse_block()?;
+
+        Ok(Decl::Func(Box::new(FuncNode {
+            modifiers,
+            public,
+            name: decl.name,
+            lparen: decl.lparen,
+            params: decl.params,
+            rparen: decl.rparen,
+            ret_type: decl.ret_type,
+            body,
+        })))
+    }
+
+    fn parse_field(&mut self, field_name: &str) -> Result<Field, Report> {
+        let name = self.expect_identifier(field_name)?;
+        let typ = self.parse_type()?;
+        Ok(Field { name, typ })
+    }
+
+    fn parse_block(&mut self) -> Result<BlockNode, Report> {
+        let mut stmts = Vec::new();
+        let lbrace = self.expect(TokenKind::LBrace)?;
+
+        while !self.eof_or_panic() {
+            while self.matches(TokenKind::Newline) {
+                self.consume();
+            }
+
+            if self.matches(TokenKind::RBrace) {
+                break;
+            }
+
+            if self.eof() {
+                return Err(self.error_token("unexpected end of file while parsing block"));
+            }
+
+            let stmt = self.parse_stmt()?;
+            stmts.push(stmt);
+        }
+
+        let rbrace = self.expect(TokenKind::RBrace)?;
+        Ok(BlockNode {
+            lbrace,
+            stmts,
+            rbrace,
+        })
+    }
+
+    fn parse_stmt(&mut self) -> Result<Stmt, Report> {
+        let token = self.cur_must("unexpected end of input")?;
+
+        match token.kind {
+            TokenKind::Return => Ok(Stmt::Return(self.parse_return()?)),
+            TokenKind::If => Ok(Stmt::If(self.parse_if()?)),
+            TokenKind::While => Ok(Stmt::While(self.parse_while()?)),
+            TokenKind::For => Ok(Stmt::For(self.parse_for()?)),
+            TokenKind::Break => {
+                let kw = self.expect(TokenKind::Break)?;
+                Ok(Stmt::Break(BreakNode { kw }))
+            }
+            TokenKind::Continue => {
+                let kw = self.expect(TokenKind::Continue)?;
+                Ok(Stmt::Continue(ContinueNode { kw }))
+            }
+            _ => {
+                let expr = self.parse_expr()?;
+
+                match self.cur_or_last().kind {
+                    TokenKind::ColonColon => self.parse_var_decl(expr, true),
+                    TokenKind::ColonEq => self.parse_var_decl(expr, false),
+                    TokenKind::Eq => self.parse_var_assign(expr),
+                    TokenKind::PlusEq
+                    | TokenKind::MinusEq
+                    | TokenKind::SlashEq
+                    | TokenKind::StarEq => self.parse_op_assign(expr),
+                    _ => Ok(Stmt::ExprStmt(expr)),
+                }
+            }
+        }
+    }
+
+    fn parse_op_assign(&mut self, lval: Expr) -> Result<Stmt, Report> {
+        let op = self.must_consume()?;
+        let rval = self.parse_expr()?;
+
+        if let Expr::Literal(name) = &lval
+            && matches!(&name.kind, TokenKind::IdentLit(_))
+        {
+            return Ok(Stmt::OpAssign(OpAssignNode { lval, op, rval }));
+        }
+
+        Err(self.error_node("invalid left hand value in assignment", &lval))
+    }
+
+    fn parse_for(&mut self) -> Result<ForNode, Report> {
+        let kw = self.expect(TokenKind::For)?;
+        let initializer = Box::new(self.parse_stmt()?);
+        self.expect(TokenKind::Semi)?;
+        let condition = Box::new(self.parse_expr()?);
+        self.expect(TokenKind::Semi)?;
+        let increment = Box::new(self.parse_stmt()?);
+        let block = self.parse_block()?;
+
+        Ok(ForNode {
+            kw,
+            initializer,
+            condition,
+            increment,
+            block,
+        })
+    }
+
+    fn parse_while(&mut self) -> Result<WhileNode, Report> {
+        let kw = self.expect(TokenKind::While)?;
+        let expr = self.parse_expr()?;
+        let block = self.parse_block()?;
+        Ok(WhileNode { kw, expr, block })
+    }
+
+    fn parse_if(&mut self) -> Result<IfNode, Report> {
+        let kw = self.expect(TokenKind::If)?;
+        let expr = self.parse_expr()?;
+        let block = self.parse_block()?;
+
+        let elseif = if self.matches(TokenKind::Else) {
+            self.consume();
+            if self.matches(TokenKind::If) {
+                Box::new(ElseBlock::ElseIf(Box::new(self.parse_if()?)))
+            } else {
+                Box::new(ElseBlock::Else(Box::new(self.parse_block()?)))
+            }
+        } else {
+            Box::new(ElseBlock::None)
+        };
+
+        Ok(IfNode {
+            kw,
+            expr,
+            block,
+            elseif,
+        })
+    }
+
+    fn parse_var_assign(&mut self, lval: Expr) -> Result<Stmt, Report> {
+        let equal = self.expect(TokenKind::Eq)?;
+        let expr = self.parse_expr()?;
+
+        if let Expr::Literal(name) = &lval
+            && matches!(&name.kind, TokenKind::IdentLit(_))
+        {
+            return Ok(Stmt::VarAssign(VarAssignNode { lval, equal, expr }));
+        }
+
+        Err(self.error_node("invalid left hand value in assignment", &lval))
+    }
+
+    fn parse_var_decl(&mut self, lval: Expr, constant: bool) -> Result<Stmt, Report> {
+        let symbol = self.must_consume()?;
+        let expr = self.parse_expr()?;
+
+        let err = self.error_node("invalid left hand value in declaration", &lval);
+        if let Expr::Literal(name) = lval
+            && matches!(name.kind, TokenKind::IdentLit(_))
+        {
+            return Ok(Stmt::VarDecl(VarDeclNode {
+                name,
+                symbol,
+                expr,
+                constant,
+            }));
+        }
+
+        Err(err)
+    }
+
+    fn parse_return(&mut self) -> Result<ReturnNode, Report> {
+        assert!(self.matches(TokenKind::Return));
+        let kw = self.consume().unwrap();
+
+        let expr = if self.matches(TokenKind::Newline) {
+            None
+        } else {
+            Some(self.parse_expr()?)
+        };
+
+        Ok(ReturnNode { kw, expr })
+    }
+
+    fn parse_expr(&mut self) -> Result<Expr, Report> {
+        self.parse_logical()
+    }
+
+    fn parse_binary(
+        &mut self,
+        tokens: &[TokenKind],
+        next: fn(&mut Self) -> Result<Expr, Report>,
+    ) -> Result<Expr, Report> {
+        let mut lhs = next(self)?;
+        while self.matches_any(tokens) {
+            let op = self.must_consume()?;
+            let rhs = next(self)?;
+            lhs = Expr::Binary(BinaryExpr {
+                op,
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            });
+        }
+        Ok(lhs)
+    }
+
+    fn parse_logical(&mut self) -> Result<Expr, Report> {
+        self.parse_binary(&[TokenKind::AndAnd, TokenKind::OrOr], Self::parse_equality)
+    }
+
+    fn parse_equality(&mut self) -> Result<Expr, Report> {
+        self.parse_binary(&[TokenKind::EqEq, TokenKind::NotEq], Self::parse_comparison)
+    }
+
+    fn parse_comparison(&mut self) -> Result<Expr, Report> {
+        self.parse_binary(
+            &[
+                TokenKind::Greater,
+                TokenKind::GreaterEq,
+                TokenKind::Less,
+                TokenKind::LessEq,
+            ],
+            Self::parse_additive,
+        )
+    }
+
+    fn parse_additive(&mut self) -> Result<Expr, Report> {
+        self.parse_binary(
+            &[TokenKind::Plus, TokenKind::Minus],
+            Self::parse_multiplicative,
+        )
+    }
+
+    fn parse_multiplicative(&mut self) -> Result<Expr, Report> {
+        self.parse_binary(
+            &[TokenKind::Star, TokenKind::Slash, TokenKind::Percent],
+            Self::parse_cast,
+        )
+    }
+
+    fn parse_cast(&mut self) -> Result<Expr, Report> {
+        let expr = self.parse_unary()?;
+        if self.matches(TokenKind::As) {
+            let kw = self.expect(TokenKind::As)?;
+            let ty = self.parse_type()?;
+            return Ok(Expr::Cast(CastExpr {
+                expr: Box::new(expr),
+                kw,
+                ty,
+            }));
+        }
+
+        Ok(expr)
+    }
+
+    fn parse_unary(&mut self) -> Result<Expr, Report> {
+        if self.matches_any(&[TokenKind::Minus, TokenKind::Not]) {
+            let op = self.must_consume()?;
+            let rhs = self.parse_unary()?;
+            return Ok(Expr::Unary(UnaryExpr {
+                op,
+                rhs: Box::new(rhs),
+            }));
+        }
+
+        self.parse_call_and_member()
+    }
+
+    fn parse_call_and_member(&mut self) -> Result<Expr, Report> {
+        let mut expr = self.parse_group()?;
+
+        loop {
+            if self.matches(TokenKind::LParen) {
+                let lparen = self.must_consume()?;
+                let mut args = Vec::new();
+
+                while !self.matches(TokenKind::RParen) {
+                    args.push(self.parse_expr()?);
+                    if self.matches(TokenKind::RParen) {
+                        break;
+                    }
+
+                    self.expect(TokenKind::Comma)?;
+                }
+
+                let rparen = self.expect(TokenKind::RParen)?;
+                expr = Expr::Call(CallExpr {
+                    callee: Box::new(expr),
+                    args,
+                    lparen,
+                    rparen,
+                })
+            } else if self.matches(TokenKind::Dot) {
+                let dot = self.must_consume()?;
+                let field = self.expect_identifier("field name")?;
+
+                expr = Expr::Member(MemberNode {
+                    expr: Box::new(expr),
+                    dot,
+                    field,
+                });
+            } else {
+                break;
+            }
+        }
+
+        Ok(expr)
+    }
+
+    fn parse_group(&mut self) -> Result<Expr, Report> {
+        if self.matches(TokenKind::LParen) {
+            let lparen = self.must_consume()?;
+            let inner = self.parse_expr()?;
+            let rparen = self.expect(TokenKind::RParen)?;
+
+            return Ok(Expr::Group(GroupExpr {
+                lparen,
+                inner: Box::new(inner),
+                rparen,
+            }));
+        }
+
+        self.parse_literal()
+    }
+
+    fn parse_literal(&mut self) -> Result<Expr, Report> {
+        let token = self.cur_must("expected expression")?.clone();
+
+        match token.kind {
+            TokenKind::IntLit(_)
+            | TokenKind::IdentLit(_)
+            | TokenKind::FloatLit(_)
+            | TokenKind::StringLit(_)
+            | TokenKind::True
+            | TokenKind::False
+            | TokenKind::CharLit(_) => {
+                self.consume();
+                Ok(Expr::Literal(token))
+            }
+            _ => Err(self.error_token("expected expression")),
+        }
+    }
+
+    fn parse_type(&mut self) -> Result<TypeNode, Report> {
+        let token = self.cur_must("exptected type")?.clone();
+
+        match token.kind {
+            TokenKind::IdentLit(_) => {
+                let name = self.must_consume()?;
+                if self.matches(TokenKind::Dot) {
+                    self.consume();
+                    let ty = self.expect_identifier("type name")?;
+                    Ok(TypeNode::Imported {
+                        namespace: name,
+                        ty,
+                    })
+                } else {
+                    Ok(TypeNode::Ident(name))
+                }
+            }
+            TokenKind::RParen | TokenKind::RBrace | TokenKind::RBrack => {
+                Err(self.error_token("expected type"))
+            }
+            _ => Err(self.error_token("invalid type")),
+        }
+    }
+
+    fn error_token(&self, message: &str) -> Report {
+        self.error_from_to(message, &self.cur_or_last(), &self.cur_or_last())
+    }
+
+    fn error_from_to(&self, message: &str, from: &Token, to: &Token) -> Report {
+        Report::code_error(message, &from.pos, &to.end_pos)
+    }
+
+    fn error_node(&self, message: &str, node: &dyn Node) -> Report {
+        Report::code_error(message, node.pos(), node.end())
+    }
+
+    fn cur(&self) -> Option<Token> {
+        self.tokens.get(self.pos).cloned()
+    }
+
+    fn cur_must(&self, msg: &str) -> Result<&Token, Report> {
+        self.tokens.get(self.pos).ok_or(self.error_token(msg))
+    }
+
+    fn cur_or_last(&self) -> Token {
+        if self.pos < self.tokens.len() {
+            self.tokens.get(self.pos).unwrap().clone()
+        } else {
+            self.tokens.last().unwrap().clone()
+        }
+    }
+
+    fn consume(&mut self) -> Option<Token> {
+        if self.pos < self.tokens.len() {
+            let pos = self.pos;
+            self.pos += 1;
+            Some(self.tokens[pos].clone())
+        } else {
+            None
+        }
+    }
+
+    fn must_consume(&mut self) -> Result<Token, Report> {
+        self.consume()
+            .ok_or(self.error_token("unexpected end of file"))
+    }
+
+    fn expect(&mut self, kind: TokenKind) -> Result<Token, Report> {
+        self.expect_pred(&format!("{}", kind), |t| t.kind == kind)
+    }
+
+    fn _expect_msg(&mut self, kind: TokenKind, msg: &str) -> Result<Token, Report> {
+        self.expect_pred(msg, |t| t.kind == kind)
+    }
+
+    fn expect_pred<P>(&mut self, message: &str, predicate: P) -> Result<Token, Report>
+    where
+        P: Fn(Token) -> bool,
+    {
+        if let Some(tok) = self.cur()
+            && predicate(tok)
+        {
+            let pos = self.pos;
+            self.pos += 1;
+            return Ok(self.tokens[pos].clone());
+        }
+        Err(self.error_token(&format!("expected {}", message)))
+    }
+
+    fn expect_identifier(&mut self, message: &str) -> Result<Token, Report> {
+        self.expect_pred(message, |t| matches!(t.kind, TokenKind::IdentLit(_)))
+    }
+
+    fn matches(&self, kind: TokenKind) -> bool {
+        if let Some(tok) = self.cur() {
+            tok.kind == kind
+        } else {
+            false
+        }
+    }
+
+    fn matches_any(&self, kinds: &[TokenKind]) -> bool {
+        for k in kinds {
+            if let Some(tok) = self.cur()
+                && &tok.kind == k
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn eof(&self) -> bool {
+        self.pos >= self.tokens.len()
+    }
+
+    fn eof_or_panic(&self) -> bool {
+        self.eof() || self.panic_mode
+    }
+}

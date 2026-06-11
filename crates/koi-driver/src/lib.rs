@@ -1,0 +1,450 @@
+use std::{
+    fs::{self, read},
+    path::Path,
+};
+
+use tracing::{debug, info};
+use walkdir::WalkDir;
+
+use koi_ast::{FileSet, Printer, Source, SourceMap};
+use koi_common::{
+    config::{
+        BuildConfig, Codegen, Config, DriverPhase, LinkMode, Options, PathManager, Project,
+        ProjectType,
+    },
+    util::{FilePath, create_dir_if_not_exist, write_file},
+};
+use koi_ir::{ProgramIR, Unit, print_ir};
+use koi_lower::emit_ir;
+use koi_parser::{SortResult, parse_source_map, sort_by_dependency_graph, validate_imports};
+use koi_ast::ModulePath;
+use koi_sema::{Context, LibrarySet, Module, ModuleId, create_header_file, read_header_file};
+use koi_typecheck::check_filesets;
+
+/// Illegal module directory names reserved by the compiler
+static ILLEGAL_MODULE_NAMES: [&str; 3] = ["std", "core", "lib"];
+
+/// Result type shorthand used in this file.
+type Res<T> = Result<T, String>;
+
+/// Get the workspace root directory for use at runtime.
+/// koi-driver is at `crates/koi-driver/` so we go up two levels from CARGO_MANIFEST_DIR.
+fn get_root_dir() -> FilePath {
+    #[cfg(debug_assertions)]
+    {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let workspace_root = Path::new(manifest_dir)
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap();
+        FilePath::from(workspace_root.join("koi").to_string_lossy().as_ref())
+    }
+
+    #[cfg(not(debug_assertions))]
+    {
+        let exec_path = std::env::current_exe().unwrap();
+        let rootdir = exec_path.parent().unwrap().parent().unwrap();
+        FilePath::from(rootdir.to_path_buf())
+    }
+}
+
+/// Compile the project using the given global config and build configuration.
+pub fn compile(project: Project, options: Options, config: Config) -> Res<()> {
+    let pm = PathManager::new(
+        options
+            .install_dir
+            .as_ref()
+            .map_or(get_root_dir(), FilePath::from),
+    );
+
+    create_dir_if_not_exist(&project.bin)?;
+
+    // Recursively search the given source directory for files and
+    // return a list of SourceDir of all source files found.
+    let source_dirs = collect_all_source_dirs(&project.src, &project.ignore_dirs, &project)?;
+
+    // Parse all of the sources and return a list of FileSet.
+    let filesets = parse_source_dirs(&source_dirs, &config)?;
+
+    // Finished parser phase, exit early if specified.
+    if matches!(config.driver_phase, DriverPhase::Parse) {
+        print_all_asts(&filesets);
+        return Ok(());
+    }
+
+    // Flatten the SourceMaps for error handling.
+    let source_map = source_dirs
+        .into_iter()
+        .fold(SourceMap::new(), |mut map, dir| {
+            map.join(dir.map);
+            map
+        });
+
+    let mut libset = LibrarySet::new();
+    libset.read_dir(&pm.library_path())?;
+    libset.read_dir(&pm.external_library_path())?;
+
+    // Check that external and std imports actually exist
+    validate_external_imports(&filesets, &source_map, &libset)?;
+
+    // Create a dependency graph and sort it, returning a list of
+    // filesets in correct type checking order. FileSets are sorted
+    // based on their imports.
+    let sort_result = sort_by_dependency_graph(filesets)?;
+
+    // Type check all file sets, turning them into Modules, and put
+    // them in the Context along with all type information.
+    let ctx = create_modules(sort_result, &source_map, &libset, config.clone())?;
+
+    // Do some high level passes at a module level before lowering
+    check_main_function_present(&ctx, &project)?;
+    dump_debug_info(&ctx, &project)?;
+
+    // Finished type check phase, exit early if specified.
+    if matches!(config.driver_phase, DriverPhase::TypeCheck) {
+        return Ok(());
+    }
+
+    // Create header files for package
+    if matches!(project.project_type, ProjectType::Package) {
+        let empty = Vec::new();
+        let includes = project.includes.as_ref().unwrap_or(&empty);
+        create_package_headers(&ctx, includes, &project)?;
+    }
+
+    // Emit the intermediate representation for all modules
+    let units = ctx
+        .modules
+        .modules()
+        .iter()
+        .filter(|module| module.should_be_built())
+        .map(|module| emit_module_ir(&ctx, &source_map, module.id))
+        .collect::<Result<Vec<Unit>, String>>()?;
+
+    // Finished IR phase, exit early if specified.
+    if matches!(config.driver_phase, DriverPhase::Ir) {
+        units.iter().for_each(print_ir);
+        return Ok(());
+    }
+
+    // Build the final executable/library file
+    build(
+        ProgramIR { units },
+        &config,
+        &project,
+        &options,
+        &pm,
+        &libset,
+    )
+}
+
+fn print_all_asts(filesets: &[FileSet]) {
+    for fs in filesets {
+        for file in &fs.files {
+            Printer::print(&file.ast);
+        }
+    }
+}
+
+fn validate_external_imports(
+    filesets: &[FileSet],
+    map: &SourceMap,
+    libset: &LibrarySet,
+) -> Res<()> {
+    for fs in filesets {
+        validate_imports(fs, libset.import_paths()).map_err(|err| err.render(map))?;
+    }
+
+    Ok(())
+}
+
+/// Create header files for main module and all modules listed in project include list.
+fn create_package_headers(ctx: &Context, includes: &[String], project: &Project) -> Res<()> {
+    let exported_modules = ctx
+        .modules
+        .modules()
+        .iter()
+        .filter(|m| {
+            m.modpath.is_main() || includes.iter().any(|include| include == m.modpath.path())
+        })
+        .collect::<Vec<&Module>>();
+
+    for module in exported_modules {
+        let filename = format!("{}.koi.h", module.modpath.to_header_format());
+
+        let outfile = FilePath::from(&project.out).join(&filename);
+        let content = create_header_file(ctx, module.id)?;
+        write_file(&outfile, &content)?;
+    }
+
+    Ok(())
+}
+
+struct SourceDir {
+    modpath: ModulePath,
+    map: SourceMap,
+}
+
+/// Recursively search the given source directory for files and return a list of FileSet of
+/// all source files found.
+fn collect_all_source_dirs(
+    source_dir: &str,
+    ignore_dirs: &[String],
+    project: &Project,
+) -> Res<Vec<SourceDir>> {
+    info!("Collecting source files in {}", source_dir);
+    let mut dirs = Vec::new();
+
+    for dir in &list_source_directories(source_dir, ignore_dirs)? {
+        let map = dir_to_source_map(dir)?;
+
+        if map.is_empty() {
+            continue;
+        }
+
+        let modpath = filepath_to_module_path(dir, source_dir, project);
+        if ILLEGAL_MODULE_NAMES.contains(&modpath.path()) {
+            return Err(format!(
+                "error: module name '{}' is reserved and cannot be used",
+                modpath
+            ));
+        }
+        let dir = SourceDir { modpath, map };
+        dirs.push(dir);
+    }
+
+    if dirs.is_empty() {
+        return Err(format!("no source files in '{}'", source_dir));
+    }
+
+    Ok(dirs)
+}
+
+/// Collects all koi files in given directory and returns as a list of sources.
+fn dir_to_source_map(dir: &FilePath) -> Res<SourceMap> {
+    let mut files: Vec<FilePath> = Vec::new();
+
+    let dirents = match fs::read_dir(dir.path_buf()) {
+        Err(_) => return Err(format!("failed to read directory: '{}'", dir)),
+        Ok(ents) => ents,
+    };
+
+    for entry in dirents {
+        let path = match entry {
+            Err(err) => return Err(format!("failed to read file: {}", err)),
+            Ok(ent) => ent.path(),
+        };
+
+        if !path.is_file() {
+            continue;
+        }
+
+        if let Some(ext) = path.extension()
+            && ext == "koi"
+        {
+            files.push(path.into());
+        }
+    }
+
+    let mut map = SourceMap::new();
+    for file in files {
+        match fs::read(file.path_buf()) {
+            Err(err) => return Err(format!("failed to read file: {}", err)),
+            Ok(src) => map.add(Source::new(file, src)),
+        }
+    }
+
+    Ok(map)
+}
+
+/// Parse all files in each source directory.
+fn parse_source_dirs(dirs: &Vec<SourceDir>, config: &Config) -> Res<Vec<FileSet>> {
+    let mut filesets = Vec::new();
+
+    for dir in dirs {
+        info!("Parsing module: {}", dir.modpath.to_underscore());
+        let fileset = parse_source_map(dir.modpath.clone(), &dir.map, config)
+            .map_err(|err| err.render(&dir.map))?;
+
+        if fileset.is_empty() {
+            info!("No input files");
+            continue;
+        }
+
+        filesets.push(fileset);
+    }
+
+    Ok(filesets)
+}
+
+fn create_modules(
+    sort_result: SortResult,
+    map: &SourceMap,
+    libset: &LibrarySet,
+    config: Config,
+) -> Res<Context> {
+    let mut ctx = Context::new(config);
+
+    for impath in sort_result.external_imports {
+        let modpath = ModulePath::from(impath);
+        let path = libset
+            .get_header_path(&modpath)
+            .expect("should have been validated");
+
+        let content = read(path.path_buf())
+            .map_err(|_| format!("error: failed to read header file: '{:?}'", path))?;
+
+        let create_mod = read_header_file(&mut ctx, modpath, &content)
+            .map_err(|e| format!("error: failed to read header file: {}", e))?;
+
+        info!("Loading external module: {}", create_mod.modpath);
+        ctx.modules.add(create_mod);
+    }
+
+    check_filesets(&mut ctx, sort_result.sets).map_err(|err| err.render(map))?;
+    Ok(ctx)
+}
+
+/// Shorthand for emitting a module to IR and converting error to string.
+fn emit_module_ir(ctx: &Context, map: &SourceMap, id: ModuleId) -> Res<Unit> {
+    emit_ir(ctx, id).map_err(|errs| errs.render(map))
+}
+
+/// Shorthand for assembling an IR unit and converting error to string.
+fn build(
+    ir: ProgramIR,
+    config: &Config,
+    project: &Project,
+    options: &Options,
+    pm: &PathManager,
+    libset: &LibrarySet,
+) -> Res<()> {
+    let build_config = BuildConfig {
+        linkmode: proj_type_to_link_mode(&project.project_type),
+        tmpdir: project.bin.clone(),
+        target_name: project.name.clone(),
+        outdir: project.out.clone(),
+        additional_libraries: project.link_with.clone(),
+    };
+
+    match options.codegen {
+        Codegen::X86_64 => koi_codegen_x86::build(ir, build_config, config, pm, libset),
+        Codegen::C => koi_codegen_c::build(ir, build_config, config, pm, libset),
+    }
+}
+
+/// Report which x86 link mode to use for which compilation mode.
+fn proj_type_to_link_mode(mode: &ProjectType) -> LinkMode {
+    match mode {
+        ProjectType::App => LinkMode::Executable,
+        ProjectType::Package => LinkMode::Library,
+    }
+}
+
+fn is_hidden(entry: &walkdir::DirEntry, ignore_dirs: &[String]) -> bool {
+    if let Some(file_name) = entry.file_name().to_str() {
+        ignore_dirs.iter().any(|ignored| ignored == file_name)
+    } else {
+        false
+    }
+}
+
+/// List all subdirectories in path, including path. Ignores hidden
+/// directories and ones listed in other ignore lists (config or .gitignore).
+fn list_source_directories(path: &str, ignore_dirs: &[String]) -> Result<Vec<FilePath>, String> {
+    let mut dirs = Vec::new();
+    let mut errors = Vec::new();
+
+    for entry in WalkDir::new(path)
+        .into_iter()
+        .filter_entry(|e| !is_hidden(e, ignore_dirs))
+    {
+        match entry {
+            Ok(e) => {
+                if e.file_type().is_dir() {
+                    dirs.push(e.path().to_path_buf().into());
+                }
+            }
+            Err(err) => {
+                errors.push(format!(
+                    "failed to read directory: {}",
+                    err.path().unwrap_or(Path::new("")).display()
+                ));
+            }
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(dirs)
+    } else {
+        Err(errors.join("\n"))
+    }
+}
+
+/// Convert foo/bar/faz to foo.bar.faz
+fn filepath_to_module_path(path: &FilePath, source_dir: &str, project: &Project) -> ModulePath {
+    let path = path
+        .to_string()
+        .trim_start_matches(source_dir)
+        .trim_start_matches("/")
+        .trim_end_matches("/")
+        .replace("/", ".");
+
+    let prefix = match project.project_type {
+        ProjectType::App => "",
+        ProjectType::Package => "lib",
+    }
+    .into();
+
+    let mut modpath = ModulePath::new(prefix, project.name.clone(), path);
+    if modpath.path().is_empty() {
+        modpath = modpath.to_main()
+    }
+
+    modpath
+}
+
+fn error_str(msg: &str) -> Result<(), String> {
+    Err(format!("error: {}", msg))
+}
+
+/// Check if main function is present and if it should be
+fn check_main_function_present(ctx: &Context, project: &Project) -> Res<()> {
+    let has_main = ctx
+        .modules
+        .main()
+        .map(|m| m.symbols.get("main").is_ok())
+        .unwrap_or(false);
+
+    if !has_main && matches!(project.project_type, ProjectType::App) {
+        return error_str("main module has no main function");
+    }
+    if has_main && matches!(project.project_type, ProjectType::Package) {
+        return error_str("package project cannot have a main function");
+    }
+
+    Ok(())
+}
+
+/// Print debug info if configured.
+fn dump_debug_info(ctx: &Context, project: &Project) -> Res<()> {
+    if ctx.config.dump_types {
+        let path = format!("{}/types.txt", project.bin);
+        debug!("Writing type info to {}", path);
+        write_file(&path.into(), ctx.types.dump_context_string())?;
+    }
+
+    if ctx.config.print_symbol_tables {
+        let mut s = String::new();
+        for module in ctx.modules.modules() {
+            s += &module.symbols.dump(ctx, &module.modpath.to_underscore());
+        }
+
+        let path = format!("{}/symbols.txt", project.bin);
+        debug!("Writing symbol info to {}", path);
+        write_file(&path.into(), &s)?;
+    }
+
+    Ok(())
+}
