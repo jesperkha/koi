@@ -2234,3 +2234,89 @@ fn test_cast_int_to_bool_error() {
         "invalid cast",
     );
 }
+
+// Binary operator type compatibility
+
+#[test]
+fn test_binary_arith_on_bool_error() {
+    assert_error(
+        r#"func f(a bool, b bool) bool { return a + b }"#,
+        "operator '+' cannot be used on type 'bool'",
+    );
+}
+
+#[test]
+fn test_binary_arith_numeric_pass() {
+    assert_pass(r#"func f(a i32, b i32) i32 { return a + b }"#);
+}
+
+#[test]
+fn test_binary_modulo_on_float_error() {
+    assert_error(
+        r#"func f(a f32, b f32) f32 { return a % b }"#,
+        "operator '%' cannot be used on type 'f32'",
+    );
+}
+
+#[test]
+fn test_binary_modulo_on_int_pass() {
+    assert_pass(r#"func f(a u32, b u32) u32 { return a % b }"#);
+}
+
+#[test]
+fn test_binary_comparison_on_bool_error() {
+    assert_error(
+        r#"func f(a bool, b bool) bool { return a > b }"#,
+        "operator '>' cannot be used on type 'bool'",
+    );
+}
+
+#[test]
+fn test_binary_comparison_on_numeric_pass() {
+    assert_pass(r#"func f(a i32, b i32) bool { return a < b }"#);
+}
+
+#[test]
+fn test_binary_equality_on_bool_pass() {
+    assert_pass(r#"func f(a bool, b bool) bool { return a == b }"#);
+}
+
+#[test]
+fn test_binary_logic_on_int_error() {
+    assert_error(
+        r#"func f(a i32, b i32) bool { return a && b }"#,
+        "operator '&&' cannot be used on type 'i32'",
+    );
+}
+
+#[test]
+fn test_binary_logic_on_bool_pass() {
+    assert_pass(r#"func f(a bool, b bool) bool { return a && b }"#);
+}
+
+// Compound assignment operator type compatibility
+
+#[test]
+fn test_op_assign_on_bool_error() {
+    assert_error(
+        r#"
+        func f() {
+            a := true
+            a += true
+        }
+        "#,
+        "operator '+=' cannot be used on type 'bool'",
+    );
+}
+
+#[test]
+fn test_op_assign_numeric_pass() {
+    assert_pass(
+        r#"
+        func f() {
+            a := 5
+            a += 1
+        }
+        "#,
+    );
+}
