@@ -62,6 +62,7 @@ impl fmt::Display for Symbol {
                 }
             }
             SymbolKind::Type => specs.push("type"),
+            SymbolKind::Constant => specs.push("const"),
         }
         write!(
             f,
@@ -115,6 +116,7 @@ pub enum SymbolKind {
         is_naked: bool,
     },
     Type,
+    Constant,
 }
 
 impl fmt::Display for SymbolKind {
@@ -125,6 +127,7 @@ impl fmt::Display for SymbolKind {
             match self {
                 SymbolKind::Function { .. } => "function",
                 SymbolKind::Type => "type",
+                SymbolKind::Constant => "constant",
             }
         )
     }

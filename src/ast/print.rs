@@ -262,6 +262,7 @@ impl Visitor<()> for Printer {
         self.s += "type ";
         self.s += &format!("{} ", node.name);
         self.visit_type(&node.ty);
+        self.s += "\n\n";
     }
 
     fn visit_cast(&mut self, node: &super::CastExpr) {
@@ -274,5 +275,14 @@ impl Visitor<()> for Printer {
         node.lval.accept(self);
         self.s += &format!(" {} ", node.op);
         node.rval.accept(self);
+    }
+
+    fn visit_const(&mut self, node: &super::ConstNode) {
+        if node.public {
+            self.s += "pub "
+        }
+        self.s += &format!("const {} = ", node.name);
+        node.expr.accept(self);
+        self.s += "\n\n";
     }
 }

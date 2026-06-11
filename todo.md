@@ -10,19 +10,6 @@
 
 ## Todos
 
-- Add remaining primitive types
-    - `byte i8...i64 u8...u64 f32 f64`
-- Floating point literals
-    - Float lits and arithmetic ops
-- Assignment with specific type
-    - `a: type : value`
-- Make variables immutable by default
-    - `mut` keyword to mutate variables
-    - `mut a := 0`
-    - `mut a: int = 0`
-- Casting
-    - Numeric cast operator `v as type`
-    - Bit cast (instrinsic) `bit_cast(v, type)`
 - Global constants
     - Declare constants in global scope
     - Export and import constants

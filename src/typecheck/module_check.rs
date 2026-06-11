@@ -244,7 +244,40 @@ impl<'a> ModuleChecker<'a> {
                 };
                 self.declare_type(node, origin)
             }
+            ast::Decl::Const(node) => {
+                let origin = SymbolOrigin::Module {
+                    modpath: modpath.clone(),
+                    pos: node.pos().clone(),
+                    filename: filename.into(),
+                };
+                self.declare_const(node, origin)
+            }
         }
+    }
+
+    fn declare_const(&mut self, node: &ast::ConstNode, origin: SymbolOrigin) -> Result<(), Report> {
+        let name = node.name.to_string();
+        let ty = self.eval_top_level_expr(&node.expr)?;
+
+        let symbol = CreateSymbol {
+            name,
+            alias: None,
+            kind: SymbolKind::Constant,
+            ty,
+            origin,
+            is_exported: node.public,
+            no_mangle: false,
+        };
+
+        // TODO: unify these methods
+        self.check_symbol_already_declared(&symbol.name, node)?;
+        let _ = self.create_symbol(symbol);
+
+        Ok(())
+    }
+
+    fn eval_top_level_expr(&mut self, node: &ast::Expr) -> Result<TypeId, Report> {
+        todo!()
     }
 
     fn declare_type(

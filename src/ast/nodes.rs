@@ -55,6 +55,7 @@ pub trait Visitor<R> {
     fn visit_break(&mut self, node: &BreakNode) -> R;
     fn visit_continue(&mut self, node: &ContinueNode) -> R;
     fn visit_op_assign(&mut self, node: &OpAssignNode) -> R;
+    fn visit_const(&mut self, node: &ConstNode) -> R;
 
     fn visit_member(&mut self, node: &MemberNode) -> R;
     fn visit_literal(&mut self, node: &Token) -> R;
@@ -74,6 +75,7 @@ pub enum Decl {
     Func(Box<FuncNode>),
     Extern(Box<FuncDeclNode>),
     Type(Box<TypeDeclNode>),
+    Const(Box<ConstNode>),
 }
 
 /// Statements are found inside blocks. They have side effects and do
@@ -269,6 +271,14 @@ pub struct FuncNode {
 }
 
 #[derive(Debug, Clone)]
+pub struct ConstNode {
+    pub public: bool,
+    pub kw: Token,
+    pub name: Token,
+    pub expr: Expr,
+}
+
+#[derive(Debug, Clone)]
 pub struct TypeDeclNode {
     pub public: bool,
     pub unique: bool,
@@ -310,6 +320,7 @@ impl Visitable for Decl {
             Decl::Func(node) => visitor.visit_func(node),
             Decl::Extern(node) => visitor.visit_extern(node),
             Decl::Type(node) => visitor.visit_type_decl(node),
+            Decl::Const(node) => visitor.visit_const(node),
         }
     }
 }
@@ -405,7 +416,12 @@ macro_rules! impl_node_enum {
     };
 }
 
-impl_node_enum!(Decl { Func, Extern, Type });
+impl_node_enum!(Decl {
+    Func,
+    Extern,
+    Type,
+    Const
+});
 
 impl_node_enum!(Stmt {
     ExprStmt,
@@ -736,5 +752,19 @@ impl Node for OpAssignNode {
 
     fn id(&self) -> NodeId {
         self.op.id
+    }
+}
+
+impl Node for ConstNode {
+    fn pos(&self) -> &Pos {
+        &self.kw.pos
+    }
+
+    fn end(&self) -> &Pos {
+        self.expr.end()
+    }
+
+    fn id(&self) -> NodeId {
+        self.kw.id
     }
 }
