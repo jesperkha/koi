@@ -270,7 +270,7 @@ impl Visitor<()> for Printer {
         node.ty.accept(self);
     }
 
-    fn visit_op_assign(&mut self, node: &super::OpAssignNode) -> () {
+    fn visit_op_assign(&mut self, node: &super::OpAssignNode) {
         node.lval.accept(self);
         self.s += &format!(" {} ", node.op);
         node.rval.accept(self);
