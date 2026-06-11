@@ -89,6 +89,7 @@ impl<'a> FileChecker<'a> {
             match d {
                 ast::Decl::Func(node) => decls.push(self.emit_func(*node)),
                 ast::Decl::Extern(node) => decls.push(self.emit_extern(*node)),
+                ast::Decl::Const(node) => todo!(),
                 ast::Decl::Type(..) => {} // Declared in global pass
             };
         }
@@ -423,7 +424,7 @@ impl<'a> FileChecker<'a> {
 
         if let Ok(sym) = self.get_symbol(name.as_str()) {
             match sym.kind {
-                SymbolKind::Function { .. } => {} // shadowing a function is ok
+                SymbolKind::Function { .. } | SymbolKind::Constant => {} // shadowing a function or constant is ok
                 SymbolKind::Type => {
                     return Err(self.error_token("shadowing a type is not allowed", &node.name));
                 }
@@ -903,7 +904,7 @@ impl<'a> FileChecker<'a> {
         }
         if let Ok(sym) = self.get_symbol(&name_str) {
             return match sym.kind {
-                SymbolKind::Function { .. } => Ok(sym.ty),
+                SymbolKind::Function { .. } | SymbolKind::Constant => Ok(sym.ty),
                 SymbolKind::Type => Err(self.error_token("a type cannot be used as a value", name)),
             };
         }

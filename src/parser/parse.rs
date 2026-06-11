@@ -4,10 +4,10 @@ use tracing::info;
 
 use crate::{
     ast::{
-        Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, CastExpr, ContinueNode, Decl, ElseBlock,
-        Expr, Field, File, FileSet, ForNode, FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode,
-        MemberNode, Modifier, Node, OpAssignNode, ReturnNode, SourceMap, Stmt, Token, TokenKind,
-        TypeDeclNode, TypeNode, UnaryExpr, VarAssignNode, VarDeclNode, WhileNode,
+        Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, CastExpr, ConstNode, ContinueNode, Decl,
+        ElseBlock, Expr, Field, File, FileSet, ForNode, FuncDeclNode, FuncNode, GroupExpr, IfNode,
+        ImportNode, MemberNode, Modifier, Node, OpAssignNode, ReturnNode, SourceMap, Stmt, Token,
+        TokenKind, TypeDeclNode, TypeNode, UnaryExpr, VarAssignNode, VarDeclNode, WhileNode,
     },
     config::Config,
     error::{Diagnostics, Report, Res},
@@ -253,8 +253,37 @@ impl<'a> Parser<'a> {
             TokenKind::Extern => self.parse_extern(false, modifiers),
             TokenKind::Type => self.parse_type_decl(false, false),
             TokenKind::Unique => self.parse_unique_type_decl(false),
+            TokenKind::Const => self.parse_const_decl(false),
             _ => Err(self.error_token("expected declaration")),
         }
+    }
+
+    fn parse_public_decl(&mut self, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
+        self.consume(); // pub
+        let token = self.cur_must("unexpected end of input")?;
+
+        match token.kind {
+            TokenKind::Func => self.parse_function(true, modifiers),
+            TokenKind::Extern => self.parse_extern(true, modifiers),
+            TokenKind::Type => self.parse_type_decl(true, false),
+            TokenKind::Unique => self.parse_unique_type_decl(true),
+            TokenKind::Const => self.parse_const_decl(true),
+            _ => Err(self.error_token("illegal public declaration")),
+        }
+    }
+
+    fn parse_const_decl(&mut self, public: bool) -> Result<Decl, Report> {
+        let kw = self.expect(TokenKind::Const)?;
+        let name = self.expect_identifier("constant name")?;
+        self.expect(TokenKind::Eq)?;
+        let expr = self.parse_expr()?;
+
+        Ok(Decl::Const(Box::new(ConstNode {
+            public,
+            kw,
+            name,
+            expr,
+        })))
     }
 
     fn parse_unique_type_decl(&mut self, public: bool) -> Result<Decl, Report> {
@@ -274,19 +303,6 @@ impl<'a> Parser<'a> {
             name,
             ty,
         })))
-    }
-
-    fn parse_public_decl(&mut self, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
-        self.consume(); // pub
-        let token = self.cur_must("unexpected end of input")?;
-
-        match token.kind {
-            TokenKind::Func => self.parse_function(true, modifiers),
-            TokenKind::Extern => self.parse_extern(true, modifiers),
-            TokenKind::Type => self.parse_type_decl(true, false),
-            TokenKind::Unique => self.parse_unique_type_decl(true),
-            _ => Err(self.error_token("illegal public declaration")),
-        }
     }
 
     fn parse_extern(&mut self, public: bool, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
