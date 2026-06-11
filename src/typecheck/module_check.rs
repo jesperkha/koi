@@ -178,7 +178,7 @@ impl<'a> ModuleChecker<'a> {
                 // Module did not contain the symbol
                 diag.add(self.error_token(
                     &format!("module '{}' has no export '{}'", module.name(), symbol_name),
-                    &tok,
+                    tok,
                 ));
                 continue;
             };
@@ -191,7 +191,7 @@ impl<'a> ModuleChecker<'a> {
 
             // If it was already declared, add error
             if let Err(err) = self.symbols.add(symbol_name, modsym) {
-                diag.add(self.error_token(&err, &tok));
+                diag.add(self.error_token(&err, tok));
             }
         }
     }
@@ -452,7 +452,7 @@ impl<'a> ModuleChecker<'a> {
         match node {
             ast::TypeNode::Ident(token) => self
                 .get_symbol_type_id(token)
-                .ok_or(self.error_token("not a type", &token)),
+                .ok_or(self.error_token("not a type", token)),
             ast::TypeNode::Imported { namespace, ty } => {
                 let ns = self
                     .file_namespaces

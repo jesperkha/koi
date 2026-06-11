@@ -880,7 +880,7 @@ impl<'a> FileChecker<'a> {
         match node {
             ast::TypeNode::Ident(token) => self
                 .get_symbol_type_id(token)
-                .ok_or(self.error_token("not a type", &token)),
+                .ok_or(self.error_token("not a type", token)),
             ast::TypeNode::Imported { namespace, ty } => {
                 let ns = self.nsl.get(&namespace.to_string()).map_or(
                     Err(self.error_token("not an imported namespace", namespace)),

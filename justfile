@@ -16,3 +16,7 @@ cloc:
 # Build stdlib
 std:
     cd lib/std && cargo run build --out=../../koi/lib/std
+
+# Run clippy with auto-fix
+clippy:
+    cargo clippy --fix --lib -p koi
