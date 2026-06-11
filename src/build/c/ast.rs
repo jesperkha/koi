@@ -77,6 +77,7 @@ pub enum Expr {
     VarLit(usize),
     StrLit(String),
     Not(Box<Expr>),
+    Cast(Type, Box<Expr>),
 }
 
 pub enum Stmt {
@@ -260,6 +261,7 @@ impl Display for Expr {
                 write!(f, "\"")
             }
             Expr::Not(inner) => write!(f, "!{inner}"),
+            Expr::Cast(ty, inner) => write!(f, "({ty})({inner})"),
         }
     }
 }

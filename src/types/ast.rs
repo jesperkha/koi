@@ -1,6 +1,6 @@
 use crate::{
     ast::{Node, NodeId, Pos, TokenKind},
-    types::{NO_TYPE, TypeId},
+    types::{CastKind, NO_TYPE, TypeId},
 };
 
 pub trait TypedNode<'a> {
@@ -60,6 +60,7 @@ pub enum Expr {
     NamespaceMember(NamespaceMemberNode),
     Binary(BinaryNode),
     Unary(UnaryNode),
+    Cast(CastNode),
 }
 
 impl Expr {
@@ -72,6 +73,13 @@ impl Expr {
         }
         None
     }
+}
+
+pub struct CastNode {
+    pub meta: NodeMeta,
+    pub expr: Box<Expr>,
+    pub ty: TypeId,
+    pub cast_kind: CastKind,
 }
 
 pub struct BreakNode {
@@ -319,6 +327,7 @@ impl_node_for_enum!(Expr {
         NamespaceMember,
         Binary,
         Unary,
+        Cast,
     ],
     delegate => []
 });
@@ -357,6 +366,7 @@ impl_typed_node_enum!(Expr {
     NamespaceMember,
     Unary,
     Binary,
+    Cast,
 });
 
 /// Implement types::TypedNode trait for variants with no type.
@@ -399,6 +409,7 @@ impl_typed_node!(
     MemberNode,
     UnaryNode,
     BinaryNode,
+    CastNode,
 );
 
 impl From<TokenKind> for BinaryOp {

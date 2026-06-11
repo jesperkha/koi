@@ -17,10 +17,13 @@ fn test_file_line_offsets_2() {
 }
 
 #[test]
-fn test_line_offset_no_newline_or_input() {
-    let file1 = new_source("Hello");
-    assert_eq!(vec![0], file1.lines);
+fn test_line_offset_no_newline() {
+    let file = new_source("Hello");
+    assert_eq!(vec![0], file.lines);
+}
 
-    let file2 = new_source("");
-    assert_eq!(vec![0], file2.lines);
+#[test]
+fn test_line_offset_empty_input() {
+    let file = new_source("");
+    assert_eq!(vec![0], file.lines);
 }

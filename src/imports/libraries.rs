@@ -95,7 +95,7 @@ fn get_entry(res: Result<DirEntry, Error>) -> Result<DirEntry, String> {
 fn find_libraries(source_dir: &FilePath) -> Result<Vec<Library>, String> {
     let mut libraries = Vec::new();
 
-    let entries = read_dir(source_dir)?;
+    let entries = read_dir(source_dir)?; // TODO: complain about missing installation dir instead
     for entry in entries {
         let entry = get_entry(entry)?;
         let path = entry.path();

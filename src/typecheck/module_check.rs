@@ -23,16 +23,58 @@ pub(crate) struct ModuleChecker<'a> {
     symbols: SymbolList,
     /// Per-file namespace lists, indexed by file order.
     file_namespaces: Vec<NamespaceList>,
+    /// Index of current file being checked.
+    current_file: usize,
 }
 
 impl<'a> ModuleChecker<'a> {
     pub(crate) fn new(ctx: &'a mut Context) -> Self {
-        Self {
+        let mut s = Self {
             ctx,
             symbols: SymbolList::new(),
             is_main: false,
             file_namespaces: Vec::new(),
-        }
+            current_file: 0,
+        };
+
+        s.initialize_symbol_list();
+        s
+    }
+
+    /// Create all builtin symbols and types.
+    fn initialize_symbol_list(&mut self) {
+        self.new_builtin_type("usize", PrimitiveType::U64);
+        self.new_builtin_type("u8", PrimitiveType::U8);
+        self.new_builtin_type("u16", PrimitiveType::U16);
+        self.new_builtin_type("u32", PrimitiveType::U32);
+        self.new_builtin_type("u64", PrimitiveType::U64);
+
+        self.new_builtin_type("int", PrimitiveType::I32);
+        self.new_builtin_type("i8", PrimitiveType::I8);
+        self.new_builtin_type("i16", PrimitiveType::I16);
+        self.new_builtin_type("i32", PrimitiveType::I32);
+        self.new_builtin_type("i64", PrimitiveType::I64);
+
+        self.new_builtin_type("float", PrimitiveType::F32);
+        self.new_builtin_type("f32", PrimitiveType::F32);
+        self.new_builtin_type("f64", PrimitiveType::F64);
+
+        self.new_builtin_type("bool", PrimitiveType::Bool);
+        self.new_builtin_type("byte", PrimitiveType::U8);
+        self.new_builtin_type("string", PrimitiveType::String);
+    }
+
+    fn new_builtin_type(&mut self, name: &str, primitive: PrimitiveType) {
+        self.create_symbol(CreateSymbol {
+            name: name.into(),
+            alias: None,
+            kind: SymbolKind::Type,
+            ty: self.ctx.types.primitive(primitive),
+            origin: SymbolOrigin::Intrinsic,
+            is_exported: false,
+            no_mangle: false,
+        })
+        .unwrap();
     }
 
     pub(crate) fn check(mut self, fs: ast::FileSet) -> Res<CreateModule> {
@@ -68,7 +110,9 @@ impl<'a> ModuleChecker<'a> {
         let mut diag = Diagnostics::new();
 
         // Go through each import of each file and create a namespace list for each file.
-        for file in &fs.files {
+        for (i, file) in fs.files.iter().enumerate() {
+            self.current_file = i;
+
             info!("Resolving imports for file {}", file.filepath);
             let mut nsl = NamespaceList::new();
             for import in &file.ast.imports {
@@ -132,10 +176,9 @@ impl<'a> ModuleChecker<'a> {
             // Check if the symbol exists
             let Some(id) = module_exports.get(&symbol_name) else {
                 // Module did not contain the symbol
-                diag.add(Report::code_error(
+                diag.add(self.error_token(
                     &format!("module '{}' has no export '{}'", module.name(), symbol_name),
-                    &tok.pos,
-                    &tok.end_pos,
+                    tok,
                 ));
                 continue;
             };
@@ -148,7 +191,7 @@ impl<'a> ModuleChecker<'a> {
 
             // If it was already declared, add error
             if let Err(err) = self.symbols.add(symbol_name, modsym) {
-                diag.add(Report::code_error(&err, &tok.pos, &tok.end_pos));
+                diag.add(self.error_token(&err, tok));
             }
         }
     }
@@ -158,7 +201,8 @@ impl<'a> ModuleChecker<'a> {
     fn global_pass(&mut self, fs: &ast::FileSet) -> Res<()> {
         let mut diag = Diagnostics::new();
 
-        for file in &fs.files {
+        for (i, file) in fs.files.iter().enumerate() {
+            self.current_file = i;
             for decl in &file.ast.decls {
                 if let Err(err) = self.check_global_decl(&fs.modpath, &file.filename, decl) {
                     diag.add(err);
@@ -192,7 +236,48 @@ impl<'a> ModuleChecker<'a> {
                 let origin = SymbolOrigin::Extern;
                 self.declare_function_definition(node, origin)
             }
+            ast::Decl::Type(node) => {
+                let origin = SymbolOrigin::Module {
+                    modpath: modpath.clone(),
+                    pos: node.pos().clone(),
+                    filename: filename.into(),
+                };
+                self.declare_type(node, origin)
+            }
         }
+    }
+
+    fn declare_type(
+        &mut self,
+        node: &ast::TypeDeclNode,
+        origin: SymbolOrigin,
+    ) -> Result<(), Report> {
+        let name = node.name.to_string();
+
+        let ty = {
+            let id = self.eval_type(&node.ty)?;
+            if node.unique {
+                self.ctx
+                    .types
+                    .get_or_intern(TypeKind::Unique(name.clone(), id))
+            } else {
+                id
+            }
+        };
+
+        let symbol = CreateSymbol {
+            name,
+            alias: None,
+            kind: SymbolKind::Type,
+            ty,
+            origin,
+            is_exported: node.public,
+            no_mangle: false,
+        };
+
+        self.check_symbol_already_declared(&symbol.name, node)?;
+        let _ = self.create_symbol(symbol);
+        Ok(())
     }
 
     fn declare_function_definition(
@@ -300,10 +385,14 @@ impl<'a> ModuleChecker<'a> {
 
         debug!("declaring function: {:?}", symbol);
 
-        // If symbol already exists, return error
-        if let Ok(sym) = self.get_symbol(&symbol.name) {
-            let mut report =
-                Report::code_error("already declared", &node.name.pos, &node.name.end_pos);
+        self.check_symbol_already_declared(&symbol.name, node)?;
+        let _ = self.create_symbol(symbol);
+        Ok(())
+    }
+
+    fn check_symbol_already_declared(&self, name: &str, node: &dyn Node) -> Result<(), Report> {
+        if let Ok(sym) = self.get_symbol(name) {
+            let mut report = self.error("already declared", node);
 
             if let SymbolOrigin::Module { pos, filename, .. } = &sym.origin {
                 report = report.with_info(&format!(
@@ -315,8 +404,6 @@ impl<'a> ModuleChecker<'a> {
 
             return Err(report);
         };
-
-        let _ = self.create_symbol(symbol);
         Ok(())
     }
 
@@ -356,16 +443,33 @@ impl<'a> ModuleChecker<'a> {
         Report::code_error(msg, node.pos(), node.end())
     }
 
+    fn error_token(&self, msg: &str, token: &ast::Token) -> Report {
+        Report::code_error(msg, &token.pos, &token.end_pos)
+    }
+
     /// Evaluate an AST type node to its semantic type id.
     fn eval_type(&self, node: &ast::TypeNode) -> Result<TypeId, Report> {
         match node {
-            ast::TypeNode::Primitive(token) => {
-                let prim = PrimitiveType::from(&token.kind);
-                Ok(self.ctx.types.primitive(prim))
-            }
             ast::TypeNode::Ident(token) => self
                 .get_symbol_type_id(token)
-                .ok_or(Report::code_error("not a type", &token.pos, &token.end_pos)),
+                .ok_or(self.error_token("not a type", token)),
+            ast::TypeNode::Imported { namespace, ty } => {
+                let ns = self
+                    .file_namespaces
+                    .get(self.current_file)
+                    .expect("file index out of bounds")
+                    .get(&namespace.to_string())
+                    .map_or(
+                        Err(self.error_token("not an imported namespace", namespace)),
+                        Ok,
+                    )?;
+
+                let sym_id = ns.get(&ty.to_string()).ok_or(
+                    self.error_token(&format!("namespace '{namespace}' has no member '{ty}'"), ty),
+                )?;
+
+                Ok(self.ctx.symbols.get(sym_id).ty)
+            }
         }
     }
 
@@ -397,7 +501,7 @@ impl<'a> ModuleChecker<'a> {
         }
 
         let kind = match symbol.origin {
-            SymbolOrigin::Module { .. } => ModuleSymbolKind::Module,
+            SymbolOrigin::Module { .. } | SymbolOrigin::Intrinsic => ModuleSymbolKind::Module,
             SymbolOrigin::Library(_) | SymbolOrigin::Extern => ModuleSymbolKind::Imported,
         };
 

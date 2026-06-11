@@ -1,0 +1,5 @@
+import typemod
+
+func main() int {
+    return typemod.getValue()
+}

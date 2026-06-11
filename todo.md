@@ -2,7 +2,7 @@
 
 ## Known bugs
 
-- Multiple calls in the same expression override return value in `rax`
+- `x86-64`: Multiple calls in the same expression override return value in `rax`
     - In Fibonacci example: `fib(n - 1) + fib(n - 2)`
     - `rax` is overridden in the second call
 - String compare still uses simple pointer comparison
@@ -34,4 +34,3 @@
 
 - LSP
     - [Tower LSP](https://github.com/ebkalderon/tower-lsp)
-

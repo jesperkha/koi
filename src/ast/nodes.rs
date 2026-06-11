@@ -42,6 +42,7 @@ pub trait Visitable {
 pub trait Visitor<R> {
     fn visit_func(&mut self, node: &FuncNode) -> R;
     fn visit_extern(&mut self, node: &FuncDeclNode) -> R;
+    fn visit_type_decl(&mut self, node: &TypeDeclNode) -> R;
     fn visit_block(&mut self, node: &BlockNode) -> R;
     fn visit_return(&mut self, node: &ReturnNode) -> R;
     fn visit_type(&mut self, node: &TypeNode) -> R;
@@ -60,6 +61,7 @@ pub trait Visitor<R> {
     fn visit_group(&mut self, node: &GroupExpr) -> R;
     fn visit_binary(&mut self, node: &BinaryExpr) -> R;
     fn visit_unary(&mut self, node: &UnaryExpr) -> R;
+    fn visit_cast(&mut self, node: &CastExpr) -> R;
 }
 
 /// Declarations are not considered statements for linting purposes.
@@ -70,6 +72,7 @@ pub trait Visitor<R> {
 pub enum Decl {
     Func(Box<FuncNode>),
     Extern(Box<FuncDeclNode>),
+    Type(Box<TypeDeclNode>),
 }
 
 /// Statements are found inside blocks. They have side effects and do
@@ -98,13 +101,21 @@ pub enum Expr {
     Member(MemberNode),
     Binary(BinaryExpr),
     Unary(UnaryExpr),
+    Cast(CastExpr),
 }
 
 /// A TypeNode is the AST representation of a type, not the semantic meaning.
 #[derive(Debug, Clone)]
 pub enum TypeNode {
-    Primitive(Token),
     Ident(Token),
+    Imported { namespace: Token, ty: Token },
+}
+
+#[derive(Debug, Clone)]
+pub struct CastExpr {
+    pub expr: Box<Expr>,
+    pub kw: Token,
+    pub ty: TypeNode,
 }
 
 #[derive(Debug, Clone)]
@@ -248,6 +259,15 @@ pub struct FuncNode {
     pub body: BlockNode,
 }
 
+#[derive(Debug, Clone)]
+pub struct TypeDeclNode {
+    pub public: bool,
+    pub unique: bool,
+    pub kw: Token,
+    pub name: Token,
+    pub ty: TypeNode,
+}
+
 impl From<FuncNode> for FuncDeclNode {
     fn from(f: FuncNode) -> Self {
         FuncDeclNode {
@@ -280,6 +300,7 @@ impl Visitable for Decl {
         match self {
             Decl::Func(node) => visitor.visit_func(node),
             Decl::Extern(node) => visitor.visit_extern(node),
+            Decl::Type(node) => visitor.visit_type_decl(node),
         }
     }
 }
@@ -310,6 +331,7 @@ impl Visitable for Expr {
             Expr::Member(node) => visitor.visit_member(node),
             Expr::Binary(node) => visitor.visit_binary(node),
             Expr::Unary(node) => visitor.visit_unary(node),
+            Expr::Cast(node) => visitor.visit_cast(node),
         }
     }
 }
@@ -323,19 +345,22 @@ impl Visitable for TypeNode {
 impl Node for TypeNode {
     fn pos(&self) -> &Pos {
         match self {
-            TypeNode::Primitive(token) | TypeNode::Ident(token) => &token.pos,
+            TypeNode::Ident(token) => &token.pos,
+            TypeNode::Imported { namespace, .. } => &namespace.pos,
         }
     }
 
     fn end(&self) -> &Pos {
         match self {
-            TypeNode::Primitive(token) | TypeNode::Ident(token) => &token.end_pos,
+            TypeNode::Ident(token) => &token.end_pos,
+            TypeNode::Imported { ty, .. } => &ty.pos,
         }
     }
 
     fn id(&self) -> usize {
         match self {
-            TypeNode::Primitive(token) | TypeNode::Ident(token) => token.id,
+            TypeNode::Ident(token) => token.id,
+            TypeNode::Imported { ty, .. } => ty.id,
         }
     }
 }
@@ -370,7 +395,7 @@ macro_rules! impl_node_enum {
     };
 }
 
-impl_node_enum!(Decl { Func, Extern });
+impl_node_enum!(Decl { Func, Extern, Type });
 
 impl_node_enum!(Stmt {
     ExprStmt,
@@ -389,11 +414,12 @@ impl Node for Expr {
     fn pos(&self) -> &Pos {
         match self {
             Expr::Literal(token) => &token.pos,
-            Expr::Call(call) => call.pos(),
+            Expr::Call(node) => node.pos(),
             Expr::Group(grp) => &grp.lparen.pos,
             Expr::Member(node) => node.expr.pos(),
             Expr::Binary(node) => node.pos(),
             Expr::Unary(node) => node.pos(),
+            Expr::Cast(node) => node.pos(),
         }
     }
 
@@ -405,6 +431,7 @@ impl Node for Expr {
             Expr::Group(grp) => &grp.rparen.end_pos,
             Expr::Binary(node) => node.end(),
             Expr::Unary(node) => node.end(),
+            Expr::Cast(node) => node.end(),
         }
     }
 
@@ -416,6 +443,7 @@ impl Node for Expr {
             Expr::Member(node) => node.dot.id,
             Expr::Binary(node) => node.id(),
             Expr::Unary(node) => node.id(),
+            Expr::Cast(node) => node.id(),
         }
     }
 }
@@ -655,5 +683,33 @@ impl Node for FuncDeclNode {
 
     fn id(&self) -> NodeId {
         self.name.id
+    }
+}
+
+impl Node for TypeDeclNode {
+    fn pos(&self) -> &Pos {
+        &self.name.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.name.end_pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.name.id
+    }
+}
+
+impl Node for CastExpr {
+    fn pos(&self) -> &Pos {
+        self.expr.pos()
+    }
+
+    fn end(&self) -> &Pos {
+        self.ty.end()
+    }
+
+    fn id(&self) -> NodeId {
+        self.kw.id
     }
 }

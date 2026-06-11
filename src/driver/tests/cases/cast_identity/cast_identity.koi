@@ -1,0 +1,4 @@
+func main() int {
+    x := 42 as int
+    return x
+}

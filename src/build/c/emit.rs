@@ -163,6 +163,15 @@ impl<'a> FuncEmitter<'a> {
                 };
                 self.push(s);
             }
+            ir::Ins::Cast(ins) => {
+                let rval = self.rval_to_expr(&ins.rval);
+                let s = Stmt::VarDecl {
+                    ty: self.to_ctype(ins.to_ty),
+                    id: self.var_id(ins.result),
+                    value: Box::new(Expr::Cast(self.to_ctype(ins.to_ty), Box::new(rval))),
+                };
+                self.push(s);
+            }
             ir::Ins::Break => self.push(Stmt::Break),
             ir::Ins::Continue => self.push(Stmt::Continue),
             ir::Ins::If(if_ins) => self.emit_if(if_ins),
@@ -383,7 +392,7 @@ impl From<&ir::Primitive> for Type {
             ir::Primitive::I16 => Self::Int16,
             ir::Primitive::I32 => Self::Int32,
             ir::Primitive::I64 => Self::Int64,
-            ir::Primitive::String => Self::Pointer(Box::new(Self::Int8)),
+            ir::Primitive::String => Self::Pointer(Box::new(Self::Uint8)),
         }
     }
 }

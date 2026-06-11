@@ -116,7 +116,7 @@ fn test_no_exported_symbol() {
 }
 
 #[test]
-fn test_bad_import_path() {
+fn test_bad_import_path_unknown_module() {
     assert_error(
         &vec![file(
             "main",
@@ -130,6 +130,10 @@ fn test_bad_import_path() {
         )],
         "could not resolve module import",
     );
+}
+
+#[test]
+fn test_bad_import_path_missing_subpath() {
     assert_error(
         &vec![
             file(
@@ -353,7 +357,7 @@ fn test_namespace_as_expression_error() {
 }
 
 #[test]
-fn test_import_alias() {
+fn test_import_alias_basic() {
     assert_pass(&vec![
         file(
             "foo",
@@ -373,6 +377,10 @@ fn test_import_alias() {
             "#,
         ),
     ]);
+}
+
+#[test]
+fn test_import_alias_alongside_original() {
     assert_pass(&vec![
         file(
             "foo",
@@ -541,7 +549,7 @@ fn test_import_private_symbol_error() {
 }
 
 #[test]
-fn test_no_reexport() {
+fn test_no_reexport_regular_func() {
     assert_error(
         &vec![
             file(
@@ -569,6 +577,10 @@ fn test_no_reexport() {
         ],
         "module 'two' has no export 'f'",
     );
+}
+
+#[test]
+fn test_no_reexport_extern_func() {
     assert_error(
         &vec![
             file(
@@ -596,4 +608,177 @@ fn test_no_reexport() {
         ],
         "module 'two' has no export 'f'",
     );
+}
+
+// --- Importing type declarations ---
+
+#[test]
+fn test_import_pub_type_named() {
+    // A named import of a pub type makes the alias available in the importer.
+    assert_pass(&vec![
+        file(
+            "foo",
+            r#"
+            pub type Foo int
+        "#,
+        ),
+        file(
+            "main",
+            r#"
+            import foo { Foo }
+
+            func f() Foo {
+                return 0
+            }
+
+            func main() int {
+                return f()
+            }
+        "#,
+        ),
+    ]);
+}
+
+#[test]
+fn test_import_pub_type_namespace() {
+    // Using a namespace-qualified type (foo.Foo) in a function signature.
+    assert_pass(&vec![
+        file(
+            "foo",
+            r#"
+            pub type Foo int
+        "#,
+        ),
+        file(
+            "main",
+            r#"
+            import foo
+
+            func f() foo.Foo {
+                return 0
+            }
+
+            func main() int {
+                return f()
+            }
+        "#,
+        ),
+    ]);
+}
+
+#[test]
+fn test_import_pub_type_as_base_for_local_type() {
+    // An imported type can be the base of a local type declaration.
+    assert_pass(&vec![
+        file(
+            "foo",
+            r#"
+            pub type Foo int
+        "#,
+        ),
+        file(
+            "main",
+            r#"
+            import foo
+
+            type Local foo.Foo
+
+            func f() Local {
+                return 0
+            }
+
+            func main() int {
+                return f()
+            }
+        "#,
+        ),
+    ]);
+}
+
+#[test]
+fn test_import_non_pub_type_error() {
+    assert_error(
+        &vec![
+            file(
+                "foo",
+                r#"
+                type Private int
+            "#,
+            ),
+            file(
+                "main",
+                r#"
+                import foo { Private }
+
+                func main() int {
+                    return 0
+                }
+            "#,
+            ),
+        ],
+        "module 'foo' has no export 'Private'",
+    );
+}
+
+#[test]
+fn test_import_pub_unique_type_incompatible_with_base() {
+    // An imported unique type is still distinct from its base type.
+    assert_error(
+        &vec![
+            file(
+                "foo",
+                r#"
+                pub unique type ID int
+            "#,
+            ),
+            file(
+                "main",
+                r#"
+                import foo { ID }
+
+                func getInt() int { return 0 }
+
+                func f() ID {
+                    return getInt()
+                }
+
+                func main() int {
+                    return 0
+                }
+            "#,
+            ),
+        ],
+        "incorrect return type: expected 'ID', got 'i32'",
+    );
+}
+
+#[test]
+fn test_import_pub_unique_type_compatible_with_itself() {
+    // A unique type imported from another module is compatible with itself.
+    assert_pass(&vec![
+        file(
+            "foo",
+            r#"
+            pub unique type ID int
+
+            pub func makeID(x ID) ID {
+                return x
+            }
+        "#,
+        ),
+        file(
+            "main",
+            r#"
+            import foo { ID, makeID }
+
+            func f(id ID) ID {
+                return makeID(id)
+            }
+
+            func main() int {
+                return 0
+            }
+        "#,
+        ),
+    ]);
 }

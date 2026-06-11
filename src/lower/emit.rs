@@ -4,15 +4,15 @@ use crate::{
     context::Context,
     error::{self, Diagnostics, Report},
     ir::{
-        AssignIns, BinaryIns, Block, CallIns, CondIns, ConstId, Data, DataIndex, Decl, ElseIf,
-        ExternDecl, FuncDecl, IRBinaryOp, IRCondOp, IRType, IRTypeInterner, IRUnaryOp, IfIns, Ins,
-        LValue, ParamId, Primitive, RValue, StoreIns, UnaryIns, Unit, WhileIns,
+        AssignIns, BinaryIns, Block, CallIns, CastIns, CondIns, ConstId, Data, DataIndex, Decl,
+        ElseIf, ExternDecl, FuncDecl, IRBinaryOp, IRCondOp, IRType, IRTypeInterner, IRUnaryOp,
+        IfIns, Ins, LValue, ParamId, Primitive, RValue, StoreIns, UnaryIns, Unit, WhileIns,
     },
     module::{
         Module, ModuleId, ModuleKind, ModuleSourceFile, NamespaceList, Symbol, SymbolId,
-        SymbolList, SymbolOrigin,
+        SymbolKind, SymbolList, SymbolOrigin,
     },
-    types::{self, Expr, LiteralKind, TypedAst, TypedNode},
+    types::{self, CastKind, Expr, LiteralKind, TypedAst, TypedNode},
     util::VarTable,
 };
 
@@ -99,6 +99,7 @@ impl<'a> ModuleEmitter<'a> {
                 file,
                 &mut data,
             );
+
             let result = emitter.emit()?;
             decls.extend(result.decls);
             externs.extend(result.externs);
@@ -106,7 +107,15 @@ impl<'a> ModuleEmitter<'a> {
 
         // Declare all imported symbols as extern
         let mut extern_decls = Vec::new();
-        externs.extend(self.module.imports());
+
+        // Remove type imports as they are purely semantic and should not be lowered.
+        externs.extend(
+            self.module
+                .imports()
+                .iter()
+                .filter(|id| !matches!(self.ctx.symbols.get(**id).kind, SymbolKind::Type)),
+        );
+
         for id in externs {
             let mut diag = Diagnostics::new();
 
@@ -413,7 +422,27 @@ impl<'a> FileEmitter<'a> {
             Expr::Member(_) => todo!(),
             Expr::Binary(node) => self.binary_to_rval(ins, node),
             Expr::Unary(node) => self.unary_to_rval(ins, node),
+            Expr::Cast(node) => self.cast_to_rval(ins, node),
         }
+    }
+
+    fn cast_to_rval(&mut self, ins: &mut Vec<Ins>, node: &types::CastNode) -> Res<RValue> {
+        let rval = self.expr_to_rval(ins, &node.expr)?;
+
+        if matches!(node.cast_kind, CastKind::Identity) {
+            return Ok(rval);
+        }
+
+        let from_ty = self.types.to_ir(self.ctx, node.expr.type_id());
+        let to_ty = self.types.to_ir(self.ctx, node.ty);
+        let result = self.next_id();
+        ins.push(Ins::Cast(CastIns {
+            from_ty,
+            to_ty,
+            rval,
+            result,
+        }));
+        Ok(RValue::Const(result))
     }
 
     fn unary_to_rval(&mut self, ins: &mut Vec<Ins>, node: &types::UnaryNode) -> Res<RValue> {

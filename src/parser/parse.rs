@@ -4,10 +4,10 @@ use tracing::info;
 
 use crate::{
     ast::{
-        Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, ContinueNode, Decl, ElseBlock, Expr,
-        Field, File, FileSet, ForNode, FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode,
-        MemberNode, Modifier, Node, ReturnNode, SourceMap, Stmt, Token, TokenKind, TypeNode,
-        UnaryExpr, VarAssignNode, VarDeclNode, WhileNode,
+        Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, CastExpr, ContinueNode, Decl, ElseBlock,
+        Expr, Field, File, FileSet, ForNode, FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode,
+        MemberNode, Modifier, Node, ReturnNode, SourceMap, Stmt, Token, TokenKind, TypeDeclNode,
+        TypeNode, UnaryExpr, VarAssignNode, VarDeclNode, WhileNode,
     },
     config::Config,
     error::{Diagnostics, Report, Res},
@@ -67,8 +67,6 @@ impl<'a> Parser<'a> {
                 decls: vec![],
             });
         }
-
-        // info!("Parsing file: {}", source.filepath);
 
         // Parse all imports as they must come before the main code
         let imports = match self.parse_imports() {
@@ -253,8 +251,29 @@ impl<'a> Parser<'a> {
             TokenKind::Pub => self.parse_public_decl(modifiers),
             TokenKind::Func => self.parse_function(false, modifiers),
             TokenKind::Extern => self.parse_extern(false, modifiers),
+            TokenKind::Type => self.parse_type_decl(false, false),
+            TokenKind::Unique => self.parse_unique_type_decl(false),
             _ => Err(self.error_token("expected declaration")),
         }
+    }
+
+    fn parse_unique_type_decl(&mut self, public: bool) -> Result<Decl, Report> {
+        self.expect(TokenKind::Unique)?;
+        self.parse_type_decl(public, true)
+    }
+
+    fn parse_type_decl(&mut self, public: bool, unique: bool) -> Result<Decl, Report> {
+        let kw = self.expect(TokenKind::Type)?;
+        let name = self.expect_identifier("type name")?;
+        let ty = self.parse_type()?;
+
+        Ok(Decl::Type(Box::new(TypeDeclNode {
+            public,
+            unique,
+            kw,
+            name,
+            ty,
+        })))
     }
 
     fn parse_public_decl(&mut self, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
@@ -264,6 +283,8 @@ impl<'a> Parser<'a> {
         match token.kind {
             TokenKind::Func => self.parse_function(true, modifiers),
             TokenKind::Extern => self.parse_extern(true, modifiers),
+            TokenKind::Type => self.parse_type_decl(true, false),
+            TokenKind::Unique => self.parse_unique_type_decl(true),
             _ => Err(self.error_token("illegal public declaration")),
         }
     }
@@ -573,8 +594,23 @@ impl<'a> Parser<'a> {
     fn parse_multiplicative(&mut self) -> Result<Expr, Report> {
         self.parse_binary(
             &[TokenKind::Star, TokenKind::Slash, TokenKind::Percent],
-            Self::parse_unary,
+            Self::parse_cast,
         )
+    }
+
+    fn parse_cast(&mut self) -> Result<Expr, Report> {
+        let expr = self.parse_unary()?;
+        if self.matches(TokenKind::As) {
+            let kw = self.expect(TokenKind::As)?;
+            let ty = self.parse_type()?;
+            return Ok(Expr::Cast(CastExpr {
+                expr: Box::new(expr),
+                kw,
+                ty,
+            }));
+        }
+
+        Ok(expr)
     }
 
     fn parse_unary(&mut self) -> Result<Expr, Report> {
@@ -675,16 +711,17 @@ impl<'a> Parser<'a> {
 
         match token.kind {
             TokenKind::IdentLit(_) => {
-                self.consume();
-                Ok(TypeNode::Ident(token))
-            }
-            TokenKind::IntType
-            | TokenKind::FloatType
-            | TokenKind::BoolType
-            | TokenKind::Void
-            | TokenKind::StringType => {
-                self.consume();
-                Ok(TypeNode::Primitive(token))
+                let name = self.must_consume()?;
+                if self.matches(TokenKind::Dot) {
+                    self.consume();
+                    let ty = self.expect_identifier("type name")?;
+                    Ok(TypeNode::Imported {
+                        namespace: name,
+                        ty,
+                    })
+                } else {
+                    Ok(TypeNode::Ident(name))
+                }
             }
             TokenKind::RParen | TokenKind::RBrace | TokenKind::RBrack => {
                 Err(self.error_token("expected type"))
