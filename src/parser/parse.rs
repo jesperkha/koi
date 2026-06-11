@@ -4,8 +4,8 @@ use tracing::info;
 
 use crate::{
     ast::{
-        Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, ContinueNode, Decl, ElseBlock, Expr,
-        Field, File, FileSet, ForNode, FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode,
+        Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, CastExpr, ContinueNode, Decl, ElseBlock,
+        Expr, Field, File, FileSet, ForNode, FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode,
         MemberNode, Modifier, Node, ReturnNode, SourceMap, Stmt, Token, TokenKind, TypeDeclNode,
         TypeNode, UnaryExpr, VarAssignNode, VarDeclNode, WhileNode,
     },
@@ -594,8 +594,23 @@ impl<'a> Parser<'a> {
     fn parse_multiplicative(&mut self) -> Result<Expr, Report> {
         self.parse_binary(
             &[TokenKind::Star, TokenKind::Slash, TokenKind::Percent],
-            Self::parse_unary,
+            Self::parse_cast,
         )
+    }
+
+    fn parse_cast(&mut self) -> Result<Expr, Report> {
+        let expr = self.parse_unary()?;
+        if self.matches(TokenKind::As) {
+            let kw = self.expect(TokenKind::As)?;
+            let ty = self.parse_type()?;
+            return Ok(Expr::Cast(CastExpr {
+                expr: Box::new(expr),
+                kw,
+                ty,
+            }));
+        }
+
+        Ok(expr)
     }
 
     fn parse_unary(&mut self) -> Result<Expr, Report> {

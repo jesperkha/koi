@@ -88,6 +88,13 @@ pub fn ins_to_string_oneline(unit: &Unit, ins: &Ins) -> String {
             ins.op,
             ins.rhs,
         ),
+        Ins::Cast(ins) => format!(
+            "${} {} = cast({}) {}",
+            ins.result,
+            unit.types.type_to_string(ins.to_ty),
+            unit.types.type_to_string(ins.from_ty),
+            ins.rval,
+        ),
         Ins::Intrinsic(int) => {
             format!(
                 "{}intrinsic {}({})",

@@ -74,6 +74,7 @@ pub enum Ins {
     Return(IRTypeId, RValue),
     Binary(BinaryIns),
     Unary(UnaryIns),
+    Cast(CastIns),
     If(IfIns),
     While(WhileIns),
     Conditional(CondIns),
@@ -134,6 +135,13 @@ pub struct UnaryIns {
     pub ty: IRTypeId,
     pub op: IRUnaryOp,
     pub rhs: RValue,
+    pub result: ConstId,
+}
+
+pub struct CastIns {
+    pub from_ty: IRTypeId,
+    pub to_ty: IRTypeId,
+    pub rval: RValue,
     pub result: ConstId,
 }
 

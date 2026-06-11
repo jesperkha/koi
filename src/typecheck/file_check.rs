@@ -6,8 +6,8 @@ use crate::{
     error::{Diagnostics, Report, Res},
     module::{NamespaceList, Symbol, SymbolKind, SymbolList},
     types::{
-        self, BinaryOp, FunctionType, NO_TYPE, NodeMeta, PrimitiveType, Type, TypeId, TypeKind,
-        TypedNode, UnaryOp, ast_node_to_meta,
+        self, BinaryOp, CastKind, FunctionType, LiteralKind, NO_TYPE, NodeMeta, PrimitiveType,
+        Type, TypeId, TypeKind, TypedNode, UnaryOp, ast_node_to_meta,
     },
     util::VarTable,
 };
@@ -130,6 +130,7 @@ impl<'a> FileChecker<'a> {
             ast::Expr::Member(node) => self.emit_member(node),
             ast::Expr::Binary(node) => self.emit_binary(node),
             ast::Expr::Unary(node) => self.emit_unary(node),
+            ast::Expr::Cast(node) => self.emit_cast(node),
         }
     }
 
@@ -420,6 +421,64 @@ impl<'a> FileChecker<'a> {
                 expr: None,
                 ty: self.ctx.types.void(),
             }))
+        }
+    }
+
+    fn emit_cast(&mut self, node: ast::CastExpr) -> Result<types::Expr, Report> {
+        let meta = ast_node_to_meta(&node);
+        let expr = self.emit_expr(*node.expr)?;
+        let ty = self.eval_type(&node.ty)?;
+
+        let cast_kind = self.check_if_can_cast(&expr, ty);
+        if matches!(cast_kind, CastKind::InvalidCast) {
+            return Err(self.error_from_to("invalid cast", &meta.pos, &meta.end));
+        }
+
+        self.check_const_bounds(&expr, ty, &meta)?;
+
+        Ok(types::Expr::Cast(types::CastNode {
+            meta,
+            expr: Box::new(expr),
+            ty,
+            cast_kind,
+        }))
+    }
+
+    fn check_if_can_cast(&self, expr: &types::Expr, ty: TypeId) -> CastKind {
+        if self.ctx.types.equivalent(expr.type_id(), ty) {
+            return CastKind::Identity;
+        }
+
+        let from_id = self.ctx.types.inner_kind(expr.type_id());
+        let to_id = self.ctx.types.inner_kind(ty);
+        let from = &self.ctx.types.get(from_id).unwrap().kind;
+        let to = &self.ctx.types.get(to_id).unwrap().kind;
+
+        match (from, to) {
+            (TypeKind::Primitive(from), TypeKind::Primitive(to)) => {
+                let from_int = from.is_int() || from.is_uint();
+                let to_int = to.is_int() || to.is_uint();
+                if from_int && to_int {
+                    if from.bytes() >= to.bytes() {
+                        CastKind::IntegerNarrowing
+                    } else {
+                        CastKind::IntegerWidening
+                    }
+                } else if from.is_float() && to.is_float() {
+                    if from.bytes() >= to.bytes() {
+                        CastKind::FloatNarrowing
+                    } else {
+                        CastKind::FloatWidening
+                    }
+                } else if from_int && to.is_float() {
+                    CastKind::IntToFloat
+                } else if from.is_float() && to_int {
+                    CastKind::FloatToInt
+                } else {
+                    CastKind::InvalidCast
+                }
+            }
+            _ => CastKind::InvalidCast,
         }
     }
 
@@ -757,9 +816,12 @@ impl<'a> FileChecker<'a> {
                 TokenKind::IdentLit(name) => self.vars.get(name).is_some_and(|sym| sym.is_const),
                 _ => false,
             },
-            ast::Expr::Group(_) | ast::Expr::Call(_) => true,
             ast::Expr::Member(node) => self.is_constant(&node.expr),
-            ast::Expr::Binary(_) | ast::Expr::Unary(_) => true,
+            ast::Expr::Group(_)
+            | ast::Expr::Call(_)
+            | ast::Expr::Binary(_)
+            | ast::Expr::Unary(_)
+            | ast::Expr::Cast(_) => true,
         }
     }
 
@@ -781,5 +843,129 @@ impl<'a> FileChecker<'a> {
             .map_or(Err("not declared".to_string()), |sym| {
                 Ok(self.ctx.symbols.get(sym.id))
             })
+    }
+
+    fn check_const_bounds(
+        &self,
+        expr: &types::Expr,
+        ty: TypeId,
+        meta: &NodeMeta,
+    ) -> Result<(), Report> {
+        let to_id = self.ctx.types.inner_kind(ty);
+        let TypeKind::Primitive(to) = &self.ctx.types.get(to_id).unwrap().kind else {
+            return Ok(());
+        };
+
+        let overflows = match try_const_value(expr) {
+            Some(ConstVal::Int(n)) => !lit_int_fits(n, to),
+            Some(ConstVal::Uint(n)) => !lit_uint_fits(n, to),
+            Some(ConstVal::Float(n)) => !lit_float_fits(n, to),
+            None => false,
+        };
+
+        if overflows {
+            let type_name = self.ctx.types.type_to_string(ty);
+            Err(self.error_from_to(
+                &format!("constant value overflows target type '{type_name}'"),
+                &meta.pos,
+                &meta.end,
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Evaluate an AST type node to its semantic type id.
+    fn eval_type(&self, node: &ast::TypeNode) -> Result<TypeId, Report> {
+        match node {
+            ast::TypeNode::Ident(token) => self
+                .get_symbol_type_id(token)
+                .ok_or(self.error_token("not a type", &token)),
+            ast::TypeNode::Imported { namespace, ty } => {
+                let ns = self.nsl.get(&namespace.to_string()).map_or(
+                    Err(self.error_token("not an imported namespace", namespace)),
+                    Ok,
+                )?;
+
+                let sym_id = ns.get(&ty.to_string()).ok_or(
+                    self.error_token(&format!("namespace '{namespace}' has no member '{ty}'"), ty),
+                )?;
+
+                Ok(self.ctx.symbols.get(sym_id).ty)
+            }
+        }
+    }
+
+    fn get_symbol_type_id(&self, name: &ast::Token) -> Option<TypeId> {
+        let name_str = name.to_string();
+        self.get_symbol(&name_str).ok().map(|sym| sym.ty)
+    }
+}
+
+enum ConstVal {
+    Int(i64),
+    Uint(u64),
+    Float(f64),
+}
+
+fn try_const_value(expr: &types::Expr) -> Option<ConstVal> {
+    match expr {
+        types::Expr::Literal(lit) => match &lit.kind {
+            LiteralKind::Int(n) => Some(ConstVal::Int(*n)),
+            LiteralKind::Uint(n) => Some(ConstVal::Uint(*n)),
+            LiteralKind::Float(n) => Some(ConstVal::Float(*n)),
+            _ => None,
+        },
+        types::Expr::Unary(unary) if matches!(unary.op, UnaryOp::Minus) => {
+            match try_const_value(&unary.rhs)? {
+                ConstVal::Int(n) => Some(ConstVal::Int(n.wrapping_neg())),
+                ConstVal::Float(n) => Some(ConstVal::Float(-n)),
+                ConstVal::Uint(n) => Some(ConstVal::Int(-(n as i64))),
+            }
+        }
+        _ => None,
+    }
+}
+
+fn lit_int_fits(n: i64, to: &PrimitiveType) -> bool {
+    match to {
+        PrimitiveType::I8 => (i8::MIN as i64..=i8::MAX as i64).contains(&n),
+        PrimitiveType::I16 => (i16::MIN as i64..=i16::MAX as i64).contains(&n),
+        PrimitiveType::I32 => (i32::MIN as i64..=i32::MAX as i64).contains(&n),
+        PrimitiveType::I64 => true,
+        PrimitiveType::U8 => (0..=u8::MAX as i64).contains(&n),
+        PrimitiveType::U16 => (0..=u16::MAX as i64).contains(&n),
+        PrimitiveType::U32 => (0..=u32::MAX as i64).contains(&n),
+        PrimitiveType::U64 => n >= 0,
+        _ => true,
+    }
+}
+
+fn lit_uint_fits(n: u64, to: &PrimitiveType) -> bool {
+    match to {
+        PrimitiveType::I8 => n <= i8::MAX as u64,
+        PrimitiveType::I16 => n <= i16::MAX as u64,
+        PrimitiveType::I32 => n <= i32::MAX as u64,
+        PrimitiveType::I64 => n <= i64::MAX as u64,
+        PrimitiveType::U8 => n <= u8::MAX as u64,
+        PrimitiveType::U16 => n <= u16::MAX as u64,
+        PrimitiveType::U32 => n <= u32::MAX as u64,
+        PrimitiveType::U64 => true,
+        _ => true,
+    }
+}
+
+fn lit_float_fits(n: f64, to: &PrimitiveType) -> bool {
+    match to {
+        PrimitiveType::F32 => n >= f32::MIN as f64 && n <= f32::MAX as f64,
+        PrimitiveType::I8 => n >= i8::MIN as f64 && n <= i8::MAX as f64,
+        PrimitiveType::I16 => n >= i16::MIN as f64 && n <= i16::MAX as f64,
+        PrimitiveType::I32 => n >= i32::MIN as f64 && n <= i32::MAX as f64,
+        PrimitiveType::I64 => n >= i64::MIN as f64 && n <= i64::MAX as f64,
+        PrimitiveType::U8 => n >= 0.0 && n <= u8::MAX as f64,
+        PrimitiveType::U16 => n >= 0.0 && n <= u16::MAX as f64,
+        PrimitiveType::U32 => n >= 0.0 && n <= u32::MAX as f64,
+        PrimitiveType::U64 => n >= 0.0 && n <= u64::MAX as f64,
+        _ => true,
     }
 }

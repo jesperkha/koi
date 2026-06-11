@@ -263,4 +263,10 @@ impl Visitor<()> for Printer {
         self.s += &format!("{} ", node.name);
         self.visit_type(&node.ty);
     }
+
+    fn visit_cast(&mut self, node: &super::CastExpr) -> () {
+        node.expr.accept(self);
+        self.s += " as ";
+        node.ty.accept(self);
+    }
 }

@@ -195,6 +195,7 @@ impl<'a> FunctionAssembler<'a> {
             Ins::Break => self.emit_break(),
             Ins::Continue => self.emit_continue(),
             Ins::Conditional(ins) => self.emit_conditional(ins),
+            Ins::Cast(_) => todo!("x86 cast codegen not implemented"),
         }
     }
 

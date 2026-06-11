@@ -61,6 +61,7 @@ pub trait Visitor<R> {
     fn visit_group(&mut self, node: &GroupExpr) -> R;
     fn visit_binary(&mut self, node: &BinaryExpr) -> R;
     fn visit_unary(&mut self, node: &UnaryExpr) -> R;
+    fn visit_cast(&mut self, node: &CastExpr) -> R;
 }
 
 /// Declarations are not considered statements for linting purposes.
@@ -100,6 +101,7 @@ pub enum Expr {
     Member(MemberNode),
     Binary(BinaryExpr),
     Unary(UnaryExpr),
+    Cast(CastExpr),
 }
 
 /// A TypeNode is the AST representation of a type, not the semantic meaning.
@@ -107,6 +109,13 @@ pub enum Expr {
 pub enum TypeNode {
     Ident(Token),
     Imported { namespace: Token, ty: Token },
+}
+
+#[derive(Debug, Clone)]
+pub struct CastExpr {
+    pub expr: Box<Expr>,
+    pub kw: Token,
+    pub ty: TypeNode,
 }
 
 #[derive(Debug, Clone)]
@@ -322,6 +331,7 @@ impl Visitable for Expr {
             Expr::Member(node) => visitor.visit_member(node),
             Expr::Binary(node) => visitor.visit_binary(node),
             Expr::Unary(node) => visitor.visit_unary(node),
+            Expr::Cast(node) => visitor.visit_cast(node),
         }
     }
 }
@@ -404,11 +414,12 @@ impl Node for Expr {
     fn pos(&self) -> &Pos {
         match self {
             Expr::Literal(token) => &token.pos,
-            Expr::Call(call) => call.pos(),
+            Expr::Call(node) => node.pos(),
             Expr::Group(grp) => &grp.lparen.pos,
             Expr::Member(node) => node.expr.pos(),
             Expr::Binary(node) => node.pos(),
             Expr::Unary(node) => node.pos(),
+            Expr::Cast(node) => node.pos(),
         }
     }
 
@@ -420,6 +431,7 @@ impl Node for Expr {
             Expr::Group(grp) => &grp.rparen.end_pos,
             Expr::Binary(node) => node.end(),
             Expr::Unary(node) => node.end(),
+            Expr::Cast(node) => node.end(),
         }
     }
 
@@ -431,6 +443,7 @@ impl Node for Expr {
             Expr::Member(node) => node.dot.id,
             Expr::Binary(node) => node.id(),
             Expr::Unary(node) => node.id(),
+            Expr::Cast(node) => node.id(),
         }
     }
 }
@@ -684,5 +697,19 @@ impl Node for TypeDeclNode {
 
     fn id(&self) -> NodeId {
         self.name.id
+    }
+}
+
+impl Node for CastExpr {
+    fn pos(&self) -> &Pos {
+        self.expr.pos()
+    }
+
+    fn end(&self) -> &Pos {
+        self.ty.end()
+    }
+
+    fn id(&self) -> NodeId {
+        self.kw.id
     }
 }

@@ -2116,3 +2116,53 @@ fn test_type_decl_duplicate_name_error() {
 fn test_type_decl_unknown_underlying_type_error() {
     assert_error(r#"type Foo Bar"#, "not a type");
 }
+
+#[test]
+fn test_cast_overflow_u8() {
+    assert_error(
+        r#"func f() u8 { return 1024 as u8 }"#,
+        "constant value overflows target type 'u8'",
+    );
+}
+
+#[test]
+fn test_cast_overflow_i8_negative() {
+    assert_error(
+        r#"func f() i8 { return 200 as i8 }"#,
+        "constant value overflows target type 'i8'",
+    );
+}
+
+#[test]
+fn test_cast_overflow_u8_negative_int() {
+    assert_error(
+        r#"func f() u8 { return -1 as u8 }"#,
+        "constant value overflows target type 'u8'",
+    );
+}
+
+#[test]
+fn test_cast_no_overflow_pass() {
+    assert_pass(r#"func f() u8 { return 255 as u8 }"#);
+}
+
+#[test]
+fn test_cast_widening_pass() {
+    assert_pass(r#"func f() i64 { return 100 as i64 }"#);
+}
+
+#[test]
+fn test_cast_float_to_int_overflow() {
+    assert_error(
+        r#"func f() u8 { return 300.0 as u8 }"#,
+        "constant value overflows target type 'u8'",
+    );
+}
+
+#[test]
+fn test_cast_float_to_int_negative_overflow() {
+    assert_error(
+        r#"func f() u8 { return -1.0 as u8 }"#,
+        "constant value overflows target type 'u8'",
+    );
+}
