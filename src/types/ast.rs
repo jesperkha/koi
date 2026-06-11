@@ -51,6 +51,7 @@ pub enum Stmt {
     For(ForNode),
     Break(BreakNode),
     Continue(ContinueNode),
+    OpAssign(OpAssignNode),
 }
 
 pub enum Expr {
@@ -92,6 +93,22 @@ pub struct ContinueNode {
 
 pub struct BlockNode {
     pub stmts: Vec<Stmt>,
+}
+
+pub struct OpAssignNode {
+    pub meta: NodeMeta,
+    pub ty: TypeId,
+    pub lval: Box<Expr>,
+    pub op: AssignOp,
+    pub rval: Box<Expr>,
+}
+
+#[derive(Clone)]
+pub enum AssignOp {
+    Plus,
+    Minus,
+    Mult,
+    Div,
 }
 
 pub struct FuncNode {
@@ -313,6 +330,7 @@ impl_node_for_enum!(Stmt {
         For,
         Break,
         Continue,
+        OpAssign,
     ],
     delegate => [
         ExprStmt,
@@ -357,6 +375,7 @@ impl_typed_node_enum!(Stmt {
     Break,
     Continue,
     For,
+    OpAssign,
 });
 
 impl_typed_node_enum!(Expr {
@@ -410,6 +429,7 @@ impl_typed_node!(
     UnaryNode,
     BinaryNode,
     CastNode,
+    OpAssignNode,
 );
 
 impl From<TokenKind> for BinaryOp {

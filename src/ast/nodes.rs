@@ -54,6 +54,7 @@ pub trait Visitor<R> {
     fn visit_for(&mut self, node: &ForNode) -> R;
     fn visit_break(&mut self, node: &BreakNode) -> R;
     fn visit_continue(&mut self, node: &ContinueNode) -> R;
+    fn visit_op_assign(&mut self, node: &OpAssignNode) -> R;
 
     fn visit_member(&mut self, node: &MemberNode) -> R;
     fn visit_literal(&mut self, node: &Token) -> R;
@@ -89,6 +90,7 @@ pub enum Stmt {
     For(ForNode),
     Break(BreakNode),
     Continue(ContinueNode),
+    OpAssign(OpAssignNode),
 }
 
 /// Expressions are evaluated to produce a value. They can be used
@@ -186,6 +188,13 @@ pub struct GroupExpr {
 pub struct ReturnNode {
     pub kw: Token,
     pub expr: Option<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct OpAssignNode {
+    pub lval: Expr,
+    pub op: Token,
+    pub rval: Expr,
 }
 
 #[derive(Debug, Clone)]
@@ -318,6 +327,7 @@ impl Visitable for Stmt {
             Stmt::Break(node) => visitor.visit_break(node),
             Stmt::Continue(node) => visitor.visit_continue(node),
             Stmt::For(node) => visitor.visit_for(node),
+            Stmt::OpAssign(node) => visitor.visit_op_assign(node),
         }
     }
 }
@@ -408,6 +418,7 @@ impl_node_enum!(Stmt {
     Break,
     Continue,
     For,
+    OpAssign,
 });
 
 impl Node for Expr {
@@ -711,5 +722,19 @@ impl Node for CastExpr {
 
     fn id(&self) -> NodeId {
         self.kw.id
+    }
+}
+
+impl Node for OpAssignNode {
+    fn pos(&self) -> &Pos {
+        self.lval.pos()
+    }
+
+    fn end(&self) -> &Pos {
+        self.rval.end()
+    }
+
+    fn id(&self) -> NodeId {
+        self.op.id
     }
 }

@@ -119,6 +119,7 @@ impl<'a> FileChecker<'a> {
                 let meta = ast_node_to_meta(&node);
                 Ok(types::Stmt::Continue(types::ContinueNode { meta }))
             }
+            ast::Stmt::OpAssign(node) => self.emit_op_assign(node),
         }
     }
 
@@ -283,6 +284,62 @@ impl<'a> FileChecker<'a> {
         self.in_loop = prev_in_loop;
         self.has_returned = has_returned;
         Ok(block)
+    }
+
+    fn emit_op_assign(&mut self, node: ast::OpAssignNode) -> Result<types::Stmt, Report> {
+        let meta = ast_node_to_meta(&node);
+
+        if self.is_constant(&node.lval) {
+            return Err(self.error("cannot assign new value to a constant", &node.lval));
+        }
+
+        let lval = self.emit_expr(node.lval)?;
+        let rval = self.emit_expr(node.rval)?;
+
+        if lval.type_id() != rval.type_id() {
+            return Err(self.error(
+                &format!(
+                    "mismatched types in assignment. expected '{}', got '{}'",
+                    self.ctx.types.type_to_string(lval.type_id()),
+                    self.ctx.types.type_to_string(rval.type_id())
+                ),
+                &rval,
+            ));
+        }
+
+        if !self.ctx.types.is_number(lval.type_id()) {
+            let op_str = match node.op.kind {
+                TokenKind::PlusEq => "+=",
+                TokenKind::MinusEq => "-=",
+                TokenKind::StarEq => "*=",
+                TokenKind::SlashEq => "/=",
+                _ => unreachable!(),
+            };
+            return Err(self.error(
+                &format!(
+                    "operator '{}' cannot be used on type '{}'",
+                    op_str,
+                    self.ctx.types.type_to_string(lval.type_id()),
+                ),
+                &rval,
+            ));
+        }
+
+        let op = match node.op.kind {
+            TokenKind::PlusEq => types::AssignOp::Plus,
+            TokenKind::MinusEq => types::AssignOp::Minus,
+            TokenKind::StarEq => types::AssignOp::Mult,
+            TokenKind::SlashEq => types::AssignOp::Div,
+            _ => unreachable!(),
+        };
+
+        Ok(types::Stmt::OpAssign(types::OpAssignNode {
+            meta,
+            ty: rval.type_id(),
+            lval: Box::new(lval),
+            rval: Box::new(rval),
+            op,
+        }))
     }
 
     fn emit_if(&mut self, node: ast::IfNode) -> Result<types::IfNode, Report> {
@@ -587,6 +644,8 @@ impl<'a> FileChecker<'a> {
 
         let op: BinaryOp = node.op.kind.into();
 
+        self.check_binary_op_type(&op, lhs.type_id(), &meta)?;
+
         let ty = match op {
             BinaryOp::Plus | BinaryOp::Minus | BinaryOp::Mult | BinaryOp::Divide => lhs.type_id(),
             BinaryOp::Modulo => self.ctx.types.primitive(PrimitiveType::U32),
@@ -705,6 +764,54 @@ impl<'a> FileChecker<'a> {
     }
 
     // ----------------------- Utility methods ----------------------- //
+
+    fn check_binary_op_type(
+        &self,
+        op: &BinaryOp,
+        ty: TypeId,
+        meta: &NodeMeta,
+    ) -> Result<(), Report> {
+        let bool_t = self.ctx.types.primitive(PrimitiveType::Bool);
+        let is_num = self.ctx.types.is_number(ty);
+        let is_bool = self.ctx.types.equivalent(ty, bool_t);
+
+        let (valid, op_str) = match op {
+            BinaryOp::Plus => (is_num, "+"),
+            BinaryOp::Minus => (is_num, "-"),
+            BinaryOp::Mult => (is_num, "*"),
+            BinaryOp::Divide => (is_num, "/"),
+            BinaryOp::Modulo => {
+                let resolved = self.ctx.types.inner_kind(ty);
+                let is_int = matches!(
+                    self.ctx.types.lookup(resolved).kind,
+                    TypeKind::Primitive(ref p) if p.is_int() || p.is_uint()
+                );
+                (is_int, "%")
+            }
+            BinaryOp::Equal => (is_num || is_bool, "=="),
+            BinaryOp::NotEqual => (is_num || is_bool, "!="),
+            BinaryOp::Greater => (is_num, ">"),
+            BinaryOp::GreaterEq => (is_num, ">="),
+            BinaryOp::Less => (is_num, "<"),
+            BinaryOp::LessEq => (is_num, "<="),
+            BinaryOp::LogicAnd => (is_bool, "&&"),
+            BinaryOp::LogicOr => (is_bool, "||"),
+        };
+
+        if !valid {
+            return Err(self.error_from_to(
+                &format!(
+                    "operator '{}' cannot be used on type '{}'",
+                    op_str,
+                    self.ctx.types.type_to_string(ty),
+                ),
+                &meta.pos,
+                &meta.end,
+            ));
+        }
+
+        Ok(())
+    }
 
     /// Assert that the given expression is the given primitive type.
     fn assert_expr_is_type(&self, expect: PrimitiveType, expr: &types::Expr) -> Result<(), Report> {

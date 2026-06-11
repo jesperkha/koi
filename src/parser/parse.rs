@@ -6,8 +6,8 @@ use crate::{
     ast::{
         Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, CastExpr, ContinueNode, Decl, ElseBlock,
         Expr, Field, File, FileSet, ForNode, FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode,
-        MemberNode, Modifier, Node, ReturnNode, SourceMap, Stmt, Token, TokenKind, TypeDeclNode,
-        TypeNode, UnaryExpr, VarAssignNode, VarDeclNode, WhileNode,
+        MemberNode, Modifier, Node, OpAssignNode, ReturnNode, SourceMap, Stmt, Token, TokenKind,
+        TypeDeclNode, TypeNode, UnaryExpr, VarAssignNode, VarDeclNode, WhileNode,
     },
     config::Config,
     error::{Diagnostics, Report, Res},
@@ -440,11 +440,30 @@ impl<'a> Parser<'a> {
                     TokenKind::ColonEq => self.parse_var_decl(expr, false),
                     TokenKind::Eq => self.parse_var_assign(expr),
 
+                    // Operator assignment (+=, -= etc)
+                    TokenKind::PlusEq
+                    | TokenKind::MinusEq
+                    | TokenKind::SlashEq
+                    | TokenKind::StarEq => self.parse_op_assign(expr),
+
                     // Otherwise just expression
                     _ => Ok(Stmt::ExprStmt(expr)),
                 }
             }
         }
+    }
+
+    fn parse_op_assign(&mut self, lval: Expr) -> Result<Stmt, Report> {
+        let op = self.must_consume()?;
+        let rval = self.parse_expr()?;
+
+        if let Expr::Literal(name) = &lval
+            && matches!(&name.kind, TokenKind::IdentLit(_))
+        {
+            return Ok(Stmt::OpAssign(OpAssignNode { lval, op, rval }));
+        }
+
+        Err(self.error_node("invalid left hand value in assignment", &lval))
     }
 
     fn parse_for(&mut self) -> Result<ForNode, Report> {
