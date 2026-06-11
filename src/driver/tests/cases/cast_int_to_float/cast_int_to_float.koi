@@ -1,0 +1,4 @@
+func main() int {
+    f := 7 as float
+    return f as int
+}

@@ -902,3 +902,117 @@ fn test_while_computed_condition() {
         "#,
     );
 }
+
+// --- Cast expressions ---
+
+#[test]
+fn test_cast_narrowing() {
+    expect_equal(
+        r#"
+        func f(a i32) u8 {
+            return a as u8
+        }
+    "#,
+        r#"
+        func f(i32) u8
+            $0 u8 = cast(i32) %0
+            ret u8 $0
+        "#,
+    );
+}
+
+#[test]
+fn test_cast_widening() {
+    expect_equal(
+        r#"
+        func f(a u8) i64 {
+            return a as i64
+        }
+    "#,
+        r#"
+        func f(u8) i64
+            $0 i64 = cast(u8) %0
+            ret i64 $0
+        "#,
+    );
+}
+
+#[test]
+fn test_cast_identity_emits_no_instruction() {
+    expect_equal(
+        r#"
+        func f(a i32) i32 {
+            return a as i32
+        }
+    "#,
+        r#"
+        func f(i32) i32
+            ret i32 %0
+        "#,
+    );
+}
+
+#[test]
+fn test_cast_literal() {
+    expect_equal(
+        r#"
+        func f() u8 {
+            return 10 as u8
+        }
+    "#,
+        r#"
+        func f() u8
+            $0 u8 = cast(i32) 10
+            ret u8 $0
+        "#,
+    );
+}
+
+#[test]
+fn test_cast_int_to_float() {
+    expect_equal(
+        r#"
+        func f(a i32) float {
+            return a as float
+        }
+    "#,
+        r#"
+        func f(i32) f32
+            $0 f32 = cast(i32) %0
+            ret f32 $0
+        "#,
+    );
+}
+
+#[test]
+fn test_cast_float_to_int() {
+    expect_equal(
+        r#"
+        func f(a float) i32 {
+            return a as i32
+        }
+    "#,
+        r#"
+        func f(f32) i32
+            $0 i32 = cast(f32) %0
+            ret i32 $0
+        "#,
+    );
+}
+
+#[test]
+fn test_cast_stored_in_var() {
+    expect_equal(
+        r#"
+        func f(a i32) {
+            x := a as u8
+        }
+    "#,
+        r#"
+        func f(i32) void
+            $0 u8 = cast(i32) %0
+            $1 u8 = $0
+            ret void
+        "#,
+    );
+}

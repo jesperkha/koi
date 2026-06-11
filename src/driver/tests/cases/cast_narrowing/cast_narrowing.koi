@@ -1,0 +1,4 @@
+func main() int {
+    x := 200 as u8
+    return x as int
+}

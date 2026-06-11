@@ -1,0 +1,5 @@
+func main() int {
+    x := 10 as u8
+    y := x as i64
+    return y as int
+}

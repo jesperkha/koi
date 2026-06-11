@@ -138,6 +138,12 @@ fn run_case_with_error(case: &str, error: &str) {
     }
 }
 
+fn run_case_c_only(case: &str, status: i32) {
+    let (project, options, config) = new_config(case, Codegen::C);
+    compile(project, options, config).unwrap();
+    expect_status(case, status);
+}
+
 #[test]
 fn test_exit0() {
     run_case_with_status("exit0", 0);
@@ -220,6 +226,26 @@ fn test_empty() {
 #[test]
 fn test_duplicate_namespace() {
     run_case_with_status("duplicate_namespace", 0);
+}
+
+#[test]
+fn test_cast_narrowing() {
+    run_case_c_only("cast_narrowing", 200);
+}
+
+#[test]
+fn test_cast_widening() {
+    run_case_c_only("cast_widening", 10);
+}
+
+#[test]
+fn test_cast_int_to_float() {
+    run_case_c_only("cast_int_to_float", 7);
+}
+
+#[test]
+fn test_cast_identity() {
+    run_case_c_only("cast_identity", 42);
 }
 
 #[test]

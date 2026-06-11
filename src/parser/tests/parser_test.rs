@@ -1218,3 +1218,96 @@ fn test_type_decl_missing_underlying_type_error() {
 fn test_unique_type_decl_missing_type_keyword_error() {
     expect_error(r#"unique Foo int"#, "expected type");
 }
+
+// --- Cast expressions ---
+
+#[test]
+fn test_cast_basic() {
+    compare_string(
+        r#"
+        func f() {
+            x as i32
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_cast_in_return() {
+    compare_string(
+        r#"
+        func f() i32 {
+            return x as i32
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_cast_of_literal() {
+    compare_string(
+        r#"
+        func f() i64 {
+            return 123 as i64
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_cast_in_var_decl() {
+    compare_string(
+        r#"
+        func f() {
+            x := foo as u8
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_cast_imported_type() {
+    compare_string(
+        r#"
+        func f() {
+            x as ns.MyType
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_cast_precedence_with_add() {
+    // `as` binds tighter than `+`: parses and prints as `a + b as i32`
+    compare_string(
+        r#"
+        func f() {
+            a + b as i32
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_cast_after_unary() {
+    // unary is applied before cast: `-x as i32` == `(-x) as i32`
+    compare_string(
+        r#"
+        func f() {
+            -x as i32
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_cast_missing_type_error() {
+    expect_error(
+        r#"
+        func f() {
+            x as
+        }
+    "#,
+        "invalid type",
+    );
+}

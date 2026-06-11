@@ -2166,3 +2166,71 @@ fn test_cast_float_to_int_negative_overflow() {
         "constant value overflows target type 'u8'",
     );
 }
+
+// Valid cast combinations
+
+#[test]
+fn test_cast_identity_pass() {
+    assert_pass(r#"func f(a i32) i32 { return a as i32 }"#);
+}
+
+#[test]
+fn test_cast_int_widening_pass() {
+    assert_pass(r#"func f(a i32) i64 { return a as i64 }"#);
+}
+
+#[test]
+fn test_cast_int_narrowing_pass() {
+    assert_pass(r#"func f(a i32) u8 { return a as u8 }"#);
+}
+
+#[test]
+fn test_cast_signed_to_unsigned_pass() {
+    assert_pass(r#"func f(a i32) u32 { return a as u32 }"#);
+}
+
+#[test]
+fn test_cast_int_to_float_pass() {
+    assert_pass(r#"func f(a i32) float { return a as float }"#);
+}
+
+#[test]
+fn test_cast_float_to_int_pass() {
+    assert_pass(r#"func f(a float) i32 { return a as i32 }"#);
+}
+
+#[test]
+fn test_cast_float_widening_pass() {
+    assert_pass(r#"func f(a float) f64 { return a as f64 }"#);
+}
+
+#[test]
+fn test_cast_float_narrowing_pass() {
+    assert_pass(r#"func f(a f64) float { return a as float }"#);
+}
+
+// Invalid cast combinations
+
+#[test]
+fn test_cast_string_to_int_error() {
+    assert_error(
+        r#"func f(a string) i32 { return a as i32 }"#,
+        "invalid cast",
+    );
+}
+
+#[test]
+fn test_cast_bool_to_int_error() {
+    assert_error(
+        r#"func f(a bool) i32 { return a as i32 }"#,
+        "invalid cast",
+    );
+}
+
+#[test]
+fn test_cast_int_to_bool_error() {
+    assert_error(
+        r#"func f(a i32) bool { return a as bool }"#,
+        "invalid cast",
+    );
+}

@@ -809,3 +809,138 @@ void f(uint8_t t0, uint8_t t1) {
         "#,
     );
 }
+
+// --- Cast expressions ---
+
+#[test]
+fn test_cast_narrowing() {
+    compare(
+        r#"
+func f(a i32) u8 {
+    return a as u8
+}
+        "#,
+        r#"
+#include "include/koi.h"
+
+uint8_t f(int32_t t0) {
+    uint8_t t1 = (uint8_t)(t0);
+    return t1;
+}
+        "#,
+    );
+}
+
+#[test]
+fn test_cast_widening() {
+    compare(
+        r#"
+func f(a u8) i64 {
+    return a as i64
+}
+        "#,
+        r#"
+#include "include/koi.h"
+
+int64_t f(uint8_t t0) {
+    int64_t t1 = (int64_t)(t0);
+    return t1;
+}
+        "#,
+    );
+}
+
+#[test]
+fn test_cast_identity() {
+    compare(
+        r#"
+func f(a i32) i32 {
+    return a as i32
+}
+        "#,
+        r#"
+#include "include/koi.h"
+
+int32_t f(int32_t t0) {
+    return t0;
+}
+        "#,
+    );
+}
+
+#[test]
+fn test_cast_literal() {
+    compare(
+        r#"
+func f() u8 {
+    return 10 as u8
+}
+        "#,
+        r#"
+#include "include/koi.h"
+
+uint8_t f() {
+    uint8_t t0 = (uint8_t)(10);
+    return t0;
+}
+        "#,
+    );
+}
+
+#[test]
+fn test_cast_int_to_float() {
+    compare(
+        r#"
+func f(a i32) float {
+    return a as float
+}
+        "#,
+        r#"
+#include "include/koi.h"
+
+float f(int32_t t0) {
+    float t1 = (float)(t0);
+    return t1;
+}
+        "#,
+    );
+}
+
+#[test]
+fn test_cast_float_to_int() {
+    compare(
+        r#"
+func f(a float) i32 {
+    return a as i32
+}
+        "#,
+        r#"
+#include "include/koi.h"
+
+int32_t f(float t0) {
+    int32_t t1 = (int32_t)(t0);
+    return t1;
+}
+        "#,
+    );
+}
+
+#[test]
+fn test_cast_stored_in_var() {
+    compare(
+        r#"
+func f(a i32) {
+    x := a as u8
+}
+        "#,
+        r#"
+#include "include/koi.h"
+
+void f(int32_t t0) {
+    uint8_t t1 = (uint8_t)(t0);
+    uint8_t t2 = t1;
+    return ;
+}
+        "#,
+    );
+}
