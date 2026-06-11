@@ -119,6 +119,7 @@ impl<'a> FileChecker<'a> {
                 let meta = ast_node_to_meta(&node);
                 Ok(types::Stmt::Continue(types::ContinueNode { meta }))
             }
+            ast::Stmt::OpAssign(node) => self.emit_op_assign(node),
         }
     }
 
@@ -283,6 +284,46 @@ impl<'a> FileChecker<'a> {
         self.in_loop = prev_in_loop;
         self.has_returned = has_returned;
         Ok(block)
+    }
+
+    fn emit_op_assign(&mut self, node: ast::OpAssignNode) -> Result<types::Stmt, Report> {
+        let meta = ast_node_to_meta(&node);
+
+        if self.is_constant(&node.lval) {
+            return Err(self.error("cannot assign new value to a constant", &node.lval));
+        }
+
+        let lval = self.emit_expr(node.lval)?;
+        let rval = self.emit_expr(node.rval)?;
+
+        if lval.type_id() != rval.type_id() {
+            return Err(self.error(
+                &format!(
+                    "mismatched types in assignment. expected '{}', got '{}'",
+                    self.ctx.types.type_to_string(lval.type_id()),
+                    self.ctx.types.type_to_string(rval.type_id())
+                ),
+                &rval,
+            ));
+        }
+
+        // TOD: here and in binary op check, check if operator is allowed for the given types
+
+        let op = match node.op.kind {
+            TokenKind::PlusEq => types::AssignOp::Plus,
+            TokenKind::MinusEq => types::AssignOp::Minus,
+            TokenKind::StarEq => types::AssignOp::Mult,
+            TokenKind::SlashEq => types::AssignOp::Div,
+            _ => unreachable!(),
+        };
+
+        Ok(types::Stmt::OpAssign(types::OpAssignNode {
+            meta,
+            ty: rval.type_id(),
+            lval: Box::new(lval),
+            rval: Box::new(rval),
+            op,
+        }))
     }
 
     fn emit_if(&mut self, node: ast::IfNode) -> Result<types::IfNode, Report> {

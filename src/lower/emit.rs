@@ -295,7 +295,29 @@ impl<'a> FileEmitter<'a> {
             types::Stmt::For(node) => self.emit_for(ins, node)?,
             types::Stmt::Break(_) => ins.push(Ins::Break),
             types::Stmt::Continue(_) => ins.push(Ins::Continue),
+            types::Stmt::OpAssign(node) => self.emit_op_assign(ins, node)?,
         };
+        Ok(())
+    }
+
+    fn emit_op_assign(&mut self, ins: &mut Vec<Ins>, node: &types::OpAssignNode) -> Res<()> {
+        let ty = self.types.to_ir(self.ctx, node.ty);
+        let lhs = self.expr_to_rval(ins, &node.lval)?;
+        let rhs = self.expr_to_rval(ins, &node.rval)?;
+        let result = self.next_id();
+        ins.push(Ins::Binary(BinaryIns {
+            ty,
+            op: node.op.clone().into(),
+            lhs,
+            rhs,
+            result,
+        }));
+        let lval = self.expr_to_lval(ins, &node.lval)?;
+        ins.push(Ins::Assign(AssignIns {
+            ty,
+            lval,
+            rval: RValue::Const(result),
+        }));
         Ok(())
     }
 
@@ -626,6 +648,17 @@ impl From<types::BinaryOp> for IRBinaryOp {
             types::BinaryOp::LessEq => IRBinaryOp::Le,
             // AND and OR handled separately
             _ => unreachable!(),
+        }
+    }
+}
+
+impl From<types::AssignOp> for IRBinaryOp {
+    fn from(op: types::AssignOp) -> Self {
+        match op {
+            types::AssignOp::Plus => IRBinaryOp::Add,
+            types::AssignOp::Minus => IRBinaryOp::Sub,
+            types::AssignOp::Mult => IRBinaryOp::Mul,
+            types::AssignOp::Div => IRBinaryOp::Div,
         }
     }
 }
