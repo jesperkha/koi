@@ -1,4 +1,4 @@
-use crate::ast::{Pos, Token};
+use crate::{ast::Token, common::Pos};
 
 pub type NodeId = usize;
 

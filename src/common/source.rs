@@ -13,6 +13,20 @@ fn next_id() -> usize {
     SOURCE_ID.fetch_add(1, Ordering::Relaxed)
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Default)]
+pub struct Pos {
+    /// Row in file, starting at 0
+    pub row: usize,
+    /// Column on line, starting at 0
+    pub col: usize,
+    /// Byte offset in file
+    pub offset: usize,
+    /// Offset of first character on same line as this Pos
+    pub line_begin: usize,
+    /// Index into SourceMap where this pos is located
+    pub source_id: SourceId,
+}
+
 pub struct SourceMap {
     map: HashMap<SourceId, Source>,
 }

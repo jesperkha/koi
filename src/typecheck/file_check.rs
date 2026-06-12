@@ -1,8 +1,8 @@
 use tracing::info;
 
 use crate::{
-    ast::{self, Ast, Node, Pos, Token, TokenKind},
-    common::VarTable,
+    ast::{self, Ast, Node, Token, TokenKind},
+    common::{Pos, VarTable},
     context::Context,
     error::{Diagnostics, Report, Res},
     module::{NamespaceList, Symbol, SymbolKind, SymbolList},
