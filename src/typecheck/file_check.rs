@@ -5,7 +5,8 @@ use crate::{
     common::{Pos, Span, VarTable},
     context::Context,
     error::{Diagnostics, Report, Res, error_span},
-    module::{NamespaceList, Symbol, SymbolKind, SymbolList},
+    module::{NamespaceList, SymbolKind, SymbolList},
+    typecheck::helper::CheckerHelpers,
     types::{
         self, BinaryOp, CastKind, FunctionType, LiteralKind, NO_TYPE, NodeMeta, PrimitiveType,
         Type, TypeId, TypeKind, TypedNode, UnaryOp, ast_node_to_meta,
@@ -39,6 +40,20 @@ pub(crate) struct FileChecker<'a> {
     is_main: bool,
     /// Currently checking a loop body? Used for break/continue checks.
     in_loop: bool,
+}
+
+impl<'a> CheckerHelpers<'a> for FileChecker<'a> {
+    fn ctx(&self) -> &Context {
+        self.ctx
+    }
+
+    fn symbols(&self) -> &SymbolList {
+        self.symbols
+    }
+
+    fn get_namespace(&self, name: &str) -> Option<&crate::module::Namespace> {
+        self.nsl.get(name)
+    }
 }
 
 impl<'a> FileChecker<'a> {
@@ -445,7 +460,7 @@ impl<'a> FileChecker<'a> {
             }
         }
 
-        if self.nsl.get(&name).is_ok() {
+        if self.nsl.get(&name).is_some() {
             return Err(error_span(
                 "shadowing a namespace is not allowed",
                 &node.name,
@@ -568,7 +583,7 @@ impl<'a> FileChecker<'a> {
             TokenKind::IdentLit(name) => {
                 let ty_id = match self.get(&tok) {
                     Err(err) => {
-                        if self.nsl.get(name).is_ok() {
+                        if self.nsl.get(name).is_some() {
                             return Err(error_span("namespace cannot be used as a value", &tok));
                         }
                         return Err(err);
@@ -743,7 +758,7 @@ impl<'a> FileChecker<'a> {
 
         // First check if the left hand value is a namespace
         if let Some(name) = self.if_identifier_get_name(&node.expr)
-            && let Ok(ns) = self.nsl.get(name)
+            && let Some(ns) = self.nsl.get(name)
         {
             // Get symbol from field
             let Some(id) = ns.get(&field) else {
@@ -940,16 +955,6 @@ impl<'a> FileChecker<'a> {
         None
     }
 
-    /// Get a Symbol by name. The name is local to this module only.
-    /// Returns "not declared" on error.
-    fn get_symbol(&self, name: &str) -> Result<&Symbol, String> {
-        self.symbols
-            .get(name)
-            .map_or(Err("not declared".to_string()), |sym| {
-                Ok(self.ctx.symbols.get(sym.id))
-            })
-    }
-
     fn check_const_bounds(
         &self,
         expr: &types::Expr,
@@ -977,33 +982,6 @@ impl<'a> FileChecker<'a> {
         } else {
             Ok(())
         }
-    }
-
-    /// Evaluate an AST type node to its semantic type id.
-    fn eval_type(&self, node: &ast::TypeNode) -> Result<TypeId, Report> {
-        match node {
-            ast::TypeNode::Ident(token) => self
-                .get_symbol_type_id(token)
-                .ok_or(error_span("not a type", token)),
-            ast::TypeNode::Imported { namespace, ty } => {
-                let ns = self
-                    .nsl
-                    .get(&namespace.to_string())
-                    .map_or(Err(error_span("not an imported namespace", namespace)), Ok)?;
-
-                let sym_id = ns.get(&ty.to_string()).ok_or(error_span(
-                    &format!("namespace '{namespace}' has no member '{ty}'"),
-                    ty,
-                ))?;
-
-                Ok(self.ctx.symbols.get(sym_id).ty)
-            }
-        }
-    }
-
-    fn get_symbol_type_id(&self, name: &ast::Token) -> Option<TypeId> {
-        let name_str = name.to_string();
-        self.get_symbol(&name_str).ok().map(|sym| sym.ty)
     }
 }
 

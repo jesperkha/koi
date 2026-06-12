@@ -61,7 +61,7 @@ impl NamespaceList {
     }
 
     /// Get a namespace by name.
-    pub fn get(&self, name: &str) -> Result<&Namespace, String> {
-        self.ns.get(name).ok_or("not declared".to_string())
+    pub fn get(&self, name: &str) -> Option<&Namespace> {
+        self.ns.get(name)
     }
 }

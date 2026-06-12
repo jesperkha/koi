@@ -10,6 +10,7 @@ use crate::{
         Namespace, NamespaceList, Symbol, SymbolId, SymbolKind, SymbolList, SymbolOrigin,
     },
     typecheck::file_check::FileChecker,
+    typecheck::helper::CheckerHelpers,
     types::{FunctionType, PrimitiveType, TypeId, TypeKind, TypedAst},
 };
 
@@ -26,6 +27,20 @@ pub(crate) struct ModuleChecker<'a> {
     file_namespaces: Vec<NamespaceList>,
     /// Index of current file being checked.
     current_file: usize,
+}
+
+impl<'a> CheckerHelpers<'a> for ModuleChecker<'a> {
+    fn ctx(&self) -> &Context {
+        &self.ctx
+    }
+
+    fn symbols(&self) -> &SymbolList {
+        &self.symbols
+    }
+
+    fn get_namespace(&self, name: &str) -> Option<&Namespace> {
+        self.file_namespaces[self.current_file].get(name)
+    }
 }
 
 impl<'a> ModuleChecker<'a> {
@@ -445,39 +460,10 @@ impl<'a> ModuleChecker<'a> {
 
     // ----------------------- Shared helpers ----------------------- //
 
-    /// Evaluate an AST type node to its semantic type id.
-    fn eval_type(&self, node: &ast::TypeNode) -> Result<TypeId, Report> {
-        match node {
-            ast::TypeNode::Ident(token) => self
-                .get_symbol_type_id(token)
-                .ok_or(error_span("not a type", token)),
-            ast::TypeNode::Imported { namespace, ty } => {
-                let ns = self
-                    .file_namespaces
-                    .get(self.current_file)
-                    .expect("file index out of bounds")
-                    .get(&namespace.to_string())
-                    .map_or(Err(error_span("not an imported namespace", namespace)), Ok)?;
-
-                let sym_id = ns.get(&ty.to_string()).ok_or(error_span(
-                    &format!("namespace '{namespace}' has no member '{ty}'"),
-                    ty,
-                ))?;
-
-                Ok(self.ctx.symbols.get(sym_id).ty)
-            }
-        }
-    }
-
     /// Evaluate an option of a type node. Defaults to void type if not present.
     fn eval_optional_type(&mut self, v: &Option<ast::TypeNode>) -> Result<TypeId, Report> {
         v.as_ref()
             .map_or(Ok(self.ctx.types.void()), |r| self.eval_type(r))
-    }
-
-    fn get_symbol_type_id(&self, name: &ast::Token) -> Option<TypeId> {
-        let name_str = name.to_string();
-        self.get_symbol(&name_str).ok().map(|sym| sym.ty)
     }
 
     /// Get a Symbol by name. The name is local to this module only.
