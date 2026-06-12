@@ -31,7 +31,7 @@ pub(crate) struct ModuleChecker<'a> {
 
 impl<'a> CheckerHelpers<'a> for ModuleChecker<'a> {
     fn ctx(&self) -> &Context {
-        &self.ctx
+        self.ctx
     }
 
     fn symbols(&self) -> &SymbolList {
@@ -246,7 +246,7 @@ impl<'a> ModuleChecker<'a> {
                     pos: node.pos().clone(),
                     filename: filename.into(),
                 };
-                self.declare_function_definition(&node.clone().into(), origin)
+                self.declare_function_definition(&(**node).clone().into(), origin)
             }
             ast::Decl::Extern(node) => {
                 let origin = SymbolOrigin::Extern;

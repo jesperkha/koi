@@ -268,13 +268,13 @@ impl<'a> Parser<'a> {
         let name = self.expect_identifier("type name")?;
         let ty = self.parse_type()?;
 
-        Ok(Decl::Type(TypeDeclNode {
+        Ok(Decl::Type(Box::new(TypeDeclNode {
             public,
             unique,
             kw,
             name,
             ty,
-        }))
+        })))
     }
 
     fn parse_public_decl(&mut self, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
@@ -293,7 +293,7 @@ impl<'a> Parser<'a> {
     fn parse_extern(&mut self, public: bool, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
         self.consume(); // extern
         self.parse_function_def(public, modifiers)
-            .map(|decl| Decl::Extern(decl))
+            .map(|decl| Decl::Extern(Box::new(decl)))
     }
 
     fn parse_function_def(
@@ -369,7 +369,7 @@ impl<'a> Parser<'a> {
 
         let body = self.parse_block()?;
 
-        Ok(Decl::Func(FuncNode {
+        Ok(Decl::Func(Box::new(FuncNode {
             modifiers,
             public,
             name: decl.name,
@@ -378,7 +378,7 @@ impl<'a> Parser<'a> {
             rparen: decl.rparen,
             ret_type: decl.ret_type,
             body,
-        }))
+        })))
     }
 
     fn parse_field(&mut self, field_name: &str) -> Result<Field, Report> {

@@ -102,8 +102,8 @@ impl<'a> FileChecker<'a> {
         let mut decls = Vec::new();
         for d in ast.decls {
             match d {
-                ast::Decl::Func(node) => decls.push(self.emit_func(node)),
-                ast::Decl::Extern(node) => decls.push(self.emit_extern(node)),
+                ast::Decl::Func(node) => decls.push(self.emit_func(*node)),
+                ast::Decl::Extern(node) => decls.push(self.emit_extern(*node)),
                 ast::Decl::Type(..) => {} // Declared in global pass
             };
         }

@@ -45,6 +45,18 @@ impl<T: Node> Span for T {
     }
 }
 
+impl<T: Node> Node for Box<T> {
+    fn pos(&self) -> &Pos {
+        Node::pos(self.as_ref())
+    }
+    fn end(&self) -> &Pos {
+        Node::end(self.as_ref())
+    }
+    fn id(&self) -> NodeId {
+        self.as_ref().id()
+    }
+}
+
 pub trait Visitable {
     /// Accept a visitor to inspect this node. Must call the appropriate
     /// visit method on the visitor for this node.
@@ -83,9 +95,9 @@ pub trait Visitor<R> {
 /// but does include constant declarations.
 #[derive(Debug)]
 pub enum Decl {
-    Func(FuncNode),
-    Extern(FuncDeclNode),
-    Type(TypeDeclNode),
+    Func(Box<FuncNode>),
+    Extern(Box<FuncDeclNode>),
+    Type(Box<TypeDeclNode>),
 }
 
 /// Statements are found inside blocks. They have side effects and do
@@ -547,10 +559,7 @@ impl Node for ReturnNode {
     }
 
     fn end(&self) -> &Pos {
-        self.expr
-            .as_ref()
-            .map(|e| Node::end(e))
-            .unwrap_or(&self.kw.pos)
+        self.expr.as_ref().map(Node::end).unwrap_or(&self.kw.pos)
     }
 
     fn id(&self) -> NodeId {
