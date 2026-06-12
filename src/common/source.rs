@@ -27,6 +27,13 @@ pub struct Pos {
     pub source_id: SourceId,
 }
 
+pub trait Span {
+    /// Position of first token in node segment.
+    fn pos(&self) -> &Pos;
+    /// Position of last token in node segment.
+    fn end(&self) -> &Pos;
+}
+
 pub struct SourceMap {
     map: HashMap<SourceId, Source>,
 }

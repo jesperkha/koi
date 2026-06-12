@@ -1,9 +1,10 @@
 use tracing::{debug, info};
 
 use crate::{
-    ast::{self, Node},
+    ast::{self},
+    common::Span,
     context::{Context, CreateModule, CreateSymbol},
-    error::{Diagnostics, Report, Res},
+    error::{Diagnostics, Report, Res, error_span},
     module::{
         ImportPath, ModuleKind, ModulePath, ModuleSourceFile, ModuleSymbol, ModuleSymbolKind,
         Namespace, NamespaceList, Symbol, SymbolId, SymbolKind, SymbolList, SymbolOrigin,
@@ -176,7 +177,7 @@ impl<'a> ModuleChecker<'a> {
             // Check if the symbol exists
             let Some(id) = module_exports.get(&symbol_name) else {
                 // Module did not contain the symbol
-                diag.add(self.error_token(
+                diag.add(error_span(
                     &format!("module '{}' has no export '{}'", module.name(), symbol_name),
                     tok,
                 ));
@@ -191,7 +192,7 @@ impl<'a> ModuleChecker<'a> {
 
             // If it was already declared, add error
             if let Err(err) = self.symbols.add(symbol_name, modsym) {
-                diag.add(self.error_token(&err, tok));
+                diag.add(error_span(&err, tok));
             }
         }
     }
@@ -230,7 +231,7 @@ impl<'a> ModuleChecker<'a> {
                     pos: node.pos().clone(),
                     filename: filename.into(),
                 };
-                self.declare_function_definition(&(*node.clone()).into(), origin)
+                self.declare_function_definition(&node.clone().into(), origin)
             }
             ast::Decl::Extern(node) => {
                 let origin = SymbolOrigin::Extern;
@@ -318,8 +319,10 @@ impl<'a> ModuleChecker<'a> {
                 // Require the symbol name not to be mangled.
                 "nomangle" => {
                     if is_extern {
-                        return Err(self
-                            .error("'nomangle' modifier is only allowed for local functions", m));
+                        return Err(error_span(
+                            "'nomangle' modifier is only allowed for local functions",
+                            m,
+                        ));
                     }
                     no_mangle = true;
                 }
@@ -327,9 +330,10 @@ impl<'a> ModuleChecker<'a> {
                 // Require that the function is inlined.
                 "inline" => {
                     if is_extern {
-                        return Err(
-                            self.error("'inline' modifier is only allowed for local functions", m)
-                        );
+                        return Err(error_span(
+                            "'inline' modifier is only allowed for local functions",
+                            m,
+                        ));
                     }
                     is_inline = true;
                 }
@@ -337,9 +341,10 @@ impl<'a> ModuleChecker<'a> {
                 // Omit function entry/exit protocol.
                 "naked" => {
                     if is_extern {
-                        return Err(
-                            self.error("'naked' modifier is only allowed for local functions", m)
-                        );
+                        return Err(error_span(
+                            "'naked' modifier is only allowed for local functions",
+                            m,
+                        ));
                     }
                     is_naked = true;
                 }
@@ -347,12 +352,13 @@ impl<'a> ModuleChecker<'a> {
                 // Create alias for external symbol.
                 "alias" => {
                     if !is_extern {
-                        return Err(
-                            self.error("'alias' modifier is only allowed for extern functions", m)
-                        );
+                        return Err(error_span(
+                            "'alias' modifier is only allowed for extern functions",
+                            m,
+                        ));
                     }
                     if m.args.len() != 1 {
-                        return Err(self.error(
+                        return Err(error_span(
                             &format!(
                                 "'alias' modifier expects exactly one argument, got {}",
                                 m.args.len()
@@ -365,7 +371,7 @@ impl<'a> ModuleChecker<'a> {
                     alias = Some(new_name);
                 }
                 _ => {
-                    return Err(self.error("unknown modifier", m));
+                    return Err(error_span("unknown modifier", m));
                 }
             }
         }
@@ -390,9 +396,9 @@ impl<'a> ModuleChecker<'a> {
         Ok(())
     }
 
-    fn check_symbol_already_declared(&self, name: &str, node: &dyn Node) -> Result<(), Report> {
+    fn check_symbol_already_declared(&self, name: &str, node: &dyn Span) -> Result<(), Report> {
         if let Ok(sym) = self.get_symbol(name) {
-            let mut report = self.error("already declared", node);
+            let mut report = error_span("already declared", node);
 
             if let SymbolOrigin::Module { pos, filename, .. } = &sym.origin {
                 report = report.with_info(&format!(
@@ -439,34 +445,24 @@ impl<'a> ModuleChecker<'a> {
 
     // ----------------------- Shared helpers ----------------------- //
 
-    fn error(&self, msg: &str, node: &dyn ast::Node) -> Report {
-        Report::code_error(msg, node.pos(), node.end())
-    }
-
-    fn error_token(&self, msg: &str, token: &ast::Token) -> Report {
-        Report::code_error(msg, &token.pos, &token.end_pos)
-    }
-
     /// Evaluate an AST type node to its semantic type id.
     fn eval_type(&self, node: &ast::TypeNode) -> Result<TypeId, Report> {
         match node {
             ast::TypeNode::Ident(token) => self
                 .get_symbol_type_id(token)
-                .ok_or(self.error_token("not a type", token)),
+                .ok_or(error_span("not a type", token)),
             ast::TypeNode::Imported { namespace, ty } => {
                 let ns = self
                     .file_namespaces
                     .get(self.current_file)
                     .expect("file index out of bounds")
                     .get(&namespace.to_string())
-                    .map_or(
-                        Err(self.error_token("not an imported namespace", namespace)),
-                        Ok,
-                    )?;
+                    .map_or(Err(error_span("not an imported namespace", namespace)), Ok)?;
 
-                let sym_id = ns.get(&ty.to_string()).ok_or(
-                    self.error_token(&format!("namespace '{namespace}' has no member '{ty}'"), ty),
-                )?;
+                let sym_id = ns.get(&ty.to_string()).ok_or(error_span(
+                    &format!("namespace '{namespace}' has no member '{ty}'"),
+                    ty,
+                ))?;
 
                 Ok(self.ctx.symbols.get(sym_id).ty)
             }

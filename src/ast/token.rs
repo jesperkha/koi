@@ -3,7 +3,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use crate::common::Pos;
+use crate::common::{Pos, Span};
 
 #[derive(Debug, Clone)]
 pub struct Token {
@@ -20,6 +20,16 @@ pub struct Token {
     pub invalid: bool,
     /// Byte length of token
     pub length: usize,
+}
+
+impl Span for Token {
+    fn pos(&self) -> &Pos {
+        &self.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.end_pos
+    }
 }
 
 static TOKEN_ID: AtomicUsize = AtomicUsize::new(0);

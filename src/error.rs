@@ -1,4 +1,4 @@
-use crate::common::{Pos, SourceMap};
+use crate::common::{Pos, SourceMap, Span};
 
 pub type Res<T> = Result<T, Diagnostics>;
 
@@ -87,6 +87,14 @@ impl Report {
             }
         }
     }
+}
+
+pub fn error_span(msg: &str, node: &dyn Span) -> Report {
+    Report::code_error(msg, node.pos(), node.end())
+}
+
+pub fn error_from_to(msg: &str, from: &Pos, to: &Pos) -> Report {
+    Report::code_error(msg, from, to)
 }
 
 pub struct Diagnostics {

@@ -1,10 +1,10 @@
 use tracing::info;
 
 use crate::{
-    ast::{self, Ast, Node, Token, TokenKind},
-    common::{Pos, VarTable},
+    ast::{self, Ast, Token, TokenKind},
+    common::{Pos, Span, VarTable},
     context::Context,
-    error::{Diagnostics, Report, Res},
+    error::{Diagnostics, Report, Res, error_span},
     module::{NamespaceList, Symbol, SymbolKind, SymbolList},
     types::{
         self, BinaryOp, CastKind, FunctionType, LiteralKind, NO_TYPE, NodeMeta, PrimitiveType,
@@ -87,8 +87,8 @@ impl<'a> FileChecker<'a> {
         let mut decls = Vec::new();
         for d in ast.decls {
             match d {
-                ast::Decl::Func(node) => decls.push(self.emit_func(*node)),
-                ast::Decl::Extern(node) => decls.push(self.emit_extern(*node)),
+                ast::Decl::Func(node) => decls.push(self.emit_func(node)),
+                ast::Decl::Extern(node) => decls.push(self.emit_extern(node)),
                 ast::Decl::Type(..) => {} // Declared in global pass
             };
         }
@@ -107,14 +107,14 @@ impl<'a> FileChecker<'a> {
             ast::Stmt::Block(_) => panic!("block should be handled manually as list of stmt"),
             ast::Stmt::Break(node) => {
                 if !self.in_loop {
-                    return Err(self.error("break cannot be used outside a loop", &node));
+                    return Err(error_span("break cannot be used outside a loop", &node));
                 }
                 let meta = ast_node_to_meta(&node);
                 Ok(types::Stmt::Break(types::BreakNode { meta }))
             }
             ast::Stmt::Continue(node) => {
                 if !self.in_loop {
-                    return Err(self.error("continue cannot be used outside a loop", &node));
+                    return Err(error_span("continue cannot be used outside a loop", &node));
                 }
                 let meta = ast_node_to_meta(&node);
                 Ok(types::Stmt::Continue(types::ContinueNode { meta }))
@@ -166,7 +166,7 @@ impl<'a> FileChecker<'a> {
 
         // There was no return when there should have been
         if !self.has_returned && f.ret != self.ctx.types.void() {
-            return Err(self.error_token(
+            return Err(error_span(
                 &format!("missing return in function '{}'", node.name.kind),
                 &node.name,
             ));
@@ -185,7 +185,10 @@ impl<'a> FileChecker<'a> {
     fn check_main_function(&self, f: &FunctionType, node: &ast::FuncNode) -> Result<(), Report> {
         // Must be main module
         if !self.is_main {
-            return Err(self.error("main function can only be declared in main module", node));
+            return Err(error_span(
+                "main function can only be declared in main module",
+                node,
+            ));
         }
 
         // If return type is not int
@@ -200,14 +203,17 @@ impl<'a> FileChecker<'a> {
             return Err(node
                 .ret_type
                 .as_ref()
-                .map_or(self.error_token(&msg, &node.rparen), |ty_node| {
-                    self.error(&msg, ty_node)
+                .map_or(error_span(&msg, &node.rparen), |ty_node| {
+                    error_span(&msg, ty_node)
                 }));
         }
 
         // No parameters allowed
         if !f.params.is_empty() {
-            return Err(self.error("main function must not take any arguments", node));
+            return Err(error_span(
+                "main function must not take any arguments",
+                node,
+            ));
         }
 
         Ok(())
@@ -290,14 +296,17 @@ impl<'a> FileChecker<'a> {
         let meta = ast_node_to_meta(&node);
 
         if self.is_constant(&node.lval) {
-            return Err(self.error("cannot assign new value to a constant", &node.lval));
+            return Err(error_span(
+                "cannot assign new value to a constant",
+                &node.lval,
+            ));
         }
 
         let lval = self.emit_expr(node.lval)?;
         let rval = self.emit_expr(node.rval)?;
 
         if lval.type_id() != rval.type_id() {
-            return Err(self.error(
+            return Err(error_span(
                 &format!(
                     "mismatched types in assignment. expected '{}', got '{}'",
                     self.ctx.types.type_to_string(lval.type_id()),
@@ -315,7 +324,7 @@ impl<'a> FileChecker<'a> {
                 TokenKind::SlashEq => "/=",
                 _ => unreachable!(),
             };
-            return Err(self.error(
+            return Err(error_span(
                 &format!(
                     "operator '{}' cannot be used on type '{}'",
                     op_str,
@@ -387,14 +396,17 @@ impl<'a> FileChecker<'a> {
         let meta = ast_node_to_meta(&node);
 
         if self.is_constant(&node.lval) {
-            return Err(self.error("cannot assign new value to a constant", &node.lval));
+            return Err(error_span(
+                "cannot assign new value to a constant",
+                &node.lval,
+            ));
         }
 
         let lval = self.emit_expr(node.lval)?;
         let rval = self.emit_expr(node.expr)?;
 
         if lval.type_id() != rval.type_id() {
-            return Err(self.error(
+            return Err(error_span(
                 &format!(
                     "mismatched types in assignment. expected '{}', got '{}'",
                     self.ctx.types.type_to_string(lval.type_id()),
@@ -418,20 +430,26 @@ impl<'a> FileChecker<'a> {
         let name = node.name.to_string();
 
         if typed_expr.type_id() == self.ctx.types.void() {
-            return Err(self.error("cannot assign void type to variable", &typed_expr));
+            return Err(error_span(
+                "cannot assign void type to variable",
+                &typed_expr,
+            ));
         }
 
         if let Ok(sym) = self.get_symbol(name.as_str()) {
             match sym.kind {
                 SymbolKind::Function { .. } => {} // shadowing a function is ok
                 SymbolKind::Type => {
-                    return Err(self.error_token("shadowing a type is not allowed", &node.name));
+                    return Err(error_span("shadowing a type is not allowed", &node.name));
                 }
             }
         }
 
         if self.nsl.get(&name).is_ok() {
-            return Err(self.error_token("shadowing a namespace is not allowed", &node.name));
+            return Err(error_span(
+                "shadowing a namespace is not allowed",
+                &node.name,
+            ));
         }
 
         let ty = self.bind(&node.name, typed_expr.type_id(), node.constant)?;
@@ -488,7 +506,7 @@ impl<'a> FileChecker<'a> {
 
         let cast_kind = self.check_if_can_cast(&expr, ty);
         if matches!(cast_kind, CastKind::InvalidCast) {
-            return Err(self.error_from_to("invalid cast", &meta.pos, &meta.end));
+            return Err(error_span("invalid cast", &meta));
         }
 
         self.check_const_bounds(&expr, ty, &meta)?;
@@ -551,9 +569,7 @@ impl<'a> FileChecker<'a> {
                 let ty_id = match self.get(&tok) {
                     Err(err) => {
                         if self.nsl.get(name).is_ok() {
-                            return Err(
-                                self.error_token("namespace cannot be used as a value", &tok)
-                            );
+                            return Err(error_span("namespace cannot be used as a value", &tok));
                         }
                         return Err(err);
                     }
@@ -589,7 +605,7 @@ impl<'a> FileChecker<'a> {
             UnaryOp::LogicNot => {
                 let bool_t = self.ctx.types.primitive(PrimitiveType::Bool);
                 if !self.ctx.types.equivalent(rhs.type_id(), bool_t) {
-                    return Err(self.error(
+                    return Err(error_span(
                         &format!(
                             "'!' operator can only be used on type 'bool', got '{}'",
                             self.type_to_string(&rhs)
@@ -606,7 +622,7 @@ impl<'a> FileChecker<'a> {
             }
             UnaryOp::Minus => {
                 if !self.ctx.types.is_number(rhs.type_id()) {
-                    return Err(self.error(
+                    return Err(error_span(
                         &format!(
                             "'-' operator can only be used on number types, got '{}'",
                             self.type_to_string(&rhs)
@@ -631,14 +647,13 @@ impl<'a> FileChecker<'a> {
         let rhs = self.emit_expr(*node.rhs)?;
 
         if lhs.type_id() != rhs.type_id() {
-            return Err(self.error_from_to(
+            return Err(error_span(
                 &format!(
                     "mismatched types in expression: '{}' and '{}'",
                     self.type_to_string(&lhs),
                     self.type_to_string(&rhs),
                 ),
-                &meta.pos,
-                &meta.end,
+                &meta,
             ));
         }
 
@@ -674,7 +689,7 @@ impl<'a> FileChecker<'a> {
 
         let (params, ret) = match self.ctx.types.try_function(callee.type_id()) {
             Some(f) => (f.params.clone(), f.ret), // Copy to not use mut ref later
-            None => return Err(self.error("not a function", &callee)),
+            None => return Err(error_span("not a function", &callee)),
         };
 
         // Check if number of arguments matches
@@ -684,12 +699,10 @@ impl<'a> FileChecker<'a> {
                 params.len(),
                 node.args.len(),
             );
-            return Err(self
-                .error_from_to(&msg, callee.pos(), &node.rparen.pos)
-                .with_info(&format!(
-                    "definition: {}",
-                    self.ctx.types.type_to_string(callee.type_id())
-                )));
+            return Err(error_span(&msg, &meta).with_info(&format!(
+                "definition: {}",
+                self.ctx.types.type_to_string(callee.type_id())
+            )));
         }
 
         assert_eq!(
@@ -710,7 +723,7 @@ impl<'a> FileChecker<'a> {
                     self.ctx.types.type_to_string(param_id),
                     self.ctx.types.type_to_string(arg_id)
                 );
-                return Err(self.error(&msg, &typed_arg));
+                return Err(error_span(&msg, &typed_arg));
             }
 
             args.push(typed_arg);
@@ -734,7 +747,7 @@ impl<'a> FileChecker<'a> {
         {
             // Get symbol from field
             let Some(id) = ns.get(&field) else {
-                return Err(self.error_token(
+                return Err(error_span(
                     &format!("namespace '{}' has no member '{}'", ns.name(), &field),
                     &node.field,
                 ));
@@ -754,7 +767,7 @@ impl<'a> FileChecker<'a> {
         // a normal expression.
         let expr = self.emit_expr(*node.expr)?;
 
-        Err(self.error(
+        Err(error_span(
             &format!(
                 "type '{}' has no fields",
                 self.ctx.types.type_to_string(expr.type_id())
@@ -799,14 +812,13 @@ impl<'a> FileChecker<'a> {
         };
 
         if !valid {
-            return Err(self.error_from_to(
+            return Err(error_span(
                 &format!(
                     "operator '{}' cannot be used on type '{}'",
                     op_str,
                     self.ctx.types.type_to_string(ty),
                 ),
-                &meta.pos,
-                &meta.end,
+                meta,
             ));
         }
 
@@ -817,7 +829,7 @@ impl<'a> FileChecker<'a> {
     fn assert_expr_is_type(&self, expect: PrimitiveType, expr: &types::Expr) -> Result<(), Report> {
         let expect_t = self.ctx.types.primitive(expect);
         if !self.ctx.types.equivalent(expr.type_id(), expect_t) {
-            return Err(self.error(
+            return Err(error_span(
                 &format!(
                     "expression must be of type '{}', got '{}'",
                     self.ctx.types.type_to_string(expect_t),
@@ -833,20 +845,8 @@ impl<'a> FileChecker<'a> {
         self.ctx.types.type_to_string(node.type_id())
     }
 
-    fn error(&self, msg: &str, node: &dyn Node) -> Report {
-        Report::code_error(msg, node.pos(), node.end())
-    }
-
-    fn error_token(&self, msg: &str, tok: &Token) -> Report {
-        Report::code_error(msg, &tok.pos, &tok.end_pos)
-    }
-
-    fn error_from_to(&self, msg: &str, from: &Pos, to: &Pos) -> Report {
-        Report::code_error(msg, from, to)
-    }
-
     fn error_expected_token(&self, msg: &str, expect: TypeId, tok: &Token) -> Report {
-        self.error_token(
+        error_span(
             &format!(
                 "{}: expected '{}'",
                 msg,
@@ -861,9 +861,9 @@ impl<'a> FileChecker<'a> {
         msg: &str,
         expect: TypeId,
         got: TypeId,
-        node: &dyn Node,
+        node: &dyn Span,
     ) -> Report {
-        self.error(
+        error_span(
             &format!(
                 "{}: expected '{}', got '{}'",
                 msg,
@@ -884,12 +884,10 @@ impl<'a> FileChecker<'a> {
                 pos: name.pos.clone(),
             },
         ) {
-            Err(self
-                .error_token("already declared", name)
-                .with_info(&format!(
-                    "previously declared on line {}", // always local to this file
-                    self.vars.get(&name.to_string()).unwrap().pos.row + 1
-                )))
+            Err(error_span("already declared", name).with_info(&format!(
+                "previously declared on line {}", // always local to this file
+                self.vars.get(&name.to_string()).unwrap().pos.row + 1
+            )))
         } else {
             Ok(id)
         }
@@ -904,10 +902,10 @@ impl<'a> FileChecker<'a> {
         if let Ok(sym) = self.get_symbol(&name_str) {
             return match sym.kind {
                 SymbolKind::Function { .. } => Ok(sym.ty),
-                SymbolKind::Type => Err(self.error_token("a type cannot be used as a value", name)),
+                SymbolKind::Type => Err(error_span("a type cannot be used as a value", name)),
             };
         }
-        Err(self.error_token("not declared", name))
+        Err(error_span("not declared", name))
     }
 
     /// Get the type of a declared symbol
@@ -972,10 +970,9 @@ impl<'a> FileChecker<'a> {
 
         if overflows {
             let type_name = self.ctx.types.type_to_string(ty);
-            Err(self.error_from_to(
+            Err(error_span(
                 &format!("constant value overflows target type '{type_name}'"),
-                &meta.pos,
-                &meta.end,
+                meta,
             ))
         } else {
             Ok(())
@@ -987,16 +984,17 @@ impl<'a> FileChecker<'a> {
         match node {
             ast::TypeNode::Ident(token) => self
                 .get_symbol_type_id(token)
-                .ok_or(self.error_token("not a type", token)),
+                .ok_or(error_span("not a type", token)),
             ast::TypeNode::Imported { namespace, ty } => {
-                let ns = self.nsl.get(&namespace.to_string()).map_or(
-                    Err(self.error_token("not an imported namespace", namespace)),
-                    Ok,
-                )?;
+                let ns = self
+                    .nsl
+                    .get(&namespace.to_string())
+                    .map_or(Err(error_span("not an imported namespace", namespace)), Ok)?;
 
-                let sym_id = ns.get(&ty.to_string()).ok_or(
-                    self.error_token(&format!("namespace '{namespace}' has no member '{ty}'"), ty),
-                )?;
+                let sym_id = ns.get(&ty.to_string()).ok_or(error_span(
+                    &format!("namespace '{namespace}' has no member '{ty}'"),
+                    ty,
+                ))?;
 
                 Ok(self.ctx.symbols.get(sym_id).ty)
             }
