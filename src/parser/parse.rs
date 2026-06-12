@@ -6,9 +6,10 @@ use crate::{
     ast::{
         Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, CastExpr, ContinueNode, Decl, ElseBlock,
         Expr, Field, File, FileSet, ForNode, FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode,
-        MemberNode, Modifier, Node, OpAssignNode, ReturnNode, SourceMap, Stmt, Token, TokenKind,
-        TypeDeclNode, TypeNode, UnaryExpr, VarAssignNode, VarDeclNode, WhileNode,
+        MemberNode, Modifier, Node, OpAssignNode, ReturnNode, Stmt, Token, TokenKind, TypeDeclNode,
+        TypeNode, UnaryExpr, VarAssignNode, VarDeclNode, WhileNode,
     },
+    common::SourceMap,
     config::Config,
     error::{Diagnostics, Report, Res},
     module::ModulePath,

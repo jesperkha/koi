@@ -2,6 +2,7 @@ use tracing::info;
 
 use crate::{
     ast::{self, Ast, Node, Pos, Token, TokenKind},
+    common::VarTable,
     context::Context,
     error::{Diagnostics, Report, Res},
     module::{NamespaceList, Symbol, SymbolKind, SymbolList},
@@ -9,7 +10,6 @@ use crate::{
         self, BinaryOp, CastKind, FunctionType, LiteralKind, NO_TYPE, NodeMeta, PrimitiveType,
         Type, TypeId, TypeKind, TypedNode, UnaryOp, ast_node_to_meta,
     },
-    util::VarTable,
 };
 
 /// A Binding is either a declared variable or function parameter. Bindings

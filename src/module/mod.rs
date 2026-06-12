@@ -14,7 +14,7 @@ mod module_test;
 
 use std::collections::HashMap;
 
-use crate::{types::TypedAst, util::FilePath};
+use crate::{common::FilePath, types::TypedAst};
 
 pub type ModuleId = usize;
 

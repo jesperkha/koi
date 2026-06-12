@@ -3,7 +3,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use crate::util::FilePath;
+use crate::common::FilePath;
 
 pub type SourceId = usize;
 

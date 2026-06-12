@@ -3,7 +3,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use crate::ast::SourceId;
+use crate::common::SourceId;
 
 #[derive(Debug, Clone)]
 pub struct Token {

@@ -1,6 +1,6 @@
 use crate::{
+    common::{FilePath, must, parse_string},
     module::{ImportPath, ModulePath},
-    util::{FilePath, must, parse_string},
 };
 
 #[test]

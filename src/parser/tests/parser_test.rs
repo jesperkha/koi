@@ -1,5 +1,5 @@
 use crate::ast::Printer;
-use crate::util::{compare_string_lines_or_panic, must, parse_string};
+use crate::common::{compare_string_lines_or_panic, must, parse_string};
 
 fn compare_string(src: &str) {
     let ast = must(parse_string(src));

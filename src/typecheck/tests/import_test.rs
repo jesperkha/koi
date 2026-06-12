@@ -1,10 +1,10 @@
 use crate::{
     ast::FileSet,
+    common::{ErrorStream, must, new_modpath, new_source_map},
     config::Config,
     context::Context,
     parser::{parse_source_map, sort_by_dependency_graph},
     typecheck::check_filesets,
-    util::{ErrorStream, must, new_modpath, new_source_map},
 };
 
 struct TestFile {

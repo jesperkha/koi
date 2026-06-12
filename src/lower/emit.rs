@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
+    common::VarTable,
     context::Context,
     error::{self, Diagnostics, Report},
     ir::{
@@ -13,7 +14,6 @@ use crate::{
         SymbolKind, SymbolList, SymbolOrigin,
     },
     types::{self, CastKind, Expr, LiteralKind, TypedAst, TypedNode},
-    util::VarTable,
 };
 
 /// Emit standalone module IR unit for this module.

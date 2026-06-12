@@ -7,8 +7,8 @@ use std::{
 use tracing::debug;
 
 use crate::{
+    common::FilePath,
     module::{ImportPath, ModulePath},
-    util::FilePath,
 };
 
 struct Header {

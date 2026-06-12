@@ -1,7 +1,7 @@
 use crate::{
     build::x86::{File, assemble},
+    common::{compare_string_lines_or_panic, emit_string, must},
     config::Config,
-    util::{compare_string_lines_or_panic, emit_string, must},
 };
 
 fn assemble_src(src: &str) -> File {
@@ -141,7 +141,7 @@ fn test_string_assignment() {
     compare(
         r#"
 func f() {
-    s := "Hello" 
+    s := "Hello"
     s = "World"
     x := s
     s = x

@@ -1,4 +1,5 @@
-use crate::ast::{Pos, SourceMap};
+use crate::ast::Pos;
+use crate::common::SourceMap;
 
 pub type Res<T> = Result<T, Diagnostics>;
 

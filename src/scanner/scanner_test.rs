@@ -2,7 +2,7 @@ use std::vec;
 
 use crate::{
     ast::{Token, TokenKind},
-    util::{must, scan_string},
+    common::{must, scan_string},
 };
 
 fn scan_and_then<P>(src: &str, pred: P)

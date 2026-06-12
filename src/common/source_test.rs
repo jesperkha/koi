@@ -1,4 +1,4 @@
-use crate::util::new_source;
+use crate::common::new_source;
 
 #[test]
 fn test_file_line_offsets() {

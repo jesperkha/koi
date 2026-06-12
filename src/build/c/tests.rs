@@ -1,7 +1,7 @@
 use crate::{
     build::c::emit::emit,
+    common::{FilePath, compare_string_lines_or_panic, emit_string, must},
     config::{Config, PathManager},
-    util::{FilePath, compare_string_lines_or_panic, emit_string, must},
 };
 
 fn emit_src(src: &str) -> String {
