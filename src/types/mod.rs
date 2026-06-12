@@ -1,6 +1,6 @@
-mod ast;
+mod nodes;
 
-pub use ast::*;
+pub use nodes::*;
 
 use std::{fmt, hash::Hash};
 use strum_macros::EnumIter;

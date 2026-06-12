@@ -12,10 +12,10 @@ use crate::{
 mod tests;
 
 mod assemble;
-mod assembly;
+mod nodes;
 
 use assemble::assemble;
-use assembly::*;
+use nodes::*;
 
 /// Build and compile an x86-64 executable or shared object file.
 pub fn build(
