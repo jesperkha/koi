@@ -1,5 +1,5 @@
 use crate::{
-    build::x86::{File, assemble},
+    build::x86::{File, emit},
     common::{compare_string_lines_or_panic, emit_string, must},
     config::Config,
 };

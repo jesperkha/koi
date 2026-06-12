@@ -11,10 +11,10 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-mod assemble;
+mod emit;
 mod nodes;
 
-use assemble::assemble;
+use emit::assemble;
 use nodes::*;
 
 /// Build and compile an x86-64 executable or shared object file.
