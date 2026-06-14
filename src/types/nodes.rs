@@ -1,5 +1,6 @@
 use crate::{
-    ast::{Node, NodeId, Pos, TokenKind},
+    ast::{Node, NodeId, TokenKind},
+    common::{Pos, Span},
     types::{CastKind, NO_TYPE, TypeId},
 };
 
@@ -26,6 +27,16 @@ pub struct NodeMeta {
     pub id: NodeId,
     pub pos: Pos,
     pub end: Pos,
+}
+
+impl Span for NodeMeta {
+    fn pos(&self) -> &Pos {
+        &self.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.end
+    }
 }
 
 pub fn ast_node_to_meta(node: &dyn Node) -> NodeMeta {
@@ -282,7 +293,7 @@ macro_rules! impl_node_for_enum {
                         $enum_name::$meta_variant(node) => &node.meta.pos,
                     )*
                     $(
-                        $enum_name::$delegate_variant(node) => node.pos(),
+                        $enum_name::$delegate_variant(node) => Node::pos(node),
                     )*
                 }
             }
@@ -293,7 +304,7 @@ macro_rules! impl_node_for_enum {
                         $enum_name::$meta_variant(node) => &node.meta.end,
                     )*
                     $(
-                        $enum_name::$delegate_variant(node) => node.end(),
+                        $enum_name::$delegate_variant(node) => Node::end(node),
                     )*
                 }
             }

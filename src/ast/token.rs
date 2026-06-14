@@ -3,7 +3,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use crate::ast::SourceId;
+use crate::common::{Pos, Span};
 
 #[derive(Debug, Clone)]
 pub struct Token {
@@ -20,6 +20,16 @@ pub struct Token {
     pub invalid: bool,
     /// Byte length of token
     pub length: usize,
+}
+
+impl Span for Token {
+    fn pos(&self) -> &Pos {
+        &self.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.end_pos
+    }
 }
 
 static TOKEN_ID: AtomicUsize = AtomicUsize::new(0);
@@ -66,20 +76,6 @@ pub fn display_tokens(tokens: &[Token]) -> String {
             .collect::<Vec<_>>()
             .join("\n")
     )
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Default)]
-pub struct Pos {
-    /// Row in file, starting at 0
-    pub row: usize,
-    /// Column on line, starting at 0
-    pub col: usize,
-    /// Byte offset in file
-    pub offset: usize,
-    /// Offset of first character on same line as this Pos
-    pub line_begin: usize,
-    /// Index into SourceMap where this pos is located
-    pub source_id: SourceId,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -1,12 +1,12 @@
 use std::vec;
 
 use crate::{
+    common::{check_string, must, new_modpath},
     config::Config,
     context::{Context, CreateModule},
     imports::{create_header_file, read_header_file},
     module::ModulePath,
     types::{FunctionType, PrimitiveType, TypeId, TypeKind},
-    util::{check_string, must, new_modpath},
 };
 
 fn create_header_module<'a>(ctx: &'a mut Context, src: &str, modpath: ModulePath) -> CreateModule {

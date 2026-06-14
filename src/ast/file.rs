@@ -2,9 +2,9 @@ use core::fmt;
 use std::collections::HashSet;
 
 use crate::{
-    ast::{Ast, Printer, Source, Token},
+    ast::{Ast, Printer, Token},
+    common::{FilePath, Source},
     module::{ImportPath, ModulePath},
-    util::FilePath,
 };
 
 /// A File represents a parsed source file, containing its AST, source code,

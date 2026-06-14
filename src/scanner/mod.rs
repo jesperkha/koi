@@ -4,7 +4,8 @@ mod scanner_test;
 use tracing::{debug, info, trace};
 
 use crate::{
-    ast::{Pos, Source, Token, TokenKind, str_to_token},
+    ast::{Token, TokenKind, str_to_token},
+    common::{Pos, Source},
     config::Config,
     error::{Diagnostics, Report, Res},
 };

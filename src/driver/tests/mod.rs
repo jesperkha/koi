@@ -7,9 +7,9 @@ use tracing_subscriber::EnvFilter;
 use strum::IntoEnumIterator;
 
 use crate::{
+    common::{FilePath, cmd},
     config::{Codegen, Config, Options, Project, ProjectType},
     driver::compile,
-    util::{FilePath, cmd},
 };
 
 static INIT: Once = Once::new();

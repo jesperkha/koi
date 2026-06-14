@@ -2,20 +2,20 @@ use tracing::info;
 
 use crate::{
     build::{BuildConfig, LinkMode, gcc_available},
+    common::{FilePath, cmd, write_file},
     config::{Config, DriverPhase, PathManager},
     imports::LibrarySet,
     ir::ProgramIR,
-    util::{FilePath, cmd, write_file},
 };
 
 #[cfg(test)]
 mod tests;
 
-mod assemble;
-mod assembly;
+mod emit;
+mod nodes;
 
-use assemble::assemble;
-use assembly::*;
+use emit::assemble;
+use nodes::*;
 
 /// Build and compile an x86-64 executable or shared object file.
 pub fn build(

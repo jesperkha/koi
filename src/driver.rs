@@ -7,8 +7,9 @@ use tracing::{debug, info};
 use walkdir::WalkDir;
 
 use crate::{
-    ast::{FileSet, Printer, Source, SourceMap},
+    ast::{FileSet, Printer},
     build::{self, c, x86},
+    common::{FilePath, Source, SourceMap, create_dir_if_not_exist, get_root_dir, write_file},
     config::{Codegen, Config, DriverPhase, Options, PathManager, Project, ProjectType},
     context::Context,
     imports::{LibrarySet, create_header_file, read_header_file},
@@ -17,7 +18,6 @@ use crate::{
     module::{Module, ModuleId, ModulePath},
     parser::{SortResult, parse_source_map, sort_by_dependency_graph, validate_imports},
     typecheck::check_filesets,
-    util::{FilePath, create_dir_if_not_exist, get_root_dir, write_file},
 };
 
 #[cfg(test)]

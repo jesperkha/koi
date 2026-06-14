@@ -1,5 +1,5 @@
-mod ast;
 mod emit;
+mod nodes;
 #[cfg(test)]
 mod tests;
 
@@ -8,10 +8,10 @@ use tracing::info;
 
 use crate::{
     build::{BuildConfig, LinkMode, gcc_available},
+    common::{FilePath, cmd, write_file},
     config::{Config, DriverPhase, PathManager},
     imports::LibrarySet,
     ir::ProgramIR,
-    util::{FilePath, cmd, write_file},
 };
 
 pub fn build(

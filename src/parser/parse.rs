@@ -6,11 +6,12 @@ use crate::{
     ast::{
         Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, CastExpr, ContinueNode, Decl, ElseBlock,
         Expr, Field, File, FileSet, ForNode, FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode,
-        MemberNode, Modifier, Node, OpAssignNode, ReturnNode, SourceMap, Stmt, Token, TokenKind,
-        TypeDeclNode, TypeNode, UnaryExpr, VarAssignNode, VarDeclNode, WhileNode,
+        MemberNode, Modifier, OpAssignNode, ReturnNode, Stmt, Token, TokenKind, TypeDeclNode,
+        TypeNode, UnaryExpr, VarAssignNode, VarDeclNode, WhileNode,
     },
+    common::{SourceMap, Span},
     config::Config,
-    error::{Diagnostics, Report, Res},
+    error::{Diagnostics, Report, Res, error_from_to, error_span},
     module::ModulePath,
     scanner::scan,
 };
@@ -463,7 +464,7 @@ impl<'a> Parser<'a> {
             return Ok(Stmt::OpAssign(OpAssignNode { lval, op, rval }));
         }
 
-        Err(self.error_node("invalid left hand value in assignment", &lval))
+        Err(error_span("invalid left hand value in assignment", &lval))
     }
 
     fn parse_for(&mut self) -> Result<ForNode, Report> {
@@ -525,7 +526,7 @@ impl<'a> Parser<'a> {
             return Ok(Stmt::VarAssign(VarAssignNode { lval, equal, expr }));
         }
 
-        Err(self.error_node("invalid left hand value in assignment", &lval))
+        Err(error_span("invalid left hand value in assignment", &lval))
     }
 
     fn parse_var_decl(&mut self, lval: Expr, constant: bool) -> Result<Stmt, Report> {
@@ -533,7 +534,7 @@ impl<'a> Parser<'a> {
         let expr = self.parse_expr()?;
 
         // To not use lval after move
-        let err = self.error_node("invalid left hand value in declaration", &lval);
+        let err = error_span("invalid left hand value in declaration", &lval);
         if let Expr::Literal(name) = lval
             && matches!(name.kind, TokenKind::IdentLit(_))
         {
@@ -756,11 +757,7 @@ impl<'a> Parser<'a> {
 
     /// Create error marking the given token range.
     fn error_from_to(&self, message: &str, from: &Token, to: &Token) -> Report {
-        Report::code_error(message, &from.pos, &to.end_pos)
-    }
-
-    fn error_node(&self, message: &str, node: &dyn Node) -> Report {
-        Report::code_error(message, node.pos(), node.end())
+        error_from_to(message, from.pos(), to.end())
     }
 
     fn cur(&self) -> Option<Token> {

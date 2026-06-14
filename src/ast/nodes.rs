@@ -1,4 +1,7 @@
-use crate::ast::{Pos, Token};
+use crate::{
+    ast::Token,
+    common::{Pos, Span},
+};
 
 pub type NodeId = usize;
 
@@ -31,6 +34,27 @@ pub trait Node {
     /// Unique id of the node. Is the offset of the node pos, which is
     /// guaranteed unique for all nodes in the same file.
     fn id(&self) -> NodeId;
+}
+
+impl<T: Node> Span for T {
+    fn pos(&self) -> &Pos {
+        Node::pos(self)
+    }
+    fn end(&self) -> &Pos {
+        Node::end(self)
+    }
+}
+
+impl<T: Node> Node for Box<T> {
+    fn pos(&self) -> &Pos {
+        Node::pos(self.as_ref())
+    }
+    fn end(&self) -> &Pos {
+        Node::end(self.as_ref())
+    }
+    fn id(&self) -> NodeId {
+        self.as_ref().id()
+    }
 }
 
 pub trait Visitable {
@@ -381,7 +405,7 @@ macro_rules! impl_node_enum {
             fn pos(&self) -> &Pos {
                 match self {
                     $(
-                        $enum_name::$variant(node) => node.pos(),
+                        $enum_name::$variant(node) => Node::pos(node),
                     )+
                 }
             }
@@ -389,7 +413,7 @@ macro_rules! impl_node_enum {
             fn end(&self) -> &Pos {
                 match self {
                     $(
-                        $enum_name::$variant(node) => node.end(),
+                        $enum_name::$variant(node) => Node::end(node),
                     )+
                 }
             }
@@ -425,24 +449,24 @@ impl Node for Expr {
     fn pos(&self) -> &Pos {
         match self {
             Expr::Literal(token) => &token.pos,
-            Expr::Call(node) => node.pos(),
+            Expr::Call(node) => Node::pos(node),
             Expr::Group(grp) => &grp.lparen.pos,
-            Expr::Member(node) => node.expr.pos(),
-            Expr::Binary(node) => node.pos(),
-            Expr::Unary(node) => node.pos(),
-            Expr::Cast(node) => node.pos(),
+            Expr::Member(node) => Node::pos(&*node.expr),
+            Expr::Binary(node) => Node::pos(node),
+            Expr::Unary(node) => Node::pos(node),
+            Expr::Cast(node) => Node::pos(node),
         }
     }
 
     fn end(&self) -> &Pos {
         match self {
             Expr::Literal(token) => &token.end_pos,
-            Expr::Call(call) => call.end(),
+            Expr::Call(call) => Node::end(call),
             Expr::Member(node) => &node.field.end_pos,
             Expr::Group(grp) => &grp.rparen.end_pos,
-            Expr::Binary(node) => node.end(),
-            Expr::Unary(node) => node.end(),
-            Expr::Cast(node) => node.end(),
+            Expr::Binary(node) => Node::end(node),
+            Expr::Unary(node) => Node::end(node),
+            Expr::Cast(node) => Node::end(node),
         }
     }
 
@@ -465,7 +489,7 @@ impl Node for ForNode {
     }
 
     fn end(&self) -> &Pos {
-        self.increment.end()
+        Node::end(&*self.increment)
     }
 
     fn id(&self) -> NodeId {
@@ -479,7 +503,7 @@ impl Node for WhileNode {
     }
 
     fn end(&self) -> &Pos {
-        self.expr.end()
+        Node::end(&self.expr)
     }
 
     fn id(&self) -> NodeId {
@@ -493,7 +517,7 @@ impl Node for IfNode {
     }
 
     fn end(&self) -> &Pos {
-        self.expr.end()
+        Node::end(&self.expr)
     }
 
     fn id(&self) -> NodeId {
@@ -507,7 +531,7 @@ impl Node for VarDeclNode {
     }
 
     fn end(&self) -> &Pos {
-        self.expr.end()
+        Node::end(&self.expr)
     }
 
     fn id(&self) -> NodeId {
@@ -517,11 +541,11 @@ impl Node for VarDeclNode {
 
 impl Node for VarAssignNode {
     fn pos(&self) -> &Pos {
-        self.lval.pos()
+        Node::pos(&self.lval)
     }
 
     fn end(&self) -> &Pos {
-        self.expr.end()
+        Node::end(&self.expr)
     }
 
     fn id(&self) -> NodeId {
@@ -535,7 +559,7 @@ impl Node for ReturnNode {
     }
 
     fn end(&self) -> &Pos {
-        self.expr.as_ref().map(|e| e.end()).unwrap_or(&self.kw.pos)
+        self.expr.as_ref().map(Node::end).unwrap_or(&self.kw.pos)
     }
 
     fn id(&self) -> NodeId {
@@ -559,7 +583,7 @@ impl Node for BlockNode {
 
 impl Node for CallExpr {
     fn pos(&self) -> &Pos {
-        self.callee.pos()
+        Node::pos(&*self.callee)
     }
 
     fn end(&self) -> &Pos {
@@ -601,7 +625,7 @@ impl Node for BreakNode {
 
 impl Node for MemberNode {
     fn pos(&self) -> &Pos {
-        self.expr.pos()
+        Node::pos(&*self.expr)
     }
 
     fn end(&self) -> &Pos {
@@ -619,7 +643,7 @@ impl Node for UnaryExpr {
     }
 
     fn end(&self) -> &Pos {
-        self.rhs.end()
+        Node::end(&*self.rhs)
     }
 
     fn id(&self) -> NodeId {
@@ -629,11 +653,11 @@ impl Node for UnaryExpr {
 
 impl Node for BinaryExpr {
     fn pos(&self) -> &Pos {
-        self.lhs.pos()
+        Node::pos(&*self.lhs)
     }
 
     fn end(&self) -> &Pos {
-        self.rhs.end()
+        Node::end(&*self.rhs)
     }
 
     fn id(&self) -> NodeId {
@@ -713,11 +737,11 @@ impl Node for TypeDeclNode {
 
 impl Node for CastExpr {
     fn pos(&self) -> &Pos {
-        self.expr.pos()
+        Node::pos(&*self.expr)
     }
 
     fn end(&self) -> &Pos {
-        self.ty.end()
+        Node::pos(&self.ty)
     }
 
     fn id(&self) -> NodeId {
@@ -727,11 +751,11 @@ impl Node for CastExpr {
 
 impl Node for OpAssignNode {
     fn pos(&self) -> &Pos {
-        self.lval.pos()
+        Node::pos(&self.lval)
     }
 
     fn end(&self) -> &Pos {
-        self.rval.end()
+        Node::end(&self.rval)
     }
 
     fn id(&self) -> NodeId {

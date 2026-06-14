@@ -1,7 +1,8 @@
 use std::fmt::Display;
 
 use crate::{
-    ast::{Ast, Source, SourceMap, Token},
+    ast::{Ast, Token},
+    common::{Source, SourceMap},
     config::Config,
     context::Context,
     error::Diagnostics,

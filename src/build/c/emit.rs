@@ -1,7 +1,7 @@
 use std::{collections::HashMap, mem};
 
 use crate::{
-    build::c::ast::{Ast, BinaryOp, Decl, Expr, Stmt, Type, UnaryOp},
+    build::c::nodes::{Ast, BinaryOp, Decl, Expr, Stmt, Type, UnaryOp},
     config::{Config, PathManager},
     ir::{self, ConstId, IRTypeId, IRTypeInterner, ParamId, Unit},
 };

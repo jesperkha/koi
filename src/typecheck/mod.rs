@@ -1,4 +1,5 @@
 mod file_check;
+mod helper;
 mod module_check;
 
 #[cfg(test)]

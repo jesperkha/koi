@@ -1,7 +1,7 @@
 use crate::{
+    common::{check_string, must},
     config::Config,
     context::Context,
-    util::{check_string, must},
 };
 
 fn assert_pass(src: &str) {
@@ -2221,18 +2221,12 @@ fn test_cast_string_to_int_error() {
 
 #[test]
 fn test_cast_bool_to_int_error() {
-    assert_error(
-        r#"func f(a bool) i32 { return a as i32 }"#,
-        "invalid cast",
-    );
+    assert_error(r#"func f(a bool) i32 { return a as i32 }"#, "invalid cast");
 }
 
 #[test]
 fn test_cast_int_to_bool_error() {
-    assert_error(
-        r#"func f(a i32) bool { return a as bool }"#,
-        "invalid cast",
-    );
+    assert_error(r#"func f(a i32) bool { return a as bool }"#, "invalid cast");
 }
 
 // Binary operator type compatibility

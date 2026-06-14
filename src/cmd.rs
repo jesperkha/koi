@@ -4,10 +4,10 @@ use std::{
 };
 
 use crate::{
+    common::{exec, write_file},
     config::{DEFAULT_KOI_TOML, DriverPhase, ProjectType, load_config_file},
     driver::compile,
     imports::dump_header_symbols,
-    util::{exec, write_file},
 };
 use clap::{CommandFactory, Parser, Subcommand};
 use tracing::info;

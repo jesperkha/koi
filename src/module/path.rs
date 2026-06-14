@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::{ast::ImportNode, util::FilePath};
+use crate::{ast::ImportNode, common::FilePath};
 
 /// Module path wraps a string module path (app.foo.bar) and provides methods
 /// to get the path itself or the module name (the last name in the path).

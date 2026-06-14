@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{ast::Pos, context::Context, module::ModulePath, types::TypeId};
+use crate::{common::Pos, context::Context, module::ModulePath, types::TypeId};
 
 pub type SymbolId = usize;
 
