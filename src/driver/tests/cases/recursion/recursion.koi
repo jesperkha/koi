@@ -1,0 +1,12 @@
+// Recursive function: sum_down(n) = n + (n-1) + ... + 0.
+// sum_down(5) = 5+4+3+2+1+0 = 15.
+func sum_down(n int) int {
+    if n == 0 {
+        return 0
+    }
+    return n + sum_down(n - 1)
+}
+
+func main() int {
+    return sum_down(5)
+}
