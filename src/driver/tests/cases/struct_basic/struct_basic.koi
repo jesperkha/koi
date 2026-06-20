@@ -1,0 +1,8 @@
+struct Foo {
+    n int
+}
+
+func main() int {
+    f := Foo{n: 42}
+    return f.n
+}
