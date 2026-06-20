@@ -1,0 +1,6 @@
+import lib.geomlib
+
+func main() int {
+    p := geomlib.Point{x: 10, y: 32}
+    return geomlib.sum(p)
+}

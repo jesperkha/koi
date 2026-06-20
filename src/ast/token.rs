@@ -114,6 +114,7 @@ pub enum TokenKind {
     Continue,
     Type,
     Unique,
+    Struct,
 
     // Math
     Plus,
@@ -180,6 +181,7 @@ static RESERVED: &[(&str, TokenKind)] = &[
     ("continue", TokenKind::Continue),
     ("type", TokenKind::Type),
     ("unique", TokenKind::Unique),
+    ("struct", TokenKind::Struct),
     // Math
     ("+", TokenKind::Plus),
     ("-", TokenKind::Minus),

@@ -1,8 +1,13 @@
 file
-    = { import }, { { modifier }, extern }, { { modifier }, func };
+    = { import }, { top_decl };
 
 import
     = "import", Ident, { ".", Ident }, [ "{", Ident, { ",", Ident }, "}" ];
+
+top_decl
+    = { modifier }, func
+    | { modifier }, extern
+    | struct_decl;
 
 modifier
     = "@", Ident, [ Ident ];
@@ -20,6 +25,12 @@ param_list
     = "(", [ param, { ",", param } ], ")";
 
 param
+    = Ident, type;
+
+struct_decl
+    = [ "pub" ], "struct", Ident, "{", { field_decl }, "}";
+
+field_decl
     = Ident, type;
 
 type
@@ -56,7 +67,7 @@ stmt_if
     = "if", expr, block, [ else_if ];
 
 else_if
-    = "else", if, 
+    = "else", if,
     | "else", block;
 
 stmt_while
@@ -73,7 +84,9 @@ expr
     | expr_unary
     | expr_binary
     | expr_call
-    | expr_member;
+    | expr_member
+    | expr_struct_lit
+    | expr_cast;
 
 expr_primary
     = Ident
@@ -121,3 +134,12 @@ arg_list
 
 expr_member
     = expr, ".", Ident;
+
+expr_struct_lit
+    = [ Ident, "." ], Ident, "{", [ field_init, { ",", field_init } ], "}";
+
+field_init
+    = Ident, ":", expr;
+
+expr_cast
+    = expr, "as", type;

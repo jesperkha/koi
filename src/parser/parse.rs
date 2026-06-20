@@ -6,8 +6,9 @@ use crate::{
     ast::{
         Ast, BinaryExpr, BlockNode, BreakNode, CallExpr, CastExpr, ContinueNode, Decl, ElseBlock,
         Expr, Field, File, FileSet, ForNode, FuncDeclNode, FuncNode, GroupExpr, IfNode, ImportNode,
-        MemberNode, Modifier, OpAssignNode, ReturnNode, Stmt, Token, TokenKind, TypeDeclNode,
-        TypeNode, UnaryExpr, VarAssignNode, VarDeclNode, WhileNode,
+        MemberNode, Modifier, OpAssignNode, ReturnNode, Stmt, StructDeclNode, StructExpr,
+        StructField, Token, TokenKind, TypeDeclNode, TypeNode, UnaryExpr, VarAssignNode,
+        VarDeclNode, WhileNode,
     },
     common::{SourceMap, Span},
     config::Config,
@@ -48,6 +49,9 @@ struct Parser<'a> {
     // Functions which parse statements should have a check at the top for
     // panicMode, and return early with an invalid statement if set.
     panic_mode: bool,
+    // Suppress struct literal `Ident{` parsing in if/while/for conditions
+    // where the `{` starts a block body instead.
+    no_struct_expr: bool,
 }
 
 impl<'a> Parser<'a> {
@@ -57,6 +61,7 @@ impl<'a> Parser<'a> {
             diag: Diagnostics::new(),
             pos: 0,
             panic_mode: false,
+            no_struct_expr: false,
             _config: config,
         }
     }
@@ -113,7 +118,10 @@ impl<'a> Parser<'a> {
     // Consume until next 'safe' token to recover. Sets panic_mode to false.
     fn recover_from_error(&mut self) {
         self.consume(); // consume at least first token in case it is the one causing the panic
-        while !self.eof() && !self.matches_any(&[TokenKind::Func, TokenKind::Extern]) {
+        self.no_struct_expr = false;
+        while !self.eof()
+            && !self.matches_any(&[TokenKind::Func, TokenKind::Extern, TokenKind::Struct])
+        {
             self.consume();
         }
 
@@ -254,6 +262,7 @@ impl<'a> Parser<'a> {
             TokenKind::Extern => self.parse_extern(false, modifiers),
             TokenKind::Type => self.parse_type_decl(false, false),
             TokenKind::Unique => self.parse_unique_type_decl(false),
+            TokenKind::Struct => self.parse_struct_decl(false),
             _ => Err(self.error_token("expected declaration")),
         }
     }
@@ -286,8 +295,93 @@ impl<'a> Parser<'a> {
             TokenKind::Extern => self.parse_extern(true, modifiers),
             TokenKind::Type => self.parse_type_decl(true, false),
             TokenKind::Unique => self.parse_unique_type_decl(true),
+            TokenKind::Struct => self.parse_struct_decl(true),
             _ => Err(self.error_token("illegal public declaration")),
         }
+    }
+
+    fn parse_struct_decl(&mut self, public: bool) -> Result<Decl, Report> {
+        let kw = self.expect(TokenKind::Struct)?;
+        let name = self.expect_identifier("struct name")?;
+        let lbrace = self.expect(TokenKind::LBrace)?;
+
+        let mut fields = Vec::new();
+
+        while self.matches(TokenKind::Newline) {
+            self.consume();
+        }
+
+        while !self.matches(TokenKind::RBrace) && !self.eof() {
+            let fname = self.expect_identifier("field name")?;
+            let ftype = self.parse_type()?;
+            fields.push(Field {
+                name: fname,
+                typ: ftype,
+            });
+
+            if self.matches(TokenKind::RBrace) {
+                break;
+            }
+            self.expect(TokenKind::Newline)?;
+            while self.matches(TokenKind::Newline) {
+                self.consume();
+            }
+        }
+
+        let rbrace = self.expect(TokenKind::RBrace)?;
+
+        Ok(Decl::Struct(Box::new(StructDeclNode {
+            public,
+            kw,
+            name,
+            lbrace,
+            fields,
+            rbrace,
+        })))
+    }
+
+    fn parse_struct_expr(&mut self, namespace: Option<Token>, name: Token) -> Result<Expr, Report> {
+        let lbrace = self.expect(TokenKind::LBrace)?;
+        let mut fields = Vec::new();
+
+        while self.matches(TokenKind::Newline) {
+            self.consume();
+        }
+
+        if !self.matches(TokenKind::RBrace) {
+            fields.push(self.parse_struct_field()?);
+
+            while self.matches(TokenKind::Comma) {
+                self.consume();
+                while self.matches(TokenKind::Newline) {
+                    self.consume();
+                }
+                fields.push(self.parse_struct_field()?);
+                while self.matches(TokenKind::Newline) {
+                    self.consume();
+                }
+            }
+
+            while self.matches(TokenKind::Newline) {
+                self.consume();
+            }
+        }
+
+        let rbrace = self.expect(TokenKind::RBrace)?;
+        Ok(Expr::Struct(StructExpr {
+            namespace,
+            name,
+            lbrace,
+            fields,
+            rbrace,
+        }))
+    }
+
+    fn parse_struct_field(&mut self) -> Result<StructField, Report> {
+        let name = self.expect_identifier("field name")?;
+        let colon = self.expect(TokenKind::Colon)?;
+        let value = self.parse_expr()?;
+        Ok(StructField { name, colon, value })
     }
 
     fn parse_extern(&mut self, public: bool, modifiers: Vec<Modifier>) -> Result<Decl, Report> {
@@ -471,7 +565,9 @@ impl<'a> Parser<'a> {
         let kw = self.expect(TokenKind::For)?;
         let initializer = Box::new(self.parse_stmt()?);
         self.expect(TokenKind::Semi)?;
+        self.no_struct_expr = true;
         let condition = Box::new(self.parse_expr()?);
+        self.no_struct_expr = false;
         self.expect(TokenKind::Semi)?;
         let increment = Box::new(self.parse_stmt()?);
         let block = self.parse_block()?;
@@ -487,14 +583,18 @@ impl<'a> Parser<'a> {
 
     fn parse_while(&mut self) -> Result<WhileNode, Report> {
         let kw = self.expect(TokenKind::While)?;
+        self.no_struct_expr = true;
         let expr = self.parse_expr()?;
+        self.no_struct_expr = false;
         let block = self.parse_block()?;
         Ok(WhileNode { kw, expr, block })
     }
 
     fn parse_if(&mut self) -> Result<IfNode, Report> {
         let kw = self.expect(TokenKind::If)?;
+        self.no_struct_expr = true;
         let expr = self.parse_expr()?;
+        self.no_struct_expr = false;
         let block = self.parse_block()?;
 
         let elseif = if self.matches(TokenKind::Else) {
@@ -649,6 +749,17 @@ impl<'a> Parser<'a> {
     fn parse_call_and_member(&mut self) -> Result<Expr, Report> {
         let mut expr = self.parse_group()?;
 
+        // Struct literal: Ident immediately followed by `{` (no newline between them).
+        // Suppressed when parsing if/while/for conditions where `{` opens a block.
+        if !self.no_struct_expr
+            && let Expr::Literal(ref tok) = expr
+            && matches!(tok.kind, TokenKind::IdentLit(_))
+            && self.matches(TokenKind::LBrace)
+        {
+            let name = tok.clone();
+            expr = self.parse_struct_expr(None, name)?;
+        }
+
         loop {
             // Call expression
             if self.matches(TokenKind::LParen) {
@@ -676,6 +787,18 @@ impl<'a> Parser<'a> {
             } else if self.matches(TokenKind::Dot) {
                 let dot = self.must_consume()?;
                 let field = self.expect_identifier("field name")?;
+
+                // Namespaced struct literal: ns.Type{...}
+                if !self.no_struct_expr
+                    && self.matches(TokenKind::LBrace)
+                    && matches!(expr, Expr::Literal(ref t) if matches!(t.kind, TokenKind::IdentLit(_)))
+                {
+                    let Expr::Literal(ns_tok) = expr else {
+                        unreachable!()
+                    };
+                    expr = self.parse_struct_expr(Some(ns_tok), field)?;
+                    continue;
+                }
 
                 expr = Expr::Member(MemberNode {
                     expr: Box::new(expr),

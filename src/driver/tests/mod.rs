@@ -606,3 +606,38 @@ fn test_return_in_for() {
     // Returns 5 when i==5; the fallback return 99 is never reached.
     run_case_with_status("return_in_for", 5);
 }
+
+// --- structs ---
+// These tests exercise the full pipeline (parser + type checker + IR + C codegen).
+// Note: the x86 backend still does not implement structs yet.
+#[test]
+fn test_struct_basic() {
+    // Create a struct instance and return one of its fields as the exit code.
+    run_case_c_only("struct_basic", 42);
+}
+
+#[test]
+fn test_struct_field_access() {
+    // Access multiple fields and combine them arithmetically.
+    // Point{x: 3, y: 5} → x + y = 8.
+    run_case_c_only("struct_field_access", 8);
+}
+
+#[test]
+fn test_struct_same_type_compat() {
+    // Two structs with the same field layout are the same type.
+    // Returns the accessed field value (7).
+    run_case_c_only("struct_same_type_compat", 7);
+}
+
+#[test]
+fn test_struct_as_param() {
+    // Struct passed to a function; field value used as the exit code (3).
+    run_case_c_only("struct_as_param", 3);
+}
+
+#[test]
+fn test_struct_nested() {
+    // A struct whose field type is another struct; access o.inner.n = 42.
+    run_case_c_only("struct_nested", 42);
+}

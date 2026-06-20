@@ -1,5 +1,7 @@
 use tracing::info;
 
+use std::collections::HashMap;
+
 use crate::{
     ast::{self, Ast, Token, TokenKind},
     common::{Pos, Span, VarTable},
@@ -104,7 +106,8 @@ impl<'a> FileChecker<'a> {
             match d {
                 ast::Decl::Func(node) => decls.push(self.emit_func(*node)),
                 ast::Decl::Extern(node) => decls.push(self.emit_extern(*node)),
-                ast::Decl::Type(..) => {} // Declared in global pass
+                ast::Decl::Type(..) => {}   // Declared in global pass
+                ast::Decl::Struct(..) => {} // Declared in global pass
             };
         }
         decls
@@ -147,6 +150,7 @@ impl<'a> FileChecker<'a> {
             ast::Expr::Binary(node) => self.emit_binary(node),
             ast::Expr::Unary(node) => self.emit_unary(node),
             ast::Expr::Cast(node) => self.emit_cast(node),
+            ast::Expr::Struct(node) => self.emit_struct_expr(node),
         }
     }
 
@@ -320,7 +324,7 @@ impl<'a> FileChecker<'a> {
         let lval = self.emit_expr(node.lval)?;
         let rval = self.emit_expr(node.rval)?;
 
-        if lval.type_id() != rval.type_id() {
+        if !self.ctx.types.is_compatible(lval.type_id(), rval.type_id()) {
             return Err(error_span(
                 &format!(
                     "mismatched types in assignment. expected '{}', got '{}'",
@@ -420,7 +424,7 @@ impl<'a> FileChecker<'a> {
         let lval = self.emit_expr(node.lval)?;
         let rval = self.emit_expr(node.expr)?;
 
-        if lval.type_id() != rval.type_id() {
+        if !self.ctx.types.is_compatible(lval.type_id(), rval.type_id()) {
             return Err(error_span(
                 &format!(
                     "mismatched types in assignment. expected '{}', got '{}'",
@@ -485,7 +489,11 @@ impl<'a> FileChecker<'a> {
         if let Some(expr) = node.expr {
             let typed_expr = self.emit_expr(expr)?;
 
-            return if typed_expr.type_id() != self.rtype {
+            return if !self
+                .ctx
+                .types
+                .is_compatible(typed_expr.type_id(), self.rtype)
+            {
                 Err(self.error_expected_got(
                     "incorrect return type",
                     self.rtype,
@@ -732,7 +740,7 @@ impl<'a> FileChecker<'a> {
 
             // Check if each argument type matches the param type
             let (arg_id, param_id) = (typed_arg.type_id(), params[i]);
-            if arg_id != param_id {
+            if !self.ctx.types.is_compatible(arg_id, param_id) {
                 let msg = format!(
                     "mismatched types in function call. expected '{}', got '{}'",
                     self.ctx.types.type_to_string(param_id),
@@ -781,6 +789,23 @@ impl<'a> FileChecker<'a> {
         // Otherwise this is a normal member getter and we treat lval as
         // a normal expression.
         let expr = self.emit_expr(*node.expr)?;
+        let resolved = self.ctx.types.resolve(expr.type_id());
+
+        if let TypeKind::Struct(s) = &self.ctx.types.lookup(resolved).kind {
+            let s = s.clone();
+            if let Some((_, field_ty)) = s.fields.iter().find(|(n, _)| n == &field) {
+                return Ok(types::Expr::Member(types::MemberNode {
+                    ty: *field_ty,
+                    meta,
+                    expr: Box::new(expr),
+                    field,
+                }));
+            }
+            return Err(error_span(
+                &format!("struct '{}' has no field '{}'", s.name, field),
+                &node.field,
+            ));
+        }
 
         Err(error_span(
             &format!(
@@ -789,6 +814,92 @@ impl<'a> FileChecker<'a> {
             ),
             &expr,
         ))
+    }
+
+    fn emit_struct_expr(&mut self, node: ast::StructExpr) -> Result<types::Expr, Report> {
+        let meta = ast_node_to_meta(&node);
+
+        let type_id = if let Some(ref ns_tok) = node.namespace {
+            let ns = self
+                .get_namespace(&ns_tok.to_string())
+                .ok_or_else(|| error_span("not an imported namespace", ns_tok))?;
+            let sym_id = ns.get(&node.name.to_string()).ok_or_else(|| {
+                error_span(
+                    &format!("namespace '{}' has no member '{}'", ns_tok, node.name),
+                    &node.name,
+                )
+            })?;
+            self.ctx.symbols.get(sym_id).ty
+        } else {
+            self.get_symbol_type_id(&node.name.to_string())
+                .ok_or_else(|| error_span("not a type", &node.name))?
+        };
+        let type_id = self.ctx.types.resolve(type_id);
+
+        let TypeKind::Struct(struct_type) = &self.ctx.types.lookup(type_id).kind else {
+            return Err(error_span("not a type", &node.name));
+        };
+        let struct_type = struct_type.clone();
+
+        // Type-check each provided field value
+        let mut provided: HashMap<String, types::Expr> = HashMap::new();
+        for field in node.fields {
+            let fname = field.name.to_string();
+            let Some((_, expected_ty)) = struct_type.fields.iter().find(|(n, _)| n == &fname)
+            else {
+                return Err(error_span(
+                    &format!("struct '{}' has no field '{}'", struct_type.name, fname),
+                    &field.name,
+                ));
+            };
+            let expected_ty = *expected_ty;
+            let typed_val = self.emit_expr(field.value)?;
+            if !self
+                .ctx
+                .types
+                .is_compatible(typed_val.type_id(), expected_ty)
+            {
+                return Err(error_span(
+                    &format!(
+                        "field '{}' is type '{}', got '{}'",
+                        fname,
+                        self.ctx.types.type_to_string(expected_ty),
+                        self.ctx.types.type_to_string(typed_val.type_id()),
+                    ),
+                    &typed_val,
+                ));
+            }
+            provided.insert(fname, typed_val);
+        }
+
+        // Collect missing fields in declaration order
+        let missing: Vec<&str> = struct_type
+            .fields
+            .iter()
+            .filter(|(n, _)| !provided.contains_key(n.as_str()))
+            .map(|(n, _)| n.as_str())
+            .collect();
+        if !missing.is_empty() {
+            let msg = if missing.len() == 1 {
+                format!("missing struct field '{}'", missing[0])
+            } else {
+                format!("missing struct fields '{}'", missing.join("', '"))
+            };
+            return Err(error_span(&msg, &node.name));
+        }
+
+        // Build fields in declaration order
+        let fields = struct_type
+            .fields
+            .iter()
+            .map(|(n, _)| (n.clone(), provided.remove(n.as_str()).unwrap()))
+            .collect();
+
+        Ok(types::Expr::StructLit(types::StructLitNode {
+            ty: type_id,
+            meta,
+            fields,
+        }))
     }
 
     // ----------------------- Utility methods ----------------------- //
@@ -941,7 +1052,8 @@ impl<'a> FileChecker<'a> {
             | ast::Expr::Call(_)
             | ast::Expr::Binary(_)
             | ast::Expr::Unary(_)
-            | ast::Expr::Cast(_) => true,
+            | ast::Expr::Cast(_)
+            | ast::Expr::Struct(_) => true,
         }
     }
 

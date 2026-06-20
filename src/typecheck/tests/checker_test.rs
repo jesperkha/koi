@@ -2314,3 +2314,356 @@ fn test_op_assign_numeric_pass() {
         "#,
     );
 }
+
+// --- Struct declarations ---
+
+#[test]
+fn test_struct_decl_pass() {
+    assert_pass(
+        r#"
+        struct Person {
+            name string
+            age int
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_decl_as_return_type_pass() {
+    assert_pass(
+        r#"
+        struct Point {
+            x int
+        }
+        func make_point(n int) Point {
+            return Point{x: n}
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_decl_as_param_type_pass() {
+    assert_pass(
+        r#"
+        struct Point {
+            x int
+        }
+        func get_x(p Point) int {
+            return p.x
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_decl_duplicate_error() {
+    assert_error(
+        r#"
+        struct Foo {
+            x int
+        }
+        struct Foo {
+            y int
+        }
+    "#,
+        "already declared",
+    );
+}
+
+// --- Struct type compatibility ---
+
+#[test]
+fn test_struct_same_fields_same_type_pass() {
+    // Two structs with identical field names and types in the same order are
+    // the same type — returning Bar where Foo is expected is valid.
+    assert_pass(
+        r#"
+        struct Foo {
+            a int
+        }
+        struct Bar {
+            a int
+        }
+        func get_foo() Foo {
+            return Bar{a: 1}
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_different_field_names_different_type_error() {
+    assert_error(
+        r#"
+        struct Foo {
+            a int
+        }
+        struct Bar {
+            b int
+        }
+        func get_foo() Foo {
+            return Bar{b: 1}
+        }
+    "#,
+        "incorrect return type: expected 'Foo', got 'Bar'",
+    );
+}
+
+#[test]
+fn test_struct_different_field_types_different_type_error() {
+    assert_error(
+        r#"
+        struct Foo {
+            a int
+        }
+        struct Bar {
+            a bool
+        }
+        func get_foo() Foo {
+            return Bar{a: true}
+        }
+    "#,
+        "incorrect return type: expected 'Foo', got 'Bar'",
+    );
+}
+
+#[test]
+fn test_struct_different_field_order_different_type_error() {
+    // Field order matters for type identity
+    assert_error(
+        r#"
+        struct Foo {
+            a int
+            b bool
+        }
+        struct Bar {
+            b bool
+            a int
+        }
+        func get_foo() Foo {
+            return Bar{b: true, a: 1}
+        }
+    "#,
+        "incorrect return type: expected 'Foo', got 'Bar'",
+    );
+}
+
+#[test]
+fn test_struct_same_fields_as_param_pass() {
+    assert_pass(
+        r#"
+        struct Foo {
+            a int
+        }
+        struct Bar {
+            a int
+        }
+        func consume(f Foo) {}
+        func f(b Bar) {
+            consume(b)
+        }
+    "#,
+    );
+}
+
+// --- Struct instance creation ---
+
+#[test]
+fn test_struct_instance_all_fields_pass() {
+    assert_pass(
+        r#"
+        struct Person {
+            name string
+            age int
+        }
+        func f() {
+            p := Person{name: "John", age: 30}
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_instance_missing_one_field_error() {
+    assert_error(
+        r#"
+        struct Person {
+            name string
+            age int
+        }
+        func f() {
+            p := Person{name: "Andy"}
+        }
+    "#,
+        "missing struct field 'age'",
+    );
+}
+
+#[test]
+fn test_struct_instance_all_fields_missing_error() {
+    assert_error(
+        r#"
+        struct Person {
+            name string
+            age int
+        }
+        func f() {
+            p := Person{}
+        }
+    "#,
+        "missing struct fields 'name', 'age'",
+    );
+}
+
+#[test]
+fn test_struct_instance_wrong_field_type_error() {
+    assert_error(
+        r#"
+        struct Person {
+            name string
+            age int
+        }
+        func f() {
+            p := Person{name: 123, age: 30}
+        }
+    "#,
+        "field 'name' is type 'string', got 'i32'",
+    );
+}
+
+#[test]
+fn test_struct_instance_unknown_type_error() {
+    assert_error(
+        r#"
+        func f() {
+            p := Unknown{x: 1}
+        }
+    "#,
+        "not a type",
+    );
+}
+
+// --- Field access ---
+
+#[test]
+fn test_struct_field_access_pass() {
+    assert_pass(
+        r#"
+        struct Point {
+            x int
+        }
+        func f(p Point) int {
+            return p.x
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_field_access_bool_field_pass() {
+    assert_pass(
+        r#"
+        struct Flags {
+            active bool
+            enabled bool
+        }
+        func is_active(f Flags) bool {
+            return f.active
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_field_access_wrong_return_type_error() {
+    assert_error(
+        r#"
+        struct Point {
+            x int
+        }
+        func f(p Point) bool {
+            return p.x
+        }
+    "#,
+        "incorrect return type: expected 'bool', got 'i32'",
+    );
+}
+
+#[test]
+fn test_struct_field_unknown_error() {
+    assert_error(
+        r#"
+        struct Person {
+            name string
+        }
+        func f(p Person) {
+            p.foo
+        }
+    "#,
+        "struct 'Person' has no field 'foo'",
+    );
+}
+
+#[test]
+fn test_struct_field_access_in_expression_pass() {
+    assert_pass(
+        r#"
+        struct Counter {
+            n int
+        }
+        func f(c Counter) int {
+            return c.n + 1
+        }
+    "#,
+    );
+}
+
+// --- Infinite struct size ---
+
+#[test]
+fn test_struct_infinite_size_direct_error() {
+    assert_error(
+        r#"
+        struct A {
+            a A
+        }
+    "#,
+        "infinite struct size",
+    );
+}
+
+#[test]
+fn test_struct_infinite_size_indirect_error() {
+    assert_error(
+        r#"
+        struct A {
+            b B
+        }
+        struct B {
+            a A
+        }
+    "#,
+        "infinite struct size",
+    );
+}
+
+#[test]
+fn test_struct_forward_reference_field_access_pass() {
+    // Outer is declared before Inner, but Inner is used as a field type.
+    // Forward references must resolve to the finalized Inner type.
+    assert_pass(
+        r#"
+        struct Outer {
+            inner Inner
+        }
+        struct Inner {
+            n int
+        }
+        func f(o Outer) int {
+            return o.inner.n
+        }
+    "#,
+    );
+}

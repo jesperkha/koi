@@ -1,0 +1,17 @@
+struct Foo {
+    a int
+}
+
+struct Bar {
+    a int
+}
+
+func identity(f Foo) Foo {
+    return f
+}
+
+func main() int {
+    b := Bar{a: 7}
+    f := identity(b)
+    return f.a
+}

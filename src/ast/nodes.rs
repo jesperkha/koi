@@ -67,6 +67,7 @@ pub trait Visitor<R> {
     fn visit_func(&mut self, node: &FuncNode) -> R;
     fn visit_extern(&mut self, node: &FuncDeclNode) -> R;
     fn visit_type_decl(&mut self, node: &TypeDeclNode) -> R;
+    fn visit_struct_decl(&mut self, node: &StructDeclNode) -> R;
     fn visit_block(&mut self, node: &BlockNode) -> R;
     fn visit_return(&mut self, node: &ReturnNode) -> R;
     fn visit_type(&mut self, node: &TypeNode) -> R;
@@ -87,6 +88,7 @@ pub trait Visitor<R> {
     fn visit_binary(&mut self, node: &BinaryExpr) -> R;
     fn visit_unary(&mut self, node: &UnaryExpr) -> R;
     fn visit_cast(&mut self, node: &CastExpr) -> R;
+    fn visit_struct_expr(&mut self, node: &StructExpr) -> R;
 }
 
 /// Declarations are not considered statements for linting purposes.
@@ -98,6 +100,7 @@ pub enum Decl {
     Func(Box<FuncNode>),
     Extern(Box<FuncDeclNode>),
     Type(Box<TypeDeclNode>),
+    Struct(Box<StructDeclNode>),
 }
 
 /// Statements are found inside blocks. They have side effects and do
@@ -128,6 +131,7 @@ pub enum Expr {
     Binary(BinaryExpr),
     Unary(UnaryExpr),
     Cast(CastExpr),
+    Struct(StructExpr),
 }
 
 /// A TypeNode is the AST representation of a type, not the semantic meaning.
@@ -328,12 +332,39 @@ pub struct Field {
     pub typ: TypeNode,
 }
 
+#[derive(Debug, Clone)]
+pub struct StructDeclNode {
+    pub public: bool,
+    pub kw: Token,
+    pub name: Token,
+    pub lbrace: Token,
+    pub fields: Vec<Field>,
+    pub rbrace: Token,
+}
+
+#[derive(Debug, Clone)]
+pub struct StructField {
+    pub name: Token,
+    pub colon: Token,
+    pub value: Expr,
+}
+
+#[derive(Debug, Clone)]
+pub struct StructExpr {
+    pub namespace: Option<Token>,
+    pub name: Token,
+    pub lbrace: Token,
+    pub fields: Vec<StructField>,
+    pub rbrace: Token,
+}
+
 impl Visitable for Decl {
     fn accept<R>(&self, visitor: &mut dyn Visitor<R>) -> R {
         match self {
             Decl::Func(node) => visitor.visit_func(node),
             Decl::Extern(node) => visitor.visit_extern(node),
             Decl::Type(node) => visitor.visit_type_decl(node),
+            Decl::Struct(node) => visitor.visit_struct_decl(node),
         }
     }
 }
@@ -366,6 +397,7 @@ impl Visitable for Expr {
             Expr::Binary(node) => visitor.visit_binary(node),
             Expr::Unary(node) => visitor.visit_unary(node),
             Expr::Cast(node) => visitor.visit_cast(node),
+            Expr::Struct(node) => visitor.visit_struct_expr(node),
         }
     }
 }
@@ -429,7 +461,12 @@ macro_rules! impl_node_enum {
     };
 }
 
-impl_node_enum!(Decl { Func, Extern, Type });
+impl_node_enum!(Decl {
+    Func,
+    Extern,
+    Type,
+    Struct
+});
 
 impl_node_enum!(Stmt {
     ExprStmt,
@@ -455,6 +492,7 @@ impl Node for Expr {
             Expr::Binary(node) => Node::pos(node),
             Expr::Unary(node) => Node::pos(node),
             Expr::Cast(node) => Node::pos(node),
+            Expr::Struct(node) => Node::pos(node),
         }
     }
 
@@ -467,6 +505,7 @@ impl Node for Expr {
             Expr::Binary(node) => Node::end(node),
             Expr::Unary(node) => Node::end(node),
             Expr::Cast(node) => Node::end(node),
+            Expr::Struct(node) => Node::end(node),
         }
     }
 
@@ -479,6 +518,7 @@ impl Node for Expr {
             Expr::Binary(node) => node.id(),
             Expr::Unary(node) => node.id(),
             Expr::Cast(node) => node.id(),
+            Expr::Struct(node) => node.id(),
         }
     }
 }
@@ -760,5 +800,47 @@ impl Node for OpAssignNode {
 
     fn id(&self) -> NodeId {
         self.op.id
+    }
+}
+
+impl Node for StructDeclNode {
+    fn pos(&self) -> &Pos {
+        &self.name.pos
+    }
+
+    fn end(&self) -> &Pos {
+        &self.rbrace.end_pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.name.id
+    }
+}
+
+impl Node for StructExpr {
+    fn pos(&self) -> &Pos {
+        self.namespace.as_ref().map_or(&self.name.pos, |ns| &ns.pos)
+    }
+
+    fn end(&self) -> &Pos {
+        &self.rbrace.end_pos
+    }
+
+    fn id(&self) -> NodeId {
+        self.name.id
+    }
+}
+
+impl Node for StructField {
+    fn pos(&self) -> &Pos {
+        &self.name.pos
+    }
+
+    fn end(&self) -> &Pos {
+        Node::end(&self.value)
+    }
+
+    fn id(&self) -> NodeId {
+        self.name.id
     }
 }

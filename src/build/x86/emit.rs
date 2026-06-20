@@ -556,6 +556,8 @@ impl<'a> FunctionAssembler<'a> {
 
             RValue::Void => todo!(),
             RValue::Function(_) => todo!(),
+            RValue::StructLit(_, _) => todo!("x86 struct literal not implemented"),
+            RValue::FieldAccess(_, _) => todo!("x86 struct field access not implemented"),
         }
     }
 
@@ -665,6 +667,7 @@ impl RegAllocator {
                 Primitive::Void => panic!("void type not allowed"),
             },
             IRType::Function(..) => todo!(),
+            IRType::Struct(_, _) => todo!("x86 struct type not implemented"),
         }
         .to_sized(type_size(unit, ty))
     }

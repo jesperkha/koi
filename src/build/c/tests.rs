@@ -944,3 +944,138 @@ void f(int32_t t0) {
         "#,
     );
 }
+
+// --- Struct expressions ---
+
+#[test]
+fn test_struct_basic() {
+    compare(
+        r#"
+struct Foo {
+    n int
+}
+func main() int {
+    f := Foo{n: 42}
+    return f.n
+}
+        "#,
+        r#"
+#include "include/koi.h"
+
+struct _koi_s_0 { int32_t n; };
+
+typedef struct _koi_s_0 Foo;
+
+int32_t main() {
+    Foo t0 = (Foo){.n = 42};
+    return t0.n;
+}
+        "#,
+    );
+}
+
+#[test]
+fn test_struct_field_access() {
+    compare(
+        r#"
+struct Point {
+    x int
+    y int
+}
+func main() int {
+    p := Point{x: 3, y: 5}
+    return p.x + p.y
+}
+        "#,
+        r#"
+#include "include/koi.h"
+
+struct _koi_s_0 { int32_t x; int32_t y; };
+
+typedef struct _koi_s_0 Point;
+
+int32_t main() {
+    Point t0 = (Point){.x = 3, .y = 5};
+    int32_t t1 = t0.x + t0.y;
+    return t1;
+}
+        "#,
+    );
+}
+
+#[test]
+fn test_struct_same_type_compat() {
+    compare(
+        r#"
+struct Foo {
+    a int
+}
+struct Bar {
+    a int
+}
+func identity(f Foo) Foo {
+    return f
+}
+func main() int {
+    b := Bar{a: 7}
+    f := identity(b)
+    return f.a
+}
+        "#,
+        r#"
+#include "include/koi.h"
+
+struct _koi_s_0 { int32_t a; };
+
+typedef struct _koi_s_0 Foo;
+
+typedef struct _koi_s_0 Bar;
+
+Foo identity(Foo t0) {
+    return t0;
+}
+
+int32_t main() {
+    Bar t0 = (Bar){.a = 7};
+    Foo t1 = identity(t0);
+    Foo t2 = t1;
+    return t2.a;
+}
+        "#,
+    );
+}
+
+#[test]
+fn test_struct_as_param() {
+    compare(
+        r#"
+struct Point {
+    x int
+}
+func get_x(p Point) int {
+    return p.x
+}
+func main() int {
+    p := Point{x: 3}
+    return get_x(p)
+}
+        "#,
+        r#"
+#include "include/koi.h"
+
+struct _koi_s_0 { int32_t x; };
+
+typedef struct _koi_s_0 Point;
+
+int32_t get_x(Point t0) {
+    return t0.x;
+}
+
+int32_t main() {
+    Point t0 = (Point){.x = 3};
+    int32_t t1 = get_x(t0);
+    return t1;
+}
+        "#,
+    );
+}

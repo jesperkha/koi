@@ -1,0 +1,12 @@
+struct Point {
+    x int
+}
+
+func get_x(p Point) int {
+    return p.x
+}
+
+func main() int {
+    p := Point{x: 3}
+    return get_x(p)
+}

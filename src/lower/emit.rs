@@ -441,11 +441,31 @@ impl<'a> FileEmitter<'a> {
             Expr::Literal(node) => self.lit_to_rval(node),
             Expr::Call(node) => self.call_to_rval(ins, node),
             Expr::NamespaceMember(node) => self.namespace_to_rval(node),
-            Expr::Member(_) => todo!(),
+            Expr::Member(node) => self.member_to_rval(ins, node),
             Expr::Binary(node) => self.binary_to_rval(ins, node),
             Expr::Unary(node) => self.unary_to_rval(ins, node),
             Expr::Cast(node) => self.cast_to_rval(ins, node),
+            Expr::StructLit(node) => self.struct_lit_to_rval(ins, node),
         }
+    }
+
+    fn struct_lit_to_rval(
+        &mut self,
+        ins: &mut Vec<Ins>,
+        node: &types::StructLitNode,
+    ) -> Res<RValue> {
+        let ty = self.types.to_ir(self.ctx, node.ty);
+        let fields = node
+            .fields
+            .iter()
+            .map(|(name, expr)| Ok((name.clone(), self.expr_to_rval(ins, expr)?)))
+            .collect::<Res<Vec<_>>>()?;
+        Ok(RValue::StructLit(ty, fields))
+    }
+
+    fn member_to_rval(&mut self, ins: &mut Vec<Ins>, node: &types::MemberNode) -> Res<RValue> {
+        let inner = self.expr_to_rval(ins, &node.expr)?;
+        Ok(RValue::FieldAccess(Box::new(inner), node.field.clone()))
     }
 
     fn cast_to_rval(&mut self, ins: &mut Vec<Ins>, node: &types::CastNode) -> Res<RValue> {

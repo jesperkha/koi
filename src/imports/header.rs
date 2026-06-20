@@ -12,7 +12,7 @@ use crate::{
         ImportPath, Module, ModuleId, ModuleKind, ModulePath, ModuleSymbol, ModuleSymbolKind,
         SymbolKind, SymbolOrigin,
     },
-    types::{PrimitiveType, TypeId, TypeKind},
+    types::{PrimitiveType, StructType, TypeId, TypeKind},
 };
 
 /// Create a header file from a module's exported symbols and types.
@@ -172,6 +172,7 @@ enum HeaderTypeKind {
     Alias(Box<HeaderTypeKind>),
     Unique(String, Box<HeaderTypeKind>),
     Function(Vec<HeaderTypeKind>, Box<HeaderTypeKind>),
+    Struct(String, Vec<(String, HeaderTypeKind)>),
 }
 
 /// Convert real type kind into header type kind.
@@ -191,6 +192,18 @@ fn real_to_header(ctx: &Context, kind: &TypeKind) -> HeaderTypeKind {
             let ret = boxed_kind(ctx, func.ret);
             HeaderTypeKind::Function(params, ret)
         }
+        TypeKind::Struct(s) => HeaderTypeKind::Struct(
+            s.name.clone(),
+            s.fields
+                .iter()
+                .map(|(name, id)| {
+                    (
+                        name.clone(),
+                        real_to_header(ctx, &ctx.types.lookup(*id).kind),
+                    )
+                })
+                .collect(),
+        ),
     }
 }
 
@@ -214,6 +227,16 @@ fn header_to_real(ctx: &mut Context, kind: &HeaderTypeKind) -> TypeId {
             TypeKind::Function(crate::types::FunctionType {
                 params: param_ids,
                 ret: ret_id,
+            })
+        }
+        HeaderTypeKind::Struct(name, fields) => {
+            let field_ids = fields
+                .iter()
+                .map(|(fname, fkind)| (fname.clone(), header_to_real(ctx, fkind)))
+                .collect();
+            TypeKind::Struct(StructType {
+                name: name.clone(),
+                fields: field_ids,
             })
         }
     };

@@ -73,6 +73,7 @@ pub enum Expr {
     Binary(BinaryNode),
     Unary(UnaryNode),
     Cast(CastNode),
+    StructLit(StructLitNode),
 }
 
 impl Expr {
@@ -92,6 +93,12 @@ pub struct CastNode {
     pub expr: Box<Expr>,
     pub ty: TypeId,
     pub cast_kind: CastKind,
+}
+
+pub struct StructLitNode {
+    pub ty: TypeId,
+    pub meta: NodeMeta,
+    pub fields: Vec<(String, Expr)>,
 }
 
 pub struct BreakNode {
@@ -357,6 +364,7 @@ impl_node_for_enum!(Expr {
         Binary,
         Unary,
         Cast,
+        StructLit,
     ],
     delegate => []
 });
@@ -397,6 +405,7 @@ impl_typed_node_enum!(Expr {
     Unary,
     Binary,
     Cast,
+    StructLit,
 });
 
 /// Implement types::TypedNode trait for variants with no type.
@@ -441,6 +450,7 @@ impl_typed_node!(
     BinaryNode,
     CastNode,
     OpAssignNode,
+    StructLitNode,
 );
 
 impl From<TokenKind> for BinaryOp {

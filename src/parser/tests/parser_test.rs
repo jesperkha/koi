@@ -581,71 +581,63 @@ fn test_only_newlines_is_ok() {
 
 #[test]
 fn test_recovery_reports_errors_but_continues() {
-    let src = r#"
+    expect_error(
+        r#"
         func bad() {
             .
         }
         func good() {
         }
-    "#;
-    match parse_string(src) {
-        Ok(_) => panic!("expected parse errors"),
-        Err(errs) => assert!(errs.len() >= 1),
-    }
+    "#,
+        "expected expression",
+    );
 }
 
 #[test]
 fn test_param_list_missing_comma_reports_error() {
-    let src = r#"
+    expect_error(
+        r#"
         func bad(a int b int) {}
-    "#;
-    match parse_string(src) {
-        Ok(_) => panic!("expected parse errors"),
-        Err(errs) => assert!(errs.len() >= 1),
-    }
+    "#,
+        "expected ,",
+    );
 }
 
 #[test]
 fn test_unclosed_group_reports_error() {
-    let src = r#"
+    expect_error(
+        r#"
         func f() {
             (1
         }
-    "#;
-    match parse_string(src) {
-        Ok(_) => panic!("expected parse errors"),
-        Err(errs) => assert!(errs.len() >= 1),
-    }
+    "#,
+        "expected )",
+    );
 }
 
 #[test]
 fn test_pub_alone_reports_error_and_recovers() {
-    let src = r#"
+    expect_error(
+        r#"
         pub
 
         func good() {}
-    "#;
-    match parse_string(src) {
-        Ok(_) => panic!("expected parse errors"),
-        Err(errs) => {
-            // Should report at least one error but still attempt recovery
-            assert!(errs.len() >= 1);
-        }
-    }
+    "#,
+        "illegal public declaration",
+    );
 }
 
 #[test]
 fn test_malformed_import_reports_error() {
-    let src = r#"
+    expect_error(
+        r#"
         import foo {
             , bar
         }
         func good() {}
-    "#;
-    match parse_string(src) {
-        Ok(_) => panic!("expected parse errors"),
-        Err(errs) => assert!(errs.len() >= 1),
-    }
+    "#,
+        "expected import item",
+    );
 }
 
 #[test]
@@ -1309,5 +1301,272 @@ fn test_cast_missing_type_error() {
         }
     "#,
         "invalid type",
+    );
+}
+
+// --- Struct declarations ---
+
+#[test]
+fn test_struct_decl_basic() {
+    assert_pass(
+        r#"
+        struct Person {
+            name string
+            age int
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_decl_single_field() {
+    assert_pass(
+        r#"
+        struct Point {
+            x int
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_decl_inline() {
+    assert_pass(r#"struct Foo { bar int }"#);
+}
+
+#[test]
+fn test_struct_decl_pub() {
+    assert_pass(
+        r#"
+        pub struct Person {
+            name string
+            age int
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_decl_multiple_fields() {
+    assert_pass(
+        r#"
+        struct Vector {
+            x float
+            y float
+            z float
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_decl_error_missing_name() {
+    expect_error(
+        r#"
+        struct {
+            x int
+        }
+    "#,
+        "expected struct name",
+    );
+}
+
+#[test]
+fn test_struct_decl_error_missing_body() {
+    expect_error(
+        r#"
+        struct Foo
+    "#,
+        "expected {",
+    );
+}
+
+#[test]
+fn test_struct_decl_error_unclosed_body() {
+    expect_error(
+        r#"
+        struct Foo {
+            x int
+    "#,
+        "expected }",
+    );
+}
+
+#[test]
+fn test_struct_decl_error_multiple_fields_same_line() {
+    // Two fields on the same line is not allowed — only one field per line
+    expect_error(r#"struct Foo { bar int faz float }"#, "expected NEWLINE");
+}
+
+#[test]
+fn test_struct_decl_error_missing_field_type() {
+    expect_error(
+        r#"
+        struct Foo {
+            bar
+        }
+    "#,
+        "invalid type",
+    );
+}
+
+// --- Struct instances ---
+
+#[test]
+fn test_struct_instance_basic() {
+    assert_pass(
+        r#"
+        struct Person {
+            name string
+            age int
+        }
+        func f() {
+            p := Person{name: "John", age: 123}
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_instance_multiline() {
+    assert_pass(
+        r#"
+        struct Person {
+            name string
+            age int
+        }
+        func f() {
+            p := Person{
+                name: "John",
+                age: 123
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_instance_single_field() {
+    assert_pass(
+        r#"
+        struct Point {
+            x int
+        }
+        func f() {
+            p := Point{x: 5}
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_instance_as_return() {
+    assert_pass(
+        r#"
+        struct Point {
+            x int
+        }
+        func make_point() Point {
+            return Point{x: 5}
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_instance_as_arg() {
+    assert_pass(
+        r#"
+        struct Point {
+            x int
+        }
+        func consume(p Point) {}
+        func f() {
+            consume(Point{x: 5})
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_instance_error_missing_colon() {
+    expect_error(
+        r#"
+        struct Foo { x int }
+        func f() {
+            p := Foo{x 5}
+        }
+    "#,
+        "expected :",
+    );
+}
+
+#[test]
+fn test_struct_instance_error_trailing_comma() {
+    // Trailing comma is not allowed — a comma means another field follows
+    expect_error(
+        r#"
+        struct Person {
+            name string
+            age int
+        }
+        func f() {
+            p := Person{
+                name: "John",
+                age: 123,
+            }
+        }
+    "#,
+        "expected field name",
+    );
+}
+
+#[test]
+fn test_struct_instance_error_missing_value() {
+    expect_error(
+        r#"
+        struct Foo { x int }
+        func f() {
+            p := Foo{x:}
+        }
+    "#,
+        "expected expression",
+    );
+}
+
+#[test]
+fn test_struct_instance_namespaced() {
+    assert_pass(
+        r#"
+        func f() {
+            p := foo.Point{x: 5}
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_instance_namespaced_multifield() {
+    assert_pass(
+        r#"
+        func f() {
+            p := ns.Vec{x: 1, y: 2}
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_field_access_in_expr() {
+    assert_pass(
+        r#"
+        struct Point {
+            x int
+        }
+        func f() int {
+            p := Point{x: 5}
+            return p.x
+        }
+    "#,
     );
 }

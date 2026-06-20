@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use tracing::{debug, info};
 
 use crate::{
@@ -11,7 +13,7 @@ use crate::{
     },
     typecheck::file_check::FileChecker,
     typecheck::helper::CheckerHelpers,
-    types::{FunctionType, PrimitiveType, TypeId, TypeKind, TypedAst},
+    types::{FunctionType, PrimitiveType, StructType, TypeId, TypeKind, TypedAst},
 };
 
 /// Performs module-level checks: import resolution, global symbol declaration,
@@ -27,6 +29,9 @@ pub(crate) struct ModuleChecker<'a> {
     file_namespaces: Vec<NamespaceList>,
     /// Index of current file being checked.
     current_file: usize,
+    /// Struct names successfully pre-declared in the global pre-pass,
+    /// mapping to their placeholder TypeId (empty-fields type).
+    predeclared_structs: HashMap<String, TypeId>,
 }
 
 impl<'a> CheckerHelpers<'a> for ModuleChecker<'a> {
@@ -51,6 +56,7 @@ impl<'a> ModuleChecker<'a> {
             is_main: false,
             file_namespaces: Vec::new(),
             current_file: 0,
+            predeclared_structs: HashMap::new(),
         };
 
         s.initialize_symbol_list();
@@ -217,6 +223,24 @@ impl<'a> ModuleChecker<'a> {
     fn global_pass(&mut self, fs: &ast::FileSet) -> Res<()> {
         let mut diag = Diagnostics::new();
 
+        // Pre-pass: register all struct names so field types can forward-reference other structs.
+        for (i, file) in fs.files.iter().enumerate() {
+            self.current_file = i;
+            for decl in &file.ast.decls {
+                if let ast::Decl::Struct(node) = decl {
+                    let origin = SymbolOrigin::Module {
+                        modpath: fs.modpath.clone(),
+                        pos: node.pos().clone(),
+                        filename: file.filename.clone(),
+                    };
+                    if let Err(err) = self.predeclare_struct(node, origin) {
+                        diag.add(err);
+                    }
+                }
+            }
+        }
+
+        // Main pass: all declarations (structs complete their field registration here).
         for (i, file) in fs.files.iter().enumerate() {
             self.current_file = i;
             for decl in &file.ast.decls {
@@ -260,6 +284,16 @@ impl<'a> ModuleChecker<'a> {
                 };
                 self.declare_type(node, origin)
             }
+            ast::Decl::Struct(node) => {
+                // Only process structs that were successfully pre-declared.
+                if let Some(placeholder_id) =
+                    self.predeclared_structs.remove(&node.name.to_string())
+                {
+                    self.declare_struct_fields(node, placeholder_id)
+                } else {
+                    Ok(())
+                }
+            }
         }
     }
 
@@ -293,6 +327,62 @@ impl<'a> ModuleChecker<'a> {
 
         self.check_symbol_already_declared(&symbol.name, node)?;
         let _ = self.create_symbol(symbol);
+        Ok(())
+    }
+
+    fn predeclare_struct(
+        &mut self,
+        node: &ast::StructDeclNode,
+        origin: SymbolOrigin,
+    ) -> Result<(), Report> {
+        let name = node.name.to_string();
+        let placeholder = self.ctx.types.get_or_intern(TypeKind::Struct(StructType {
+            name: name.clone(),
+            fields: vec![],
+        }));
+        let symbol = CreateSymbol {
+            name: name.clone(),
+            alias: None,
+            kind: SymbolKind::Type,
+            ty: placeholder,
+            origin,
+            is_exported: node.public,
+            no_mangle: false,
+        };
+        self.check_symbol_already_declared(&symbol.name, &node.name)?;
+        let _ = self.create_symbol(symbol);
+        self.predeclared_structs.insert(name, placeholder);
+        Ok(())
+    }
+
+    fn declare_struct_fields(
+        &mut self,
+        node: &ast::StructDeclNode,
+        placeholder_id: TypeId,
+    ) -> Result<(), Report> {
+        let mut fields = Vec::new();
+        for field in &node.fields {
+            let field_type_id = self.eval_type(&field.typ)?;
+            fields.push((field.name.to_string(), field_type_id));
+        }
+
+        // Cycle detection: if the placeholder appears in any field's reference graph,
+        // the struct directly or transitively contains itself — infinite size.
+        for (_, field_ty) in &fields {
+            if self
+                .ctx
+                .types
+                .get_all_references(*field_ty)
+                .contains(&placeholder_id)
+            {
+                return Err(error_span("infinite struct size", &node.name));
+            }
+        }
+
+        // Update the placeholder in-place with the finalized field list.
+        // The symbol already points to placeholder_id and does not need to change.
+        // All code that captured placeholder_id now automatically sees the correct struct.
+        self.ctx.types.update_struct(placeholder_id, fields);
         Ok(())
     }
 

@@ -9,6 +9,7 @@ use crate::{
 pub enum IRType {
     Primitive(Primitive),
     Function(Vec<IRType>, Box<IRType>),
+    Struct(String, Vec<(String, IRType)>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -62,6 +63,7 @@ impl IRType {
                 Primitive::F64 | Primitive::U64 | Primitive::I64 | Primitive::String => PTR_SIZE,
             },
             IRType::Function(_, _) => 8,
+            IRType::Struct(_, fields) => fields.iter().map(|(_, ty)| ty.size()).sum(),
         }
     }
 }
@@ -80,6 +82,7 @@ impl fmt::Display for IRType {
                     .join(", "),
                 ret
             ),
+            IRType::Struct(name, _) => write!(f, "{name}"),
         }
     }
 }
@@ -120,7 +123,22 @@ impl IRTypeInterner {
     }
 
     pub fn to_ir(&mut self, ctx: &Context, id: TypeId) -> IRTypeId {
-        self.get_or_intern(to_ir_type(ctx, id))
+        let ir_type = to_ir_type(ctx, id);
+        self.intern_with_nested(ir_type)
+    }
+
+    // Intern a type, recursing into struct fields first so that nested struct
+    // types always have their own interner entries before the containing struct.
+    // This guarantees structs() yields types in dependency order for C codegen.
+    fn intern_with_nested(&mut self, ty: IRType) -> IRTypeId {
+        if let IRType::Struct(_, ref fields) = ty {
+            for (_, field_ty) in fields {
+                if matches!(field_ty, IRType::Struct(_, _)) {
+                    self.intern_with_nested(field_ty.clone());
+                }
+            }
+        }
+        self.get_or_intern(ty)
     }
 
     pub fn dump(&self) -> String {
@@ -144,6 +162,16 @@ impl IRTypeInterner {
     pub fn get(&self, id: IRTypeId) -> &IRType {
         &self.types[id]
     }
+
+    pub fn structs(&self) -> impl Iterator<Item = (&str, &[(String, IRType)])> {
+        self.types.iter().filter_map(|ty| {
+            if let IRType::Struct(name, fields) = ty {
+                Some((name.as_str(), fields.as_slice()))
+            } else {
+                None
+            }
+        })
+    }
 }
 
 fn to_ir_type(ctx: &Context, id: TypeId) -> IRType {
@@ -155,6 +183,13 @@ fn to_ir_type(ctx: &Context, id: TypeId) -> IRType {
         types::TypeKind::Function(f) => IRType::Function(
             f.params.iter().map(|p| to_ir_type(ctx, *p)).collect(),
             Box::new(to_ir_type(ctx, f.ret)),
+        ),
+        types::TypeKind::Struct(s) => IRType::Struct(
+            s.name.clone(),
+            s.fields
+                .iter()
+                .map(|(name, tid)| (name.clone(), to_ir_type(ctx, *tid)))
+                .collect(),
         ),
         _ => panic!("unhandled kind {:?}", ty.kind),
     }

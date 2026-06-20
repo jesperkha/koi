@@ -148,58 +148,45 @@ len(numbers) // 3
 
 ### Structs
 
-```go
-struct Person {
-    name string
-    age  int
-}
+Structs group named fields under a single type. Fields are listed one per line.
 
-func f() {
-    john := Person{name: "John", age: 32}
-    println(john.name) // John
+```go
+struct Point {
+    x int
+    y int
 }
 ```
 
-### Struct methods
+Create instances with struct literals. All fields must be provided:
 
 ```go
-struct Dog {
-    name string
-
-    func bark() {
-        // self is a reference to this Dog instance
-        // and is available in all struct methods
-        println("woof woof my name is {}", self.name)
-    }
-}
-
 func f() {
-    buddy := Dog{name: "Buddy"}
-    buddy.bark() // woof woof my name is Buddy
+    p := Point{x: 3, y: 5}
+    sum := p.x + p.y
 }
 ```
 
-```go
-struct Account {
-    holder  string
-    balance f64
-    debt    f64
+Structs are passed and returned by value. Two structs with identical field names and types are structurally compatible:
 
-    // Use the 'meta' keyword to make a method globally accessible through the
-    // Account type. The 'self' keyword is not available in meta methods.
-    meta func new(name string) Account {
-        return Account{
-            holder: name,
-            balance: 0,
-            debt: 0,
-        }
-    }
+```go
+struct Foo { n int }
+struct Bar { n int }
+
+func takes_foo(f Foo) int { return f.n }
+
+func g() int {
+    b := Bar{n: 42}
+    return takes_foo(b) // ok
 }
+```
+
+Use `pub` to export a struct from a module. When using an imported struct type in a literal, prefix the type name with the module name:
+
+```go
+import shapes
 
 func f() {
-    acc := Account.new("James")
-    acc.new() // error: 'new' is a meta method on 'Account' and
-              // is not available to 'Account' instances
+    p := shapes.Point{x: 1, y: 2}
 }
 ```
 
