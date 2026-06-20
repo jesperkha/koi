@@ -3,13 +3,45 @@ use std::{collections::HashMap, mem};
 use crate::{
     build::c::nodes::{Ast, BinaryOp, Decl, Expr, Stmt, Type, UnaryOp},
     config::{Config, PathManager},
-    ir::{self, ConstId, IRTypeId, IRTypeInterner, ParamId, Unit},
+    ir::{self, ConstId, IRType, IRTypeId, IRTypeInterner, ParamId, Unit},
 };
 
 pub fn emit(unit: Unit, _config: &Config, pm: &PathManager) -> Ast {
     let mut decls = Vec::new();
 
     decls.push(Decl::Include(pm.include_path().join("koi.h").to_string()));
+
+    // Collect all structs, then deduplicate by field layout so that structurally-
+    // identical Koi structs share a single C struct tag and are therefore compatible.
+    let all_structs: Vec<(String, Vec<(String, Type)>)> = unit
+        .types
+        .structs()
+        .map(|(name, fields)| {
+            let c_fields =
+                fields.iter().map(|(f, ty)| (f.clone(), irtype_to_ctype(ty))).collect();
+            (name.to_string(), c_fields)
+        })
+        .collect();
+
+    let mut seen_layouts: Vec<(Vec<(String, String)>, String)> = Vec::new(); // (key, tag)
+    let mut tag_count = 0usize;
+
+    for (name, c_fields) in &all_structs {
+        let layout_key: Vec<(String, String)> =
+            c_fields.iter().map(|(n, t)| (n.clone(), t.to_string())).collect();
+
+        let tag = if let Some((_, t)) = seen_layouts.iter().find(|(k, _)| k == &layout_key) {
+            t.clone()
+        } else {
+            let tag = format!("_koi_s_{tag_count}");
+            tag_count += 1;
+            decls.push(Decl::StructTagDef { tag: tag.clone(), fields: c_fields.clone() });
+            seen_layouts.push((layout_key, tag.clone()));
+            tag
+        };
+
+        decls.push(Decl::StructTypedef { name: name.clone(), tag });
+    }
 
     for decl in unit.decls {
         let decl = match decl {
@@ -31,11 +63,16 @@ pub fn emit(unit: Unit, _config: &Config, pm: &PathManager) -> Ast {
     Ast { decls }
 }
 
-fn ctype(types: &IRTypeInterner, typeid: IRTypeId) -> Type {
-    match types.get(typeid) {
+fn irtype_to_ctype(ty: &IRType) -> Type {
+    match ty {
         ir::IRType::Primitive(primitive) => primitive.into(),
+        ir::IRType::Struct(name, _) => Type::Struct(name.clone()),
         ir::IRType::Function(_, _) => todo!(),
     }
+}
+
+fn ctype(types: &IRTypeInterner, typeid: IRTypeId) -> Type {
+    irtype_to_ctype(types.get(typeid))
 }
 
 struct FuncEmitter<'a> {
@@ -365,6 +402,22 @@ impl<'a> FuncEmitter<'a> {
             },
             ir::RValue::Function(_) => todo!(),
             ir::RValue::Void => panic!("void value should always be checked"),
+            ir::RValue::StructLit(ty, fields) => {
+                let name = match self.types.get(*ty) {
+                    ir::IRType::Struct(name, _) => name.clone(),
+                    _ => unreachable!(),
+                };
+                Expr::StructLit(
+                    name,
+                    fields
+                        .iter()
+                        .map(|(fname, rval)| (fname.clone(), self.rval_to_expr(rval)))
+                        .collect(),
+                )
+            }
+            ir::RValue::FieldAccess(inner, field) => {
+                Expr::FieldAccess(Box::new(self.rval_to_expr(inner)), field.clone())
+            }
         }
     }
 

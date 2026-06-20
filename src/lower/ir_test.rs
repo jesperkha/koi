@@ -903,6 +903,109 @@ fn test_while_computed_condition() {
     );
 }
 
+// --- Struct expressions ---
+
+#[test]
+fn test_struct_basic() {
+    expect_equal(
+        r#"
+        struct Foo {
+            n int
+        }
+        func main() int {
+            f := Foo{n: 42}
+            return f.n
+        }
+        "#,
+        r#"
+        func main() i32
+            $0 Foo = {.n = 42}
+            ret i32 $0.n
+        "#,
+    );
+}
+
+#[test]
+fn test_struct_field_access() {
+    expect_equal(
+        r#"
+        struct Point {
+            x int
+            y int
+        }
+        func main() int {
+            p := Point{x: 3, y: 5}
+            return p.x + p.y
+        }
+        "#,
+        r#"
+        func main() i32
+            $0 Point = {.x = 3, .y = 5}
+            $1 i32 = add $0.x $0.y
+            ret i32 $1
+        "#,
+    );
+}
+
+#[test]
+fn test_struct_same_type_compat() {
+    expect_equal(
+        r#"
+        struct Foo {
+            a int
+        }
+        struct Bar {
+            a int
+        }
+        func identity(f Foo) Foo {
+            return f
+        }
+        func main() int {
+            b := Bar{a: 7}
+            f := identity(b)
+            return f.a
+        }
+        "#,
+        r#"
+        func identity(Foo) Foo
+            ret Foo %0
+
+        func main() i32
+            $0 Bar = {.a = 7}
+            $1 Foo = call identity($0 Bar)
+            $2 Foo = $1
+            ret i32 $2.a
+        "#,
+    );
+}
+
+#[test]
+fn test_struct_as_param() {
+    expect_equal(
+        r#"
+        struct Point {
+            x int
+        }
+        func get_x(p Point) int {
+            return p.x
+        }
+        func main() int {
+            p := Point{x: 3}
+            return get_x(p)
+        }
+        "#,
+        r#"
+        func get_x(Point) i32
+            ret i32 %0.x
+
+        func main() i32
+            $0 Point = {.x = 3}
+            $1 i32 = call get_x($0 Point)
+            ret i32 $1
+        "#,
+    );
+}
+
 // --- Cast expressions ---
 
 #[test]

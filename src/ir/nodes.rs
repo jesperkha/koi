@@ -225,6 +225,8 @@ pub enum RValue {
     Param(usize),
     Function(String),
     Data(DataIndex),
+    StructLit(IRTypeId, Vec<(String, RValue)>),
+    FieldAccess(Box<RValue>, String),
 }
 
 impl fmt::Display for IntrinsicKind {
@@ -246,6 +248,17 @@ impl fmt::Display for RValue {
             RValue::Param(s) => write!(f, "%{}", s),
             RValue::Function(s) => write!(f, "{}", s),
             RValue::Data(s) => write!(f, ".{}", s),
+            RValue::StructLit(_, fields) => {
+                write!(f, "{{")?;
+                for (i, (name, val)) in fields.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, ".{name} = {val}")?;
+                }
+                write!(f, "}}")
+            }
+            RValue::FieldAccess(inner, field) => write!(f, "{inner}.{field}"),
         }
     }
 }

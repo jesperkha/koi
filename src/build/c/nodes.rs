@@ -20,6 +20,16 @@ impl Display for Ast {
 
 pub enum Decl {
     Include(String),
+    /// Anonymous struct body shared by all structs with the same field layout.
+    StructTagDef {
+        tag: String,
+        fields: Vec<(String, Type)>,
+    },
+    /// `typedef struct <tag> <name>;` — names a struct for a specific Koi type.
+    StructTypedef {
+        name: String,
+        tag: String,
+    },
     ExternFunc {
         name: String,
         params: Vec<Type>,
@@ -33,6 +43,7 @@ pub enum Decl {
     },
 }
 
+#[derive(Clone)]
 pub enum Type {
     Void,
 
@@ -49,6 +60,7 @@ pub enum Type {
     Float,
 
     Pointer(Box<Type>),
+    Struct(String),
 }
 
 pub enum BinaryOp {
@@ -78,6 +90,8 @@ pub enum Expr {
     StrLit(String),
     Not(Box<Expr>),
     Cast(Type, Box<Expr>),
+    StructLit(String, Vec<(String, Expr)>),
+    FieldAccess(Box<Expr>, String),
 }
 
 pub enum Stmt {
@@ -204,6 +218,7 @@ impl Display for Type {
             Type::Uint64 => write!(f, "uint64_t"),
             Type::Float => write!(f, "float"),
             Type::Pointer(t) => write!(f, "{}*", t),
+            Type::Struct(name) => write!(f, "{name}"),
         }
     }
 }
@@ -266,6 +281,17 @@ impl Display for Expr {
             }
             Expr::Not(inner) => write!(f, "!{inner}"),
             Expr::Cast(ty, inner) => write!(f, "({ty})({inner})"),
+            Expr::StructLit(name, fields) => {
+                write!(f, "({name}){{")?;
+                for (i, (fname, val)) in fields.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, ".{fname} = {val}")?;
+                }
+                write!(f, "}}")
+            }
+            Expr::FieldAccess(inner, field) => write!(f, "{inner}.{field}"),
         }
     }
 }
@@ -279,6 +305,14 @@ impl Display for Stmt {
 impl Display for Decl {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Decl::StructTagDef { tag, fields } => {
+                write!(f, "struct {tag} {{")?;
+                for (fname, fty) in fields {
+                    write!(f, " {fty} {fname};")?;
+                }
+                write!(f, " }};")
+            }
+            Decl::StructTypedef { name, tag } => write!(f, "typedef struct {tag} {name};"),
             Decl::Function { name, params, ret, body } => {
                 write!(
                     f,
