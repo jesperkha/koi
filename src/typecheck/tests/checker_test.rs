@@ -2667,4 +2667,3 @@ fn test_struct_forward_reference_field_access_pass() {
     "#,
     );
 }
-

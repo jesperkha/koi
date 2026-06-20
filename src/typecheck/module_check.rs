@@ -369,7 +369,12 @@ impl<'a> ModuleChecker<'a> {
         // Cycle detection: if the placeholder appears in any field's reference graph,
         // the struct directly or transitively contains itself — infinite size.
         for (_, field_ty) in &fields {
-            if self.ctx.types.get_all_references(*field_ty).contains(&placeholder_id) {
+            if self
+                .ctx
+                .types
+                .get_all_references(*field_ty)
+                .contains(&placeholder_id)
+            {
                 return Err(error_span("infinite struct size", &node.name));
             }
         }
