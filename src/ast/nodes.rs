@@ -461,7 +461,12 @@ macro_rules! impl_node_enum {
     };
 }
 
-impl_node_enum!(Decl { Func, Extern, Type, Struct });
+impl_node_enum!(Decl {
+    Func,
+    Extern,
+    Type,
+    Struct
+});
 
 impl_node_enum!(Stmt {
     ExprStmt,

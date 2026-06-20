@@ -106,8 +106,8 @@ impl<'a> FileChecker<'a> {
             match d {
                 ast::Decl::Func(node) => decls.push(self.emit_func(*node)),
                 ast::Decl::Extern(node) => decls.push(self.emit_extern(*node)),
-                ast::Decl::Type(..) => {}  // Declared in global pass
-            ast::Decl::Struct(..) => {} // Declared in global pass
+                ast::Decl::Type(..) => {}   // Declared in global pass
+                ast::Decl::Struct(..) => {} // Declared in global pass
             };
         }
         decls
@@ -489,7 +489,11 @@ impl<'a> FileChecker<'a> {
         if let Some(expr) = node.expr {
             let typed_expr = self.emit_expr(expr)?;
 
-            return if !self.ctx.types.is_compatible(typed_expr.type_id(), self.rtype) {
+            return if !self
+                .ctx
+                .types
+                .is_compatible(typed_expr.type_id(), self.rtype)
+            {
                 Err(self.error_expected_got(
                     "incorrect return type",
                     self.rtype,
@@ -850,7 +854,11 @@ impl<'a> FileChecker<'a> {
             };
             let expected_ty = *expected_ty;
             let typed_val = self.emit_expr(field.value)?;
-            if !self.ctx.types.is_compatible(typed_val.type_id(), expected_ty) {
+            if !self
+                .ctx
+                .types
+                .is_compatible(typed_val.type_id(), expected_ty)
+            {
                 return Err(error_span(
                     &format!(
                         "field '{}' is type '{}', got '{}'",

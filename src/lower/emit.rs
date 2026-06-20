@@ -449,7 +449,11 @@ impl<'a> FileEmitter<'a> {
         }
     }
 
-    fn struct_lit_to_rval(&mut self, ins: &mut Vec<Ins>, node: &types::StructLitNode) -> Res<RValue> {
+    fn struct_lit_to_rval(
+        &mut self,
+        ins: &mut Vec<Ins>,
+        node: &types::StructLitNode,
+    ) -> Res<RValue> {
         let ty = self.types.to_ir(self.ctx, node.ty);
         let fields = node
             .fields

@@ -1395,10 +1395,7 @@ fn test_struct_decl_error_unclosed_body() {
 #[test]
 fn test_struct_decl_error_multiple_fields_same_line() {
     // Two fields on the same line is not allowed — only one field per line
-    expect_error(
-        r#"struct Foo { bar int faz float }"#,
-        "expected NEWLINE",
-    );
+    expect_error(r#"struct Foo { bar int faz float }"#, "expected NEWLINE");
 }
 
 #[test]

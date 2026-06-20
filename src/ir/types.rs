@@ -171,7 +171,10 @@ fn to_ir_type(ctx: &Context, id: TypeId) -> IRType {
         ),
         types::TypeKind::Struct(s) => IRType::Struct(
             s.name.clone(),
-            s.fields.iter().map(|(name, tid)| (name.clone(), to_ir_type(ctx, *tid))).collect(),
+            s.fields
+                .iter()
+                .map(|(name, tid)| (name.clone(), to_ir_type(ctx, *tid)))
+                .collect(),
         ),
         _ => panic!("unhandled kind {:?}", ty.kind),
     }

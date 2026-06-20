@@ -166,17 +166,36 @@ impl Stmt {
                 i,
                 expr.as_ref().map_or("".to_string(), |e| e.to_string())
             ),
-            Stmt::Binary { ty, result, op, left, right } => {
+            Stmt::Binary {
+                ty,
+                result,
+                op,
+                left,
+                right,
+            } => {
                 format!("{i}{ty} t{result} = {left} {op} {right};")
             }
-            Stmt::Unary { ty, result, op, expr } => {
+            Stmt::Unary {
+                ty,
+                result,
+                op,
+                expr,
+            } => {
                 format!("{i}{ty} t{result} = {op}{expr};")
             }
             Stmt::VarDecl { ty, id, value } => format!("{i}{ty} t{id} = {value};"),
             Stmt::VarAssign { lhs, rhs } => format!("{i}t{lhs} = {rhs};"),
-            Stmt::Call { ty, dest, callee, args } => {
-                let args_str =
-                    args.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", ");
+            Stmt::Call {
+                ty,
+                dest,
+                callee,
+                args,
+            } => {
+                let args_str = args
+                    .iter()
+                    .map(|a| a.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 if matches!(ty, Type::Void) {
                     format!("{i}{callee}({args_str});")
                 } else {
@@ -313,7 +332,12 @@ impl Display for Decl {
                 write!(f, " }};")
             }
             Decl::StructTypedef { name, tag } => write!(f, "typedef struct {tag} {name};"),
-            Decl::Function { name, params, ret, body } => {
+            Decl::Function {
+                name,
+                params,
+                ret,
+                body,
+            } => {
                 write!(
                     f,
                     "{ret} {name}({}) {{\n{}\n}}",

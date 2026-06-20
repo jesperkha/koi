@@ -16,7 +16,10 @@ fn setup_install(dir: &super::FilePath) {
     create_dir_all(dir.join("lib").path_buf()).unwrap();
     create_dir_all(dir.join("external").path_buf()).unwrap();
     std::fs::copy(
-        super::installation_dir().join("include").join("koi.h").path_buf(),
+        super::installation_dir()
+            .join("include")
+            .join("koi.h")
+            .path_buf(),
         dir.join("include").join("koi.h").path_buf(),
     )
     .unwrap();
@@ -30,8 +33,13 @@ fn compile_mathlib(dir: &super::FilePath, bin: &str) {
     create_dir_all(lib_out.path_buf()).unwrap();
     create_dir_all(super::root_dir().join(bin).path_buf()).unwrap();
 
-    let (mut project, options, config) =
-        super::library_config("c_library", "mathlib", None, lib_out.to_string(), Codegen::C);
+    let (mut project, options, config) = super::library_config(
+        "c_library",
+        "mathlib",
+        None,
+        lib_out.to_string(),
+        Codegen::C,
+    );
     project.bin = bin.into();
     compile(project, options, config).unwrap();
 }

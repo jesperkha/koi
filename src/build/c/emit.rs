@@ -17,8 +17,10 @@ pub fn emit(unit: Unit, _config: &Config, pm: &PathManager) -> Ast {
         .types
         .structs()
         .map(|(name, fields)| {
-            let c_fields =
-                fields.iter().map(|(f, ty)| (f.clone(), irtype_to_ctype(ty))).collect();
+            let c_fields = fields
+                .iter()
+                .map(|(f, ty)| (f.clone(), irtype_to_ctype(ty)))
+                .collect();
             (name.to_string(), c_fields)
         })
         .collect();
@@ -27,20 +29,28 @@ pub fn emit(unit: Unit, _config: &Config, pm: &PathManager) -> Ast {
     let mut tag_count = 0usize;
 
     for (name, c_fields) in &all_structs {
-        let layout_key: Vec<(String, String)> =
-            c_fields.iter().map(|(n, t)| (n.clone(), t.to_string())).collect();
+        let layout_key: Vec<(String, String)> = c_fields
+            .iter()
+            .map(|(n, t)| (n.clone(), t.to_string()))
+            .collect();
 
         let tag = if let Some((_, t)) = seen_layouts.iter().find(|(k, _)| k == &layout_key) {
             t.clone()
         } else {
             let tag = format!("_koi_s_{tag_count}");
             tag_count += 1;
-            decls.push(Decl::StructTagDef { tag: tag.clone(), fields: c_fields.clone() });
+            decls.push(Decl::StructTagDef {
+                tag: tag.clone(),
+                fields: c_fields.clone(),
+            });
             seen_layouts.push((layout_key, tag.clone()));
             tag
         };
 
-        decls.push(Decl::StructTypedef { name: name.clone(), tag });
+        decls.push(Decl::StructTypedef {
+            name: name.clone(),
+            tag,
+        });
     }
 
     for decl in unit.decls {
@@ -218,12 +228,10 @@ impl<'a> FuncEmitter<'a> {
                 self.push(s);
             }
             ir::Ins::Break => self.push(Stmt::Break),
-            ir::Ins::Continue => {
-                match self.continue_target.last().and_then(|t| t.as_deref()) {
-                    Some(label) => self.push(Stmt::Goto(label.to_owned())),
-                    None => self.push(Stmt::Continue),
-                }
-            }
+            ir::Ins::Continue => match self.continue_target.last().and_then(|t| t.as_deref()) {
+                Some(label) => self.push(Stmt::Goto(label.to_owned())),
+                None => self.push(Stmt::Continue),
+            },
             ir::Ins::If(if_ins) => self.emit_if(if_ins),
             ir::Ins::While(while_ins) => self.emit_while(while_ins),
             ir::Ins::Conditional(cond_ins) => self.emit_conditional(cond_ins),

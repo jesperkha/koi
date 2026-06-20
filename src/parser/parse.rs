@@ -118,7 +118,9 @@ impl<'a> Parser<'a> {
     // Consume until next 'safe' token to recover. Sets panic_mode to false.
     fn recover_from_error(&mut self) {
         self.consume(); // consume at least first token in case it is the one causing the panic
-        while !self.eof() && !self.matches_any(&[TokenKind::Func, TokenKind::Extern, TokenKind::Struct]) {
+        while !self.eof()
+            && !self.matches_any(&[TokenKind::Func, TokenKind::Extern, TokenKind::Struct])
+        {
             self.consume();
         }
 
@@ -311,7 +313,10 @@ impl<'a> Parser<'a> {
         while !self.matches(TokenKind::RBrace) && !self.eof() {
             let fname = self.expect_identifier("field name")?;
             let ftype = self.parse_type()?;
-            fields.push(Field { name: fname, typ: ftype });
+            fields.push(Field {
+                name: fname,
+                typ: ftype,
+            });
 
             if self.matches(TokenKind::RBrace) {
                 break;
@@ -747,10 +752,12 @@ impl<'a> Parser<'a> {
         // Suppressed when parsing if/while/for conditions where `{` opens a block.
         if !self.no_struct_expr
             && let Expr::Literal(ref tok) = expr
-                && matches!(tok.kind, TokenKind::IdentLit(_)) && self.matches(TokenKind::LBrace) {
-                    let name = tok.clone();
-                    expr = self.parse_struct_expr(None, name)?;
-                }
+            && matches!(tok.kind, TokenKind::IdentLit(_))
+            && self.matches(TokenKind::LBrace)
+        {
+            let name = tok.clone();
+            expr = self.parse_struct_expr(None, name)?;
+        }
 
         loop {
             // Call expression
@@ -785,7 +792,9 @@ impl<'a> Parser<'a> {
                     && self.matches(TokenKind::LBrace)
                     && matches!(expr, Expr::Literal(ref t) if matches!(t.kind, TokenKind::IdentLit(_)))
                 {
-                    let Expr::Literal(ns_tok) = expr else { unreachable!() };
+                    let Expr::Literal(ns_tok) = expr else {
+                        unreachable!()
+                    };
                     expr = self.parse_struct_expr(Some(ns_tok), field)?;
                     continue;
                 }

@@ -286,7 +286,9 @@ impl<'a> ModuleChecker<'a> {
             }
             ast::Decl::Struct(node) => {
                 // Only process structs that were successfully pre-declared.
-                if let Some(placeholder_id) = self.predeclared_structs.remove(&node.name.to_string()) {
+                if let Some(placeholder_id) =
+                    self.predeclared_structs.remove(&node.name.to_string())
+                {
                     self.declare_struct_fields(node, placeholder_id)
                 } else {
                     Ok(())
@@ -379,7 +381,11 @@ impl<'a> ModuleChecker<'a> {
         }
 
         // Update the pre-registered symbol to point to the completed type.
-        let sym_id = self.symbols.get(&name).map(|ms| ms.id).expect("struct was pre-declared");
+        let sym_id = self
+            .symbols
+            .get(&name)
+            .map(|ms| ms.id)
+            .expect("struct was pre-declared");
         self.ctx.symbols.set_type(sym_id, final_id);
         Ok(())
     }
