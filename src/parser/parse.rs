@@ -745,14 +745,12 @@ impl<'a> Parser<'a> {
 
         // Struct literal: Ident immediately followed by `{` (no newline between them).
         // Suppressed when parsing if/while/for conditions where `{` opens a block.
-        if !self.no_struct_expr {
-            if let Expr::Literal(ref tok) = expr {
-                if matches!(tok.kind, TokenKind::IdentLit(_)) && self.matches(TokenKind::LBrace) {
+        if !self.no_struct_expr
+            && let Expr::Literal(ref tok) = expr
+                && matches!(tok.kind, TokenKind::IdentLit(_)) && self.matches(TokenKind::LBrace) {
                     let name = tok.clone();
                     expr = self.parse_struct_expr(None, name)?;
                 }
-            }
-        }
 
         loop {
             // Call expression
