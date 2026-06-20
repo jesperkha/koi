@@ -123,7 +123,22 @@ impl IRTypeInterner {
     }
 
     pub fn to_ir(&mut self, ctx: &Context, id: TypeId) -> IRTypeId {
-        self.get_or_intern(to_ir_type(ctx, id))
+        let ir_type = to_ir_type(ctx, id);
+        self.intern_with_nested(ir_type)
+    }
+
+    // Intern a type, recursing into struct fields first so that nested struct
+    // types always have their own interner entries before the containing struct.
+    // This guarantees structs() yields types in dependency order for C codegen.
+    fn intern_with_nested(&mut self, ty: IRType) -> IRTypeId {
+        if let IRType::Struct(_, ref fields) = ty {
+            for (_, field_ty) in fields {
+                if matches!(field_ty, IRType::Struct(_, _)) {
+                    self.intern_with_nested(field_ty.clone());
+                }
+            }
+        }
+        self.get_or_intern(ty)
     }
 
     pub fn dump(&self) -> String {

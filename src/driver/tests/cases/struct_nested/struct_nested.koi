@@ -1,0 +1,13 @@
+struct Inner {
+    n int
+}
+
+struct Outer {
+    inner Inner
+}
+
+func main() int {
+    i := Inner{n: 42}
+    o := Outer{inner: i}
+    return o.inner.n
+}

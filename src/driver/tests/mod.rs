@@ -637,3 +637,9 @@ fn test_struct_as_param() {
     // Struct passed to a function; field value used as the exit code (3).
     run_case_c_only("struct_as_param", 3);
 }
+
+#[test]
+fn test_struct_nested() {
+    // A struct whose field type is another struct; access o.inner.n = 42.
+    run_case_c_only("struct_nested", 42);
+}
