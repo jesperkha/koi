@@ -608,10 +608,8 @@ fn test_return_in_for() {
 }
 
 // --- structs ---
-//
-// These tests require full pipeline support (parser + type checker + IR + codegen).
-// They will pass once struct codegen is implemented.
-
+// These tests exercise the full pipeline (parser + type checker + IR + C codegen).
+// Note: the x86 backend still does not implement structs yet.
 #[test]
 fn test_struct_basic() {
     // Create a struct instance and return one of its fields as the exit code.
