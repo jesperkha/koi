@@ -104,7 +104,8 @@ impl<'a> FileChecker<'a> {
             match d {
                 ast::Decl::Func(node) => decls.push(self.emit_func(*node)),
                 ast::Decl::Extern(node) => decls.push(self.emit_extern(*node)),
-                ast::Decl::Type(..) => {} // Declared in global pass
+                ast::Decl::Type(..) => {}  // Declared in global pass
+            ast::Decl::Struct(..) => {} // Declared in global pass
             };
         }
         decls
@@ -147,6 +148,7 @@ impl<'a> FileChecker<'a> {
             ast::Expr::Binary(node) => self.emit_binary(node),
             ast::Expr::Unary(node) => self.emit_unary(node),
             ast::Expr::Cast(node) => self.emit_cast(node),
+            ast::Expr::Struct(_) => todo!("struct expression type checking"),
         }
     }
 
@@ -941,7 +943,8 @@ impl<'a> FileChecker<'a> {
             | ast::Expr::Call(_)
             | ast::Expr::Binary(_)
             | ast::Expr::Unary(_)
-            | ast::Expr::Cast(_) => true,
+            | ast::Expr::Cast(_)
+            | ast::Expr::Struct(_) => true,
         }
     }
 

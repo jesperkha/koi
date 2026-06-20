@@ -260,6 +260,7 @@ impl<'a> ModuleChecker<'a> {
                 };
                 self.declare_type(node, origin)
             }
+            ast::Decl::Struct(..) => Ok(()),
         }
     }
 

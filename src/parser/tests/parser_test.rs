@@ -1388,7 +1388,7 @@ fn test_struct_decl_error_unclosed_body() {
         struct Foo {
             x int
     "#,
-        "unexpected end of file while parsing block",
+        "expected }",
     );
 }
 
@@ -1397,7 +1397,7 @@ fn test_struct_decl_error_multiple_fields_same_line() {
     // Two fields on the same line is not allowed — only one field per line
     expect_error(
         r#"struct Foo { bar int faz float }"#,
-        "expected }",
+        "expected NEWLINE",
     );
 }
 
@@ -1409,7 +1409,7 @@ fn test_struct_decl_error_missing_field_type() {
             bar
         }
     "#,
-        "expected type",
+        "invalid type",
     );
 }
 

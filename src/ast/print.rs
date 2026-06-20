@@ -1,5 +1,6 @@
 use crate::ast::{
-    Ast, BlockNode, ElseBlock, FuncNode, ReturnNode, Stmt, Token, TypeNode, Visitable, Visitor,
+    Ast, BlockNode, ElseBlock, FuncNode, ReturnNode, Stmt, StructDeclNode, StructExpr, Token,
+    TypeNode, Visitable, Visitor,
 };
 
 pub struct Printer {
@@ -274,5 +275,36 @@ impl Visitor<()> for Printer {
         node.lval.accept(self);
         self.s += &format!(" {} ", node.op);
         node.rval.accept(self);
+    }
+
+    fn visit_struct_decl(&mut self, node: &StructDeclNode) {
+        if node.public {
+            self.s += "pub ";
+        }
+        self.s += "struct ";
+        self.s += &node.name.to_string();
+        self.s += " {\n";
+        for field in &node.fields {
+            self.s += "    ";
+            self.s += &field.name.to_string();
+            self.s += " ";
+            field.typ.accept(self);
+            self.s += "\n";
+        }
+        self.s += "}\n\n";
+    }
+
+    fn visit_struct_expr(&mut self, node: &StructExpr) {
+        self.s += &node.name.to_string();
+        self.s += "{";
+        for (i, field) in node.fields.iter().enumerate() {
+            if i > 0 {
+                self.s += ", ";
+            }
+            self.s += &field.name.to_string();
+            self.s += ": ";
+            field.value.accept(self);
+        }
+        self.s += "}";
     }
 }
