@@ -120,6 +120,8 @@ pub enum Stmt {
     },
     Break,
     Continue,
+    Goto(String),
+    Label(String),
 }
 
 fn ind(level: usize) -> String {
@@ -182,6 +184,8 @@ impl Stmt {
             }
             Stmt::Break => format!("{i}break;"),
             Stmt::Continue => format!("{i}continue;"),
+            Stmt::Goto(label) => format!("{i}goto {label};"),
+            Stmt::Label(label) => format!("{label}:"),
         }
     }
 }

@@ -1,0 +1,10 @@
+// Compound assignment on a function parameter modifies the local copy.
+// add_five(10): n=10, n+=5 → 15
+func add_five(n int) int {
+    n += 5
+    return n
+}
+
+func main() int {
+    return add_five(10)
+}

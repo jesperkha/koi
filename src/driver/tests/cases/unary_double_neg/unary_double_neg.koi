@@ -1,0 +1,6 @@
+// --n applies unary minus twice: -(-n) == n.
+// Must return the original value (5), not 0 or -5.
+func main() int {
+    n := 5
+    return --n
+}

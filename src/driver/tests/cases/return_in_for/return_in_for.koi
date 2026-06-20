@@ -1,0 +1,10 @@
+// return inside a for loop must immediately exit the function.
+// The fallback return 99 must never be reached.
+func main() int {
+    for i := 0; i < 10; i = i + 1 {
+        if i == 5 {
+            return i
+        }
+    }
+    return 99
+}

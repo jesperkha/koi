@@ -1,0 +1,8 @@
+// % on int operands is valid, but the result type is u32.
+// Cast back to int for the return. 17 % 5 = 2.
+func main() int {
+    a := 17
+    b := 5
+    r := a % b
+    return r as int
+}

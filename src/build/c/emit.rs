@@ -50,6 +50,12 @@ struct FuncEmitter<'a> {
     /// ConstIds already declared in an enclosing scope; Store emits VarAssign
     /// instead of VarDecl for these.
     predeclared: HashMap<ConstId, IRTypeId>,
+
+    /// Stack of continue targets, one entry per enclosing loop.
+    /// None  → plain `while` loop: emit C `continue` (goes to top of while(1)).
+    /// Some  → `for` loop: emit `goto <label>` to reach the post step first.
+    continue_target: Vec<Option<String>>,
+    post_label_count: usize,
 }
 
 impl<'a> FuncEmitter<'a> {
@@ -62,6 +68,8 @@ impl<'a> FuncEmitter<'a> {
             data,
             var_remap: HashMap::new(),
             predeclared: HashMap::new(),
+            continue_target: Vec::new(),
+            post_label_count: 0,
         }
     }
 
@@ -173,7 +181,12 @@ impl<'a> FuncEmitter<'a> {
                 self.push(s);
             }
             ir::Ins::Break => self.push(Stmt::Break),
-            ir::Ins::Continue => self.push(Stmt::Continue),
+            ir::Ins::Continue => {
+                match self.continue_target.last().and_then(|t| t.as_deref()) {
+                    Some(label) => self.push(Stmt::Goto(label.to_owned())),
+                    None => self.push(Stmt::Continue),
+                }
+            }
             ir::Ins::If(if_ins) => self.emit_if(if_ins),
             ir::Ins::While(while_ins) => self.emit_while(while_ins),
             ir::Ins::Conditional(cond_ins) => self.emit_conditional(cond_ins),
@@ -251,9 +264,7 @@ impl<'a> FuncEmitter<'a> {
     }
 
     fn emit_while(&mut self, ins: &ir::WhileIns) {
-        // Emit as `while (1)` so that:
-        //  - `cond_ins` re-run on every iteration (correct for complex conditions)
-        //  - `continue` skips back to the top and re-evaluates the condition
+        // Emit as `while (1)` with an explicit condition check at the top.
         let mut body = self.collect_ins_vec(&ins.cond_ins);
 
         let cond = self.rval_to_expr(&ins.cond);
@@ -263,10 +274,26 @@ impl<'a> FuncEmitter<'a> {
             else_: None,
         });
 
-        body.extend(self.collect_block(&ins.block));
-
         if let Some(post) = &ins.post {
+            // For-loop: `continue` must run the post step before the next
+            // condition check. Emit a label before the post step and direct
+            // any `continue` inside the body to `goto` that label instead of
+            // jumping to the top of the while(1) (which would skip post).
+            let label = format!("_lpost_{}", self.post_label_count);
+            self.post_label_count += 1;
+
+            self.continue_target.push(Some(label.clone()));
+            body.extend(self.collect_block(&ins.block));
+            self.continue_target.pop();
+
+            body.push(Stmt::Label(label));
             body.extend(self.collect_ins_vec(post));
+        } else {
+            // While-loop: C `continue` correctly jumps to the top of while(1)
+            // which re-evaluates cond_ins, so no redirection needed.
+            self.continue_target.push(None);
+            body.extend(self.collect_block(&ins.block));
+            self.continue_target.pop();
         }
 
         self.push(Stmt::While { body });

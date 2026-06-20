@@ -1,0 +1,10 @@
+// Verify that each compound assignment operator produces the correct value.
+// 10 +5 =15, -3 =12, *2 =24, /4 =6
+func main() int {
+    a := 10
+    a += 5
+    a -= 3
+    a *= 2
+    a /= 4
+    return a
+}

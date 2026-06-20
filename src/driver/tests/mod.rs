@@ -529,3 +529,80 @@ fn test_type_decl() {
 fn test_type_decl_import() {
     run_case_with_status("type_decl_import", 5);
 }
+
+// --- modulo operator ---
+
+#[test]
+fn test_binary_mod() {
+    // % on int operands yields u32; cast back to int for the return.
+    // 17 % 5 = 2. C-only because the x86 backend doesn't implement Cast yet.
+    run_case_c_only("binary_mod", 2);
+}
+
+// --- compound assignment operators ---
+
+#[test]
+fn test_op_assign() {
+    // 10 +5=15 -3=12 *2=24 /4=6: all four operators in sequence on a local.
+    run_case_with_status("op_assign", 6);
+}
+
+#[test]
+fn test_op_assign_param() {
+    // += on a function parameter modifies the local copy; add_five(10)=15.
+    run_case_with_status("op_assign_param", 15);
+}
+
+// --- for loop control flow ---
+
+#[test]
+fn test_for_break() {
+    // break exits a for loop immediately; result==5 when break fires at i==5.
+    run_case_with_status("for_break", 5);
+}
+
+#[test]
+fn test_for_continue() {
+    // continue in a for loop must still execute the post-increment step.
+    //
+    // The test uses a separate `counter` variable (always incremented in the
+    // body) to drive the loop independently of `i` (the post-step variable).
+    // When counter==5 triggers continue, the post step `i = i + 1` must still
+    // run; without it i lags behind by 1 for every subsequent iteration.
+    //
+    // Correct: when counter==10, i==9 → exits with 9.
+    // C backend bug: post is appended after the body in a `while(1)`, so a
+    // C `continue` skips it → i==8 when counter==10 → exits with 8 → FAIL.
+    run_case_with_status("for_continue", 9);
+}
+
+#[test]
+fn test_for_nested() {
+    // Nested for loops with independent variables: 3 outer × 3 inner = 9.
+    run_case_with_status("for_nested", 9);
+}
+
+// --- recursion ---
+
+#[test]
+fn test_recursion() {
+    // Recursive sum: sum_down(5) = 5+4+3+2+1+0 = 15.
+    run_case_with_status("recursion", 15);
+}
+
+// --- double unary negation ---
+
+#[test]
+fn test_unary_double_neg() {
+    // --n applies unary minus twice: -(-n) == n. Must return 5, not -5 or 0.
+    run_case_with_status("unary_double_neg", 5);
+}
+
+// --- return from inside for loop ---
+
+#[test]
+fn test_return_in_for() {
+    // return inside a for body must exit the function immediately.
+    // Returns 5 when i==5; the fallback return 99 is never reached.
+    run_case_with_status("return_in_for", 5);
+}
