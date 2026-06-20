@@ -360,33 +360,24 @@ impl<'a> ModuleChecker<'a> {
         node: &ast::StructDeclNode,
         placeholder_id: TypeId,
     ) -> Result<(), Report> {
-        let name = node.name.to_string();
-
         let mut fields = Vec::new();
         for field in &node.fields {
             let field_type_id = self.eval_type(&field.typ)?;
             fields.push((field.name.to_string(), field_type_id));
         }
 
-        let final_id = self.ctx.types.get_or_intern(TypeKind::Struct(StructType {
-            name: name.clone(),
-            fields,
-        }));
-
-        // Cycle detection: if the placeholder appears in the final type's reference graph,
+        // Cycle detection: if the placeholder appears in any field's reference graph,
         // the struct directly or transitively contains itself — infinite size.
-        let refs = self.ctx.types.get_all_references(final_id);
-        if refs.contains(&placeholder_id) {
-            return Err(error_span("infinite struct size", &node.name));
+        for (_, field_ty) in &fields {
+            if self.ctx.types.get_all_references(*field_ty).contains(&placeholder_id) {
+                return Err(error_span("infinite struct size", &node.name));
+            }
         }
 
-        // Update the pre-registered symbol to point to the completed type.
-        let sym_id = self
-            .symbols
-            .get(&name)
-            .map(|ms| ms.id)
-            .expect("struct was pre-declared");
-        self.ctx.symbols.set_type(sym_id, final_id);
+        // Update the placeholder in-place with the finalized field list.
+        // The symbol already points to placeholder_id and does not need to change.
+        // All code that captured placeholder_id now automatically sees the correct struct.
+        self.ctx.types.update_struct(placeholder_id, fields);
         Ok(())
     }
 

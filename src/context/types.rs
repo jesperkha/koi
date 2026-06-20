@@ -1,4 +1,4 @@
-use crate::types::{FunctionType, NO_TYPE, PrimitiveType, Type, TypeId, TypeKind};
+use crate::types::{FunctionType, NO_TYPE, PrimitiveType, StructType, Type, TypeId, TypeKind};
 use std::collections::{HashMap, HashSet};
 use strum::IntoEnumIterator;
 
@@ -230,6 +230,22 @@ impl TypeInterner {
                 format!("func ({}) {}", params_str, ret_str)
             }
         }
+    }
+
+    /// Overwrite a placeholder struct type with its finalized field list.
+    /// Used by the two-pass struct checker: the placeholder was interned during
+    /// the pre-pass so forward references could capture it; this call fills in
+    /// the real fields without changing the TypeId, so all captures stay valid.
+    pub fn update_struct(&mut self, id: TypeId, fields: Vec<(String, TypeId)>) {
+        let TypeKind::Struct(s) = &self.types[id].kind else {
+            panic!("update_struct called on non-Struct type");
+        };
+        let name = s.name.clone();
+        let old_kind = self.types[id].kind.clone();
+        let new_kind = TypeKind::Struct(StructType { name, fields });
+        self.cache.remove(&old_kind);
+        self.types[id].kind = new_kind.clone();
+        self.cache.insert(new_kind, id);
     }
 
     /// Tests if two types are equal, with struct-aware structural comparison.

@@ -2648,3 +2648,23 @@ fn test_struct_infinite_size_indirect_error() {
         "infinite struct size",
     );
 }
+
+#[test]
+fn test_struct_forward_reference_field_access_pass() {
+    // Outer is declared before Inner, but Inner is used as a field type.
+    // Forward references must resolve to the finalized Inner type.
+    assert_pass(
+        r#"
+        struct Outer {
+            inner Inner
+        }
+        struct Inner {
+            n int
+        }
+        func f(o Outer) int {
+            return o.inner.n
+        }
+    "#,
+    );
+}
+
