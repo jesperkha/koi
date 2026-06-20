@@ -118,6 +118,7 @@ impl<'a> Parser<'a> {
     // Consume until next 'safe' token to recover. Sets panic_mode to false.
     fn recover_from_error(&mut self) {
         self.consume(); // consume at least first token in case it is the one causing the panic
+        self.no_struct_expr = false;
         while !self.eof()
             && !self.matches_any(&[TokenKind::Func, TokenKind::Extern, TokenKind::Struct])
         {
