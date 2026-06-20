@@ -334,7 +334,7 @@ impl<'a> Parser<'a> {
         })))
     }
 
-    fn parse_struct_expr(&mut self, name: Token) -> Result<Expr, Report> {
+    fn parse_struct_expr(&mut self, namespace: Option<Token>, name: Token) -> Result<Expr, Report> {
         let lbrace = self.expect(TokenKind::LBrace)?;
         let mut fields = Vec::new();
 
@@ -363,6 +363,7 @@ impl<'a> Parser<'a> {
 
         let rbrace = self.expect(TokenKind::RBrace)?;
         Ok(Expr::Struct(StructExpr {
+            namespace,
             name,
             lbrace,
             fields,
@@ -748,7 +749,7 @@ impl<'a> Parser<'a> {
             if let Expr::Literal(ref tok) = expr {
                 if matches!(tok.kind, TokenKind::IdentLit(_)) && self.matches(TokenKind::LBrace) {
                     let name = tok.clone();
-                    expr = self.parse_struct_expr(name)?;
+                    expr = self.parse_struct_expr(None, name)?;
                 }
             }
         }
@@ -780,6 +781,16 @@ impl<'a> Parser<'a> {
             } else if self.matches(TokenKind::Dot) {
                 let dot = self.must_consume()?;
                 let field = self.expect_identifier("field name")?;
+
+                // Namespaced struct literal: ns.Type{...}
+                if !self.no_struct_expr
+                    && self.matches(TokenKind::LBrace)
+                    && matches!(expr, Expr::Literal(ref t) if matches!(t.kind, TokenKind::IdentLit(_)))
+                {
+                    let Expr::Literal(ns_tok) = expr else { unreachable!() };
+                    expr = self.parse_struct_expr(Some(ns_tok), field)?;
+                    continue;
+                }
 
                 expr = Expr::Member(MemberNode {
                     expr: Box::new(expr),

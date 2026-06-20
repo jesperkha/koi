@@ -295,6 +295,10 @@ impl Visitor<()> for Printer {
     }
 
     fn visit_struct_expr(&mut self, node: &StructExpr) {
+        if let Some(ref ns) = node.namespace {
+            self.s += &ns.to_string();
+            self.s += ".";
+        }
         self.s += &node.name.to_string();
         self.s += "{";
         for (i, field) in node.fields.iter().enumerate() {

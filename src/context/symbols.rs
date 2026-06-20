@@ -50,6 +50,11 @@ impl SymbolInterner {
         id
     }
 
+    /// Update a symbol's TypeId in-place. Used after two-pass struct registration.
+    pub fn set_type(&mut self, id: SymbolId, ty: TypeId) {
+        self.symbols[id].ty = ty;
+    }
+
     /// Get a symbol by ID. Panics if the ID is invalid.
     /// Use this when you know the ID came from this interner.
     pub fn get(&self, id: SymbolId) -> &Symbol {

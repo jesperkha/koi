@@ -191,6 +191,7 @@ fn real_to_header(ctx: &Context, kind: &TypeKind) -> HeaderTypeKind {
             let ret = boxed_kind(ctx, func.ret);
             HeaderTypeKind::Function(params, ret)
         }
+        TypeKind::Struct(_) => todo!("struct header serialization"),
     }
 }
 

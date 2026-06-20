@@ -173,6 +173,11 @@ impl TypeInterner {
                     }
                     stack.push(func.ret);
                 }
+                TypeKind::Struct(s) => {
+                    for (_, tid) in &s.fields {
+                        stack.push(*tid);
+                    }
+                }
                 TypeKind::Primitive(p) => {
                     refs.insert(self.primitive(p.clone()));
                 }
@@ -190,6 +195,7 @@ impl TypeInterner {
             TypeKind::Pointer(inner) => format!("*{}", self.type_to_string(*inner)),
             TypeKind::Alias(id) => self.type_to_string(*id).to_string(),
             TypeKind::Unique(name, _) => name.into(),
+            TypeKind::Struct(s) => s.name.clone(),
             TypeKind::Function(f) => {
                 let params_str = f
                     .params
@@ -211,6 +217,7 @@ impl TypeInterner {
             TypeKind::Pointer(inner) => format!("Pointer<{}>", self.type_to_string(*inner)),
             TypeKind::Alias(id) => format!("Alias({})", self.type_to_string(*id)),
             TypeKind::Unique(name, id) => format!("Unique({name} {})", self.type_to_string(*id)),
+            TypeKind::Struct(s) => format!("Struct({})", s.name),
             TypeKind::Function(f) => {
                 let params_str = f
                     .params
@@ -222,6 +229,26 @@ impl TypeInterner {
                 let ret_str = self.type_to_string(f.ret);
                 format!("func ({}) {}", params_str, ret_str)
             }
+        }
+    }
+
+    /// Tests if two types are equal, with struct-aware structural comparison.
+    pub fn is_compatible(&self, a: TypeId, b: TypeId) -> bool {
+        let a = self.resolve(a);
+        let b = self.resolve(b);
+        if a == b {
+            return true;
+        }
+        match (&self.lookup(a).kind, &self.lookup(b).kind) {
+            (TypeKind::Struct(sa), TypeKind::Struct(sb)) => {
+                sa.fields.len() == sb.fields.len()
+                    && sa
+                        .fields
+                        .iter()
+                        .zip(sb.fields.iter())
+                        .all(|((na, ta), (nb, tb))| na == nb && self.is_compatible(*ta, *tb))
+            }
+            _ => false,
         }
     }
 

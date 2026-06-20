@@ -351,6 +351,7 @@ pub struct StructField {
 
 #[derive(Debug, Clone)]
 pub struct StructExpr {
+    pub namespace: Option<Token>,
     pub name: Token,
     pub lbrace: Token,
     pub fields: Vec<StructField>,
@@ -813,7 +814,7 @@ impl Node for StructDeclNode {
 
 impl Node for StructExpr {
     fn pos(&self) -> &Pos {
-        &self.name.pos
+        self.namespace.as_ref().map_or(&self.name.pos, |ns| &ns.pos)
     }
 
     fn end(&self) -> &Pos {

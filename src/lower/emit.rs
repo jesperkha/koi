@@ -445,6 +445,7 @@ impl<'a> FileEmitter<'a> {
             Expr::Binary(node) => self.binary_to_rval(ins, node),
             Expr::Unary(node) => self.unary_to_rval(ins, node),
             Expr::Cast(node) => self.cast_to_rval(ins, node),
+            Expr::StructLit(_) => todo!("struct literal IR lowering"),
         }
     }
 

@@ -1538,6 +1538,28 @@ fn test_struct_instance_error_missing_value() {
 }
 
 #[test]
+fn test_struct_instance_namespaced() {
+    assert_pass(
+        r#"
+        func f() {
+            p := foo.Point{x: 5}
+        }
+    "#,
+    );
+}
+
+#[test]
+fn test_struct_instance_namespaced_multifield() {
+    assert_pass(
+        r#"
+        func f() {
+            p := ns.Vec{x: 1, y: 2}
+        }
+    "#,
+    );
+}
+
+#[test]
 fn test_struct_field_access_in_expr() {
     assert_pass(
         r#"

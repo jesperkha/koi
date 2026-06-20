@@ -27,6 +27,14 @@ pub enum TypeKind {
     /// List of parameter types and a return
     /// type (void for no return)
     Function(FunctionType),
+
+    Struct(StructType),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct StructType {
+    pub name: String,
+    pub fields: Vec<(String, TypeId)>,
 }
 
 pub enum CastKind {
